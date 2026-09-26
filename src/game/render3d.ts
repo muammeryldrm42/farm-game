@@ -2730,15 +2730,15 @@ function buildPen(e: Entry, d: BuildingDef) {
       roofT(g, 0.62, 0.22, 0.58, d.roof, surfaceMat('boards', '#f3e6c8', 2), 0.45, 0.39, 0.45, 0.06);
       break;
     case 'beaver_pond': {
-      // a pond held back by a dam of sticks, with the beavers' domed lodge
-      cyl(g, 0.7, 0.75, 0.03, '#b8a070', 2.0, 0.02, 1.9, 16, false);
-      mk(g, cylGeo(0.64, 0.64, 16), WATER, 1, 0.03, 1, 2.0, 0.05, 1.9, false);
+      // a pond held back by a dam of stacked logs, with the beavers' domed lodge
+      cyl(g, 0.7, 0.75, 0.03, '#b8a070', 1.5, 0.02, 1.4, 16, false);
+      mk(g, cylGeo(0.64, 0.64, 16), WATER, 1, 0.03, 1, 1.5, 0.05, 1.4, false);
       const bark = surfaceMat('bark', '#7a5a3a', 4);
-      for (let i = 0; i < 9; i++) {
-        const lg = mk(g, cylGeo(0.03, 0.03, 8), bark, 1, 0.5 + hash(i, 1) * 0.3, 1, 1.3 + i * 0.1, 0.06 + (i % 3) * 0.04, 2.55 + (hash(i, 2) - 0.5) * 0.1);
-        lg.rotation.set(Math.PI / 2, 0, 0.4 + hash(i, 3) * 0.6);
+      for (let i = 0; i < 7; i++) {
+        const lg = mk(g, cylGeo(0.035, 0.035, 8), bark, 1, 0.5 + hash(i, 1) * 0.3, 1, 1.25 + (i % 3) * 0.25, 0.05 + Math.floor(i / 3) * 0.06, 2.12 + (hash(i, 2) - 0.5) * 0.06);
+        lg.rotation.set(0, (hash(i, 3) - 0.5) * 0.3, Math.PI / 2);
       }
-      mk(g, G.dome, surfaceMat('bark', '#6a4a2a', 3), 0.42, 0.32, 0.38, 2.1, 0.02, 1.7);
+      mk(g, G.dome, surfaceMat('bark', '#6a4a2a', 3), 0.36, 0.28, 0.32, 1.65, 0.02, 1.2);
       break;
     }
     case 'crane_marsh':
