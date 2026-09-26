@@ -2770,8 +2770,7 @@ function buildPen(e: Entry, d: BuildingDef) {
       // perch stands and a leaning palm
       for (const [x, z] of [[0.5, 1.4], [1.5, 0.6]]) {
         cyl(g, 0.02, 0.025, 0.55, '#8a5a2a', x, 0.02, z, 8);
-        const bar = cyl(g, 0.015, 0.015, 0.4, '#8a5a2a', x, 0.55, z, 8);
-        bar.rotation.z = Math.PI / 2;
+        bx(g, 0.4, 0.03, 0.03, '#8a5a2a', x, 0.55, z);
       }
       { const p = palmTree(g, '#4c9a38'); p.crown.position.set(0.4, 0, 0.4); p.crown.scale.setScalar(0.55); }
       break;
