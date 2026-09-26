@@ -9,6 +9,8 @@ import { makeWater } from './gfx/water';
 import { Foliage, type Spot } from './gfx/foliage';
 import { Post } from './gfx/post';
 import { PLANT_MAT, cropGeo } from './gfx/crops';
+import { creature, personParts } from './gfx/creatures';
+import { SCULPT_MAT, WOOL_MAT } from './gfx/sdf';
 import { meterBox, meterHip, meterRoof, surface, surfaceMat, type SurfaceKind } from './gfx/textures';
 import { ANIMAL, BUILDING, CROP, ITEMS, type BuildingDef, type CropDef } from './data';
 import {
@@ -699,6 +701,20 @@ export class Renderer {
         tw = modelMatrix * tw;
         vMapUv = tw.xz * 0.42;
         vNormalMapUv = tw.xz * 0.42;
+        vGW = tw.xz;
+      }`).replace('#include <common>', '#include <common>\nvarying vec2 vGW;');
+      // large soft patches of lusher and sun-bleached grass so the lawn never looks flat
+      sh.fragmentShader = sh.fragmentShader.replace('#include <common>', `#include <common>
+      varying vec2 vGW;
+      float gH(vec2 p) { return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453); }
+      float gN(vec2 p) { vec2 i = floor(p), f = fract(p); vec2 u = f * f * (3.0 - 2.0 * f);
+        return mix(mix(gH(i), gH(i + vec2(1, 0)), u.x), mix(gH(i + vec2(0, 1)), gH(i + vec2(1, 1)), u.x), u.y); }`)
+        .replace('#include <color_fragment>', `#include <color_fragment>
+      {
+        float n1 = gN(vGW * 0.16) * 0.65 + gN(vGW * 0.45 + 13.0) * 0.35;
+        float n2 = gN(vGW * 1.3 + 41.0);
+        vec3 tint = mix(vec3(0.86, 1.03, 0.8), vec3(1.1, 1.02, 0.78), smoothstep(0.35, 0.8, n1));
+        diffuseColor.rgb *= tint * (0.93 + n2 * 0.12);
       }`);
     };
     this.tiles = new THREE.InstancedMesh(G.box, grass, GRID * GRID);
@@ -1741,15 +1757,12 @@ export function buildFarmer(shirt = '#d64541', overall = '#3b6fa8', jeans = '#2f
   legPivot(g, 0.05, 0.3, 0, 0.28, 0.08, jeans, legs);
   legs.forEach((l) => ball(l, 0.05, '#5a3517', 0, -0.28, 0.025, 0.9, 0.6, 1.4));
   const body = group(g);
-  // shirt, then overalls with a bib and straps
-  caps(body, 0.105, 0.1, shirt, 0, 0.44, 0);
-  mk(body, cylGeo(0.112, 0.118, 16), M(overall), 1, 0.13, 1, 0, 0.345, 0);
-  mk(body, G.ball, M(overall), 0.112, 0.06, 0.118, 0, 0.28, 0);
-  bx(body, 0.12, 0.1, 0.03, overall, 0, 0.38, 0.09);
-  for (const sx of [-1, 1]) {
-    bx(body, 0.028, 0.14, 0.02, overall, sx * 0.05, 0.44, 0.095).rotation.x = -0.12;
-    ball(body, 0.012, '#f2d16b', sx * 0.05, 0.475, 0.11);
-  }
+  const pp = personParts(shirt, overall);
+  // sculpted shirt and overalls, with brass buttons on the straps
+  const torso = new THREE.Mesh(pp.torso, SCULPT_MAT);
+  torso.castShadow = torso.receiveShadow = true;
+  body.add(torso);
+  for (const sx of [-1, 1]) ball(body, 0.012, '#f2d16b', sx * 0.05, 0.495, 0.1);
   const arms: THREE.Object3D[] = [];
   for (const sx of [-1, 1]) {
     const a = group(body, sx * 0.13, 0.52, 0);
@@ -1759,11 +1772,10 @@ export function buildFarmer(shirt = '#d64541', overall = '#3b6fa8', jeans = '#2f
     arms.push(a);
   }
   const head = group(body, 0, 0.66, 0);
-  ball(head, 0.11, '#f2c49b', 0, 0, 0, 1, 0.98, 0.98);
-  ball(head, 0.022, '#e8a883', 0, -0.01, 0.105);
-  for (const sx of [-1, 1]) ball(head, 0.022, '#f0a0a0', sx * 0.06, -0.025, 0.085, 1, 0.7, 0.5);
-  eyes(head, 0.04, 0.02, 0.09, 0.018, false);
-  ball(head, 0.105, '#6b4020', 0, 0.02, -0.02, 1.02, 0.85, 1.0);
+  const hm = new THREE.Mesh(pp.head, SCULPT_MAT);
+  hm.castShadow = hm.receiveShadow = true;
+  head.add(hm);
+  eyes(head, 0.04, 0.02, 0.092, 0.018, false);
   // straw hat: wide brim, rounded crown, red band
   const hat = group(head, 0, 0.06, 0);
   mk(hat, cylGeo(0.2, 0.2, 24), M('#e8c35a'), 1, 0.018, 1, 0, 0.0, 0);
@@ -1779,27 +1791,10 @@ export function buildFarmer(shirt = '#d64541', overall = '#3b6fa8', jeans = '#2f
 }
 
 export function buildDog() {
-  const g = new THREE.Group();
-  const legs: THREE.Object3D[] = [];
-  for (const [x, z] of [[-0.045, 0.08], [0.045, 0.08], [-0.045, -0.08], [0.045, -0.08]]) legPivot(g, x, 0.13, z, 0.12, 0.04, '#b07a3f', legs, '#f1dcb8');
-  caps(g, 0.065, 0.13, '#b07a3f', 0, 0.16, 0, Math.PI / 2);
-  ball(g, 0.05, '#f1dcb8', 0, 0.14, 0.04, 1, 0.9, 1.3);
-  const head = group(g, 0, 0.24, 0.12);
-  ball(head, 0.068, '#b07a3f', 0, 0, 0);
-  ball(head, 0.04, '#f1dcb8', 0, -0.02, 0.055, 1, 0.8, 1.1);
-  ball(head, 0.016, '#1f140c', 0, -0.005, 0.098);
-  eyes(head, 0.028, 0.018, 0.055, 0.014, false);
-  for (const sx of [-1, 1]) {
-    const ear = ball(head, 0.035, '#7a4b26', sx * 0.06, 0.005, -0.005, 0.5, 1.2, 0.8);
-    ear.rotation.z = sx * 0.3;
-  }
-  const tail = group(g, 0, 0.19, -0.13);
-  caps(tail, 0.014, 0.08, '#b07a3f', 0, 0.05, 0);
+  const g = assemble('dog');
+  eyes(g.userData.head as THREE.Group, 0.028, 0.02, 0.055, 0.014, false);
+  const tail = g.userData.tail as THREE.Object3D;
   tail.rotation.x = -0.6;
-  g.userData.tail = tail;
-  g.userData.head = head;
-  g.userData.legs = legs;
-  g.userData.signs = [1, -1, -1, 1];
   return g;
 }
 
@@ -1820,142 +1815,70 @@ function buildAnimal(kind: string) {
   return g;
 }
 
-function animalBody(kind: string) {
+// Puts a sculpted creature together on pivots: legs swing from the hips, the head nods from
+// the neck and the tail swishes from its root.
+function assemble(kind: string) {
   const g = new THREE.Group();
+  const cp = creature(kind);
+  if (!cp) return g;
+  const add = (p: P, geo: THREE.BufferGeometry, mat: THREE.Material) => {
+    const m = new THREE.Mesh(geo, mat);
+    m.castShadow = true;
+    m.receiveShadow = true;
+    p.add(m);
+    return m;
+  };
+  add(g, cp.body, cp.wool ? WOOL_MAT : SCULPT_MAT);
+  const legs: THREE.Object3D[] = [];
+  for (const [x, z] of cp.legs) {
+    const pv = group(g, x, cp.legLen, z);
+    if (cp.leg) add(pv, cp.leg, SCULPT_MAT);
+    legs.push(pv);
+  }
+  const head = group(g, ...cp.headAt);
+  add(head, cp.head, SCULPT_MAT);
+  g.userData.legs = legs;
+  g.userData.signs = legs.length === 4 ? [1, -1, -1, 1] : [1, -1];
+  g.userData.head = head;
+  if (cp.tail) {
+    const tail = group(g, ...cp.tailAt);
+    add(tail, cp.tail, SCULPT_MAT);
+    g.userData.tail = tail;
+  }
+  return g;
+}
+
+function animalBody(kind: string) {
+  const g = assemble(kind);
+  const head = g.userData.head as THREE.Group | undefined;
+  if (!head) return g;
   switch (kind) {
-    case 'chicken': {
-      const legs: THREE.Object3D[] = [];
-      legPivot(g, -0.03, 0.08, 0, 0.08, 0.018, '#f0a030', legs);
-      legPivot(g, 0.03, 0.08, 0, 0.08, 0.018, '#f0a030', legs);
-      legs.forEach((l) => ball(l, 0.022, '#f0a030', 0, -0.08, 0.012, 1, 0.3, 1.3));
-      ball(g, 0.1, '#ffffff', 0, 0.16, 0, 0.9, 0.85, 1.1);
-      const tail = ball(g, 0.055, '#f4f1ea', 0, 0.21, -0.09, 0.55, 1.2, 0.7);
-      tail.rotation.x = -0.5;
-      for (const sx of [-1, 1]) ball(g, 0.06, '#f2f0ea', sx * 0.08, 0.16, -0.005, 0.35, 0.7, 1.1);
-      const head = group(g, 0, 0.23, 0.06);
-      ball(head, 0.058, '#ffffff', 0, 0.02, 0.02);
-      mk(head, cylGeo(0, 0.018, 8), M('#f0a030'), 1, 0.045, 1, 0, 0.015, 0.085).rotation.x = Math.PI / 2;
-      for (let i = 0; i < 3; i++) ball(head, 0.018, '#e0312b', 0, 0.075 + (i === 1 ? 0.01 : 0), -0.01 + i * 0.022);
-      ball(head, 0.015, '#e0312b', 0, -0.015, 0.065, 0.8, 1.3, 0.8);
-      eyes(head, 0.035, 0.03, 0.055, 0.012, false);
-      g.userData.legs = legs; g.userData.signs = [1, -1];
-      g.userData.head = head; g.userData.peck = true;
-      return g;
-    }
-    case 'cow': {
-      fourLegs(g, 0.14, 0.24, 0.18, 0.06, '#ffffff', '#4a3a30');
-      caps(g, 0.12, 0.2, '#ffffff', 0, 0.29, 0, Math.PI / 2);
-      for (const [x, y, z, r] of [[0.1, 0.32, 0.05, 0.07], [-0.1, 0.29, -0.08, 0.06], [0.08, 0.26, -0.13, 0.045], [-0.07, 0.36, 0.1, 0.05], [0, 0.4, -0.05, 0.06]]) {
-        ball(g, r, '#2b2b2b', x, y, z, Math.abs(x) > 0.05 ? 0.45 : 1, Math.abs(x) > 0.05 ? 1 : 0.35, 1);
-      }
-      ball(g, 0.045, '#f2a7b5', 0, 0.18, -0.06, 1, 0.7, 1);
-      const tail = group(g, 0, 0.36, -0.21);
-      caps(tail, 0.012, 0.14, '#ffffff', 0, -0.08, 0);
-      ball(tail, 0.025, '#2b2b2b', 0, -0.17, 0, 0.9, 1.4, 0.9);
-      tail.rotation.x = 0.35;
-      const head = group(g, 0, 0.37, 0.21);
-      ball(head, 0.1, '#ffffff', 0, 0.01, 0, 0.9, 0.92, 1.05);
-      ball(head, 0.068, '#f2a7b5', 0, -0.035, 0.075, 1.1, 0.8, 0.8);
-      for (const sx of [-1, 1]) ball(head, 0.013, '#9a5a66', sx * 0.028, -0.03, 0.13);
-      ball(head, 0.05, '#2b2b2b', 0.05, 0.05, 0.02, 0.8, 0.7, 1);
-      eyes(head, 0.05, 0.035, 0.07, 0.018);
-      for (const sx of [-1, 1]) {
-        ball(head, 0.045, '#f5f5f5', sx * 0.105, 0.035, -0.02, 1.2, 0.45, 0.7).rotation.z = sx * -0.3;
-        mk(head, cylGeo(0.006, 0.018, 8), M('#efe3c2'), 1, 0.06, 1, sx * 0.055, 0.1, -0.02).rotation.z = sx * -0.5;
-      }
-      g.userData.head = head; g.userData.tail = tail;
-      return g;
-    }
+    case 'cow': eyes(head, 0.05, 0.035, 0.075, 0.018); break;
     case 'pig': {
-      fourLegs(g, 0.12, 0.17, 0.1, 0.055, '#f0a0b0', '#c97b8b');
-      ball(g, 0.15, '#f4a9b8', 0, 0.2, 0, 0.85, 0.8, 1.1);
-      const tail = group(g, 0, 0.23, -0.16);
-      const curl = new THREE.Mesh(new THREE.TorusGeometry(0.022, 0.007, 6, 14, Math.PI * 1.7), M('#f0a0b0'));
+      eyes(head, 0.045, 0.03, 0.078, 0.016);
+      const tail = group(g, 0, 0.23, -0.165);
+      const curl = new THREE.Mesh(new THREE.TorusGeometry(0.022, 0.008, 8, 16, Math.PI * 1.7), M('#f0a0b0'));
       curl.rotation.y = Math.PI / 2;
       tail.add(curl);
-      const head = group(g, 0, 0.24, 0.15);
-      ball(head, 0.1, '#f4a9b8', 0, 0, 0, 1, 0.95, 0.95);
-      mk(head, cylGeo(0.045, 0.048, 16), M('#f08ea2'), 1, 0.045, 1, 0, -0.015, 0.1).rotation.x = Math.PI / 2;
-      for (const sx of [-1, 1]) ball(head, 0.01, '#9a4a5a', sx * 0.018, -0.015, 0.124, 1, 1.3, 0.5);
-      eyes(head, 0.045, 0.03, 0.08, 0.016);
-      for (const sx of [-1, 1]) {
-        const ear = mk(head, cylGeo(0, 0.04, 10), M('#f08ea2'), 1, 0.07, 1, sx * 0.06, 0.08, 0.01);
-        ear.rotation.set(0.5, 0, sx * -0.4);
-        ear.scale.z = 0.4;
-      }
-      g.userData.head = head; g.userData.tail = tail;
-      return g;
+      g.userData.tail = tail;
+      break;
     }
-    case 'sheep': {
-      fourLegs(g, 0.1, 0.15, 0.13, 0.04, '#3a3a3a', '#222222');
-      mk(g, blobGeo(5), M('#f7f3ea'), 0.17, 0.14, 0.2, 0, 0.25, 0);
-      mk(g, blobGeo(6), M('#fbf8f1'), 0.1, 0.08, 0.12, 0, 0.35, -0.02);
-      const head = group(g, 0, 0.29, 0.18);
-      ball(head, 0.068, '#3a3a3a', 0, 0, 0.02, 0.8, 0.9, 1.15);
-      mk(head, blobGeo(7), M('#fbf8f1'), 0.06, 0.04, 0.05, 0, 0.055, 0);
-      eyes(head, 0.032, 0.015, 0.07, 0.015);
-      for (const sx of [-1, 1]) ball(head, 0.035, '#3a3a3a', sx * 0.07, 0.01, -0.01, 1.2, 0.4, 0.6).rotation.z = sx * -0.35;
-      g.userData.head = head;
-      return g;
-    }
-    case 'duck': {
-      ball(g, 0.09, '#ffffff', 0, 0.065, 0, 0.9, 0.7, 1.25);
-      const tail = ball(g, 0.04, '#f4f4f4', 0, 0.1, -0.1, 0.8, 0.6, 1);
-      tail.rotation.x = -0.6;
-      for (const sx of [-1, 1]) ball(g, 0.055, '#eeeeee', sx * 0.07, 0.08, -0.01, 0.35, 0.6, 1.1);
-      const head = group(g, 0, 0.16, 0.08);
-      ball(head, 0.055, '#2e7d4a', 0, 0.01, 0);
-      ball(head, 0.035, '#f0a030', 0, -0.005, 0.06, 0.9, 0.35, 1.2);
-      mk(head, cylGeo(0.05, 0.05, 16), M('#ffffff'), 1, 0.012, 1, 0, -0.045, 0);
-      eyes(head, 0.035, 0.02, 0.035, 0.011, false);
-      g.userData.legs = []; g.userData.signs = [];
-      g.userData.head = head;
-      return g;
-    }
-    case 'goat': {
-      fourLegs(g, 0.1, 0.18, 0.16, 0.04, '#e6dfd1', '#6b5a4a');
-      caps(g, 0.085, 0.14, '#ece6da', 0, 0.26, 0, Math.PI / 2);
-      const tail = group(g, 0, 0.3, -0.15);
-      caps(tail, 0.014, 0.04, '#ece6da', 0, 0.02, 0);
-      tail.rotation.x = -0.8;
-      const head = group(g, 0, 0.34, 0.16);
-      ball(head, 0.065, '#ece6da', 0, 0, 0.02, 0.85, 0.9, 1.25);
-      ball(head, 0.012, '#6b5a4a', 0, -0.02, 0.1);
-      mk(head, cylGeo(0.02, 0.004, 8), M('#d8d0c0'), 1, 0.06, 1, 0, -0.07, 0.05);
+    case 'sheep': eyes(head, 0.032, 0.012, 0.085, 0.015); break;
+    case 'goat':
       eyes(head, 0.035, 0.015, 0.065, 0.014);
       for (const sx of [-1, 1]) {
-        const horn = new THREE.Mesh(new THREE.TorusGeometry(0.045, 0.011, 6, 12, Math.PI * 0.9), M('#8a8f96'));
+        const horn = new THREE.Mesh(new THREE.TorusGeometry(0.045, 0.011, 8, 14, Math.PI * 0.9), M('#8a8f96'));
         horn.position.set(sx * 0.025, 0.035, -0.035);
         horn.rotation.set(0, Math.PI / 2, 0);
         horn.castShadow = true;
         head.add(horn);
-        ball(head, 0.03, '#ddd5c4', sx * 0.07, 0.005, 0, 1.3, 0.45, 0.7).rotation.z = sx * 0.3;
       }
-      g.userData.head = head; g.userData.tail = tail;
-      return g;
-    }
-    case 'horse': {
-      fourLegs(g, 0.12, 0.3, 0.3, 0.05, '#8a5a2b', '#2a1d14');
-      caps(g, 0.1, 0.26, '#8a5a2b', 0, 0.39, 0, Math.PI / 2);
-      caps(g, 0.058, 0.14, '#8a5a2b', 0, 0.52, 0.17, 0.55);
-      const mane = caps(g, 0.022, 0.18, '#3a2616', 0, 0.56, 0.13, 0.55);
-      mane.scale.set(1, 1, 1.4);
-      const tail = group(g, 0, 0.46, -0.24);
-      caps(tail, 0.028, 0.18, '#3a2616', 0, -0.1, 0);
-      tail.rotation.x = 0.4;
-      const head = group(g, 0, 0.6, 0.25);
-      caps(head, 0.052, 0.1, '#8a5a2b', 0, -0.02, 0.04, 1.2);
-      ball(head, 0.045, '#6b4424', 0, -0.05, 0.12, 1, 0.9, 1);
-      for (const sx of [-1, 1]) ball(head, 0.009, '#1a1a1a', sx * 0.02, -0.05, 0.16);
-      eyes(head, 0.045, 0.02, 0.03, 0.014);
-      for (const sx of [-1, 1]) mk(head, cylGeo(0, 0.018, 8), M('#6b4424'), 1, 0.06, 1, sx * 0.03, 0.06, -0.02);
-      caps(head, 0.02, 0.04, '#3a2616', 0, 0.05, 0.03, 0.4);
-      g.userData.head = head; g.userData.tail = tail;
-      return g;
-    }
-    default:
-      return g;
+      break;
+    case 'horse': eyes(head, 0.046, 0.015, 0.035, 0.014); break;
+    case 'chicken': eyes(head, 0.035, 0.03, 0.058, 0.012, false); g.userData.peck = true; break;
+    case 'duck': eyes(head, 0.035, 0.02, 0.037, 0.011, false); break;
   }
+  return g;
 }
 
 function buildHive() {

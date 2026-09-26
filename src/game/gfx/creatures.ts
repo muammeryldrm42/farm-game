@@ -1,0 +1,223 @@
+// Sculpted animal parts. Each creature is a body, a head, a leg and a tail, each one smooth
+// SDF mesh with its coat painted into vertex colors. The renderer assembles them on pivots so
+// heads can graze, legs can walk and tails can swish. Built once per kind and cached.
+import * as THREE from 'three';
+import { Sculpt, capsule, ellipsoid, noise3, sphere } from './sdf';
+
+export interface CreatureParts {
+  body: THREE.BufferGeometry;
+  head: THREE.BufferGeometry;
+  headAt: [number, number, number];
+  leg: THREE.BufferGeometry | null;
+  legs: [number, number][]; // x, z of each hip
+  legLen: number;
+  tail: THREE.BufferGeometry | null;
+  tailAt: [number, number, number];
+  wool?: boolean;
+}
+
+const C = 0.0065; // voxel size used for sculpting
+
+function leg(len: number, th: number, color: string, hoof: string, hoofH = 0.04) {
+  return new Sculpt()
+    .add(capsule(0, 0.01, 0, 0, -len + th * 0.5, 0.004, th * 0.55, th * 0.46), (_x, y) => (y < -len + hoofH ? hoof : color))
+    .add(ellipsoid(0, -len + hoofH * 0.45, 0.006, th * 0.5, hoofH * 0.55, th * 0.58), hoof, 0.012)
+    .build([-th, -len - 0.01, -th], [th, 0.03, th + 0.02], C * 0.75);
+}
+
+const cowCoat = (x: number, y: number, z: number) => (noise3(x * 11 + 3, y * 11, z * 11) > 0.6 ? '#2b2b2b' : '#ffffff');
+
+function cow(): CreatureParts {
+  const body = new Sculpt()
+    .add(ellipsoid(0, 0.29, 0, 0.125, 0.125, 0.2), cowCoat)
+    .add(sphere(0, 0.3, -0.12, 0.118), cowCoat, 0.06)
+    .add(sphere(0, 0.3, 0.12, 0.112), cowCoat, 0.06)
+    .add(capsule(0, 0.31, 0.14, 0, 0.35, 0.2, 0.075, 0.065), cowCoat, 0.05)
+    .add(ellipsoid(0, 0.18, -0.07, 0.05, 0.035, 0.05), '#f2b3bd', 0.03)
+    .build([-0.16, 0.12, -0.26], [0.16, 0.45, 0.28], C);
+  const head = new Sculpt()
+    .add(ellipsoid(0, 0.015, 0.0, 0.085, 0.09, 0.1), (x, y, z) => (noise3(x * 13 + 9, y * 13, z * 13) > 0.62 ? '#2b2b2b' : '#ffffff'))
+    .add(ellipsoid(0, -0.035, 0.08, 0.075, 0.055, 0.06), '#f2b3bd', 0.04)
+    .carve(sphere(0.025, -0.03, 0.14, 0.012))
+    .carve(sphere(-0.025, -0.03, 0.14, 0.012))
+    .add(ellipsoid(0.105, 0.035, -0.02, 0.05, 0.016, 0.03), '#f5f5f5', 0.015)
+    .add(ellipsoid(-0.105, 0.035, -0.02, 0.05, 0.016, 0.03), '#f5f5f5', 0.015)
+    .add(capsule(0.045, 0.08, -0.01, 0.075, 0.12, -0.02, 0.014, 0.006), '#efe3c2', 0.01)
+    .add(capsule(-0.045, 0.08, -0.01, -0.075, 0.12, -0.02, 0.014, 0.006), '#efe3c2', 0.01)
+    .build([-0.17, -0.1, -0.12], [0.17, 0.14, 0.15], C * 0.7);
+  const tail = new Sculpt()
+    .add(capsule(0, 0, 0, 0, -0.15, 0.01, 0.013, 0.01), '#ffffff')
+    .add(ellipsoid(0, -0.17, 0.01, 0.022, 0.035, 0.022), '#2b2b2b', 0.015)
+    .build([-0.04, -0.22, -0.04], [0.04, 0.02, 0.05], C * 0.6);
+  return { body, head, headAt: [0, 0.37, 0.21], leg: leg(0.18, 0.062, '#ffffff', '#4a3a30'), legs: [[-0.07, 0.12], [0.07, 0.12], [-0.07, -0.12], [0.07, -0.12]], legLen: 0.18, tail, tailAt: [0, 0.37, -0.21] };
+}
+
+function pig(): CreatureParts {
+  const pink = '#f4a9b8';
+  const body = new Sculpt()
+    .add(ellipsoid(0, 0.2, 0, 0.13, 0.12, 0.17), pink)
+    .add(sphere(0, 0.21, 0.1, 0.1), pink, 0.06)
+    .build([-0.15, 0.06, -0.2], [0.15, 0.34, 0.22], C);
+  const head = new Sculpt()
+    .add(sphere(0, 0, 0, 0.095), pink)
+    .add(ellipsoid(0.055, -0.03, 0.055, 0.035, 0.025, 0.03), '#f7b8c4', 0.03)
+    .add(ellipsoid(-0.055, -0.03, 0.055, 0.035, 0.025, 0.03), '#f7b8c4', 0.03)
+    .add(capsule(0, -0.015, 0.07, 0, -0.015, 0.115, 0.045, 0.047), '#f08ea2', 0.02)
+    .carve(ellipsoid(0.017, -0.015, 0.165, 0.009, 0.013, 0.012))
+    .carve(ellipsoid(-0.017, -0.015, 0.165, 0.009, 0.013, 0.012))
+    .add(ellipsoid(0.062, 0.08, 0.02, 0.035, 0.045, 0.013), '#f08ea2', 0.012)
+    .add(ellipsoid(-0.062, 0.08, 0.02, 0.035, 0.045, 0.013), '#f08ea2', 0.012)
+    .build([-0.12, -0.11, -0.11], [0.12, 0.14, 0.18], C * 0.7);
+  return { body, head, headAt: [0, 0.24, 0.15], leg: leg(0.1, 0.058, '#f0a0b0', '#c97b8b', 0.03), legs: [[-0.065, 0.085], [0.065, 0.085], [-0.065, -0.085], [0.065, -0.085]], legLen: 0.1, tail: null, tailAt: [0, 0.23, -0.16] };
+}
+
+function sheep(): CreatureParts {
+  const wool = (x: number, y: number, z: number) => (noise3(x * 30, y * 30, z * 30) > 0.72 ? '#ece6d8' : '#faf7ef');
+  const body = new Sculpt()
+    .add(ellipsoid(0, 0.25, 0, 0.16, 0.13, 0.2), wool)
+    .add(sphere(0, 0.3, -0.03, 0.12), wool, 0.06)
+    .displace((x, y, z) => Math.pow(noise3(x * 38, y * 38, z * 38), 1.5) * 0.028)
+    .build([-0.2, 0.08, -0.25], [0.2, 0.45, 0.25], C);
+  const head = new Sculpt()
+    .add(ellipsoid(0, -0.01, 0.03, 0.052, 0.062, 0.08), '#3a3a3a')
+    .add(sphere(0, 0.045, 0.0, 0.055), '#faf7ef', 0.02)
+    .add(ellipsoid(0.065, 0.005, -0.005, 0.04, 0.014, 0.022), '#3a3a3a', 0.01)
+    .add(ellipsoid(-0.065, 0.005, -0.005, 0.04, 0.014, 0.022), '#3a3a3a', 0.01)
+    .displace((x, y, z) => (y > 0.03 ? Math.pow(noise3(x * 45, y * 45, z * 45), 1.5) * 0.018 * Math.min(1, (y - 0.03) / 0.03) : 0))
+    .build([-0.12, -0.09, -0.08], [0.12, 0.13, 0.13], C * 0.7);
+  return { body, head, headAt: [0, 0.29, 0.18], leg: leg(0.13, 0.04, '#3a3a3a', '#222222', 0.025), legs: [[-0.05, 0.075], [0.05, 0.075], [-0.05, -0.075], [0.05, -0.075]], legLen: 0.13, tail: null, tailAt: [0, 0, 0], wool: true };
+}
+
+function goat(): CreatureParts {
+  const c = '#ece6da';
+  const body = new Sculpt()
+    .add(ellipsoid(0, 0.27, 0, 0.085, 0.09, 0.16), c)
+    .add(sphere(0, 0.28, 0.09, 0.08), c, 0.05)
+    .add(capsule(0, 0.29, 0.1, 0, 0.34, 0.16, 0.05, 0.042), c, 0.04)
+    .build([-0.11, 0.15, -0.2], [0.11, 0.4, 0.22], C);
+  const head = new Sculpt()
+    .add(ellipsoid(0, 0.0, 0.02, 0.05, 0.058, 0.065), c)
+    .add(capsule(0, -0.01, 0.05, 0, -0.03, 0.105, 0.036, 0.028), c, 0.03)
+    .add(sphere(0, -0.028, 0.13, 0.012), '#6b5a4a', 0.01)
+    .add(capsule(0, -0.055, 0.08, 0, -0.105, 0.07, 0.013, 0.004), '#d8d0c0', 0.012)
+    .add(ellipsoid(0.07, 0.005, 0, 0.04, 0.014, 0.022), '#ddd5c4', 0.01)
+    .add(ellipsoid(-0.07, 0.005, 0, 0.04, 0.014, 0.022), '#ddd5c4', 0.01)
+    .build([-0.12, -0.12, -0.06], [0.12, 0.08, 0.16], C * 0.7);
+  const tail = new Sculpt().add(capsule(0, 0, 0, 0, 0.05, -0.01, 0.014, 0.008), c).build([-0.03, -0.02, -0.04], [0.03, 0.07, 0.02], C * 0.6);
+  return { body, head, headAt: [0, 0.34, 0.16], leg: leg(0.16, 0.042, '#e6dfd1', '#6b5a4a', 0.03), legs: [[-0.05, 0.09], [0.05, 0.09], [-0.05, -0.09], [0.05, -0.09]], legLen: 0.16, tail, tailAt: [0, 0.3, -0.15] };
+}
+
+function horse(): CreatureParts {
+  const c = '#8a5a2b', hair = '#3a2616';
+  const body = new Sculpt()
+    .add(ellipsoid(0, 0.39, 0, 0.1, 0.11, 0.22), c)
+    .add(sphere(0, 0.4, 0.13, 0.1), c, 0.06)
+    .add(sphere(0, 0.41, -0.13, 0.1), c, 0.06)
+    .add(capsule(0, 0.43, 0.15, 0, 0.58, 0.25, 0.062, 0.045), c, 0.05)
+    .add(capsule(0, 0.49, 0.13, 0, 0.63, 0.22, 0.024, 0.02), hair, 0.02)
+    .build([-0.13, 0.26, -0.26], [0.13, 0.68, 0.32], C);
+  const head = new Sculpt()
+    .add(capsule(0, 0.0, 0, 0, -0.05, 0.13, 0.05, 0.042), c)
+    .add(sphere(0, -0.055, 0.14, 0.045), '#6b4424', 0.03)
+    .carve(sphere(0.02, -0.05, 0.185, 0.009))
+    .carve(sphere(-0.02, -0.05, 0.185, 0.009))
+    .add(capsule(0.03, 0.03, -0.01, 0.035, 0.085, -0.02, 0.013, 0.004), c, 0.01)
+    .add(capsule(-0.03, 0.03, -0.01, -0.035, 0.085, -0.02, 0.013, 0.004), c, 0.01)
+    .add(capsule(0, 0.05, -0.01, 0, 0.03, 0.05, 0.02, 0.012), hair, 0.01)
+    .build([-0.07, -0.11, -0.06], [0.07, 0.1, 0.2], C * 0.7);
+  const tail = new Sculpt()
+    .add(capsule(0, 0, 0, 0, -0.2, -0.04, 0.03, 0.018), hair)
+    .displace((x, y, z) => noise3(x * 60, y * 25, z * 60) * 0.008)
+    .build([-0.05, -0.24, -0.08], [0.05, 0.04, 0.04], C * 0.6);
+  return { body, head, headAt: [0, 0.6, 0.25], leg: leg(0.3, 0.052, c, '#2a1d14', 0.045), legs: [[-0.06, 0.15], [0.06, 0.15], [-0.06, -0.15], [0.06, -0.15]], legLen: 0.3, tail, tailAt: [0, 0.46, -0.24] };
+}
+
+function chicken(): CreatureParts {
+  const body = new Sculpt()
+    .add(ellipsoid(0, 0.16, 0, 0.088, 0.085, 0.108), '#ffffff')
+    .add(ellipsoid(0, 0.22, -0.085, 0.035, 0.07, 0.035), '#f4f1ea', 0.04)
+    .add(ellipsoid(0.078, 0.165, -0.005, 0.028, 0.058, 0.085), (_x, y) => (y < 0.13 ? '#e9e5dc' : '#f7f5f0'), 0.012)
+    .add(ellipsoid(-0.078, 0.165, -0.005, 0.028, 0.058, 0.085), (_x, y) => (y < 0.13 ? '#e9e5dc' : '#f7f5f0'), 0.012)
+    .build([-0.12, 0.06, -0.14], [0.12, 0.3, 0.13], C * 0.7);
+  const head = new Sculpt()
+    .add(sphere(0, 0.02, 0.02, 0.056), '#ffffff')
+    .add(capsule(0, 0.018, 0.06, 0, 0.012, 0.105, 0.02, 0.002), '#f0a030', 0.006)
+    .add(sphere(0, 0.078, 0.0, 0.02), '#e0312b', 0.012)
+    .add(sphere(0, 0.088, 0.022, 0.022), '#e0312b', 0.012)
+    .add(sphere(0, 0.078, 0.044, 0.018), '#e0312b', 0.012)
+    .add(ellipsoid(0, -0.018, 0.068, 0.012, 0.02, 0.01), '#e0312b', 0.01)
+    .build([-0.07, -0.06, -0.05], [0.07, 0.12, 0.12], C * 0.55);
+  return { body, head, headAt: [0, 0.23, 0.06], leg: leg(0.08, 0.018, '#f0a030', '#f0a030', 0.01), legs: [[-0.03, 0], [0.03, 0]], legLen: 0.08, tail: null, tailAt: [0, 0, 0] };
+}
+
+function duck(): CreatureParts {
+  const body = new Sculpt()
+    .add(ellipsoid(0, 0.065, 0, 0.08, 0.062, 0.115), '#ffffff')
+    .add(ellipsoid(0, 0.1, -0.1, 0.04, 0.03, 0.05), '#f4f4f4', 0.03)
+    .add(ellipsoid(0.065, 0.08, -0.01, 0.022, 0.04, 0.08), '#ececec', 0.012)
+    .add(ellipsoid(-0.065, 0.08, -0.01, 0.022, 0.04, 0.08), '#ececec', 0.012)
+    .build([-0.1, -0.01, -0.16], [0.1, 0.15, 0.13], C * 0.7);
+  const head = new Sculpt()
+    .add(sphere(0, 0.012, 0, 0.052), (_x, y) => (y < -0.03 ? '#ffffff' : '#2e7d4a'))
+    .add(ellipsoid(0, -0.005, 0.062, 0.03, 0.012, 0.045), '#f0a030', 0.012)
+    .build([-0.07, -0.06, -0.06], [0.07, 0.08, 0.12], C * 0.55);
+  return { body, head, headAt: [0, 0.15, 0.08], leg: null, legs: [], legLen: 0, tail: null, tailAt: [0, 0, 0] };
+}
+
+export function dogParts(): CreatureParts {
+  const c = '#b07a3f', cream = '#f1dcb8';
+  const body = new Sculpt()
+    .add(ellipsoid(0, 0.16, 0, 0.06, 0.066, 0.12), (_x, y, z) => (y < 0.14 && z > -0.02 ? cream : c))
+    .add(sphere(0, 0.17, 0.07, 0.065), (_x, y) => (y < 0.16 ? cream : c), 0.04)
+    .add(capsule(0, 0.18, 0.08, 0, 0.23, 0.12, 0.045, 0.04), c, 0.04)
+    .build([-0.09, 0.07, -0.15], [0.09, 0.28, 0.16], C * 0.7);
+  const head = new Sculpt()
+    .add(sphere(0, 0.005, 0, 0.064), c)
+    .add(capsule(0, -0.015, 0.035, 0, -0.025, 0.09, 0.036, 0.03), cream, 0.03)
+    .add(sphere(0, -0.012, 0.118, 0.016), '#1f140c', 0.006)
+    .add(ellipsoid(0.062, -0.005, -0.01, 0.02, 0.052, 0.034), '#7a4b26', 0.012)
+    .add(ellipsoid(-0.062, -0.005, -0.01, 0.02, 0.052, 0.034), '#7a4b26', 0.012)
+    .build([-0.1, -0.08, -0.08], [0.1, 0.09, 0.15], C * 0.55);
+  const tail = new Sculpt().add(capsule(0, 0, 0, 0, 0.09, 0, 0.015, 0.008), c).build([-0.03, -0.02, -0.03], [0.03, 0.11, 0.03], C * 0.5);
+  return { body, head, headAt: [0, 0.24, 0.12], leg: leg(0.13, 0.04, c, cream, 0.03), legs: [[-0.042, 0.08], [0.042, 0.08], [-0.042, -0.08], [0.042, -0.08]], legLen: 0.13, tail, tailAt: [0, 0.19, -0.12] };
+}
+
+const makers: Record<string, () => CreatureParts> = { cow, pig, sheep, goat, horse, chicken, duck, dog: dogParts };
+const cache = new Map<string, CreatureParts>();
+
+export function creature(kind: string) {
+  let c = cache.get(kind);
+  if (!c && makers[kind]) { c = makers[kind](); cache.set(kind, c); }
+  return c ?? null;
+}
+
+// the farmer's head and torso, sculpted so the face, ears, hair and overalls read as one piece
+const people = new Map<string, { head: THREE.BufferGeometry; torso: THREE.BufferGeometry }>();
+export function personParts(shirt: string, overall: string) {
+  const key = `${shirt}|${overall}`;
+  let p = people.get(key);
+  if (p) return p;
+  const skin = '#f2c49b';
+  const face = (x: number, y: number, z: number) => (z > 0.06 && Math.abs(x) > 0.045 && y < -0.005 && y > -0.05 ? '#f0a8a0' : skin);
+  const head = new Sculpt()
+    .add(ellipsoid(0, 0, 0, 0.11, 0.108, 0.106), face)
+    .add(ellipsoid(0, -0.012, 0.104, 0.022, 0.02, 0.02), '#e8a883', 0.012)
+    .add(ellipsoid(0.108, -0.005, 0, 0.018, 0.03, 0.022), skin, 0.01)
+    .add(ellipsoid(-0.108, -0.005, 0, 0.018, 0.03, 0.022), skin, 0.01)
+    .add(ellipsoid(0, 0.028, -0.018, 0.114, 0.094, 0.106), '#6b4020', 0.01)
+    .add(ellipsoid(0.03, 0.058, 0.07, 0.05, 0.022, 0.035), '#6b4020', 0.02)
+    .carve(ellipsoid(0, -0.052, 0.09, 0.026, 0.006, 0.02), 0.004)
+    .build([-0.14, -0.13, -0.14], [0.14, 0.14, 0.14], 0.005);
+  const torso = new Sculpt()
+    .add(capsule(0, 0.39, 0, 0, 0.49, 0, 0.105, 0.1), (x, y, z) => {
+      if (y < 0.415) return overall;
+      if (z > 0.05 && Math.abs(x) < 0.062 && y < 0.5) return overall;
+      if (z > 0 && Math.abs(Math.abs(x) - 0.05) < 0.013 && y < 0.56) return overall;
+      return shirt;
+    })
+    .add(ellipsoid(0, 0.31, 0, 0.112, 0.07, 0.115), overall, 0.03)
+    .build([-0.13, 0.22, -0.13], [0.13, 0.62, 0.13], 0.006);
+  p = { head, torso };
+  people.set(key, p);
+  return p;
+}
