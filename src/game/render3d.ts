@@ -1985,6 +1985,28 @@ function realEyes(head: THREE.Object3D, spec: [number, number, number, number, n
   head.userData.eyes = list;
 }
 
+// Cartoon eyes: a big white eye with a dark pupil looking forward and two catch lights, and a
+// soft lid on top in the coat color.
+const EYE_PUPIL = new THREE.MeshStandardMaterial({ color: '#1a120c', roughness: 0.08 });
+const EYE_GLOSS = new THREE.MeshBasicMaterial({ color: '#ffffff' });
+function toonEyes(head: THREE.Object3D, spec: [number, number, number, number, number], lid: string) {
+  const [x, y, z, r, yaw] = spec;
+  const list: THREE.Object3D[] = [];
+  for (const sx of [-1, 1]) {
+    const e = group(head, sx * x, y, z);
+    e.rotation.y = sx * yaw;
+    mk(e, G.ball, EYE_W, r, r * 1.12, r * 0.8, 0, 0, 0, false);
+    mk(e, G.ball, EYE_PUPIL, r * 0.58, r * 0.7, r * 0.4, -sx * r * 0.12, -r * 0.05, r * 0.52, false);
+    mk(e, G.ball, EYE_GLOSS, r * 0.2, r * 0.2, r * 0.1, sx * r * 0.1, r * 0.3, r * 0.86, false);
+    mk(e, G.ball, EYE_GLOSS, r * 0.09, r * 0.09, r * 0.05, -sx * r * 0.28, -r * 0.3, r * 0.84, false);
+    // a thin lid line over the top of the eye
+    const lidm = mk(e, torus(1, 0.1, 6, 20, Math.PI), M(lid), r * 1.02, r * 1.1, r * 0.8, 0, 0, r * 0.12, false);
+    lidm.rotation.z = 0;
+    list.push(e);
+  }
+  head.userData.eyes = list;
+}
+
 const LID: Record<string, string> = {
   cow: '#e9e3d8', sheep: '#1f1b19', goat: '#e3dccd', horse: '#6a3e22', chicken: '#c9642c',
   duck: '#1a4a2e', rabbit: '#8a7058', alpaca: '#c9b08c', goose: '#e8a33a', dog: '#7a4b26',
@@ -1997,7 +2019,21 @@ function animalBody(kind: string) {
   const head = g.userData.head as THREE.Group | undefined;
   if (!head) return g;
   const cp = creature(kind);
-  if (cp?.eye) realEyes(head, cp.eye, LID[kind] ?? '#3a2a20');
+  if (cp?.eye && cp.toon) toonEyes(head, cp.eye, '#3a2e28');
+  else if (cp?.eye) realEyes(head, cp.eye, LID[kind] ?? '#3a2a20');
+  if (cp?.bell) {
+    // leather collar with a brass bell
+    const [bx, by, bz, br] = cp.bell;
+    const collar = new THREE.Mesh(torus(br, br * 0.16, 8, 28), M('#c0392b'));
+    collar.position.set(bx, by, bz);
+    collar.rotation.x = -0.7;
+    collar.castShadow = true;
+    g.add(collar);
+    const bell = new THREE.Mesh(G.ball, new THREE.MeshStandardMaterial({ color: '#e8b53a', metalness: 0.85, roughness: 0.3 }));
+    bell.scale.set(br * 0.32, br * 0.36, br * 0.32);
+    bell.position.set(bx, by - br * 0.78, bz + br * 0.62);
+    g.add(bell);
+  }
   switch (kind) {
     case 'goat':
       // ridged horns sweeping back over the neck
