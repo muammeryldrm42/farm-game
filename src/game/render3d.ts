@@ -427,11 +427,12 @@ const HIT_MAT = new THREE.MeshBasicMaterial({ visible: false });
 const FARM_C = { x: 13.5 + MAP_OFF, y: 11.5 + MAP_OFF };
 const FRUIT_COLOR: Record<string, string> = { apple: '#e53935', cherry: '#b0102a', orange: '#ff9800', peach: '#ffa274', lemon: '#ffe03a', coconut: '#7a4a26', pear: '#c8c040', plum: '#5a2070', mango: '#f0902a', avocado: '#2f4a1a', pomegranate: '#c0282a', banana: '#f2d23a', apricot: '#f6a23a', lime: '#6ab82a', fig: '#5a2a4a', olive: '#5a6a1a', walnut: '#5a8a2a', quince: '#e8c83a', almond: '#9ab880', mulberry: '#3a0a2a', grapefruit: '#f2b04a', persimmon: '#f07a1a', date: '#7a3a14', lychee: '#d83a3a', hazelnut: '#8a5a2a', starfruit: '#e8c21a', maple_syrup: '#b8321a', cocoa_pod: '#c0601a', sakura: '#f4b0c8', golden_apple: '#f2c230' };
 const TREE_LEAF: Record<string, string> = { apple_tree: '#4f9e36', cherry_tree: '#3f8a3a', orange_tree: '#2f7d32', peach_tree: '#5aa53a', lemon_tree: '#3b8f3c', coconut_palm: '#4c9a38', pear_tree: '#58a03a', plum_tree: '#3f7f3a', banana_tree: '#5aa844', mango_tree: '#2f7a32', avocado_tree: '#2a6a2e', pomegranate_tree: '#4a8a36', apricot_tree: '#5aa03a', lime_tree: '#2f7f32', fig_tree: '#4a9a3a', olive_tree: '#8a9a7a', walnut_tree: '#3f7a2e', quince_tree: '#5a9a3a', almond_tree: '#6aa84a', mulberry_tree: '#3f8a34', grapefruit_tree: '#3a8a3a', persimmon_tree: '#6a9a2a', date_palm: '#5a8a3a', lychee_tree: '#2f7a32', hazelnut_tree: '#5a9a34', starfruit_tree: '#3f8f3c', maple_tree: '#d8542a', cocoa_tree: '#2f6a2e', sakura_tree: '#f2a6c4', golden_apple_tree: '#7ab84a' };
-const GRASSY_PEN = new Set(['highland_pasture', 'pheasant_run', 'unicorn_meadow', 'llama_ranch', 'pasture', 'sheepfold', 'beehive', 'rabbit_hutch', 'alpaca_ranch', 'goose_pen', 'peacock_garden', 'donkey_paddock', 'yak_pasture']);
+const GRASSY_PEN = new Set(['highland_pasture', 'pheasant_run', 'llama_ranch', 'pony_paddock', 'black_sheepfold', 'jersey_pasture', 'merino_fold', 'galloway_pasture', 'jacob_fold', 'deer_park', 'moose_woods', 'squirrel_grove', 'parrot_aviary', 'kiwi_burrow', 'owl_barn', 'silk_house', 'crane_marsh', 'muscovy_pond', 'pasture', 'sheepfold', 'beehive', 'rabbit_hutch', 'alpaca_ranch', 'goose_pen', 'peacock_garden', 'donkey_paddock', 'yak_pasture']);
 const PEN_GROUND: Record<string, string> = {
   rabbit_hutch: '#86c24f', alpaca_ranch: '#8fc45a', goose_pen: '#86c24f', gobbler_run: '#c9a46a', quail_coop: '#d9c08a', camel_corral: '#e2cf98', buffalo_wallow: '#8a6a44', ostrich_ranch: '#d8c38e',
   coop: '#d9c08a', pasture: '#86c24f', sheepfold: '#9ccc5a',
   duck_pond: '#8fc45a', goat_yard: '#b8a46c', beehive: '#7fbf4f', stable: '#c9b27a',
+  musk_ox_range: '#eef3f6', beaver_pond: '#8fc45a', mandarin_pond: '#8fc45a', black_swan_lake: '#8fc45a',
   guinea_run: '#d9c08a', swan_lake: '#8fc45a', emu_ranch: '#d8c38e', reindeer_lodge: '#eef3f6', bison_range: '#b8a46c', flamingo_lagoon: '#e8d8a8', golden_nest: '#e8d49a',
 };
 
@@ -2159,9 +2160,9 @@ const LID: Record<string, string> = {
   gobbler: '#9ab8d8', donkey: '#6a655f', buffalo: '#2a2a2c', peacock: '#1f4fb8', ostrich: '#9a7a70',
 };
 
-const TALL = new Set(['camel', 'ostrich', 'emu', 'flamingo', 'reindeer', 'unicorn', 'llama']);
+const TALL = new Set(['camel', 'ostrich', 'emu', 'flamingo', 'reindeer', 'llama', 'rhea', 'cassowary', 'crane', 'bactrian_camel', 'moose', 'spotted_deer', 'vicuna']);
 // birds that float on their pond instead of walking
-const SWIMMERS = new Set(['duck', 'swan']);
+const SWIMMERS = new Set(['duck', 'swan', 'mandarin_duck', 'black_swan']);
 
 function animalBody(kind: string) {
   const g = assemble(kind);
@@ -2198,7 +2199,8 @@ function animalBody(kind: string) {
       }
       break;
     case 'chicken': case 'goose': case 'gobbler': case 'peacock': case 'ostrich': case 'quail':
-    case 'guinea_fowl': case 'pheasant': case 'emu': case 'flamingo': case 'golden_goose': g.userData.peck = true; break;
+    case 'guinea_fowl': case 'pheasant': case 'emu': case 'flamingo': case 'golden_goose':
+    case 'silkie_chicken': case 'muscovy_duck': case 'crane': case 'rhea': case 'cassowary': case 'kiwi_bird': case 'parrot': g.userData.peck = true; break;
     case 'yak':
       if (cp?.toon) break;
       // long horns curving up and out
@@ -2221,7 +2223,7 @@ function animalBody(kind: string) {
         head.add(horn);
       }
       break;
-    case 'rabbit': g.userData.hop = true; break;
+    case 'rabbit': case 'squirrel': case 'chinchilla': g.userData.hop = true; break;
   }
   return g;
 }
@@ -2654,7 +2656,7 @@ function buildBoard(e: Entry) {
 }
 
 // Chunky rail fence with capped posts: warm wood, or white paint for the tidier pens
-const WHITE_FENCE = new Set(['sheepfold', 'stable', 'alpaca_ranch', 'peacock_garden', 'rabbit_hutch']);
+const WHITE_FENCE = new Set(['sheepfold', 'stable', 'alpaca_ranch', 'peacock_garden', 'rabbit_hutch', 'pony_paddock', 'black_sheepfold', 'merino_fold', 'jacob_fold', 'silkie_coop', 'deer_park', 'chinchilla_hutch']);
 function fence(g: THREE.Group, w: number, h: number, white = false) {
   const c = white ? '#f5f2ea' : '#c0864a';
   const pts: [number, number][] = [];
@@ -2681,7 +2683,7 @@ function buildPen(e: Entry, d: BuildingDef) {
   const w = d.w, h = d.h;
   // grassy pens keep the lawn (and its swaying grass), the others get a dirt yard
   if (!GRASSY_PEN.has(d.id)) {
-    const dirt = d.id !== 'duck_pond' && d.id !== 'swan_lake' && d.id !== 'reindeer_lodge';
+    const dirt = !['duck_pond', 'swan_lake', 'reindeer_lodge', 'musk_ox_range', 'beaver_pond', 'mandarin_pond', 'black_swan_lake'].includes(d.id);
     bxT(g, w - 0.1, 0.04, h - 0.1, dirt ? 'soil' : 'grass', PEN_GROUND[d.id] ?? d.wall, w / 2, 0, h / 2, dirt ? 1.5 : 0.8, false);
   }
   if (d.id !== 'beehive') fence(g, w, h, WHITE_FENCE.has(d.id));
@@ -2693,7 +2695,7 @@ function buildPen(e: Entry, d: BuildingDef) {
       bx(g, 0.16, 0.2, 0.02, '#5a3517', 0.55, 0.1, 0.81);
       bx(g, 0.2, 0.03, 0.3, '#a8733f', 0.55, 0.04, 0.95).rotation.x = -0.4;
       break;
-    case 'swan_lake':
+    case 'swan_lake': case 'black_swan_lake': case 'mandarin_pond':
       // a lily pond with a little white pavilion
       cyl(g, 0.95, 1.0, 0.04, '#d8c38e', 1.7, 0.02, 1.7, 16, false);
       mk(g, cylGeo(0.85, 0.85, 16), WATER, 1, 0.04, 1, 1.7, 0.06, 1.7, false);
@@ -2720,20 +2722,81 @@ function buildPen(e: Entry, d: BuildingDef) {
       { const sled = group(g, 2.4, 0.04, 0.5); bx(sled, 0.42, 0.12, 0.24, '#b5452c', 0, 0.05, 0); for (const sz of [-1, 1]) bx(sled, 0.5, 0.02, 0.02, '#e8c060', 0, 0, sz * 0.12); }
       e.top = 1.1;
       break;
-    case 'unicorn_meadow': {
-      // a rainbow arching over a flowery meadow, with sparkling stars
-      const cols = ['#ff5a6a', '#ffa23a', '#ffe04a', '#6ad86a', '#4ab0ff', '#b07aff'];
-      cols.forEach((col, i) => {
-        const r = mk(g, new THREE.TorusGeometry(1.2 - i * 0.07, 0.035, 8, 32, Math.PI), new THREE.MeshStandardMaterial({ color: col, emissive: col, emissiveIntensity: 0.35, roughness: 0.5 }), 1, 1, 1, 1.5, 0.02, 0.4);
-        r.castShadow = false;
-      });
-      for (let i = 0; i < 8; i++) {
-        const kinds: FlowerKind[] = ['daisy', 'tulip', 'rose'];
-        mk(g, flowerKit(kinds[i % 3], ['#ff8fb0', '#b58cff', '#ffffff', '#ffd23a'][i % 4], 0.14), FLOWER_KIT_MAT, 1, 1, 1, 0.3 + hash(i, 5) * 2.4, 0.02, 0.9 + hash(i, 6) * 1.8, false);
+    case 'muscovy_pond':
+      // a small pond in the corner for the walking ducks, and a duck house
+      cyl(g, 0.55, 0.6, 0.03, '#d8c38e', 2.25, 0.02, 2.25, 14, false);
+      mk(g, cylGeo(0.48, 0.48, 14), WATER, 1, 0.03, 1, 2.25, 0.05, 2.25, false);
+      bxT(g, 0.5, 0.35, 0.45, 'boards', '#f3e6c8', 0.45, 0.04, 0.45, 2);
+      roofT(g, 0.62, 0.22, 0.58, d.roof, surfaceMat('boards', '#f3e6c8', 2), 0.45, 0.39, 0.45, 0.06);
+      break;
+    case 'beaver_pond': {
+      // a pond held back by a dam of sticks, with the beavers' domed lodge
+      cyl(g, 0.7, 0.75, 0.03, '#b8a070', 2.0, 0.02, 1.9, 16, false);
+      mk(g, cylGeo(0.64, 0.64, 16), WATER, 1, 0.03, 1, 2.0, 0.05, 1.9, false);
+      const bark = surfaceMat('bark', '#7a5a3a', 4);
+      for (let i = 0; i < 9; i++) {
+        const lg = mk(g, cylGeo(0.03, 0.03, 8), bark, 1, 0.5 + hash(i, 1) * 0.3, 1, 1.3 + i * 0.1, 0.06 + (i % 3) * 0.04, 2.55 + (hash(i, 2) - 0.5) * 0.1);
+        lg.rotation.set(Math.PI / 2, 0, 0.4 + hash(i, 3) * 0.6);
       }
-      e.top = 1.4;
+      mk(g, G.dome, surfaceMat('bark', '#6a4a2a', 3), 0.42, 0.32, 0.38, 2.1, 0.02, 1.7);
       break;
     }
+    case 'crane_marsh':
+      // shallow pools edged with reeds and cattails
+      for (const [x, z, r] of [[1.0, 1.1, 0.5], [2.1, 2.0, 0.55]] as const) {
+        mk(g, cylGeo(r, r, 14), WATER, 1, 0.03, 1, x, 0.05, z, false);
+        for (let i = 0; i < 10; i++) {
+          const a = (i / 10) * Math.PI * 2, rx = x + Math.cos(a) * (r + 0.05), rz = z + Math.sin(a) * (r + 0.05);
+          cyl(g, 0.008, 0.01, 0.35 + hash(i, 4) * 0.2, '#6a9a3a', rx, 0.02, rz, 4, false);
+          if (i % 3 === 0) mk(g, cylGeo(0.018, 0.018, 8), M('#6a3a1a'), 1, 0.07, 1, rx, 0.36 + hash(i, 4) * 0.2, rz, false);
+        }
+      }
+      break;
+    case 'silk_house': {
+      // a little paper lantern shed among mulberry bushes
+      bxT(g, 0.55, 0.4, 0.45, 'boards', '#f4efe6', 0.45, 0.04, 0.45, 2);
+      roofT(g, 0.7, 0.24, 0.6, d.roof, surfaceMat('boards', '#f4efe6', 2), 0.45, 0.44, 0.45, 0.06);
+      for (const [x, z] of [[1.5, 0.4], [1.55, 1.5], [0.5, 1.5]]) mk(g, toonCrown(5), toonLeafMat('#3f8a33'), 0.42, 0.42, 0.42, x, -0.12, z);
+      break;
+    }
+    case 'squirrel_grove': {
+      // a big oak in the corner with a knot hole, and acorns on the grass
+      const t = leafyTree(g, 0.55, 0.55, '#4f9e36', 0.9, 7);
+      mk(t.crown, G.ball, M('#3a2418'), 0.06, 0.07, 0.03, 0.06, 0.4, 0.08);
+      for (let i = 0; i < 6; i++) ball(g, 0.025, '#8a5a2a', 0.9 + hash(i, 5) * 0.9, 0.03, 0.9 + hash(i, 6) * 0.9, 1, 1.2, 1, false);
+      break;
+    }
+    case 'parrot_aviary':
+      // perch stands and a leaning palm
+      for (const [x, z] of [[0.5, 1.4], [1.5, 0.6]]) {
+        cyl(g, 0.02, 0.025, 0.55, '#8a5a2a', x, 0.02, z, 8);
+        const bar = cyl(g, 0.015, 0.015, 0.4, '#8a5a2a', x, 0.55, z, 8);
+        bar.rotation.z = Math.PI / 2;
+      }
+      { const p = palmTree(g, '#4c9a38'); p.crown.position.set(0.4, 0, 0.4); p.crown.scale.setScalar(0.55); }
+      break;
+    case 'owl_barn':
+      // a tall little barn with an open loft window where the owls roost
+      bxT(g, 0.6, 0.6, 0.5, 'boards', '#a8452e', 0.45, 0.04, 0.45, 2);
+      roofT(g, 0.74, 0.3, 0.64, d.roof, surfaceMat('boards', '#a8452e', 2), 0.45, 0.64, 0.45, 0.06);
+      bx(g, 0.18, 0.18, 0.02, '#2a1a12', 0.45, 0.42, 0.71);
+      bx(g, 0.22, 0.03, 0.06, '#f4efe6', 0.45, 0.4, 0.72);
+      e.top = 1.2;
+      break;
+    case 'kiwi_burrow':
+      // a grassy mound with a burrow and some ferns
+      mk(g, G.dome, M('#6aa84a'), 0.45, 0.25, 0.4, 0.5, 0.02, 0.5);
+      mk(g, G.ball, M('#2a1a12'), 0.1, 0.08, 0.03, 0.5, 0.08, 0.88);
+      for (let i = 0; i < 5; i++) mk(g, toonCrown(i), toonLeafMat('#3f8a33'), 0.22, 0.2, 0.22, 1.3 + hash(i, 7) * 0.5, -0.06, 0.4 + hash(i, 8) * 1.1);
+      break;
+    case 'moose_woods': case 'deer_park':
+      // a few pines and a salt lick
+      for (const [x, z, s] of [[0.4, 0.4, 0.8], [2.6, 0.5, 0.65], [0.5, 2.5, 0.7]] as const) {
+        cyl(g, 0.05, 0.07, 0.3 * s, '#6a4226', x, 0, z, 8);
+        mk(g, pineGeo(), M('#3d8a30'), 0.36 * s, 0.9 * s, 0.36 * s, x, 0.75 * s, z);
+      }
+      bx(g, 0.18, 0.1, 0.18, '#e8e2d6', 1.7, 0.02, 1.4);
+      break;
     case 'golden_nest': {
       // a big woven nest lined with straw, a golden egg glinting in it
       const nest = mk(g, new THREE.TorusGeometry(0.42, 0.14, 10, 24), surfaceMat('thatch', '#c8a050', 4), 1, 1, 1, 1, 0.1, 1);
@@ -2832,7 +2895,7 @@ function buildPen(e: Entry, d: BuildingDef) {
       bxT(g, 0.5, 0.25, 0.35, 'thatch', '#e2c15a', 0.55, 0.04, 0.5, 3);
     }
   }
-  if (!['beehive', 'duck_pond', 'goose_pen', 'peacock_garden', 'swan_lake', 'flamingo_lagoon', 'golden_nest', 'unicorn_meadow'].includes(d.id)) {
+  if (!['beehive', 'duck_pond', 'goose_pen', 'peacock_garden', 'swan_lake', 'flamingo_lagoon', 'golden_nest', 'mandarin_pond', 'black_swan_lake', 'silk_house', 'parrot_aviary', 'owl_barn', 'kiwi_burrow', 'squirrel_grove', 'crane_marsh'].includes(d.id)) {
     bx(g, 0.55, 0.12, 0.18, '#8a5a2b', w - 0.55, 0.04, h - 0.35);
     bx(g, 0.47, 0.03, 0.12, '#e2c15a', w - 0.55, 0.14, h - 0.35, false);
   }

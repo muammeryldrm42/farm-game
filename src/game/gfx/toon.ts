@@ -5,41 +5,41 @@ import * as THREE from 'three';
 import { Sculpt, capsule, ellipsoid, noise3, sphere, type Paint } from './sdf';
 import type { CreatureParts } from './creatures';
 
-const C = 0.0065;
+export const C = 0.0065;
 type Eye = [number, number, number, number, number];
-type Box = [number, number, number];
+export type Box = [number, number, number];
 
 // eye spec on a head sphere of radius R: spread and lift as fractions of R, size, outward yaw
-function eyeOn(R: number, spread = 0.42, up = 0.22, size = 0.3, yaw = 0.4): Eye {
+export function eyeOn(R: number, spread = 0.42, up = 0.22, size = 0.3, yaw = 0.4): Eye {
   const x = R * spread, y = R * up;
   const z = Math.sqrt(Math.max(0, R * R - x * x - y * y)) * 0.93;
   return [x, y, z, R * size, yaw];
 }
 
 // blend two hex colors, t from 0 to 1
-function mixHex(a: string, b: string, t: number) {
+export function mixHex(a: string, b: string, t: number) {
   const pa = parseInt(a.slice(1), 16), pb = parseInt(b.slice(1), 16);
   const ch = (sh: number) => Math.round(((pa >> sh) & 255) * (1 - t) + ((pb >> sh) & 255) * t);
   return '#' + ((ch(16) << 16) | (ch(8) << 8) | ch(0)).toString(16).padStart(6, '0');
 }
-const smooth = (e0: number, e1: number, v: number) => {
+export const smooth = (e0: number, e1: number, v: number) => {
   const t = Math.max(0, Math.min(1, (v - e0) / (e1 - e0)));
   return t * t * (3 - 2 * t);
 };
 
 // soft edged patches: a blend band instead of a hard threshold keeps outlines round and clean
-function patches(x: number, y: number, z: number, th: number, spot: string, base: string) {
+export function patches(x: number, y: number, z: number, th: number, spot: string, base: string) {
   const v = noise3(x * 5 + 3, y * 5, z * 5) * 0.8 + noise3(x * 11 + 8, y * 11, z * 11) * 0.2;
   return mixHex(base, spot, smooth(th - 0.035, th + 0.035, v));
 }
 
 // a gentle top to bottom shade: a touch lighter on the back, warmer on the belly
-function shade(base: string, belly: string, y0: number, y1: number) {
+export function shade(base: string, belly: string, y0: number, y1: number) {
   return (_x: number, y: number) => mixHex(belly, base, smooth(y0, y1, y));
 }
 
 // short sturdy leg ending in a rounded hoof or paw
-function toonLeg(len: number, th: number, color: string | ((y: number) => string), hoof: string) {
+export function toonLeg(len: number, th: number, color: string | ((y: number) => string), hoof: string) {
   const paint = (_x: number, y: number) => (y < -len + 0.035 ? hoof : typeof color === 'string' ? color : color(y));
   return new Sculpt()
     .add(capsule(0, 0.02, 0, 0, -len + 0.03, 0.004, th * 0.62, th * 0.5), paint)
@@ -48,7 +48,7 @@ function toonLeg(len: number, th: number, color: string | ((y: number) => string
 }
 
 // thin bird leg with three forward toes
-function birdLeg(len: number, th: number, color: string) {
+export function birdLeg(len: number, th: number, color: string) {
   const s = new Sculpt().add(capsule(0, 0.02, 0, 0, -len + 0.006, 0.004, th * 0.5, th * 0.42), color);
   for (const a of [-0.55, 0, 0.55]) {
     s.add(capsule(0, -len + 0.005, 0.004, Math.sin(a) * th * 2.2, -len + 0.004, 0.004 + Math.cos(a) * th * 2.4, th * 0.3), color, th * 0.4);
@@ -58,7 +58,7 @@ function birdLeg(len: number, th: number, color: string) {
 }
 
 // a fluffy cloud of puffs around an ellipsoid (wool, fleece, down)
-function puffs(s: Sculpt, c: Box, r: Box, n: number, size: number, paint: Paint, seed = 1, minY = -1) {
+export function puffs(s: Sculpt, c: Box, r: Box, n: number, size: number, paint: Paint, seed = 1, minY = -1) {
   const ga = Math.PI * (3 - Math.sqrt(5));
   for (let i = 0; i < n; i++) {
     const y = 1 - (2 * (i + 0.5)) / n;
@@ -71,7 +71,7 @@ function puffs(s: Sculpt, c: Box, r: Box, n: number, size: number, paint: Paint,
 }
 
 // ear sticking out sideways with a pink inside
-function ears(h: Sculpt, x: number, y: number, z: number, len: number, w: number, color: string, inner = '#f4a9b8', droop = 0) {
+export function ears(h: Sculpt, x: number, y: number, z: number, len: number, w: number, color: string, inner = '#f4a9b8', droop = 0) {
   for (const sx of [-1, 1]) {
     h.add(ellipsoid(sx * x, y - droop, z, len, w * 0.42, w * 0.62), color, w * 0.4);
     h.add(ellipsoid(sx * (x + len * 0.12), y - droop, z + w * 0.3, len * 0.62, w * 0.2, w * 0.3), inner, w * 0.12);
@@ -79,7 +79,7 @@ function ears(h: Sculpt, x: number, y: number, z: number, len: number, w: number
 }
 
 // a curved horn from a list of points with tapering radius, mirrored on both sides
-function horns(h: Sculpt, pts: Box[], r0: number, r1: number, color: string) {
+export function horns(h: Sculpt, pts: Box[], r0: number, r1: number, color: string) {
   for (const sx of [-1, 1]) {
     for (let i = 0; i < pts.length - 1; i++) {
       const a = pts[i], b = pts[i + 1];
@@ -89,7 +89,7 @@ function horns(h: Sculpt, pts: Box[], r0: number, r1: number, color: string) {
   }
 }
 
-function build(s: Sculpt, min: Box, max: Box, cell: number, grain = 0.02) {
+export function build(s: Sculpt, min: Box, max: Box, cell: number, grain = 0.02) {
   s.grain = grain;
   return s.build(min, max, cell);
 }
@@ -800,48 +800,6 @@ function llama(): CreatureParts {
   };
 }
 
-// rainbow hair: the hue walks along the strand
-function rainbow(x: number, y: number, z: number) {
-  const cols = ['#ff5a6a', '#ffa23a', '#ffe04a', '#6ad86a', '#4ab0ff', '#b07aff'];
-  const k = Math.floor(((y * 9 + z * 6 + x * 3) % 1 + 1) % 1 * cols.length);
-  return cols[k];
-}
-
-function unicorn(): CreatureParts {
-  // a snow white horse with a golden spiral horn and a flowing rainbow mane and tail
-  const white = '#fbfaf8';
-  const b = new Sculpt()
-    .add(ellipsoid(0, 0.45, 0, 0.11, 0.11, 0.2), white)
-    .add(sphere(0, 0.45, 0.12, 0.11), white, 0.08)
-    .add(sphere(0, 0.46, -0.13, 0.11), white, 0.08)
-    .add(capsule(0, 0.47, 0.14, 0, 0.6, 0.22, 0.075, 0.058), white, 0.06);
-  for (let i = 0; i <= 7; i++) {
-    const t = i / 7;
-    b.add(sphere(Math.sin(i * 1.7) * 0.012, 0.53 + t * 0.12, 0.09 + t * 0.12, 0.036 - t * 0.008), rainbow, 0.02);
-  }
-  const body = build(b, [-0.15, 0.3, -0.27], [0.15, 0.72, 0.32], C);
-  const h = new Sculpt()
-    .add(sphere(0, 0, 0, 0.065), white)
-    .add(capsule(0, -0.01, 0.02, 0, -0.04, 0.12, 0.055, 0.046), white, 0.03)
-    .add(ellipsoid(0, -0.035, 0.16, 0.035, 0.02, 0.01), '#f4c0d0', 0.01)
-    .add(sphere(0, 0.06, 0.035, 0.028), rainbow, 0.015);
-  for (const sx of [-1, 1]) h.add(capsule(sx * 0.03, 0.05, -0.01, sx * 0.04, 0.115, -0.02, 0.02, 0.006), white, 0.012);
-  // spiral golden horn
-  for (let i = 0; i < 10; i++) {
-    const t = i / 9;
-    h.add(sphere(Math.cos(t * 12) * 0.006 * (1 - t), 0.07 + t * 0.12, 0.05 + t * 0.03, 0.017 * (1 - t * 0.8)), mixHex('#c8901a', '#ffe070', (i % 2) * 0.7), 0.006);
-  }
-  const head = build(h, [-0.1, -0.11, -0.08], [0.1, 0.22, 0.2], C * 0.45);
-  const tail = build(new Sculpt()
-    .add(capsule(0, 0, 0, 0, -0.1, -0.04, 0.03, 0.026), rainbow)
-    .add(capsule(0, -0.1, -0.04, 0, -0.22, -0.03, 0.026, 0.016), rainbow, 0.02)
-    .displace((x, y, z) => noise3(x * 70, y * 20, z * 70) * 0.01), [-0.06, -0.27, -0.1], [0.06, 0.04, 0.05], C * 0.6);
-  return {
-    toon: true, eye: eyeOn(0.065, 0.55, 0.25, 0.32, 0.6), body, head, headAt: [0, 0.62, 0.25],
-    leg: toonLeg(0.3, 0.064, white, '#e8c060'), legs: [[-0.065, 0.15], [0.065, 0.15], [-0.065, -0.15], [0.065, -0.15]], legLen: 0.3, tail, tailAt: [0, 0.5, -0.25],
-  };
-}
-
 function goldenGoose(): CreatureParts {
   // a goose of shining gold wearing a tiny crown
   const gold = (_x: number, y: number) => mixHex('#b8860a', '#ffe070', smooth(0.08, 0.3, y));
@@ -867,7 +825,7 @@ function goldenGoose(): CreatureParts {
 }
 
 export const toonMakers: Record<string, () => CreatureParts> = {
-  cow, sheep, goat, horse, donkey, buffalo, yak, camel, alpaca, rabbit, dog, cat, chicken, guinea_fowl: guineaFowl, pheasant, highland_cow: highlandCow, swan, emu, reindeer, bison, flamingo, llama, unicorn, golden_goose: goldenGoose, duck, goose, gobbler, peacock, ostrich, quail,
+  cow, sheep, goat, horse, donkey, buffalo, yak, camel, alpaca, rabbit, dog, cat, chicken, guinea_fowl: guineaFowl, pheasant, highland_cow: highlandCow, swan, emu, reindeer, bison, flamingo, llama, golden_goose: goldenGoose, duck, goose, gobbler, peacock, ostrich, quail,
 };
 
 // ---------------------------------------------------------------- farmer

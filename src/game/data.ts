@@ -198,8 +198,38 @@ item('reindeer_milk', 'Reindeer Milk', '@reindeer_milk', 'barn', 220, 68);
 item('bison_wool', 'Bison Wool', '@bison_wool', 'barn', 270, 82);
 item('pink_feather', 'Pink Feather', '@pink_feather', 'barn', 320, 96);
 item('llama_wool', 'Llama Wool', '@llama_wool', 'barn', 390, 118);
-item('rainbow_mane', 'Rainbow Mane', '@rainbow_mane', 'barn', 520, 150);
 item('golden_egg', 'Golden Egg', '@golden_egg', 'barn', 800, 200);
+// ---- more farm animals, spread between levels 21 and 182
+item('silkie_egg', 'Silkie Egg', '@silkie_egg', 'barn', 116, 21);
+item('rosette', 'Show Rosette', '🏵️', 'barn', 125, 24);
+item('black_wool', 'Black Wool', '@black_wool', 'barn', 130, 26);
+item('jersey_milk', 'Jersey Milk', '@jersey_milk', 'barn', 136, 28);
+item('muscovy_egg', 'Muscovy Egg', '@muscovy_egg', 'barn', 142, 30);
+item('nubian_milk', 'Nubian Goat Milk', '@nubian_milk', 'barn', 151, 33);
+item('silk', 'Silk Thread', '@silk', 'barn', 159, 36);
+item('mohair', 'Mohair', '@mohair', 'barn', 168, 39);
+item('mandarin_feather', 'Mandarin Feather', '@mandarin_feather', 'barn', 180, 43);
+item('acorn', 'Acorns', '🌰', 'barn', 188, 46);
+item('merino_wool', 'Merino Wool', '@merino_wool', 'barn', 197, 49);
+item('parrot_feather', 'Parrot Feather', '@parrot_feather', 'barn', 209, 53);
+item('galloway_milk', 'Galloway Milk', '@galloway_milk', 'barn', 223, 58);
+item('moose_milk', 'Moose Milk', '@moose_milk', 'barn', 238, 63);
+item('cashmere', 'Cashmere', '@cashmere', 'barn', 249, 67);
+item('rhea_egg', 'Rhea Egg', '@rhea_egg', 'barn', 261, 71);
+item('camel_wool', 'Camel Wool', '@camel_wool', 'barn', 275, 76);
+item('timber', 'Timber', '🪵', 'barn', 287, 80);
+item('jacob_wool', 'Spotted Wool', '@jacob_wool', 'barn', 304, 86);
+item('shed_antler', 'Shed Antler', '@shed_antler', 'barn', 322, 92);
+item('crane_feather', 'Crane Feather', '@crane_feather', 'barn', 339, 98);
+item('zebu_milk', 'Zebu Milk', '@zebu_milk', 'barn', 357, 104);
+item('qiviut', 'Qiviut Wool', '@qiviut', 'barn', 380, 112);
+item('black_down', 'Black Swan Down', '@black_down', 'barn', 403, 120);
+item('cassowary_egg', 'Cassowary Egg', '@cassowary_egg', 'barn', 426, 128);
+item('watusi_milk', 'Watusi Milk', '@watusi_milk', 'barn', 449, 136);
+item('chinchilla_fluff', 'Chinchilla Fluff', '@chinchilla_fluff', 'barn', 476, 145);
+item('owl_feather', 'Owl Feather', '@owl_feather', 'barn', 504, 155);
+item('kiwi_egg', 'Kiwi Egg', '@kiwi_egg', 'barn', 542, 168);
+item('vicuna_wool', 'Vicuna Wool', '@vicuna_wool', 'barn', 583, 182);
 item('trout', 'Trout', '@trout', 'barn', 90, 22);
 item('tuna', 'Tuna', '@tuna', 'barn', 120, 31);
 item('shrimp', 'Shrimp', '🦐', 'barn', 140, 40);
@@ -467,7 +497,36 @@ export const ANIMALS: AnimalDef[] = [
   { id: 'bison', name: 'Bison', icon: '🦬', house: 'bison_range', feed: 'cow_feed', product: 'bison_wool', time: 620, xp: 22, cost: 1800, level: 82 },
   { id: 'flamingo', name: 'Flamingo', icon: '🦩', house: 'flamingo_lagoon', feed: 'duck_feed', product: 'pink_feather', time: 680, xp: 25, cost: 2200, level: 96 },
   { id: 'llama', name: 'Llama', icon: '@llama', house: 'llama_ranch', feed: 'wheat', product: 'llama_wool', time: 760, xp: 29, cost: 2800, level: 118 },
-  { id: 'unicorn', name: 'Unicorn', icon: '🦄', house: 'unicorn_meadow', feed: 'carrot', product: 'rainbow_mane', time: 900, xp: 36, cost: 4000, level: 150 },
+  { id: 'silkie_chicken', name: 'Silkie Chicken', icon: '@silkie_chicken', house: 'silkie_coop', feed: 'chicken_feed', product: 'silkie_egg', time: 294, xp: 10, cost: 840, level: 21 },
+  { id: 'pony', name: 'Pony', icon: '🐴', house: 'pony_paddock', feed: 'carrot', product: 'rosette', time: 308, xp: 10, cost: 920, level: 24 },
+  { id: 'black_sheep', name: 'Black Sheep', icon: '@black_sheep', house: 'black_sheepfold', feed: 'sheep_feed', product: 'black_wool', time: 317, xp: 11, cost: 980, level: 26 },
+  { id: 'jersey_cow', name: 'Jersey Cow', icon: '🐮', house: 'jersey_pasture', feed: 'cow_feed', product: 'jersey_milk', time: 326, xp: 11, cost: 1030, level: 28 },
+  { id: 'muscovy_duck', name: 'Muscovy Duck', icon: '@muscovy_duck', house: 'muscovy_pond', feed: 'duck_feed', product: 'muscovy_egg', time: 335, xp: 12, cost: 1090, level: 30 },
+  { id: 'nubian_goat', name: 'Nubian Goat', icon: '@nubian_goat', house: 'nubian_yard', feed: 'goat_feed', product: 'nubian_milk', time: 348, xp: 12, cost: 1170, level: 33 },
+  { id: 'silkworm', name: 'Silkworm', icon: '🐛', house: 'silk_house', feed: 'mulberry', product: 'silk', time: 362, xp: 13, cost: 1260, level: 36 },
+  { id: 'angora_goat', name: 'Angora Goat', icon: '@angora_goat', house: 'angora_yard', feed: 'goat_feed', product: 'mohair', time: 376, xp: 14, cost: 1340, level: 39 },
+  { id: 'mandarin_duck', name: 'Mandarin Duck', icon: '@mandarin_duck', house: 'mandarin_pond', feed: 'duck_feed', product: 'mandarin_feather', time: 394, xp: 14, cost: 1450, level: 43 },
+  { id: 'squirrel', name: 'Squirrel', icon: '🐿️', house: 'squirrel_grove', feed: 'walnut', product: 'acorn', time: 407, xp: 15, cost: 1540, level: 46 },
+  { id: 'merino_sheep', name: 'Merino Sheep', icon: '@merino_sheep', house: 'merino_fold', feed: 'sheep_feed', product: 'merino_wool', time: 420, xp: 16, cost: 1620, level: 49 },
+  { id: 'parrot', name: 'Parrot', icon: '🦜', house: 'parrot_aviary', feed: 'banana', product: 'parrot_feather', time: 438, xp: 17, cost: 1730, level: 53 },
+  { id: 'belted_galloway', name: 'Belted Galloway', icon: '@belted_galloway', house: 'galloway_pasture', feed: 'cow_feed', product: 'galloway_milk', time: 461, xp: 18, cost: 1870, level: 58 },
+  { id: 'moose', name: 'Moose', icon: '@moose', house: 'moose_woods', feed: 'carrot', product: 'moose_milk', time: 484, xp: 19, cost: 2010, level: 63 },
+  { id: 'cashmere_goat', name: 'Cashmere Goat', icon: '@cashmere_goat', house: 'cashmere_yard', feed: 'goat_feed', product: 'cashmere', time: 502, xp: 20, cost: 2130, level: 67 },
+  { id: 'rhea', name: 'Rhea', icon: '@rhea', house: 'rhea_ranch', feed: 'wheat', product: 'rhea_egg', time: 520, xp: 21, cost: 2240, level: 71 },
+  { id: 'bactrian_camel', name: 'Bactrian Camel', icon: '🐫', house: 'bactrian_corral', feed: 'wheat', product: 'camel_wool', time: 542, xp: 22, cost: 2380, level: 76 },
+  { id: 'beaver', name: 'Beaver', icon: '🦫', house: 'beaver_pond', feed: 'carrot', product: 'timber', time: 560, xp: 23, cost: 2490, level: 80 },
+  { id: 'jacob_sheep', name: 'Jacob Sheep', icon: '@jacob_sheep', house: 'jacob_fold', feed: 'sheep_feed', product: 'jacob_wool', time: 587, xp: 24, cost: 2660, level: 86 },
+  { id: 'spotted_deer', name: 'Spotted Deer', icon: '@spotted_deer', house: 'deer_park', feed: 'carrot', product: 'shed_antler', time: 614, xp: 25, cost: 2830, level: 92 },
+  { id: 'crane', name: 'Crane', icon: '@crane', house: 'crane_marsh', feed: 'corn', product: 'crane_feather', time: 641, xp: 27, cost: 2990, level: 98 },
+  { id: 'zebu', name: 'Zebu', icon: '@zebu', house: 'zebu_pasture', feed: 'cow_feed', product: 'zebu_milk', time: 668, xp: 28, cost: 3160, level: 104 },
+  { id: 'musk_ox', name: 'Musk Ox', icon: '@musk_ox', house: 'musk_ox_range', feed: 'cow_feed', product: 'qiviut', time: 704, xp: 30, cost: 3390, level: 112 },
+  { id: 'black_swan', name: 'Black Swan', icon: '@black_swan', house: 'black_swan_lake', feed: 'duck_feed', product: 'black_down', time: 740, xp: 31, cost: 3610, level: 120 },
+  { id: 'cassowary', name: 'Cassowary', icon: '@cassowary', house: 'cassowary_ranch', feed: 'wheat', product: 'cassowary_egg', time: 776, xp: 33, cost: 3830, level: 128 },
+  { id: 'watusi', name: 'Watusi Cattle', icon: '@watusi', house: 'watusi_ranch', feed: 'cow_feed', product: 'watusi_milk', time: 812, xp: 35, cost: 4060, level: 136 },
+  { id: 'chinchilla', name: 'Chinchilla', icon: '@chinchilla', house: 'chinchilla_hutch', feed: 'wheat', product: 'chinchilla_fluff', time: 852, xp: 37, cost: 4310, level: 145 },
+  { id: 'barn_owl', name: 'Barn Owl', icon: '🦉', house: 'owl_barn', feed: 'chicken_feed', product: 'owl_feather', time: 898, xp: 39, cost: 4590, level: 155 },
+  { id: 'kiwi_bird', name: 'Kiwi Bird', icon: '@kiwi_bird', house: 'kiwi_burrow', feed: 'chicken_feed', product: 'kiwi_egg', time: 956, xp: 42, cost: 4950, level: 168 },
+  { id: 'vicuna', name: 'Vicuna', icon: '@vicuna', house: 'vicuna_ranch', feed: 'wheat', product: 'vicuna_wool', time: 1019, xp: 45, cost: 5350, level: 182 },
   { id: 'golden_goose', name: 'Golden Goose', icon: '@golden_goose', house: 'golden_nest', feed: 'corn', product: 'golden_egg', time: 1200, xp: 50, cost: 6000, level: 200 },
 ];
 export const ANIMAL: Record<string, AnimalDef> = Object.fromEntries(ANIMALS.map((a) => [a.id, a]));
@@ -547,7 +606,36 @@ export const BUILDINGS: BuildingDef[] = [
   b({ id: 'bison_range', name: 'Bison Range', icon: '🦬', kind: 'pen', w: 3, h: 3, cost: 14000, level: 82, xp: 210, height: 26, wall: '#b8a46c', roof: '#4a3424', animal: 'bison', capacity: 4, desc: 'Mighty bison grow thick warm wool.' }),
   b({ id: 'flamingo_lagoon', name: 'Flamingo Lagoon', icon: '🦩', kind: 'pen', w: 3, h: 3, cost: 18000, level: 96, xp: 240, height: 26, wall: '#8fc45a', roof: '#f28ab0', animal: 'flamingo', capacity: 4, desc: 'Pink flamingos wade in a warm lagoon.' }),
   b({ id: 'llama_ranch', name: 'Llama Ranch', icon: '@llama', kind: 'pen', w: 3, h: 3, cost: 23000, level: 118, xp: 280, height: 26, wall: '#8fc45a', roof: '#c0392b', animal: 'llama', capacity: 4, desc: 'Proud llamas in bright tassels grow fine wool.' }),
-  b({ id: 'unicorn_meadow', name: 'Unicorn Meadow', icon: '🦄', kind: 'pen', w: 3, h: 3, cost: 32000, level: 150, xp: 350, height: 26, wall: '#9ad86a', roof: '#b58cff', animal: 'unicorn', capacity: 3, desc: 'A magical meadow under a rainbow. Unicorns shed rainbow manes.' }),
+  b({ id: 'silkie_coop', name: 'Silkie Coop', icon: '@silkie_chicken', kind: 'pen', w: 2, h: 2, cost: 6700, level: 21, xp: 98, height: 26, wall: '#e3cf94', roof: '#e88aa8', animal: 'silkie_chicken', capacity: 6, desc: 'Fluffy silkie hens lay small cream eggs.' }),
+  b({ id: 'pony_paddock', name: 'Pony Paddock', icon: '🐴', kind: 'pen', w: 3, h: 3, cost: 7300, level: 24, xp: 103, height: 26, wall: '#9ccc5a', roof: '#c0392b', animal: 'pony', capacity: 4, desc: 'Shetland ponies win show rosettes. They love carrots.' }),
+  b({ id: 'black_sheepfold', name: 'Black Sheep Fold', icon: '@black_sheep', kind: 'pen', w: 3, h: 3, cost: 7700, level: 26, xp: 107, height: 26, wall: '#9ccc5a', roof: '#34495e', animal: 'black_sheep', capacity: 5, desc: 'Every flock needs one. Gives soft black wool.' }),
+  b({ id: 'jersey_pasture', name: 'Jersey Pasture', icon: '🐮', kind: 'pen', w: 3, h: 3, cost: 8100, level: 28, xp: 110, height: 26, wall: '#86c24f', roof: '#8a5a34', animal: 'jersey_cow', capacity: 5, desc: 'Gentle fawn cows with big eyes and rich milk.' }),
+  b({ id: 'muscovy_pond', name: 'Muscovy Pond', icon: '@muscovy_duck', kind: 'pen', w: 3, h: 3, cost: 8500, level: 30, xp: 114, height: 26, wall: '#8fc45a', roof: '#2e6da4', animal: 'muscovy_duck', capacity: 5, desc: 'Hardy ducks with red faces. They lay big eggs.' }),
+  b({ id: 'nubian_yard', name: 'Nubian Goat Yard', icon: '@nubian_goat', kind: 'pen', w: 3, h: 3, cost: 9100, level: 33, xp: 119, height: 26, wall: '#b8a46c', roof: '#8a3a2a', animal: 'nubian_goat', capacity: 5, desc: 'Long eared goats with creamy milk.' }),
+  b({ id: 'silk_house', name: 'Silk House', icon: '🐛', kind: 'pen', w: 2, h: 2, cost: 9700, level: 36, xp: 125, height: 26, wall: '#f4efe6', roof: '#b5452c', animal: 'silkworm', capacity: 6, desc: 'Silkworms munch mulberry leaves and spin silk.' }),
+  b({ id: 'angora_yard', name: 'Angora Goat Yard', icon: '@angora_goat', kind: 'pen', w: 3, h: 3, cost: 10300, level: 39, xp: 130, height: 26, wall: '#b8a46c', roof: '#6b4226', animal: 'angora_goat', capacity: 5, desc: 'Curly locked goats that grow shiny mohair.' }),
+  b({ id: 'mandarin_pond', name: 'Mandarin Pond', icon: '@mandarin_duck', kind: 'pen', w: 3, h: 3, cost: 11100, level: 43, xp: 137, height: 26, wall: '#8fc45a', roof: '#c0392b', animal: 'mandarin_duck', capacity: 5, desc: 'The most colorful duck on the water.' }),
+  b({ id: 'squirrel_grove', name: 'Squirrel Grove', icon: '🐿️', kind: 'pen', w: 2, h: 2, cost: 11700, level: 46, xp: 143, height: 26, wall: '#86c24f', roof: '#6b4226', animal: 'squirrel', capacity: 4, desc: 'Busy squirrels gather acorns. They love walnuts.' }),
+  b({ id: 'merino_fold', name: 'Merino Fold', icon: '@merino_sheep', kind: 'pen', w: 3, h: 3, cost: 12300, level: 49, xp: 148, height: 26, wall: '#9ccc5a', roof: '#5a7a9a', animal: 'merino_sheep', capacity: 5, desc: 'The finest wool in the world grows on merinos.' }),
+  b({ id: 'parrot_aviary', name: 'Parrot Aviary', icon: '🦜', kind: 'pen', w: 2, h: 2, cost: 13100, level: 53, xp: 155, height: 26, wall: '#8fc45a', roof: '#2a8a5a', animal: 'parrot', capacity: 4, desc: 'Chatty parrots drop bright feathers. They love bananas.' }),
+  b({ id: 'galloway_pasture', name: 'Galloway Pasture', icon: '@belted_galloway', kind: 'pen', w: 3, h: 3, cost: 14100, level: 58, xp: 164, height: 26, wall: '#86c24f', roof: '#34495e', animal: 'belted_galloway', capacity: 5, desc: 'Fluffy black cattle with a white belt.' }),
+  b({ id: 'moose_woods', name: 'Moose Woods', icon: '@moose', kind: 'pen', w: 3, h: 3, cost: 15100, level: 63, xp: 173, height: 26, wall: '#86c24f', roof: '#5a3a24', animal: 'moose', capacity: 4, desc: 'Giant gentle moose. Their milk makes rare cheese.' }),
+  b({ id: 'cashmere_yard', name: 'Cashmere Goat Yard', icon: '@cashmere_goat', kind: 'pen', w: 3, h: 3, cost: 15900, level: 67, xp: 181, height: 26, wall: '#b8a46c', roof: '#8a6a4a', animal: 'cashmere_goat', capacity: 5, desc: 'Mountain goats with the softest undercoat.' }),
+  b({ id: 'rhea_ranch', name: 'Rhea Ranch', icon: '@rhea', kind: 'pen', w: 3, h: 3, cost: 16700, level: 71, xp: 188, height: 26, wall: '#d8c38e', roof: '#7a5a3a', animal: 'rhea', capacity: 4, desc: 'Big grey birds from the pampas lay huge eggs.' }),
+  b({ id: 'bactrian_corral', name: 'Bactrian Corral', icon: '🐫', kind: 'pen', w: 3, h: 3, cost: 17700, level: 76, xp: 197, height: 26, wall: '#e2cf98', roof: '#b5452c', animal: 'bactrian_camel', capacity: 4, desc: 'Two humps and a thick winter coat of wool.' }),
+  b({ id: 'beaver_pond', name: 'Beaver Pond', icon: '🦫', kind: 'pen', w: 3, h: 3, cost: 18500, level: 80, xp: 204, height: 26, wall: '#8fc45a', roof: '#6b4226', animal: 'beaver', capacity: 4, desc: 'Hard working beavers cut timber by their dam.' }),
+  b({ id: 'jacob_fold', name: 'Jacob Fold', icon: '@jacob_sheep', kind: 'pen', w: 3, h: 3, cost: 19700, level: 86, xp: 215, height: 26, wall: '#9ccc5a', roof: '#6b4226', animal: 'jacob_sheep', capacity: 5, desc: 'Spotted sheep with four curling horns.' }),
+  b({ id: 'deer_park', name: 'Deer Park', icon: '@spotted_deer', kind: 'pen', w: 3, h: 3, cost: 20900, level: 92, xp: 226, height: 26, wall: '#86c24f', roof: '#5a3a24', animal: 'spotted_deer', capacity: 4, desc: 'Graceful deer shed their antlers each year.' }),
+  b({ id: 'crane_marsh', name: 'Crane Marsh', icon: '@crane', kind: 'pen', w: 3, h: 3, cost: 22100, level: 98, xp: 236, height: 26, wall: '#8fc45a', roof: '#f4efe6', animal: 'crane', capacity: 4, desc: 'Elegant cranes dance in the marsh.' }),
+  b({ id: 'zebu_pasture', name: 'Zebu Pasture', icon: '@zebu', kind: 'pen', w: 3, h: 3, cost: 23300, level: 104, xp: 247, height: 26, wall: '#c9b27a', roof: '#b5452c', animal: 'zebu', capacity: 4, desc: 'Humped cattle that thrive in the heat.' }),
+  b({ id: 'musk_ox_range', name: 'Musk Ox Range', icon: '@musk_ox', kind: 'pen', w: 3, h: 3, cost: 24900, level: 112, xp: 262, height: 26, wall: '#eef3f6', roof: '#4a3424', animal: 'musk_ox', capacity: 4, desc: 'Shaggy arctic giants with priceless qiviut wool.' }),
+  b({ id: 'black_swan_lake', name: 'Black Swan Lake', icon: '@black_swan', kind: 'pen', w: 3, h: 3, cost: 26500, level: 120, xp: 276, height: 26, wall: '#8fc45a', roof: '#34495e', animal: 'black_swan', capacity: 4, desc: 'Rare black swans with ruby red bills.' }),
+  b({ id: 'cassowary_ranch', name: 'Cassowary Ranch', icon: '@cassowary', kind: 'pen', w: 3, h: 3, cost: 28100, level: 128, xp: 290, height: 26, wall: '#8fc45a', roof: '#2a6a8a', animal: 'cassowary', capacity: 4, desc: 'Striking birds with a helmet crest and bright green eggs.' }),
+  b({ id: 'watusi_ranch', name: 'Watusi Ranch', icon: '@watusi', kind: 'pen', w: 3, h: 3, cost: 29700, level: 136, xp: 305, height: 26, wall: '#c9b27a', roof: '#8a3a2a', animal: 'watusi', capacity: 4, desc: 'Cattle with the biggest horns in the world.' }),
+  b({ id: 'chinchilla_hutch', name: 'Chinchilla Hutch', icon: '@chinchilla', kind: 'pen', w: 2, h: 2, cost: 31500, level: 145, xp: 321, height: 26, wall: '#86c24f', roof: '#7a8aa0', animal: 'chinchilla', capacity: 5, desc: 'Round eared puffballs leave soft fluff after dust baths.' }),
+  b({ id: 'owl_barn', name: 'Owl Barn', icon: '🦉', kind: 'pen', w: 2, h: 2, cost: 33500, level: 155, xp: 339, height: 26, wall: '#86c24f', roof: '#8a5a34', animal: 'barn_owl', capacity: 4, desc: 'Barn owls keep the farm free of mice.' }),
+  b({ id: 'kiwi_burrow', name: 'Kiwi Burrow', icon: '@kiwi_bird', kind: 'pen', w: 2, h: 2, cost: 36100, level: 168, xp: 362, height: 26, wall: '#86c24f', roof: '#6b4226', animal: 'kiwi_bird', capacity: 4, desc: 'Shy round birds that lay enormous eggs.' }),
+  b({ id: 'vicuna_ranch', name: 'Vicuna Ranch', icon: '@vicuna', kind: 'pen', w: 3, h: 3, cost: 38900, level: 182, xp: 388, height: 26, wall: '#d8c38e', roof: '#c0392b', animal: 'vicuna', capacity: 4, desc: 'Wild cousins of the llama. The rarest wool of all.' }),
   b({ id: 'golden_nest', name: 'Golden Nest', icon: '@golden_goose', kind: 'pen', w: 2, h: 2, cost: 50000, level: 200, xp: 500, height: 26, wall: '#e8c865', roof: '#d4a020', animal: 'golden_goose', capacity: 2, desc: 'The legend itself: a goose that lays golden eggs.' }),
   b({ id: 'coop', name: 'Chicken Coop', icon: '🐔', kind: 'pen', w: 2, h: 2, cost: 150, level: 2, xp: 10, height: 26, wall: '#e3cf94', roof: '#b5452c', animal: 'chicken', capacity: 6, desc: 'Home for up to 6 chickens.' }),
   b({ id: 'pasture', name: 'Cow Pasture', icon: '🐄', kind: 'pen', w: 3, h: 3, cost: 400, level: 5, xp: 20, height: 26, wall: '#9ccc5a', roof: '#6b4226', animal: 'cow', capacity: 5, desc: 'Home for up to 5 cows.' }),

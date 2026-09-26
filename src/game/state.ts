@@ -275,9 +275,9 @@ export const QUESTS: Quest[] = [
   { id: 'q33', text: 'Reach level 100', target: 100, coins: 60000, gems: 50, xp: 0, progress: (s) => s.level },
   { id: 'q34', text: 'Build a flamingo lagoon', target: 1, coins: 30000, gems: 20, xp: 1500, progress: (s) => cnt(s, 'flamingo_lagoon') },
   { id: 'q35', text: 'Reach level 125', target: 125, coins: 90000, gems: 60, xp: 0, progress: (s) => s.level },
-  { id: 'q36', text: 'Build a unicorn meadow', target: 1, coins: 80000, gems: 50, xp: 3000, progress: (s) => cnt(s, 'unicorn_meadow') },
+  { id: 'q36', text: 'Build a crane marsh', target: 1, coins: 80000, gems: 50, xp: 3000, progress: (s) => cnt(s, 'crane_marsh') },
   { id: 'q37', text: 'Reach level 150', target: 150, coins: 150000, gems: 80, xp: 0, progress: (s) => s.level },
-  { id: 'q38', text: 'Collect 20 rainbow manes', target: 20, coins: 120000, gems: 60, xp: 5000, progress: (s) => st(s, 'collect:rainbow_mane') },
+  { id: 'q38', text: 'Collect 20 barn owl feathers', target: 20, coins: 120000, gems: 60, xp: 5000, progress: (s) => st(s, 'collect:owl_feather') },
   { id: 'q39', text: 'Reach level 175', target: 175, coins: 250000, gems: 100, xp: 0, progress: (s) => s.level },
   { id: 'q40', text: 'Plant a golden apple tree', target: 1, coins: 200000, gems: 100, xp: 8000, progress: (s) => cnt(s, 'golden_apple_tree') },
   { id: 'q41', text: 'Reach level 200', target: 200, coins: 500000, gems: 200, xp: 0, progress: (s) => s.level },
@@ -389,10 +389,10 @@ export function newGame(): GameState {
   return s;
 }
 
-// Pigs and their goods were taken out of the game. Saves that still hold them are paid back in
+// Pigs and unicorns, and their goods, were taken out of the game. Saves that still hold them are paid back in
 // coins, and orders, stall slots, boat crates and queues that mention them are cleaned up.
-const REMOVED_VALUE: Record<string, number> = { bacon: 50, pig_feed: 14 };
-const REMOVED_BUILDING: Record<string, { cost: number; animal: number }> = { pigpen: { cost: 1000, animal: 160 } };
+const REMOVED_VALUE: Record<string, number> = { bacon: 50, pig_feed: 14, rainbow_mane: 520 };
+const REMOVED_BUILDING: Record<string, { cost: number; animal: number }> = { pigpen: { cost: 1000, animal: 160 }, unicorn_meadow: { cost: 32000, animal: 4000 } };
 function dropRemoved(s: GameState) {
   for (const o of s.objects) {
     const r = REMOVED_BUILDING[o.type];

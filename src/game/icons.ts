@@ -216,7 +216,136 @@ function birdFace(head: string, beak: string, extra?: (c: CanvasRenderingContext
   };
 }
 
+// a cartoon mammal face for animal badges: fur, muzzle, ears and optional horns, wool or antlers
+interface Mam { fur: string; muzzle: string; ear?: string; droop?: boolean; horns?: 'curl' | 'up' | 'wide' | 'huge' | 'boss' | 'antler' | 'palm'; horn?: string; wool?: string; round?: boolean; blaze?: string; spots?: string }
+function mammal(bg: string, o: Mam): Painter {
+  return portrait(bg, (c) => {
+    const hc = o.horn ?? '#efe4cc';
+    c.lineCap = 'round';
+    if (o.horns === 'antler' || o.horns === 'palm') {
+      c.strokeStyle = '#d8c8a0'; c.lineWidth = 6;
+      for (const sx of [-1, 1]) {
+        c.beginPath(); c.moveTo(64 + sx * 16, 40); c.quadraticCurveTo(64 + sx * 30, 20, 64 + sx * 40, 8); c.stroke();
+        if (o.horns === 'palm') { c.fillStyle = '#d8c8a0'; c.beginPath(); c.ellipse(64 + sx * 38, 18, 18, 10, sx * -0.5, 0, Math.PI * 2); c.fill(); outline(c, 2); }
+        else { c.beginPath(); c.moveTo(64 + sx * 26, 26); c.lineTo(64 + sx * 16, 12); c.moveTo(64 + sx * 34, 16); c.lineTo(64 + sx * 44, 22); c.stroke(); }
+      }
+    }
+    // ears
+    const ear = o.ear ?? o.fur;
+    for (const sx of [-1, 1]) {
+      c.save(); c.translate(64 + sx * 32, o.droop ? 62 : 46); c.rotate(sx * (o.droop ? 0.3 : 1.1));
+      c.beginPath(); c.ellipse(0, o.droop ? 12 : 0, o.droop ? 9 : 14, o.droop ? 20 : 8, 0, 0, Math.PI * 2); c.fillStyle = ear; c.fill(); outline(c, 2); c.restore();
+    }
+    circle(c, 64, 64, o.round ? 34 : 30, rad(c, 64, 60, 36, [[0, '#ffffff'], [0.3, o.fur], [1, o.fur]]));
+    c.beginPath(); c.arc(64, 64, o.round ? 34 : 30, 0, Math.PI * 2); outline(c, 3);
+    if (o.spots) { c.fillStyle = o.spots; for (let i = 0; i < 6; i++) { c.beginPath(); c.arc(46 + (i * 13) % 36, 50 + (i * 7) % 12, 3, 0, Math.PI * 2); c.fill(); } }
+    if (o.blaze) { c.fillStyle = o.blaze; c.beginPath(); c.ellipse(64, 60, 6, 20, 0, 0, Math.PI * 2); c.fill(); }
+    if (o.wool) for (let i = 0; i < 5; i++) circle(c, 46 + i * 9, 38 + (i % 2) * 4, 10, o.wool);
+    c.strokeStyle = hc; c.lineWidth = o.horns === 'huge' ? 12 : o.horns === 'boss' ? 10 : 7;
+    if (o.horns === 'curl') for (const sx of [-1, 1]) { c.beginPath(); c.arc(64 + sx * 30, 46, 12, sx < 0 ? 0.2 : Math.PI - 0.2, sx < 0 ? Math.PI * 1.7 : -Math.PI * 0.7, sx > 0); c.stroke(); }
+    if (o.horns === 'up') for (const sx of [-1, 1]) { c.beginPath(); c.moveTo(64 + sx * 12, 36); c.quadraticCurveTo(64 + sx * 18, 16, 64 + sx * 26, 8); c.stroke(); }
+    if (o.horns === 'wide') for (const sx of [-1, 1]) { c.beginPath(); c.moveTo(64 + sx * 18, 40); c.quadraticCurveTo(64 + sx * 44, 38, 64 + sx * 48, 18); c.stroke(); }
+    if (o.horns === 'huge') for (const sx of [-1, 1]) { c.beginPath(); c.moveTo(64 + sx * 16, 40); c.quadraticCurveTo(64 + sx * 50, 30, 64 + sx * 44, 2); c.stroke(); }
+    if (o.horns === 'boss') { c.beginPath(); c.moveTo(34, 60); c.quadraticCurveTo(36, 34, 64, 36); c.quadraticCurveTo(92, 34, 94, 60); c.stroke(); }
+    c.beginPath(); c.ellipse(64, 82, 20, 13, 0, 0, Math.PI * 2); c.fillStyle = o.muzzle; c.fill(); outline(c, 2);
+    circle(c, 56, 82, 3, 'rgba(0,0,0,0.55)'); circle(c, 72, 82, 3, 'rgba(0,0,0,0.55)');
+    eyePair(c, 64, 60, 13, 7);
+  });
+}
+// a swimming bird badge: body, neck and head in profile on water
+function swimBadge(bg: string, body: string, head: string, beak: string, extra?: (c: CanvasRenderingContext2D) => void): Painter {
+  return portrait(bg, (c) => {
+    c.fillStyle = 'rgba(80,160,220,0.5)'; c.fillRect(8, 86, 112, 30);
+    c.beginPath(); c.ellipse(58, 84, 36, 18, 0, Math.PI, 0); c.fillStyle = body; c.fill(); outline(c, 3);
+    c.strokeStyle = head; c.lineWidth = 12; c.lineCap = 'round'; c.beginPath(); c.moveTo(78, 76); c.quadraticCurveTo(92, 60, 80, 42); c.stroke();
+    circle(c, 82, 40, 12, head); c.beginPath(); c.arc(82, 40, 12, 0, Math.PI * 2); outline(c, 2);
+    c.beginPath(); c.moveTo(92, 36); c.lineTo(108, 42); c.lineTo(92, 46); c.closePath(); c.fillStyle = beak; c.fill(); outline(c, 2);
+    if (extra) extra(c);
+    circle(c, 84, 37, 3.5, '#ffffff'); circle(c, 85, 37, 2, '#1a120c');
+  });
+}
+
 const PAINTERS: Record<string, Painter> = {
+  // ---- more farm animals: goods
+  silkie_egg: egg(['#fffaf0', '#e8dcc4']),
+  black_wool: skein(['#5a5454', '#1a1818']),
+  jersey_milk: bottle('#fff6dc', '#c8905a', '#f2d8b0'),
+  muscovy_egg: egg(['#fbf8f0', '#d8d0bc']),
+  nubian_milk: bottle('#fffdf4', '#6a3a1e', '#e8c8a0'),
+  silk: (c) => {
+    c.fillStyle = '#b07a3a'; rrect(c, 30, 26, 68, 12, 4); c.fill(); outline(c, 2); rrect(c, 30, 92, 68, 12, 4); c.fill(); outline(c, 2);
+    rrect(c, 38, 38, 52, 54, 6); c.fillStyle = lin(c, 38, 0, 90, 0, [[0, '#e8d8f0'], [0.5, '#ffffff'], [1, '#d8c8e8']]); c.fill(); outline(c, 3);
+    c.strokeStyle = 'rgba(160,140,190,0.6)'; c.lineWidth = 2; for (let y = 44; y < 90; y += 5) { c.beginPath(); c.moveTo(40, y); c.lineTo(88, y + 2); c.stroke(); }
+    c.strokeStyle = '#e8d8f0'; c.lineWidth = 3; c.beginPath(); c.moveTo(88, 70); c.bezierCurveTo(108, 80, 96, 110, 116, 116); c.stroke();
+  },
+  mohair: skein(['#ffffff', '#e8e0d0']),
+  mandarin_feather: feather(['#ff9a3a', '#6a3a8a'], ['#ffffff', '#2a5a4a', '#1a1a1a']),
+  merino_wool: skein(['#fffaf0', '#e8dcc0']),
+  parrot_feather: feather(['#ff3a3a', '#2a6ac8']),
+  galloway_milk: bottle('#ffffff', '#232122', '#e8e8e8'),
+  moose_milk: bottle('#fffcf2', '#4a3020', '#d8c8a8'),
+  cashmere: skein(['#f2e8d8', '#c8b498']),
+  rhea_egg: egg(['#fff8e0', '#e0cc98']),
+  camel_wool: skein(['#d8a868', '#8a5a2a']),
+  jacob_wool: (c) => { skein(['#fbf6ea', '#d8cfc0'])(c); c.fillStyle = '#6a4a34'; for (const [x, y, r] of [[48, 60, 9], [82, 78, 11], [70, 46, 7], [44, 88, 8]]) circle(c, x, y, r, '#6a4a34'); },
+  shed_antler: (c) => {
+    c.strokeStyle = '#e8dcc0'; c.lineWidth = 12; c.lineCap = 'round';
+    c.beginPath(); c.moveTo(24, 110); c.quadraticCurveTo(60, 80, 70, 20); c.stroke();
+    c.lineWidth = 8; c.beginPath(); c.moveTo(52, 80); c.lineTo(92, 64); c.moveTo(64, 50); c.lineTo(104, 38); c.moveTo(40, 96); c.lineTo(72, 96); c.stroke();
+    c.strokeStyle = 'rgba(120,100,70,0.5)'; c.lineWidth = 2; c.beginPath(); c.moveTo(28, 106); c.quadraticCurveTo(62, 78, 70, 24); c.stroke();
+  },
+  crane_feather: feather(['#f4f4f6', '#6a6a74']),
+  zebu_milk: bottle('#fffdf6', '#8a8480', '#e8e4dc'),
+  qiviut: skein(['#8a6a4a', '#3a2618']),
+  black_down: (c) => {
+    for (const [x, y, r] of [[48, 74, 24], [80, 70, 26], [64, 52, 24], [64, 88, 20]]) {
+      circle(c, x, y, r, rad(c, x, y, r, [[0, '#6a6a74'], [0.7, '#2a2a30'], [1, '#141418']]));
+      c.strokeStyle = 'rgba(160,160,180,0.5)'; c.lineWidth = 1.5;
+      for (let i = 0; i < 10; i++) { const a = (i / 10) * Math.PI * 2; c.beginPath(); c.moveTo(x + Math.cos(a) * r * 0.5, y + Math.sin(a) * r * 0.5); c.lineTo(x + Math.cos(a) * (r + 4), y + Math.sin(a) * (r + 4)); c.stroke(); }
+    }
+  },
+  cassowary_egg: egg(['#8ae05a', '#2a8a3a']),
+  watusi_milk: bottle('#fffaf2', '#8a3a1a', '#f2d8c0'),
+  chinchilla_fluff: (c) => {
+    for (const [x, y, r] of [[48, 70, 26], [80, 66, 28], [64, 50, 26], [60, 84, 24]]) {
+      circle(c, x, y, r, rad(c, x, y, r, [[0, '#e8eaee'], [0.6, '#b8bcc4'], [1, '#8a8e96']]));
+      c.beginPath(); c.arc(x, y, r, 0, Math.PI * 2); outline(c, 2.5);
+    }
+  },
+  owl_feather: feather(['#f2d8a8', '#b07a3a']),
+  kiwi_egg: egg(['#fffcf2', '#e8e0cc']),
+  vicuna_wool: skein(['#f2c888', '#b87a3a']),
+  // ---- more farm animals: badges
+  silkie_chicken: portrait('#f2e6f0', birdFace('#fbf8f0', '#5a6a8a', (c) => { for (let i = 0; i < 6; i++) circle(c, 44 + i * 6, 38 - (i % 2) * 6, 9, '#ffffff'); c.fillStyle = '#3a4a7a'; c.beginPath(); c.ellipse(72, 62, 12, 10, 0, 0, Math.PI * 2); c.fill(); })),
+  black_sheep: mammal('#c8d0e0', { fur: '#2a2626', muzzle: '#3a3434', ear: '#1f1b19', wool: '#3e3838' }),
+  muscovy_duck: portrait('#c8e0f0', birdFace('#f4f2ee', '#f0c0a8', (c) => { c.fillStyle = '#c8282a'; c.beginPath(); c.ellipse(76, 66, 14, 12, 0, 0, Math.PI * 2); c.fill(); })),
+  nubian_goat: mammal('#f2dcc0', { fur: '#6a3a1e', muzzle: '#4a2a18', ear: '#5a3018', droop: true, blaze: '#f2e6d6' }),
+  angora_goat: mammal('#e8e0f0', { fur: '#fbf8f0', muzzle: '#e8c8c0', wool: '#ffffff', horns: 'curl', horn: '#c8b8a0' }),
+  mandarin_duck: swimBadge('#f8e0c0', '#8a6a4a', '#e8782a', '#d8282a', (c) => { c.fillStyle = '#fbf6ea'; c.beginPath(); c.ellipse(80, 36, 10, 4, -0.3, 0, Math.PI * 2); c.fill(); c.fillStyle = '#e8782a'; c.beginPath(); c.moveTo(50, 70); c.lineTo(58, 52); c.lineTo(64, 72); c.closePath(); c.fill(); outline(c, 2); }),
+  merino_sheep: mammal('#e0ecd8', { fur: '#f4ece0', muzzle: '#e8b0a8', wool: '#faf4e6', horns: 'curl', horn: '#e8dcc0' }),
+  belted_galloway: mammal('#d8e8d0', { fur: '#232122', muzzle: '#3a3636', ear: '#232122', round: true }),
+  moose: mammal('#d8e0c8', { fur: '#4a3020', muzzle: '#3a2418', horns: 'palm' }),
+  cashmere_goat: mammal('#f0e6d8', { fur: '#e6dccc', muzzle: '#d8b8b0', horns: 'up', horn: '#8a7a68' }),
+  rhea: portrait('#e0e4e8', birdFace('#9aa0a8', '#6a5a4a')),
+  jacob_sheep: mammal('#e0ecd8', { fur: '#2a2422', muzzle: '#2a2422', blaze: '#f6f2ea', wool: '#f6f2ea', horns: 'curl', horn: '#3a3230' }),
+  spotted_deer: mammal('#e8f0d8', { fur: '#c07a3a', muzzle: '#2a2020', horns: 'antler', spots: '#fbf6ea' }),
+  crane: portrait('#e0ecf4', birdFace('#2a2a2e', '#8a8a70', (c) => { circle(c, 58, 42, 10, '#d8282a'); c.fillStyle = '#ffffff'; c.beginPath(); c.ellipse(48, 78, 10, 16, 0.4, 0, Math.PI * 2); c.fill(); })),
+  zebu: mammal('#f0e8d8', { fur: '#dcd8d0', muzzle: '#4a4448', droop: true, horns: 'up', horn: '#3a3436' }),
+  musk_ox: mammal('#e8eef2', { fur: '#3a2618', muzzle: '#2a1a12', horns: 'boss', horn: '#d8ccb8' }),
+  black_swan: swimBadge('#d8e0f0', '#1a1a1e', '#1a1a1e', '#d8282a'),
+  cassowary: portrait('#d8f0e0', birdFace('#4a8ae8', '#2a2a2a', (c) => { c.fillStyle = '#8a6a3a'; c.beginPath(); c.ellipse(58, 30, 9, 18, 0, 0, Math.PI * 2); c.fill(); outline(c, 2); c.fillStyle = '#d8282a'; c.beginPath(); c.ellipse(70, 98, 6, 12, 0, 0, Math.PI * 2); c.fill(); })),
+  watusi: mammal('#f2e0d0', { fur: '#8a3a1a', muzzle: '#4a2a1a', horns: 'huge' }),
+  chinchilla: portrait('#e8e0f0', (c) => {
+    for (const sx of [-1, 1]) { circle(c, 64 + sx * 28, 36, 20, '#a8acb4'); c.beginPath(); c.arc(64 + sx * 28, 36, 20, 0, Math.PI * 2); outline(c, 2); circle(c, 64 + sx * 28, 36, 13, '#e8b8c0'); }
+    circle(c, 64, 70, 34, rad(c, 64, 66, 36, [[0, '#e8eaee'], [1, '#9a9ea6']])); c.beginPath(); c.arc(64, 70, 34, 0, Math.PI * 2); outline(c, 3);
+    eyePair(c, 64, 64, 14, 8); circle(c, 64, 84, 4, '#e8a0a8');
+  }),
+  kiwi_bird: portrait('#e0f0d8', (c) => {
+    circle(c, 58, 74, 34, rad(c, 58, 70, 36, [[0, '#b08a58'], [1, '#6a4a2a']])); c.beginPath(); c.arc(58, 74, 34, 0, Math.PI * 2); outline(c, 3);
+    c.strokeStyle = '#d8c8a0'; c.lineWidth = 6; c.lineCap = 'round'; c.beginPath(); c.moveTo(84, 60); c.lineTo(118, 76); c.stroke();
+    circle(c, 76, 56, 5, '#1a120c'); circle(c, 77, 55, 1.6, '#ffffff');
+  }),
+  vicuna: mammal('#f8ecd8', { fur: '#d8a058', muzzle: '#e8c490', ear: '#c8904a' }),
   // ---- late game goods
   speckled_egg: egg(['#fbf6ec', '#d8cbb0'], '#6a5a4a'),
   pheasant_feather: feather(['#e0a060', '#6a3a1a']),
@@ -239,11 +368,6 @@ const PAINTERS: Record<string, Painter> = {
   bison_wool: skein(['#8a6a4a', '#4a2e1c']),
   pink_feather: feather(['#ffb0cc', '#e0507a']),
   llama_wool: skein(['#f2e6cc', '#c8a878']),
-  rainbow_mane: (c) => {
-    const cols = ['#ff5a6a', '#ffa23a', '#ffe04a', '#6ad86a', '#4ab0ff', '#b07aff'];
-    cols.forEach((col, i) => { c.strokeStyle = col; c.lineWidth = 11; c.lineCap = 'round'; c.beginPath(); c.moveTo(30 + i * 8, 24 + i * 4); c.bezierCurveTo(90, 30 + i * 8, 20, 80 + i * 4, 84 + i * 6, 108); c.stroke(); });
-    c.fillStyle = '#fffbe0'; for (const [x, y] of [[104, 30], [24, 96]]) { c.beginPath(); c.arc(x, y, 5, 0, Math.PI * 2); c.fill(); }
-  },
   golden_egg: egg(['#fff2a0', '#c8900a'], undefined, true),
   trout: fishy('#6a8a5a', '#e8b0a0', '#6a8a5a', { spots: '#2a3a2a' }),
   tuna: fishy('#1f3a6a', '#a8b8c8', '#e8c43a'),
