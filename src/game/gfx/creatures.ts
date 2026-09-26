@@ -25,31 +25,50 @@ function leg(len: number, th: number, color: string, hoof: string, hoofH = 0.04)
     .build([-th, -len - 0.01, -th], [th, 0.03, th + 0.02], C * 0.75);
 }
 
-const cowCoat = (x: number, y: number, z: number) => (noise3(x * 11 + 3, y * 11, z * 11) > 0.6 ? '#2b2b2b' : '#ffffff');
+// Holstein coat: irregular black patches from two octaves of noise
+const holstein = (x: number, y: number, z: number, th = 0.57) =>
+  noise3(x * 7 + 3, y * 7, z * 7) * 0.7 + noise3(x * 17 + 8, y * 17, z * 17) * 0.3 > th ? '#1f1f1f' : '#f7f5f0';
 
 function cow(): CreatureParts {
+  const coat = (x: number, y: number, z: number) => holstein(x, y, z);
   const body = new Sculpt()
-    .add(ellipsoid(0, 0.29, 0, 0.125, 0.125, 0.2), cowCoat)
-    .add(sphere(0, 0.3, -0.12, 0.118), cowCoat, 0.06)
-    .add(sphere(0, 0.3, 0.12, 0.112), cowCoat, 0.06)
-    .add(capsule(0, 0.31, 0.14, 0, 0.35, 0.2, 0.075, 0.065), cowCoat, 0.05)
-    .add(ellipsoid(0, 0.18, -0.07, 0.05, 0.035, 0.05), '#f2b3bd', 0.03)
-    .build([-0.16, 0.12, -0.26], [0.16, 0.45, 0.28], C);
+    // deep barrel, withers over the shoulders, a flat back and hook bones at the hips
+    .add(ellipsoid(0, 0.33, 0, 0.125, 0.13, 0.23), coat)
+    .add(sphere(0, 0.345, 0.13, 0.12), coat, 0.07)
+    .add(ellipsoid(0, 0.35, -0.14, 0.12, 0.12, 0.11), coat, 0.07)
+    .add(sphere(0.085, 0.43, -0.16, 0.035), coat, 0.04)
+    .add(sphere(-0.085, 0.43, -0.16, 0.035), coat, 0.04)
+    .add(ellipsoid(0, 0.44, 0.1, 0.06, 0.03, 0.08), coat, 0.05)
+    // neck and dewlap
+    .add(capsule(0, 0.35, 0.15, 0, 0.41, 0.26, 0.085, 0.068), coat, 0.06)
+    .add(ellipsoid(0, 0.29, 0.21, 0.03, 0.06, 0.06), coat, 0.04)
+    // udder with four teats
+    .add(ellipsoid(0, 0.215, -0.09, 0.06, 0.045, 0.06), '#eba9b1', 0.035)
+    .add(capsule(0.025, 0.19, -0.07, 0.025, 0.165, -0.07, 0.008, 0.007), '#e39aa3', 0.008)
+    .add(capsule(-0.025, 0.19, -0.07, -0.025, 0.165, -0.07, 0.008, 0.007), '#e39aa3', 0.008)
+    .add(capsule(0.025, 0.19, -0.11, 0.025, 0.165, -0.11, 0.008, 0.007), '#e39aa3', 0.008)
+    .add(capsule(-0.025, 0.19, -0.11, -0.025, 0.165, -0.11, 0.008, 0.007), '#e39aa3', 0.008)
+    .build([-0.16, 0.14, -0.28], [0.16, 0.5, 0.33], C);
+  const face = (x: number, y: number, z: number) => (Math.abs(x) < 0.028 && z > 0.02 ? '#f7f5f0' : holstein(x, y, z + 5, 0.5));
   const head = new Sculpt()
-    .add(ellipsoid(0, 0.015, 0.0, 0.085, 0.09, 0.1), (x, y, z) => (noise3(x * 13 + 9, y * 13, z * 13) > 0.62 ? '#2b2b2b' : '#ffffff'))
-    .add(ellipsoid(0, -0.035, 0.08, 0.075, 0.055, 0.06), '#f2b3bd', 0.04)
-    .carve(sphere(0.025, -0.03, 0.14, 0.012))
-    .carve(sphere(-0.025, -0.03, 0.14, 0.012))
-    .add(ellipsoid(0.105, 0.035, -0.02, 0.05, 0.016, 0.03), '#f5f5f5', 0.015)
-    .add(ellipsoid(-0.105, 0.035, -0.02, 0.05, 0.016, 0.03), '#f5f5f5', 0.015)
-    .add(capsule(0.045, 0.08, -0.01, 0.075, 0.12, -0.02, 0.014, 0.006), '#efe3c2', 0.01)
-    .add(capsule(-0.045, 0.08, -0.01, -0.075, 0.12, -0.02, 0.014, 0.006), '#efe3c2', 0.01)
-    .build([-0.17, -0.1, -0.12], [0.17, 0.14, 0.15], C * 0.7);
+    // long face tapering to a broad wet muzzle, poll between the horns
+    .add(sphere(0, 0.035, 0.0, 0.068), face)
+    .add(capsule(0, 0.03, 0.02, 0, -0.045, 0.13, 0.064, 0.05), face, 0.04)
+    .add(ellipsoid(0, -0.065, 0.15, 0.058, 0.042, 0.042), '#e9a7ae', 0.03)
+    .carve(ellipsoid(0.024, -0.06, 0.19, 0.011, 0.014, 0.012))
+    .carve(ellipsoid(-0.024, -0.06, 0.19, 0.011, 0.014, 0.012))
+    .carve(ellipsoid(0, -0.095, 0.17, 0.04, 0.004, 0.02), 0.004)
+    .add(ellipsoid(0.095, 0.03, -0.01, 0.055, 0.016, 0.03), '#f0ece4', 0.015)
+    .add(ellipsoid(-0.095, 0.03, -0.01, 0.055, 0.016, 0.03), '#f0ece4', 0.015)
+    .add(capsule(0.04, 0.085, -0.01, 0.07, 0.115, -0.03, 0.013, 0.005), '#e9dcbc', 0.01)
+    .add(capsule(-0.04, 0.085, -0.01, -0.07, 0.115, -0.03, 0.013, 0.005), '#e9dcbc', 0.01)
+    .build([-0.16, -0.13, -0.09], [0.16, 0.14, 0.22], C * 0.6);
   const tail = new Sculpt()
-    .add(capsule(0, 0, 0, 0, -0.15, 0.01, 0.013, 0.01), '#ffffff')
-    .add(ellipsoid(0, -0.17, 0.01, 0.022, 0.035, 0.022), '#2b2b2b', 0.015)
-    .build([-0.04, -0.22, -0.04], [0.04, 0.02, 0.05], C * 0.6);
-  return { body, head, headAt: [0, 0.37, 0.21], leg: leg(0.18, 0.062, '#ffffff', '#4a3a30'), legs: [[-0.07, 0.12], [0.07, 0.12], [-0.07, -0.12], [0.07, -0.12]], legLen: 0.18, tail, tailAt: [0, 0.37, -0.21] };
+    .add(capsule(0, 0, 0, 0, -0.2, 0.012, 0.012, 0.008), '#f7f5f0')
+    .add(ellipsoid(0, -0.225, 0.012, 0.02, 0.04, 0.02), '#1f1f1f', 0.015)
+    .displace((x, y, z) => (y < -0.19 ? noise3(x * 90, y * 40, z * 90) * 0.008 : 0))
+    .build([-0.04, -0.28, -0.04], [0.04, 0.02, 0.05], C * 0.55);
+  return { body, head, headAt: [0, 0.41, 0.26], leg: leg(0.2, 0.055, '#f7f5f0', '#3a2e26', 0.035), legs: [[-0.075, 0.15], [0.075, 0.15], [-0.075, -0.15], [0.075, -0.15]], legLen: 0.2, tail, tailAt: [0, 0.42, -0.25] };
 }
 
 function pig(): CreatureParts {

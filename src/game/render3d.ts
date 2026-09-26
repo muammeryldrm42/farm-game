@@ -3,15 +3,16 @@
 import * as THREE from 'three';
 import { mergeVertices } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 import { getQuality, onQuality, type Quality } from './quality';
+import { fillRich, isDrawn, paintIcon } from './icons';
 import { U } from './gfx/shared';
 import { Sky } from './gfx/sky';
 import { makeWater } from './gfx/water';
-import { Foliage, type Spot } from './gfx/foliage';
+import { Foliage, windify, type Spot } from './gfx/foliage';
 import { Post } from './gfx/post';
 import { PLANT_MAT, cropGeo } from './gfx/crops';
 import { creature, personParts } from './gfx/creatures';
 import { SCULPT_MAT, WOOL_MAT } from './gfx/sdf';
-import { meterBox, meterHip, meterRoof, surface, surfaceMat, type SurfaceKind } from './gfx/textures';
+import { leafShell, leafTexture, meterBox, meterHip, meterRoof, surface, surfaceMat, type SurfaceKind } from './gfx/textures';
 import { ANIMAL, BUILDING, CROP, ITEMS, type BuildingDef, type CropDef } from './data';
 import {
   CHUNK, FISH_SPOT, GRID, MAP_OFF, NCH, animalReady, fishingInfo, boatState, canFulfill, chunkState, penInfo, plotProgress, prodInfo, treeInfo,
@@ -120,10 +121,12 @@ function pineGeo() {
 
 // Lumpy foliage ball: a sphere pushed in and out by smooth noise, shaded smoothly.
 const blobCache = new Map<number, THREE.BufferGeometry>();
-function blobGeo(seed: number) {
-  let g = blobCache.get(seed);
+function blobGeo(seed: number, lo = false) {
+  const key = lo ? -seed - 1 : seed;
+  let g = blobCache.get(key);
   if (g) return g;
-  const base = new THREE.SphereGeometry(1, 28, 20);
+  // the forest uses a lighter version, there can be hundreds of those crowns
+  const base = lo ? new THREE.SphereGeometry(1, 12, 9) : new THREE.SphereGeometry(1, 28, 20);
   base.deleteAttribute('uv');
   base.deleteAttribute('normal');
   g = mergeVertices(base);
@@ -140,7 +143,7 @@ function blobGeo(seed: number) {
     pos.setXYZ(i, v.x, v.y, v.z);
   }
   g.computeVertexNormals();
-  blobCache.set(seed, g);
+  blobCache.set(key, g);
   return g;
 }
 
@@ -208,6 +211,7 @@ function emojiTex(icon: string, badge = false) {
       c.beginPath(); c.arc(64, 64, 58, 0, Math.PI * 2); c.fill();
       c.lineWidth = 8; c.strokeStyle = '#8a5a2b'; c.stroke();
     }
+    if (isDrawn(icon)) { paintIcon(c, icon, 64, 64, badge ? 76 : 110); return; }
     c.font = `${badge ? 64 : 92}px ${EF}`;
     c.textAlign = 'center'; c.textBaseline = 'middle';
     c.fillText(icon, 64, 70);
@@ -230,7 +234,8 @@ function bubbleTex(icon: string, mode: 'ready' | 'progress' | 'faded', step: num
     }
     c.font = `${mode === 'ready' ? 64 : 54}px ${EF}`;
     c.textAlign = 'center'; c.textBaseline = 'middle';
-    c.fillText(icon, 64, 68);
+    if (isDrawn(icon)) paintIcon(c, icon, 64, 64, mode === 'ready' ? 76 : 64);
+    else c.fillText(icon, 64, 68);
     if (count > 1) {
       c.fillStyle = '#e74c3c';
       c.beginPath(); c.arc(106, 22, 20, 0, Math.PI * 2); c.fill();
@@ -260,9 +265,8 @@ function textTex(text: string, color: string) {
     c.font = '900 54px ui-rounded, "Trebuchet MS", system-ui, sans-serif';
     c.textAlign = 'center'; c.textBaseline = 'middle';
     c.lineWidth = 12; c.strokeStyle = 'rgba(60,35,10,0.9)'; c.lineJoin = 'round';
-    c.strokeText(text, 256, 50);
     c.fillStyle = color;
-    c.fillText(text, 256, 50);
+    fillRich(c, text, 256, 50, 58, true);
   });
 }
 
@@ -545,6 +549,7 @@ export class Renderer {
     if (high && !this.post) this.post = new Post(this.gl, this.scene, this.camera, [this.sky.mesh, this.fxLayer, this.foliage.group]);
     if (!high && this.post) { this.post.dispose(); this.post = null; }
     this.foliageKey = '';
+    this.landKey = '';
     this.resize(this.size.w, this.size.h, this.size.dpr);
   }
 
@@ -850,7 +855,7 @@ export class Renderer {
     const trunks = new THREE.InstancedMesh(cylGeo(0.06, 0.09, 8), surfaceMat('bark', '#7a4a26', 4), pines.length + rounds.length);
     const pineA = new THREE.InstancedMesh(pineGeo(), new THREE.MeshStandardMaterial({ color: '#ffffff', roughness: 0.85 }), pines.length);
     const pineB = new THREE.InstancedMesh(pineGeo(), new THREE.MeshStandardMaterial({ color: '#ffffff', roughness: 0.85 }), pines.length);
-    const crown = new THREE.InstancedMesh(blobGeo(1), new THREE.MeshStandardMaterial({ color: '#ffffff', roughness: 0.85 }), rounds.length);
+    const crown = new THREE.InstancedMesh(blobGeo(1, true), new THREE.MeshStandardMaterial({ color: '#ffffff', roughness: 0.85 }), rounds.length);
     let ti = 0;
     pines.forEach(([x, z, sc], i) => {
       mtx.compose(pv.set(x, 0.2 * sc, z), q, sv.set(1, 0.4 * sc, 1)); trunks.setMatrixAt(ti++, mtx);
@@ -865,7 +870,18 @@ export class Renderer {
       col.set('#3f7d2e').offsetHSL(0, 0, (hash(i, 9) - 0.5) * 0.1);
       crown.setColorAt(i, col);
     });
-    for (const im of [trunks, pineA, pineB, crown]) { im.castShadow = true; im.receiveShadow = true; this.dynLand.add(im); }
+    // leafy card shells on the forest crowns only in high quality, they cost a lot of fill rate
+    const shell = new THREE.InstancedMesh(leafShell(3, 40), leafMat('#ffffff'), this.quality === 'high' ? rounds.length : 0);
+    for (let i = 0; i < shell.count; i++) {
+      crown.getMatrixAt(i, mtx);
+      mtx.decompose(pv, q, sv);
+      mtx.compose(pv, q, sv.multiplyScalar(1.12));
+      shell.setMatrixAt(i, mtx);
+      crown.getColorAt(i, col);
+      shell.setColorAt(i, col.offsetHSL(0, 0, 0.05));
+      crown.setColorAt(i, col.offsetHSL(0, 0, -0.15));
+    }
+    for (const im of [trunks, pineA, pineB, crown, shell]) { im.castShadow = true; im.receiveShadow = true; this.dynLand.add(im); }
     this.land.add(this.dynLand);
   }
 
@@ -1818,7 +1834,7 @@ function buildAnimal(kind: string) {
   const g = animalBody(kind);
   // slightly oversized heads read as cute from the farm camera
   const head = g.userData.head as THREE.Object3D | undefined;
-  if (head && kind !== 'horse') head.scale.setScalar(1.15);
+  if (head && kind !== 'horse' && kind !== 'cow') head.scale.setScalar(1.15);
   return g;
 }
 
@@ -1860,7 +1876,18 @@ function animalBody(kind: string) {
   const head = g.userData.head as THREE.Group | undefined;
   if (!head) return g;
   switch (kind) {
-    case 'cow': eyes(head, 0.05, 0.035, 0.075, 0.018); break;
+    case 'cow':
+      // eyes sit on the sides of the head, like a real cow's
+      for (const sx of [-1, 1]) {
+        const e = group(head, sx * 0.058, 0.04, 0.045);
+        e.rotation.y = sx * 0.9;
+        mk(e, G.ball, EYE_B, 0.016, 0.014, 0.01, 0, 0, 0, false);
+        mk(e, G.ball, EYE_W, 0.004, 0.004, 0.003, 0.004, 0.004, 0.008, false);
+        const list = (head.userData.eyes as THREE.Object3D[] | undefined) ?? [];
+        list.push(e);
+        head.userData.eyes = list;
+      }
+      break;
     case 'pig': {
       eyes(head, 0.045, 0.03, 0.078, 0.016);
       const tail = group(g, 0, 0.23, -0.165);
@@ -2421,6 +2448,16 @@ function buildPen(e: Entry, d: BuildingDef) {
   };
 }
 
+const leafMats = new Map<string, THREE.MeshStandardMaterial>();
+function leafMat(color: string) {
+  let m = leafMats.get(color);
+  if (!m) {
+    m = windify(new THREE.MeshStandardMaterial({ color, map: leafTexture(), alphaTest: 0.45, side: THREE.DoubleSide, vertexColors: true, roughness: 0.75 }), 1, 0.35);
+    leafMats.set(color, m);
+  }
+  return m;
+}
+
 // Leafy tree: tapered bark trunk with two limbs and a crown of lumpy foliage puffs.
 // Returns the crown group (pivot at the trunk base, for swaying) and its main puff.
 function leafyTree(g: P, x: number, z: number, leaf: string, k = 1, seed = 1) {
@@ -2435,7 +2472,17 @@ function leafyTree(g: P, x: number, z: number, leaf: string, k = 1, seed = 1) {
     [0, 0.8, 0, 0.34, 0], [-0.2, 0.68, 0.1, 0.22, -0.05], [0.2, 0.7, -0.08, 0.23, 0.03],
     [0.05, 1.0, 0.02, 0.21, 0.07], [0.08, 0.66, 0.2, 0.2, 0.02], [-0.1, 0.72, -0.2, 0.2, -0.03],
   ];
-  const main = puffs.map(([px, py, pz, r, l], i) => mk(crown, blobGeo(seed * 7 + i), M(shade(leaf, l)), r * k, r * 0.92 * k, r * k, px * k, py * k, pz * k))[0];
+  // each puff is a dark leafy core wrapped in a shell of painted leaf cards
+  const main = puffs.map(([px, py, pz, r, l], i) => {
+    const core = mk(crown, blobGeo(seed * 7 + i), M(shade(leaf, l - 0.12)), r * 0.86 * k, r * 0.8 * k, r * 0.86 * k, px * k, py * k, pz * k);
+    const shell = new THREE.Mesh(leafShell(seed * 7 + i, i === 0 ? 90 : 60), leafMat(shade(leaf, l + 0.04)));
+    shell.scale.set(r * k, r * 0.92 * k, r * k);
+    shell.position.set(px * k, py * k, pz * k);
+    shell.castShadow = true;
+    shell.receiveShadow = true;
+    crown.add(shell);
+    return core;
+  })[0];
   return { crown, main };
 }
 

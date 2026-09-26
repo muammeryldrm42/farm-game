@@ -56,6 +56,8 @@ interface Part { d: Dist; paint: Paint; k: number; sub: boolean }
 export class Sculpt {
   private parts: Part[] = [];
   private bump: ((x: number, y: number, z: number) => number) | null = null;
+  // strength of the fine fur or skin mottling painted into the colors
+  grain = 0.07;
 
   // add a shape blended into what is already there with fillet size k
   add(d: Dist, paint: Paint, k = 0.02) { this.parts.push({ d, paint, k, sub: false }); return this; }
@@ -152,7 +154,14 @@ export class Sculpt {
       gx /= l; gy /= l; gz /= l;
       nor[v * 3] = gx; nor[v * 3 + 1] = gy; nor[v * 3 + 2] = gz;
       this.color(x, y, z, c);
-      col[v * 3] = c.r; col[v * 3 + 1] = c.g; col[v * 3 + 2] = c.b;
+      // baked ambient occlusion: creases and the undersides between shapes get darker, which
+      // reads as depth and makes the soft forms feel solid
+      const probe = cell * 4;
+      const open = Math.max(0, Math.min(1, this.field(x + gx * probe, y + gy * probe, z + gz * probe) / probe));
+      const under = 0.82 + 0.18 * (gy * 0.5 + 0.5);
+      const mottle = 1 - this.grain + this.grain * 2 * noise3(x * 55, y * 55, z * 55);
+      const k = (0.62 + 0.38 * open) * under * mottle;
+      col[v * 3] = c.r * k; col[v * 3 + 1] = c.g * k; col[v * 3 + 2] = c.b * k;
     }
     for (let t = 0; t < tris.length; t += 3) {
       const a = tris[t], b = tris[t + 1], d = tris[t + 2];

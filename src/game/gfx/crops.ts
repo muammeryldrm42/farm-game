@@ -3,7 +3,7 @@
 // per crop and shared by every plant on the farm.
 import * as THREE from 'three';
 import type { CropDef } from '../data';
-import { Kit, P, blade, cylinder, lump, ribs, tip, type V3 } from './kit';
+import { Kit, P, blade, cylinder, lump, ribs, ruffledLeaf, tip, type V3 } from './kit';
 
 const r = (i: number, s: number) => {
   let h = Math.imul(i | 0, 374761393) ^ Math.imul(s | 0, 668265263);
@@ -155,16 +155,21 @@ function build(cd: CropDef): CropGeo {
       break;
     }
     case 'leafy': {
-      // lettuce: a loose rosette of ruffled leaves around a tight pale heart
-      for (let ring = 0; ring < 3; ring++) {
-        const n = 7 - ring;
+      // lettuce: rings of ruffled, cupped leaves opening outward around a pale folded heart
+      const rings = [[8, 1.05, 0.1, 0.8], [7, 0.7, 0.088, 0.7], [6, 0.4, 0.068, 0.62], [5, 0.15, 0.048, 0.55]];
+      rings.forEach(([n, open, len, tone], ri) => {
         for (let i = 0; i < n; i++) {
-          const a = (i / n) * Math.PI * 2 + ring * 0.5;
-          const d = 0.075 - ring * 0.022;
-          plant.add(lump(80 + ring * 10 + i, 0.3, 12), shade(L, -0.08 + ring * 0.05), [Math.cos(a) * d, 0.035 + ring * 0.022, Math.sin(a) * d], [0.9 - ring * 0.25, -a + Math.PI / 2, 0], [0.055, 0.012, 0.07 - ring * 0.01]);
+          const a = (i / n) * Math.PI * 2 + ri * 0.45;
+          const col = new THREE.Color(L).multiplyScalar(tone as number + 0.25).getHexString();
+          const l = len as number;
+          const m = new THREE.Matrix4().makeTranslation(Math.cos(a) * 0.012 * ri, 0.005 + ri * 0.01, Math.sin(a) * 0.012 * ri)
+            .multiply(new THREE.Matrix4().makeRotationY(Math.PI / 2 - a))
+            .multiply(new THREE.Matrix4().makeRotationX(open as number))
+            .multiply(new THREE.Matrix4().makeScale(l * 1.4, l * 1.55, l * 1.2));
+          plant.addMatrix(ruffledLeaf(ri * 10 + i), '#' + col, m);
         }
-      }
-      fruit.add(lump(95, 0.2, 14), W, [0, 0.07, 0], [0, 0, 0], [0.045, 0.045, 0.045]);
+      });
+      fruit.add(lump(95, 0.12, 14), W, [0, 0.055, 0], [0, 0, 0], [0.035, 0.04, 0.035]);
       break;
     }
     case 'cane': {

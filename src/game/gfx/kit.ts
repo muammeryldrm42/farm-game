@@ -20,9 +20,14 @@ export class Kit {
     _m.compose(_p.set(...pos), _q.setFromEuler(_e.set(rot[0], rot[1], rot[2])), _s.set(s[0], s[1], s[2]));
     g.applyMatrix4(_m);
     const n = (g.getAttribute('position') as THREE.BufferAttribute).count;
+    // a geometry with its own vertex colors is tinted by `color` instead of painted over
+    const own = g.getAttribute('color') as THREE.BufferAttribute | undefined;
     const col = new Float32Array(n * 3);
     _c.set(color);
-    for (let i = 0; i < n; i++) { col[i * 3] = _c.r; col[i * 3 + 1] = _c.g; col[i * 3 + 2] = _c.b; }
+    for (let i = 0; i < n; i++) {
+      const r = own ? own.getX(i) : 1, gg = own ? own.getY(i) : 1, b = own ? own.getZ(i) : 1;
+      col[i * 3] = _c.r * r; col[i * 3 + 1] = _c.g * gg; col[i * 3 + 2] = _c.b * b;
+    }
     g.setAttribute('color', new THREE.BufferAttribute(col, 3));
     this.parts.push(g);
     return this;
@@ -138,5 +143,35 @@ export function ribs(n: number) {
   g.deleteAttribute('uv');
   g.computeVertexNormals();
   ribbed.set(n, g);
+  return g;
+}
+
+const ruffles = new Map<number, THREE.BufferGeometry>();
+// A lettuce style leaf: cupped across its width, curling back at the tip, with wavy edges,
+// a pale midrib and a pale base fading to a darker rim (grey values, tinted by the caller).
+export function ruffledLeaf(seed: number) {
+  let g = ruffles.get(seed);
+  if (g) return g;
+  const U = 12, V = 10;
+  const pos: number[] = [], col: number[] = [], idx: number[] = [];
+  for (let j = 0; j <= V; j++) for (let i = 0; i <= U; i++) {
+    const u = (i / U) * 2 - 1, v = j / V;
+    const w = Math.sin(Math.min(1, v * 1.1 + 0.15) * Math.PI) * 0.55 + 0.12;
+    const ruffle = Math.sin(u * 11 + v * 7 + seed) * 0.07 * Math.pow(Math.abs(u), 2) * (0.4 + v);
+    const x = u * w;
+    const y = v * (1 - v * 0.25);
+    const z = -u * u * 0.28 + v * v * 0.35 + ruffle;
+    pos.push(x, y, z);
+    const rib = Math.max(0, 1 - Math.abs(u) * 9);
+    const k = 0.55 + 0.45 * (1 - v) * 0.7 + rib * 0.35 - Math.abs(u) * v * 0.12;
+    col.push(k, Math.min(1.1, k + 0.05), k * 0.9);
+    if (i < U && j < V) { const a = j * (U + 1) + i; idx.push(a, a + 1, a + U + 2, a, a + U + 2, a + U + 1); }
+  }
+  g = new THREE.BufferGeometry();
+  g.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
+  g.setAttribute('color', new THREE.Float32BufferAttribute(col, 3));
+  g.setIndex(idx);
+  g.computeVertexNormals();
+  ruffles.set(seed, g);
   return g;
 }

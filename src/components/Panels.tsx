@@ -1,4 +1,5 @@
 'use client';
+import Ico from './Ico';
 import { useState, type ReactNode } from 'react';
 import { BUILDING, BUILDINGS, CROPS, ITEMS, ITEM_LIST, RECIPES, unlocksAt, type BuildingDef } from '@/game/data';
 import {
@@ -43,7 +44,7 @@ function Modal({ title, icon, onClose, children, wide = false }: { title: string
     <div className="pointer-events-auto fixed inset-0 z-30 flex items-center justify-center bg-black/40 p-3" onPointerDown={(e) => e.target === e.currentTarget && onClose()}>
       <div className={`panel flex max-h-[88vh] w-full animate-pop flex-col ${wide ? 'max-w-3xl' : 'max-w-md'}`}>
         <div className="relative flex items-center justify-center rounded-t-[1.2rem] bg-[#a8733f] px-12 py-2.5 text-white">
-          {icon && <span className="emoji mr-2 text-2xl">{icon}</span>}
+          {icon && <span className="emoji mr-2 text-2xl"><Ico i={icon} /></span>}
           <h2 className="text-xl font-bold tracking-wide" style={{ textShadow: '0 2px 0 #5d3a1f' }}>
             {title}
           </h2>
@@ -62,7 +63,7 @@ function Sheet({ title, icon, sub, onClose, children }: { title: string; icon: s
     <div className="pointer-events-auto fixed inset-x-0 bottom-0 z-20 flex justify-center p-2 sm:p-3">
       <div className="panel w-full max-w-2xl animate-pop">
         <div className="flex items-center gap-3 border-b-2 border-[#e2cc9c] px-4 py-2">
-          <span className="emoji text-3xl">{icon}</span>
+          <span className="emoji text-3xl"><Ico i={icon} /></span>
           <div className="min-w-0 flex-1 leading-tight">
             <div className="truncate text-lg font-bold">{title}</div>
             {sub && <div className="text-xs text-[#8a6a44]">{sub}</div>}
@@ -170,7 +171,7 @@ function PlotSheet({ o }: { o: FarmObject }) {
         {pp.ready ? (
           <div className="flex flex-col items-center gap-3 py-2">
             <button className="btn btn-green px-8 py-3 text-lg" onClick={() => { store.harvest(o); store.select(null); }}>
-              Harvest +2 {it.icon}
+              Harvest +2 <Ico i={it.icon} />
             </button>
             <p className="text-center text-xs text-[#8a6a44]">Tip: press and drag across ready fields to harvest many at once.</p>
           </div>
@@ -210,7 +211,7 @@ function PlotSheet({ o }: { o: FarmObject }) {
                 }
               }}
             >
-              <span className={`emoji text-3xl ${locked ? 'grayscale' : ''}`}>{it.icon}</span>
+              <span className={`emoji text-3xl ${locked ? 'grayscale' : ''}`}><Ico i={it.icon} /></span>
               <span className="text-xs font-bold">{it.name}</span>
               {locked ? (
                 <Lock level={c.level} />
@@ -263,7 +264,7 @@ function ProductionSheet({ o }: { o: FarmObject }) {
               key={i}
               className={`relative grid h-14 w-14 place-items-center rounded-2xl border-2 ${done ? 'border-[#3a7d1a] bg-[#e6f8d8]' : cur ? 'border-[#f5b92b] bg-[#fff1c4]' : 'border-dashed border-[#cdb482] bg-[#fffaf0]'}`}
             >
-              {e && <span className="emoji text-2xl">{ITEMS[e.recipe].icon}</span>}
+              {e && <span className="emoji text-2xl"><Ico i={ITEMS[e.recipe].icon} /></span>}
               {done && <span className="absolute -right-1 -top-1 grid h-5 w-5 place-items-center rounded-full bg-[#5cb82e] text-xs font-bold text-white">✓</span>}
               {cur && (
                 <div className="absolute inset-x-1 bottom-1">
@@ -311,7 +312,7 @@ function ProductionSheet({ o }: { o: FarmObject }) {
               onClick={() => store.queueRecipe(o, r.id)}
               className={`card flex items-center gap-3 p-2 text-left transition active:scale-[0.98] disabled:opacity-60 ${ok && !locked ? 'ring-2 ring-[#5cb82e]' : ''}`}
             >
-              <span className={`emoji text-3xl ${locked ? 'grayscale' : ''}`}>{it.icon}</span>
+              <span className={`emoji text-3xl ${locked ? 'grayscale' : ''}`}><Ico i={it.icon} /></span>
               <div className="min-w-0 flex-1">
                 <div className="flex items-center gap-2 font-bold">
                   {it.name}
@@ -323,7 +324,7 @@ function ProductionSheet({ o }: { o: FarmObject }) {
                     const have = s.inv[id] ?? 0;
                     return (
                       <span key={id} className={have >= n ? 'text-[#2d5e14]' : 'text-[#c0392b]'}>
-                        <span className="emoji">{ITEMS[id].icon}</span> {have}/{n}
+                        <span className="emoji"><Ico i={ITEMS[id].icon} /></span> {have}/{n}
                       </span>
                     );
                   })}
@@ -370,9 +371,9 @@ function PenSheet({ o }: { o: FarmObject }) {
             const p = a.fedAt === null ? 0 : Math.min(1, (now - a.fedAt) / (an.time * 1000));
             return (
               <div key={a.id} className="card flex w-16 flex-col items-center gap-1 p-1.5">
-                <span className="emoji text-2xl">{an.icon}</span>
+                <span className="emoji text-2xl"><Ico i={an.icon} /></span>
                 {ready ? (
-                  <span className="emoji text-lg">{ITEMS[an.product].icon}</span>
+                  <span className="emoji text-lg"><Ico i={ITEMS[an.product].icon} /></span>
                 ) : a.fedAt === null ? (
                   <span className="text-[10px] font-bold text-[#c0392b]">Hungry</span>
                 ) : (
@@ -387,12 +388,12 @@ function PenSheet({ o }: { o: FarmObject }) {
       <div className="mt-3 flex flex-wrap items-center gap-2">
         {pi.ready > 0 && (
           <button className="btn btn-green" onClick={() => store.collectPen(o)}>
-            Collect {pi.ready} {ITEMS[an.product].icon}
+            Collect {pi.ready} <Ico i={ITEMS[an.product].icon} />
           </button>
         )}
         {pi.hungry > 0 && (
           <button className="btn btn-yellow" onClick={() => store.feedPen(o)} disabled={feedHave === 0}>
-            Feed {Math.min(pi.hungry, feedHave) || ''} <span className="emoji">{ITEMS[an.feed].icon}</span>
+            Feed {Math.min(pi.hungry, feedHave) || ''} <span className="emoji"><Ico i={ITEMS[an.feed].icon} /></span>
           </button>
         )}
         {pi.fed > 0 && (
@@ -402,7 +403,7 @@ function PenSheet({ o }: { o: FarmObject }) {
         )}
         {pi.total < cap && (
           <button className="btn btn-wood" onClick={() => store.buyAnimal(o)} disabled={locked || s.coins < an.cost}>
-            Buy {an.icon} <Coins n={an.cost} />
+            Buy <Ico i={an.icon} /> <Coins n={an.cost} />
           </button>
         )}
         <button className="btn btn-ghost ml-auto" onClick={() => store.startMove(o.id)}>
@@ -464,7 +465,7 @@ function TreeSheet({ o }: { o: FarmObject }) {
       {ti.ready ? (
         <div className="flex justify-center py-1">
           <button className="btn btn-green px-8 py-3 text-lg" onClick={() => store.collectTree(o)}>
-            Pick +2 {it.icon}
+            Pick +2 <Ico i={it.icon} />
           </button>
         </div>
       ) : (
@@ -530,7 +531,7 @@ function StallModal() {
           <div className="grid grid-cols-4 gap-2 sm:grid-cols-6 md:grid-cols-8">
             {owned.map((i) => (
               <button key={i.id} onClick={() => choose(i.id)} className={`card flex flex-col items-center p-1.5 ${item === i.id ? 'ring-2 ring-[#f5b92b]' : ''}`}>
-                <span className="emoji text-2xl">{i.icon}</span>
+                <span className="emoji text-2xl"><Ico i={i.icon} /></span>
                 <span className="text-[11px] font-bold">x{s.inv[i.id]}</span>
               </button>
             ))}
@@ -539,7 +540,7 @@ function StallModal() {
         {item && (
           <div className="card mt-3 flex flex-col gap-3 p-3">
             <div className="flex items-center gap-2 font-bold">
-              <span className="emoji text-2xl">{ITEMS[item].icon}</span> {ITEMS[item].name}
+              <span className="emoji text-2xl"><Ico i={ITEMS[item].icon} /></span> {ITEMS[item].name}
             </div>
             <div className="flex flex-wrap items-center gap-2">
               <span className="w-16 text-sm font-bold">Amount</span>
@@ -596,7 +597,7 @@ function StallModal() {
           const sold = sl.soldAt <= now;
           return (
             <div key={i} className={`card flex min-h-[9rem] flex-col items-center gap-1 p-3 ${sold ? 'ring-2 ring-[#5cb82e]' : ''}`}>
-              <span className="emoji text-3xl">{ITEMS[sl.item].icon}</span>
+              <span className="emoji text-3xl"><Ico i={ITEMS[sl.item].icon} /></span>
               <span className="text-sm font-bold">x{sl.qty} {ITEMS[sl.item].name}</span>
               <span className="text-sm font-bold"><Coins n={sl.price} /></span>
               {sold ? (
@@ -697,7 +698,7 @@ function BoatModal() {
           const ok = have >= c.qty;
           return (
             <div key={i} className={`card flex flex-col items-center gap-1 p-3 ${c.filled ? 'bg-[#e6f8d8]' : ok ? 'ring-2 ring-[#5cb82e]' : ''}`}>
-              <span className="emoji text-3xl">{c.filled ? '📦' : ITEMS[c.item].icon}</span>
+              <span className="emoji text-3xl">{c.filled ? '📦' : <Ico i={ITEMS[c.item].icon} />}</span>
               <span className="text-sm font-bold">{ITEMS[c.item].name}</span>
               {c.filled ? (
                 <span className="text-sm font-bold text-[#2d5e14]">Packed</span>
@@ -745,7 +746,7 @@ function ShopModal() {
       <div className="mb-3 flex gap-1.5 overflow-x-auto">
         {SHOP_TABS.map((x) => (
           <button key={x.id} className={`btn shrink-0 ${tab === x.id ? 'btn-yellow' : 'btn-ghost'}`} onClick={() => setTab(x.id)}>
-            <span className="emoji">{x.icon}</span> {x.label}
+            <span className="emoji"><Ico i={x.icon} /></span> {x.label}
           </button>
         ))}
       </div>
@@ -764,7 +765,7 @@ function ShopModal() {
               onClick={() => store.startBuy(d.id)}
               className="card flex flex-col items-center gap-1 p-3 text-center transition active:scale-95 disabled:opacity-60"
             >
-              <span className={`emoji text-4xl ${locked ? 'grayscale' : ''}`}>{d.icon}</span>
+              <span className={`emoji text-4xl ${locked ? 'grayscale' : ''}`}><Ico i={d.icon} /></span>
               <span className="font-bold leading-tight">{d.name}</span>
               <span className="line-clamp-2 min-h-[2rem] text-[11px] leading-4 text-[#8a6a44]">{d.desc}</span>
               {locked ? (
@@ -823,7 +824,7 @@ function OrdersModal() {
                   const have = s.inv[it.id] ?? 0;
                   return (
                     <div key={it.id} className="flex flex-col items-center rounded-xl bg-[#f4e6c4] px-2 py-1">
-                      <span className="emoji text-2xl">{ITEMS[it.id].icon}</span>
+                      <span className="emoji text-2xl"><Ico i={ITEMS[it.id].icon} /></span>
                       <span className={`text-xs font-bold ${have >= it.qty ? 'text-[#2d5e14]' : 'text-[#c0392b]'}`}>
                         {have}/{it.qty}
                       </span>
@@ -904,7 +905,7 @@ function StorageModal() {
             const n = s.inv[i.id];
             return (
               <div key={i.id} className="card flex flex-col items-center gap-1 p-2">
-                <span className="emoji text-3xl">{i.icon}</span>
+                <span className="emoji text-3xl"><Ico i={i.icon} /></span>
                 <span className="text-sm font-bold">{i.name}</span>
                 <span className="text-xs text-[#8a6a44]">
                   x{n} · <span className="inline-flex items-center gap-0.5">{i.sell} <Coin /></span> each
@@ -963,7 +964,7 @@ function BadgesList() {
         const ready = !done && p >= target;
         return (
           <div key={a.id} className={`card flex items-center gap-3 p-3 ${ready ? 'ring-2 ring-[#5cb82e]' : ''}`}>
-            <span className="emoji text-3xl">{a.icon}</span>
+            <span className="emoji text-3xl"><Ico i={a.icon} /></span>
             <div className="min-w-0 flex-1">
               <div className="flex items-center gap-1.5 font-bold">
                 {a.name}
@@ -1206,7 +1207,7 @@ function LevelUpModal({ level }: { level: number }) {
             <div className="flex flex-wrap justify-center gap-2">
               {list.map((x) => (
                 <div key={x.name} className="card flex w-20 flex-col items-center p-2">
-                  <span className="emoji text-3xl">{x.icon}</span>
+                  <span className="emoji text-3xl"><Ico i={x.icon} /></span>
                   <span className="text-[11px] font-bold leading-tight">{x.name}</span>
                 </div>
               ))}

@@ -1,6 +1,7 @@
 'use client';
 import { useEffect, useRef } from 'react';
 import { useStore, useVersion } from './ctx';
+import { iconUrl, isDrawn } from '@/game/icons';
 
 // Icons that fly from the farm to the storage button, coin counter or XP bar.
 // Pure DOM with the Web Animations API, so it never re-renders React.
@@ -30,7 +31,12 @@ export default function Flyers() {
         ty = 28;
       }
       const span = document.createElement('span');
-      span.textContent = f.icon;
+      if (isDrawn(f.icon)) {
+        const img = document.createElement('img');
+        img.src = iconUrl(f.icon);
+        img.className = 'h-[1em] w-[1em]';
+        span.appendChild(img);
+      } else span.textContent = f.icon;
       span.className = 'emoji pointer-events-none fixed left-0 top-0 z-40 text-3xl';
       span.style.filter = 'drop-shadow(0 2px 0 rgba(0,0,0,0.3))';
       el.appendChild(span);
