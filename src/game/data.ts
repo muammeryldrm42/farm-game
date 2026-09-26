@@ -138,7 +138,7 @@ item('goat_milk', 'Goat Milk', '🍼', 'barn', 70, 12);
 item('honey', 'Honey', '🍯', 'barn', 80, 13);
 item('horseshoe', 'Lucky Horseshoe', '🧲', 'barn', 95, 15);
 item('goose_egg', 'Goose Egg', '🪺', 'barn', 55, 11);
-item('turkey_feather', 'Turkey Feather', '@turkey_feather', 'barn', 45, 10);
+item('gobbler_feather', 'Gobbler Feather', '@gobbler_feather', 'barn', 45, 10);
 item('donkey_milk', 'Donkey Milk', '@donkey_milk', 'barn', 60, 13);
 item('buffalo_milk', 'Buffalo Milk', '@buffalo_milk', 'barn', 75, 15);
 item('peacock_feather', 'Peacock Feather', '@peacock_feather', 'barn', 95, 17);
@@ -288,7 +288,7 @@ recipe('hot_chili', 'bbq_grill', { chili: 3, tomato: 2, potato: 1 }, 300, 16, 15
 
 recipe('fish', 'fishing_pier', { corn: 2 }, 120, 5, 7);
 
-recipe('quill', 'workshop', { turkey_feather: 2 }, 240, 11, 10);
+recipe('quill', 'workshop', { gobbler_feather: 2 }, 240, 11, 10);
 recipe('soap', 'workshop', { donkey_milk: 1, lemon: 1 }, 300, 13, 13);
 recipe('feather_fan', 'workshop', { peacock_feather: 2, cotton: 1 }, 360, 17, 17);
 recipe('mozzarella', 'dairy', { buffalo_milk: 2 }, 270, 13, 15);
@@ -339,7 +339,7 @@ export const ANIMALS: AnimalDef[] = [
   { id: 'rabbit', name: 'Rabbit', icon: '🐇', house: 'rabbit_hutch', feed: 'carrot', product: 'angora', time: 180, xp: 4, cost: 120, level: 9 },
   { id: 'alpaca', name: 'Alpaca', icon: '🦙', house: 'alpaca_ranch', feed: 'wheat', product: 'alpaca_wool', time: 320, xp: 8, cost: 320, level: 14 },
   { id: 'goose', name: 'Goose', icon: '🪿', house: 'goose_pen', feed: 'duck_feed', product: 'goose_egg', time: 210, xp: 5, cost: 150, level: 11 },
-  { id: 'turkey', name: 'Turkey', icon: '🦃', house: 'turkey_run', feed: 'chicken_feed', product: 'turkey_feather', time: 200, xp: 5, cost: 140, level: 10 },
+  { id: 'gobbler', name: 'Gobbler', icon: '🦃', house: 'gobbler_run', feed: 'chicken_feed', product: 'gobbler_feather', time: 200, xp: 5, cost: 140, level: 10 },
   { id: 'donkey', name: 'Donkey', icon: '🫏', house: 'donkey_paddock', feed: 'carrot', product: 'donkey_milk', time: 280, xp: 6, cost: 260, level: 13 },
   { id: 'buffalo', name: 'Water Buffalo', icon: '🐃', house: 'buffalo_wallow', feed: 'cow_feed', product: 'buffalo_milk', time: 330, xp: 8, cost: 360, level: 15 },
   { id: 'peacock', name: 'Peacock', icon: '🦚', house: 'peacock_garden', feed: 'corn', product: 'peacock_feather', time: 360, xp: 9, cost: 420, level: 17 },
@@ -406,7 +406,7 @@ export const BUILDINGS: BuildingDef[] = [
   b({ id: 'rabbit_hutch', name: 'Rabbit Hutch', icon: '🐇', kind: 'pen', w: 2, h: 2, cost: 900, level: 9, xp: 35, height: 26, wall: '#d9b98a', roof: '#c0392b', animal: 'rabbit', capacity: 5, desc: 'Fluffy rabbits give soft angora fur. They love carrots.' }),
   b({ id: 'alpaca_ranch', name: 'Alpaca Ranch', icon: '🦙', kind: 'pen', w: 3, h: 3, cost: 2200, level: 14, xp: 55, height: 26, wall: '#a8cf6a', roof: '#7d5ba6', animal: 'alpaca', capacity: 5, desc: 'Alpacas grow warm wool. Feed them wheat.' }),
   b({ id: 'goose_pen', name: 'Goose Green', icon: '🪿', kind: 'pen', w: 2, h: 2, cost: 1200, level: 11, xp: 40, height: 26, wall: '#9ccc5a', roof: '#3f7fbf', animal: 'goose', capacity: 5, desc: 'Geese lay big eggs for tarts and cakes. They eat duck feed.' }),
-  b({ id: 'turkey_run', name: 'Turkey Run', icon: '🦃', kind: 'pen', w: 2, h: 2, cost: 1100, level: 10, xp: 40, height: 26, wall: '#c9a46a', roof: '#8e4a2b', animal: 'turkey', capacity: 5, desc: 'Turkeys shed fine feathers for quill pens. They eat chicken feed.' }),
+  b({ id: 'gobbler_run', name: 'Gobbler Run', icon: '🦃', kind: 'pen', w: 2, h: 2, cost: 1100, level: 10, xp: 40, height: 26, wall: '#c9a46a', roof: '#8e4a2b', animal: 'gobbler', capacity: 5, desc: 'Gobblers shed fine feathers for quill pens. They eat chicken feed.' }),
   b({ id: 'donkey_paddock', name: 'Donkey Paddock', icon: '🫏', kind: 'pen', w: 3, h: 3, cost: 1900, level: 13, xp: 50, height: 26, wall: '#b8a46c', roof: '#6b4226', animal: 'donkey', capacity: 5, desc: 'Gentle donkeys give milk for soap. They love carrots.' }),
   b({ id: 'buffalo_wallow', name: 'Buffalo Wallow', icon: '🐃', kind: 'pen', w: 3, h: 3, cost: 2600, level: 15, xp: 60, height: 26, wall: '#8a6a44', roof: '#4a6a3a', animal: 'buffalo', capacity: 5, desc: 'Water buffalo give rich milk for mozzarella.' }),
   b({ id: 'peacock_garden', name: 'Peacock Garden', icon: '🦚', kind: 'pen', w: 2, h: 2, cost: 3000, level: 17, xp: 65, height: 26, wall: '#9ccc5a', roof: '#2e7d8a', animal: 'peacock', capacity: 4, desc: 'Peacocks drop dazzling feathers. They eat corn.' }),

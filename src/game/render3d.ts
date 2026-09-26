@@ -428,7 +428,7 @@ const FRUIT_COLOR: Record<string, string> = { apple: '#e53935', cherry: '#b0102a
 const TREE_LEAF: Record<string, string> = { apple_tree: '#4f9e36', cherry_tree: '#3f8a3a', orange_tree: '#2f7d32', peach_tree: '#5aa53a', lemon_tree: '#3b8f3c', coconut_palm: '#4c9a38', pear_tree: '#58a03a', plum_tree: '#3f7f3a', banana_tree: '#5aa844', mango_tree: '#2f7a32', avocado_tree: '#2a6a2e', pomegranate_tree: '#4a8a36' };
 const GRASSY_PEN = new Set(['pasture', 'sheepfold', 'beehive', 'rabbit_hutch', 'alpaca_ranch', 'goose_pen', 'peacock_garden', 'donkey_paddock']);
 const PEN_GROUND: Record<string, string> = {
-  rabbit_hutch: '#86c24f', alpaca_ranch: '#8fc45a', goose_pen: '#86c24f', turkey_run: '#c9a46a', buffalo_wallow: '#8a6a44', ostrich_ranch: '#d8c38e',
+  rabbit_hutch: '#86c24f', alpaca_ranch: '#8fc45a', goose_pen: '#86c24f', gobbler_run: '#c9a46a', buffalo_wallow: '#8a6a44', ostrich_ranch: '#d8c38e',
   coop: '#d9c08a', pasture: '#86c24f', sheepfold: '#9ccc5a',
   duck_pond: '#8fc45a', goat_yard: '#b8a46c', beehive: '#7fbf4f', stable: '#c9b27a',
 };
@@ -1891,7 +1891,7 @@ function realEyes(head: THREE.Object3D, spec: [number, number, number, number, n
 const LID: Record<string, string> = {
   cow: '#e9e3d8', sheep: '#1f1b19', goat: '#e3dccd', horse: '#6a3e22', chicken: '#c9642c',
   duck: '#1a4a2e', rabbit: '#8a7058', alpaca: '#c9b08c', goose: '#e8a33a', dog: '#7a4b26',
-  turkey: '#9ab8d8', donkey: '#6a655f', buffalo: '#2a2a2c', peacock: '#1f4fb8', ostrich: '#9a7a70',
+  gobbler: '#9ab8d8', donkey: '#6a655f', buffalo: '#2a2a2c', peacock: '#1f4fb8', ostrich: '#9a7a70',
 };
 
 function animalBody(kind: string) {
@@ -1911,7 +1911,7 @@ function animalBody(kind: string) {
         head.add(horn);
       }
       break;
-    case 'chicken': case 'goose': case 'turkey': case 'peacock': case 'ostrich': g.userData.peck = true; break;
+    case 'chicken': case 'goose': case 'gobbler': case 'peacock': case 'ostrich': g.userData.peck = true; break;
     case 'buffalo':
       // wide crescent horns sweeping back from the top of the head
       for (const sx of [-1, 1]) {

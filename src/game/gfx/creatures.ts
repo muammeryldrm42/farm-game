@@ -283,8 +283,8 @@ function goose(): CreatureParts {
   return { eye: [0.026, 0.02, 0.012, 0.008, 1.0], body, head, headAt: [0, 0.31, 0.11], leg: leg(0.1, 0.022, '#f08a24', '#f08a24', 0.012), legs: [[-0.035, 0], [0.035, 0]], legLen: 0.1, tail: null, tailAt: [0, 0, 0] };
 }
 
-function turkey(): CreatureParts {
-  // bronze turkey: iridescent dark body, barred wings and a fanned, white tipped tail
+function gobbler(): CreatureParts {
+  // bronze gobbler: iridescent dark body, barred wings and a fanned, white tipped tail
   const bronze = (x: number, y: number, z: number) => (noise3(x * 40, y * 40, z * 40) > 0.62 ? '#6a4a2a' : '#3e2a1c');
   const fan = (x: number, y: number, z: number) => {
     const d = Math.hypot(x, y - 0.17, z + 0.1);
@@ -403,7 +403,7 @@ function ostrich(): CreatureParts {
   return { eye: [0.024, 0.016, 0.012, 0.009, 1.0], body, head, headAt: [0, 0.95, 0.17], leg: leg(0.44, 0.045, (y: number) => (y > -0.12 ? '#d8b4aa' : '#b8968c'), '#8a7064', 0.03), legs: [[-0.05, 0], [0.05, 0]], legLen: 0.44, tail: null, tailAt: [0, 0, 0] };
 }
 
-const makers: Record<string, () => CreatureParts> = { turkey, donkey, buffalo, peacock, ostrich, cow, sheep, goat, horse, chicken, duck, rabbit, alpaca, goose, dog: dogParts };
+const makers: Record<string, () => CreatureParts> = { gobbler, donkey, buffalo, peacock, ostrich, cow, sheep, goat, horse, chicken, duck, rabbit, alpaca, goose, dog: dogParts };
 const cache = new Map<string, CreatureParts>();
 
 export function creature(kind: string) {

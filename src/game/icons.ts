@@ -115,7 +115,7 @@ const PAINTERS: Record<string, Painter> = {
     }
     c.fillStyle = '#4f9e36'; for (const a of [-0.8, 0, 0.8]) { c.save(); c.translate(64, 36); c.rotate(a); c.beginPath(); c.ellipse(0, -8, 5, 12, 0, 0, Math.PI * 2); c.fill(); c.restore(); }
   },
-  turkey_feather: feather(['#e9d7b0', '#6b3f22']),
+  gobbler_feather: feather(['#e9d7b0', '#6b3f22']),
   peacock_feather: feather(['#3fae6a', '#1f6a5a'], ['#e8c43a', '#2a8a8a', '#1a2f8a']),
   donkey_milk: bottle('#ffffff', '#9aa3ab', '#d8c9b0'),
   buffalo_milk: bottle('#fffdf2', '#3a4a5a', '#8ab0d8'),
