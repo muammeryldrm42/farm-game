@@ -386,11 +386,26 @@ function shiftMap(s: GameState) {
 }
 
 export function loadGame(): GameState {
+  let s: GameState | null = null;
   try {
     const raw = localStorage.getItem(SAVE_KEY);
-    if (raw) return migrate(JSON.parse(raw));
+    if (raw) s = migrate(JSON.parse(raw));
   } catch { /* corrupted save, start fresh */ }
-  return newGame();
+  return testBoost(s ?? newGame());
+}
+
+// TEMP test boost: max level and 1,000,000 coins, granted once per browser. Remove later.
+const BOOST_KEY = 'talons-farm-test-boost-1';
+function testBoost(s: GameState): GameState {
+  try {
+    if (localStorage.getItem(BOOST_KEY)) return s;
+    localStorage.setItem(BOOST_KEY, '1');
+  } catch { return s; }
+  s.level = Math.max(s.level, 35);
+  s.xp = 0;
+  s.coins += 1000000;
+  s.tutorial = TUTORIAL_DONE;
+  return s;
 }
 
 function migrate(d: Partial<GameState>): GameState {
