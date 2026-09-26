@@ -53,6 +53,15 @@ export function noise3(x: number, y: number, z: number) {
 
 interface Part { d: Dist; paint: Paint; k: number; sub: boolean }
 
+// Mesh density multiplier: cells passed to build() are scaled by this, so the same sculpt can be
+// meshed finer for close ups or coarser for distant copies.
+let sculptDetail = 1;
+export function withDetail<T>(f: number, make: () => T): T {
+  const old = sculptDetail;
+  sculptDetail = f;
+  try { return make(); } finally { sculptDetail = old; }
+}
+
 export class Sculpt {
   private parts: Part[] = [];
   private bump: ((x: number, y: number, z: number) => number) | null = null;
@@ -90,13 +99,22 @@ export class Sculpt {
 
   // mesh the surface inside the box [min, max] with cubes of size `cell`
   build(min: [number, number, number], max: [number, number, number], cell: number) {
+    cell *= sculptDetail;
     const nx = Math.ceil((max[0] - min[0]) / cell) + 1;
     const ny = Math.ceil((max[1] - min[1]) / cell) + 1;
     const nz = Math.ceil((max[2] - min[2]) / cell) + 1;
     const f = new Float32Array(nx * ny * nz);
     const idx = (i: number, j: number, k: number) => i + nx * (j + ny * k);
-    for (let k = 0; k < nz; k++) for (let j = 0; j < ny; j++) for (let i = 0; i < nx; i++) {
-      f[idx(i, j, k)] = this.field(min[0] + i * cell, min[1] + j * cell, min[2] + k * cell);
+    // sample the field in blocks: a block whose center is far from the surface cannot hold any
+    // of it, so it is filled with that one value instead of sampling every corner
+    const B = 4, reach = B * cell * 0.87 * 2.5 + cell;
+    for (let bk = 0; bk < nz; bk += B) for (let bj = 0; bj < ny; bj += B) for (let bi = 0; bi < nx; bi += B) {
+      const ei = Math.min(bi + B, nx), ej = Math.min(bj + B, ny), ek = Math.min(bk + B, nz);
+      const v = this.field(min[0] + (bi + B / 2) * cell, min[1] + (bj + B / 2) * cell, min[2] + (bk + B / 2) * cell);
+      const far = Math.abs(v) > reach;
+      for (let k = bk; k < ek; k++) for (let j = bj; j < ej; j++) for (let i = bi; i < ei; i++) {
+        f[idx(i, j, k)] = far ? v : this.field(min[0] + i * cell, min[1] + j * cell, min[2] + k * cell);
+      }
     }
     // one vertex per cell that the surface passes through, at the mean of its edge crossings
     const cellVert = new Int32Array(nx * ny * nz).fill(-1);

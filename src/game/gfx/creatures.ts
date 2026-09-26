@@ -2,7 +2,7 @@
 // SDF mesh with its coat painted into vertex colors. The renderer assembles them on pivots so
 // heads can graze, legs can walk and tails can swish. Built once per kind and cached.
 import * as THREE from 'three';
-import { Sculpt, capsule, ellipsoid, noise3, sphere } from './sdf';
+import { Sculpt, capsule, ellipsoid, noise3, sphere, withDetail } from './sdf';
 
 export interface CreatureParts {
   body: THREE.BufferGeometry;
@@ -468,11 +468,16 @@ function camel(): CreatureParts {
 const makers: Record<string, () => CreatureParts> = { quail, yak, camel, gobbler, donkey, buffalo, peacock, ostrich, cow, sheep, goat, horse, chicken, duck, rabbit, alpaca, goose, dog: dogParts };
 const cache = new Map<string, CreatureParts>();
 
-export function creature(kind: string) {
-  let c = cache.get(kind);
-  if (!c && makers[kind]) { c = makers[kind](); cache.set(kind, c); }
+// Two meshes per kind: lod 0 is the close up sculpt, lod 1 a much lighter copy for animals seen
+// from afar. Both come from the same sculpt, only the voxel size differs.
+export const LOD_DETAIL = [1.55, 3];
+export function creature(kind: string, lod = 1) {
+  const key = `${kind}|${lod}`;
+  let c = cache.get(key);
+  if (!c && makers[kind]) { c = withDetail(LOD_DETAIL[lod], makers[kind]); cache.set(key, c); }
   return c ?? null;
 }
+export const hasCreature = (kind: string, lod: number) => cache.has(`${kind}|${lod}`);
 
 // the farmer's head and torso, sculpted so the face, ears, hair and overalls read as one piece
 const people = new Map<string, { head: THREE.BufferGeometry; torso: THREE.BufferGeometry }>();

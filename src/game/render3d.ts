@@ -12,7 +12,7 @@ import { Post } from './gfx/post';
 import { PLANT_MAT, cropGeo } from './gfx/crops';
 import { PRODUCE_MAT, produceGeo } from './gfx/produce';
 import { ribs, ruffledLeaf } from './gfx/kit';
-import { creature, personParts } from './gfx/creatures';
+import { creature, hasCreature, personParts } from './gfx/creatures';
 import { SCULPT_MAT, WOOL_MAT } from './gfx/sdf';
 import { leafShell, leafTexture, meterBox, meterHip, meterRoof, surface, surfaceMat, type SurfaceKind } from './gfx/textures';
 import { ANIMAL, BUILDING, CROP, ITEMS, type BuildingDef, type CropDef } from './data';
@@ -541,6 +541,9 @@ export class Renderer {
   private applyQuality(q: Quality) {
     this.quality = q;
     const high = q === 'high';
+    // the soft fur sheen is a costly extra lobe; low quality keeps plain matte fur
+    SCULPT_MAT.sheen = high ? 0.55 : 0;
+    WOOL_MAT.sheen = high ? 1 : 0;
     const ms = high ? 4096 : 1024;
     if (this.sun.shadow.mapSize.x !== ms) {
       this.sun.shadow.mapSize.set(ms, ms);
@@ -1879,39 +1882,88 @@ function contactShadow(p: P, w: number, d: number) {
   return m;
 }
 
+// Level of detail for sculpted creatures. Every animal starts on the light mesh; once the
+// camera comes close, the fine sculpt for that kind is built in idle time (one kind at a time,
+// so there is no hitch) and swapped in. Far away animals drop back to the light mesh.
+type LodPart = 'body' | 'head' | 'leg' | 'tail';
+const LOD_NEAR = 30, LOD_FAR = 34;
+const lodWanted = new Set<string>();
+let lodBusy = false;
+function lodPump() {
+  if (lodBusy || !lodWanted.size) return;
+  lodBusy = true;
+  const idle = (cb: () => void) => {
+    const ric = (globalThis as { requestIdleCallback?: (f: () => void, o?: { timeout: number }) => number }).requestIdleCallback;
+    if (ric) ric(cb, { timeout: 400 }); else setTimeout(cb, 30);
+  };
+  idle(() => {
+    const kind = lodWanted.values().next().value as string;
+    lodWanted.delete(kind);
+    creature(kind, 0);
+    lodBusy = false;
+    lodPump();
+  });
+}
+const lodPos = new THREE.Vector3();
+function lodMesh(m: THREE.Mesh, kind: string, part: LodPart) {
+  let near = false;
+  // runs only for meshes in view; the swap shows from the next frame on
+  m.onBeforeRender = (_r, _s, cam) => {
+    const d = cam.position.distanceTo(lodPos.setFromMatrixPosition(m.matrixWorld));
+    const want = near ? d < LOD_FAR : d < LOD_NEAR && getQuality() === 'high';
+    if (want === near) return;
+    if (want && !hasCreature(kind, 0)) { lodWanted.add(kind); lodPump(); return; }
+    const cp = creature(kind, want ? 0 : 1);
+    const geo = cp?.[part];
+    if (!geo) return;
+    near = want;
+    m.geometry = geo;
+  };
+}
+
 // Puts a sculpted creature together on pivots: legs swing from the hips, the head nods from
 // the neck and the tail swishes from its root.
 function assemble(kind: string) {
   const g = new THREE.Group();
   const cp = creature(kind);
   if (!cp) return g;
-  const add = (p: P, geo: THREE.BufferGeometry, mat: THREE.Material) => {
+  const add = (p: P, geo: THREE.BufferGeometry, mat: THREE.Material, part: LodPart) => {
     const m = new THREE.Mesh(geo, mat);
     m.castShadow = true;
     m.receiveShadow = true;
+    lodMesh(m, kind, part);
     p.add(m);
     return m;
   };
-  add(g, cp.body, cp.wool ? WOOL_MAT : SCULPT_MAT);
+  add(g, cp.body, cp.wool ? WOOL_MAT : SCULPT_MAT, 'body');
   cp.body.computeBoundingBox();
   const bb = cp.body.boundingBox as THREE.Box3;
   g.userData.shadow = contactShadow(g, (bb.max.x - bb.min.x) * 1.5, (bb.max.z - bb.min.z) * 1.25);
   const legs: THREE.Object3D[] = [];
   for (const [x, z] of cp.legs) {
     const pv = group(g, x, cp.legLen, z);
-    if (cp.leg) add(pv, cp.leg, SCULPT_MAT);
+    if (cp.leg) add(pv, cp.leg, SCULPT_MAT, 'leg');
     legs.push(pv);
   }
   const head = group(g, ...cp.headAt);
-  add(head, cp.head, SCULPT_MAT);
+  add(head, cp.head, SCULPT_MAT, 'head');
   g.userData.legs = legs;
   g.userData.signs = legs.length === 4 ? [1, -1, -1, 1] : [1, -1];
   g.userData.head = head;
   if (cp.tail) {
     const tail = group(g, ...cp.tailAt);
-    add(tail, cp.tail, SCULPT_MAT);
+    add(tail, cp.tail, SCULPT_MAT, 'tail');
     g.userData.tail = tail;
   }
+  return g;
+}
+
+// shared torus shapes, so eye rims and horns are not rebuilt for every animal
+const torusCache = new Map<string, THREE.TorusGeometry>();
+function torus(r: number, t: number, rs: number, ts: number, arc = Math.PI * 2) {
+  const k = `${r}|${t}|${rs}|${ts}|${arc}`;
+  let g = torusCache.get(k);
+  if (!g) { g = new THREE.TorusGeometry(r, t, rs, ts, arc); torusCache.set(k, g); }
   return g;
 }
 
@@ -1926,7 +1978,7 @@ function realEyes(head: THREE.Object3D, spec: [number, number, number, number, n
     e.rotation.y = sx * yaw;
     mk(e, G.ball, EYE_REAL, r, r * 0.9, r * 0.75, 0, 0, 0, false);
     mk(e, G.ball, EYE_W, r * 0.22, r * 0.22, r * 0.12, sx * r * 0.25, r * 0.3, r * 0.68, false);
-    const rim = mk(e, new THREE.TorusGeometry(1, 0.22, 6, 18), M(lid), r * 1.02, r * 0.92, r * 1.0, 0, 0, r * 0.1, false);
+    const rim = mk(e, torus(1, 0.22, 6, 18), M(lid), r * 1.02, r * 0.92, r * 1.0, 0, 0, r * 0.1, false);
     rim.rotation.y = 0;
     list.push(e);
   }
@@ -1950,7 +2002,7 @@ function animalBody(kind: string) {
     case 'goat':
       // ridged horns sweeping back over the neck
       for (const sx of [-1, 1]) {
-        const horn = new THREE.Mesh(new THREE.TorusGeometry(0.05, 0.01, 8, 18, Math.PI * 0.85), M('#8d8479'));
+        const horn = new THREE.Mesh(torus(0.05, 0.01, 8, 18, Math.PI * 0.85), M('#8d8479'));
         horn.position.set(sx * 0.022, 0.04, -0.045);
         horn.rotation.set(0, Math.PI / 2, 0.1);
         horn.castShadow = true;
@@ -1961,7 +2013,7 @@ function animalBody(kind: string) {
     case 'yak':
       // long horns curving up and out
       for (const sx of [-1, 1]) {
-        const horn = new THREE.Mesh(new THREE.TorusGeometry(0.07, 0.014, 8, 16, Math.PI * 0.6), M('#e8e0cc'));
+        const horn = new THREE.Mesh(torus(0.07, 0.014, 8, 16, Math.PI * 0.6), M('#e8e0cc'));
         horn.position.set(sx * 0.07, 0.06, -0.02);
         horn.rotation.set(0, sx > 0 ? 0 : Math.PI, 0.9);
         horn.castShadow = true;
@@ -1971,7 +2023,7 @@ function animalBody(kind: string) {
     case 'buffalo':
       // wide crescent horns sweeping back from the top of the head
       for (const sx of [-1, 1]) {
-        const horn = new THREE.Mesh(new THREE.TorusGeometry(0.1, 0.018, 8, 20, Math.PI * 0.75), M('#5a5048'));
+        const horn = new THREE.Mesh(torus(0.1, 0.018, 8, 20, Math.PI * 0.75), M('#5a5048'));
         horn.position.set(sx * 0.05, 0.06, -0.04);
         horn.rotation.set(0, sx > 0 ? 0 : Math.PI, -0.2);
         horn.castShadow = true;
