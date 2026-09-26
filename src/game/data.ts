@@ -109,7 +109,6 @@ item('coconut', 'Coconut', '🥥', 'silo', 50, 16);
 // feed (barn)
 item('chicken_feed', 'Chicken Feed', '🥣', 'barn', 6, 2);
 item('cow_feed', 'Cow Feed', '🥗', 'barn', 10, 5);
-item('pig_feed', 'Pig Feed', '🍠', 'barn', 14, 8);
 item('sheep_feed', 'Sheep Feed', '🍀', 'barn', 16, 10);
 item('duck_feed', 'Duck Feed', '🌰', 'barn', 8, 6);
 item('goat_feed', 'Goat Feed', '🌿', 'barn', 18, 12);
@@ -117,7 +116,6 @@ item('goat_feed', 'Goat Feed', '🌿', 'barn', 18, 12);
 // animal goods (barn)
 item('egg', 'Egg', '🥚', 'barn', 18, 2);
 item('milk', 'Milk', '🥛', 'barn', 30, 5);
-item('bacon', 'Bacon', '🥓', 'barn', 50, 8);
 item('wool', 'Wool', '🧶', 'barn', 60, 10);
 item('feather', 'Feather', '🪶', 'barn', 28, 6);
 item('goat_milk', 'Goat Milk', '🍼', 'barn', 70, 12);
@@ -140,7 +138,7 @@ item('butter', 'Butter', '🧈', 'barn', 75, 6);
 item('cheese', 'Cheese', '🧀', 'barn', 110, 9);
 item('sugar', 'Sugar', '🍬', 'barn', 30, 6);
 item('syrup', 'Syrup', '🍁', 'barn', 55, 7);
-item('bacon_eggs', 'Bacon and Eggs', '🍳', 'barn', 115, 8);
+item('bacon_eggs', 'Veggie Omelette', '🍳', 'barn', 115, 8);
 item('fries', 'Fries', '🍟', 'barn', 150, 8);
 item('tomato_juice', 'Tomato Juice', '🥤', 'barn', 60, 9);
 item('strawberry_juice', 'Berry Juice', '🧃', 'barn', 110, 9);
@@ -214,7 +212,6 @@ recipe('pumpkin_pie', 'bakery', { pumpkin: 2, egg: 1, wheat: 2 }, 300, 14, 11);
 
 recipe('chicken_feed', 'feed_mill', { wheat: 2, corn: 1 }, 20, 1, 2, 3);
 recipe('cow_feed', 'feed_mill', { corn: 2, carrot: 1 }, 30, 2, 5, 3);
-recipe('pig_feed', 'feed_mill', { carrot: 2, potato: 1 }, 45, 3, 8, 3);
 recipe('sheep_feed', 'feed_mill', { wheat: 2, sugarcane: 1 }, 60, 3, 10, 3);
 recipe('duck_feed', 'feed_mill', { wheat: 1, corn: 2 }, 30, 2, 6, 3);
 recipe('goat_feed', 'feed_mill', { corn: 2, potato: 1 }, 50, 3, 12, 3);
@@ -229,7 +226,7 @@ recipe('cheese', 'dairy', { milk: 3 }, 240, 10, 9);
 recipe('sugar', 'sugar_mill', { sugarcane: 1 }, 60, 3, 6);
 recipe('syrup', 'sugar_mill', { sugarcane: 2 }, 120, 5, 7);
 
-recipe('bacon_eggs', 'bbq_grill', { bacon: 1, egg: 2 }, 180, 9, 8);
+recipe('bacon_eggs', 'bbq_grill', { egg: 3, tomato: 1 }, 180, 9, 8);
 recipe('fries', 'bbq_grill', { potato: 2, butter: 1 }, 200, 10, 8);
 
 recipe('tomato_juice', 'juice_press', { tomato: 3 }, 120, 6, 9);
@@ -244,7 +241,7 @@ recipe('poncho', 'loom', { alpaca_wool: 2, cotton: 1 }, 360, 17, 14);
 recipe('apple_pie', 'bakery', { apple: 3, wheat: 2, egg: 1 }, 240, 12, 7);
 recipe('apple_juice', 'juice_press', { apple: 3 }, 150, 8, 9);
 recipe('orange_juice', 'juice_press', { orange: 3 }, 210, 11, 11);
-recipe('hot_chili', 'bbq_grill', { chili: 3, tomato: 2, bacon: 1 }, 300, 16, 15);
+recipe('hot_chili', 'bbq_grill', { chili: 3, tomato: 2, potato: 1 }, 300, 16, 15);
 
 recipe('fish', 'fishing_pier', { corn: 2 }, 120, 5, 7);
 
@@ -280,7 +277,6 @@ export const RECIPE: Record<string, RecipeDef> = Object.fromEntries(RECIPES.map(
 export const ANIMALS: AnimalDef[] = [
   { id: 'chicken', name: 'Chicken', icon: '🐔', house: 'coop', feed: 'chicken_feed', product: 'egg', time: 60, xp: 2, cost: 25, level: 2 },
   { id: 'cow', name: 'Cow', icon: '🐄', house: 'pasture', feed: 'cow_feed', product: 'milk', time: 150, xp: 4, cost: 90, level: 5 },
-  { id: 'pig', name: 'Pig', icon: '🐖', house: 'pigpen', feed: 'pig_feed', product: 'bacon', time: 240, xp: 6, cost: 160, level: 8 },
   { id: 'sheep', name: 'Sheep', icon: '🐑', house: 'sheepfold', feed: 'sheep_feed', product: 'wool', time: 300, xp: 8, cost: 220, level: 10 },
   { id: 'duck', name: 'Duck', icon: '🦆', house: 'duck_pond', feed: 'duck_feed', product: 'feather', time: 120, xp: 3, cost: 60, level: 6 },
   { id: 'goat', name: 'Goat', icon: '🐐', house: 'goat_yard', feed: 'goat_feed', product: 'goat_milk', time: 200, xp: 5, cost: 180, level: 12 },
@@ -336,7 +332,6 @@ export const BUILDINGS: BuildingDef[] = [
 
   b({ id: 'coop', name: 'Chicken Coop', icon: '🐔', kind: 'pen', w: 2, h: 2, cost: 150, level: 2, xp: 10, height: 26, wall: '#e3cf94', roof: '#b5452c', animal: 'chicken', capacity: 6, desc: 'Home for up to 6 chickens.' }),
   b({ id: 'pasture', name: 'Cow Pasture', icon: '🐄', kind: 'pen', w: 3, h: 3, cost: 400, level: 5, xp: 20, height: 26, wall: '#9ccc5a', roof: '#6b4226', animal: 'cow', capacity: 5, desc: 'Home for up to 5 cows.' }),
-  b({ id: 'pigpen', name: 'Pig Pen', icon: '🐖', kind: 'pen', w: 3, h: 3, cost: 1000, level: 8, xp: 35, height: 26, wall: '#a88058', roof: '#8e44ad', animal: 'pig', capacity: 5, desc: 'Home for up to 5 pigs.' }),
   b({ id: 'sheepfold', name: 'Sheep Fold', icon: '🐑', kind: 'pen', w: 3, h: 3, cost: 1800, level: 10, xp: 50, height: 26, wall: '#b7d77a', roof: '#2e6da4', animal: 'sheep', capacity: 5, desc: 'Home for up to 5 sheep.' }),
 
   b({ id: 'duck_pond', name: 'Duck Pond', icon: '🦆', kind: 'pen', w: 3, h: 3, cost: 300, level: 6, xp: 15, height: 26, wall: '#8fc45a', roof: '#2e6da4', animal: 'duck', capacity: 5, desc: 'Home for up to 5 ducks.' }),

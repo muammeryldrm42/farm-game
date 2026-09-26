@@ -428,7 +428,7 @@ const TREE_LEAF: Record<string, string> = { apple_tree: '#4f9e36', cherry_tree: 
 const GRASSY_PEN = new Set(['pasture', 'sheepfold', 'beehive', 'rabbit_hutch', 'alpaca_ranch', 'goose_pen']);
 const PEN_GROUND: Record<string, string> = {
   rabbit_hutch: '#86c24f', alpaca_ranch: '#8fc45a', goose_pen: '#86c24f',
-  coop: '#d9c08a', pasture: '#86c24f', pigpen: '#94704a', sheepfold: '#9ccc5a',
+  coop: '#d9c08a', pasture: '#86c24f', sheepfold: '#9ccc5a',
   duck_pond: '#8fc45a', goat_yard: '#b8a46c', beehive: '#7fbf4f', stable: '#c9b27a',
 };
 
@@ -1888,7 +1888,7 @@ function realEyes(head: THREE.Object3D, spec: [number, number, number, number, n
 }
 
 const LID: Record<string, string> = {
-  cow: '#e9e3d8', pig: '#e8a8a4', sheep: '#1f1b19', goat: '#e3dccd', horse: '#6a3e22', chicken: '#c9642c',
+  cow: '#e9e3d8', sheep: '#1f1b19', goat: '#e3dccd', horse: '#6a3e22', chicken: '#c9642c',
   duck: '#1a4a2e', rabbit: '#8a7058', alpaca: '#c9b08c', goose: '#e8a33a', dog: '#7a4b26',
 };
 
@@ -1899,14 +1899,6 @@ function animalBody(kind: string) {
   const cp = creature(kind);
   if (cp?.eye) realEyes(head, cp.eye, LID[kind] ?? '#3a2a20');
   switch (kind) {
-    case 'pig': {
-      const tail = group(g, 0, 0.24, -0.205);
-      const curl = new THREE.Mesh(new THREE.TorusGeometry(0.02, 0.007, 8, 16, Math.PI * 1.7), M('#f2b8b2'));
-      curl.rotation.y = Math.PI / 2;
-      tail.add(curl);
-      g.userData.tail = tail;
-      break;
-    }
     case 'goat':
       // ridged horns sweeping back over the neck
       for (const sx of [-1, 1]) {
@@ -2311,11 +2303,6 @@ function buildPen(e: Entry, d: BuildingDef) {
       bx(g, 0.16, 0.2, 0.02, '#5a3517', 0.55, 0.1, 0.81);
       bx(g, 0.2, 0.03, 0.3, '#a8733f', 0.55, 0.04, 0.95).rotation.x = -0.4;
       break;
-    case 'pigpen':
-      cyl(g, 0.5, 0.55, 0.02, '#6d4f30', 1.8, 0.04, 1.7, 12, false);
-      bxT(g, 0.9, 0.5, 0.7, 'boards', '#a88058', 0.65, 0.04, 0.55, 2);
-      roofT(g, 1.05, 0.3, 0.85, '#8e44ad', surfaceMat('boards', '#a88058', 2), 0.65, 0.54, 0.55, 0.075);
-      break;
     case 'duck_pond':
       cyl(g, 0.95, 1.0, 0.04, '#d8c38e', 1.7, 0.02, 1.7, 16, false);
       mk(g, cylGeo(0.85, 0.85, 16), WATER, 1, 0.04, 1, 1.7, 0.06, 1.7, false);
@@ -2454,11 +2441,10 @@ function buildPen(e: Entry, d: BuildingDef) {
       if (head) {
         const phase = Math.sin(t / 2600 + id * 1.7);
         if (m.userData.peck) head.rotation.x = Math.sin(t / 1500 + id) > 0.3 ? Math.pow(Math.max(0, Math.sin(t / 110 + id)), 4) * 0.9 : 0;
-        else if (an?.id === 'pig') head.rotation.x = 0.15 + Math.max(0, phase) * 0.25 + Math.sin(t / 140 + id) * 0.03;
         else head.rotation.x = THREE.MathUtils.smoothstep(phase, 0.1, 0.6) * 0.75;
         head.rotation.y = Math.sin(t / 1700 + id) * 0.25 * (1 - THREE.MathUtils.smoothstep(phase, 0.1, 0.6));
       }
-      if (tail) tail.rotation.z = Math.sin(t / (an?.id === 'goat' ? 90 : 330) + id) * (an?.id === 'pig' ? 0.2 : 0.35);
+      if (tail) tail.rotation.z = Math.sin(t / (an?.id === 'goat' ? 90 : 330) + id) * 0.35;
     });
   };
 }

@@ -78,29 +78,6 @@ function cow(): CreatureParts {
   return { eye: [0.058, 0.04, 0.045, 0.016, 0.9], body, head, headAt: [0, 0.41, 0.26], leg: leg(0.2, 0.055, '#f7f5f0', '#3a2e26', 0.035), legs: [[-0.075, 0.15], [0.075, 0.15], [-0.075, -0.15], [0.075, -0.15]], legLen: 0.2, tail, tailAt: [0, 0.42, -0.25] };
 }
 
-function pig(): CreatureParts {
-  const skin = (x: number, y: number, z: number) => (noise3(x * 26, y * 26, z * 26) > 0.66 ? '#eea6a4' : '#f6c3bd');
-  const body = new Sculpt()
-    // long barrel with heavy hams, a strong shoulder and a soft belly
-    .add(ellipsoid(0, 0.215, 0, 0.12, 0.115, 0.2), skin)
-    .add(sphere(0.045, 0.215, -0.12, 0.095), skin, 0.06)
-    .add(sphere(-0.045, 0.215, -0.12, 0.095), skin, 0.06)
-    .add(sphere(0, 0.225, 0.11, 0.1), skin, 0.06)
-    .add(ellipsoid(0, 0.16, 0.0, 0.1, 0.07, 0.15), skin, 0.05)
-    .build([-0.15, 0.07, -0.25], [0.15, 0.35, 0.24], C);
-  const head = new Sculpt()
-    .add(sphere(0, 0.02, 0, 0.075), skin)
-    .add(capsule(0, 0.0, 0.02, 0, -0.02, 0.1, 0.068, 0.044), skin, 0.03)
-    .add(ellipsoid(0, -0.045, 0.02, 0.06, 0.04, 0.05), skin, 0.03)
-    .add(ellipsoid(0, -0.02, 0.118, 0.043, 0.037, 0.016), '#e8959a', 0.012)
-    .carve(ellipsoid(0.016, -0.02, 0.134, 0.008, 0.012, 0.01))
-    .carve(ellipsoid(-0.016, -0.02, 0.134, 0.008, 0.012, 0.01))
-    .add(ellipsoid(0.052, 0.075, 0.045, 0.036, 0.012, 0.052), '#efb0ad', 0.012)
-    .add(ellipsoid(-0.052, 0.075, 0.045, 0.036, 0.012, 0.052), '#efb0ad', 0.012)
-    .build([-0.11, -0.1, -0.09], [0.11, 0.12, 0.16], C * 0.6);
-  return { eye: [0.046, 0.035, 0.05, 0.011, 0.6], body, head, headAt: [0, 0.23, 0.18], leg: leg(0.11, 0.05, '#f2b8b2', '#8a5e58', 0.022), legs: [[-0.065, 0.11], [0.065, 0.11], [-0.065, -0.11], [0.065, -0.11]], legLen: 0.11, tail: null, tailAt: [0, 0.23, -0.2] };
-}
-
 function sheep(): CreatureParts {
   const wool = (x: number, y: number, z: number) => (noise3(x * 30, y * 30, z * 30) > 0.7 ? '#e6ddcc' : '#f5f0e4');
   const fleece = (x: number, y: number, z: number) => Math.pow(noise3(x * 34, y * 34, z * 34), 1.5) * 0.026 + noise3(x * 90, y * 90, z * 90) * 0.006;
@@ -306,7 +283,7 @@ function goose(): CreatureParts {
   return { eye: [0.026, 0.02, 0.012, 0.008, 1.0], body, head, headAt: [0, 0.31, 0.11], leg: leg(0.1, 0.022, '#f08a24', '#f08a24', 0.012), legs: [[-0.035, 0], [0.035, 0]], legLen: 0.1, tail: null, tailAt: [0, 0, 0] };
 }
 
-const makers: Record<string, () => CreatureParts> = { cow, pig, sheep, goat, horse, chicken, duck, rabbit, alpaca, goose, dog: dogParts };
+const makers: Record<string, () => CreatureParts> = { cow, sheep, goat, horse, chicken, duck, rabbit, alpaca, goose, dog: dogParts };
 const cache = new Map<string, CreatureParts>();
 
 export function creature(kind: string) {

@@ -254,7 +254,7 @@ export const BADGE_GEMS = [2, 5, 10];
 export const ACHIEVEMENTS: Achievement[] = [
   { id: 'harvester', name: 'Harvester', icon: '🌾', unit: 'crops harvested', tiers: [100, 1000, 5000], progress: (s) => st(s, 'harvest') },
   { id: 'maker', name: 'Master Maker', icon: '🍞', unit: 'goods made', tiers: [50, 500, 2500], progress: (s) => st(s, 'make') },
-  { id: 'rancher', name: 'Rancher', icon: '🐄', unit: 'animal goods collected', tiers: [50, 500, 2000], progress: (s) => ['egg', 'milk', 'bacon', 'wool', 'feather', 'goat_milk', 'honey', 'horseshoe', 'angora', 'alpaca_wool'].reduce((a, k) => a + st(s, `collect:${k}`), 0) },
+  { id: 'rancher', name: 'Rancher', icon: '🐄', unit: 'animal goods collected', tiers: [50, 500, 2000], progress: (s) => ['egg', 'milk', 'wool', 'feather', 'goat_milk', 'honey', 'horseshoe', 'angora', 'alpaca_wool'].reduce((a, k) => a + st(s, `collect:${k}`), 0) },
   { id: 'orchard', name: 'Orchard Keeper', icon: '🍎', unit: 'fruit picked', tiers: [50, 500, 2000], progress: (s) => st(s, 'fruit') },
   { id: 'fisher', name: 'Angler', icon: '🎣', unit: 'catches', tiers: [20, 200, 1000], progress: (s) => st(s, 'make:fish') + st(s, 'make:lobster') },
   { id: 'trader', name: 'Order Hero', icon: '📋', unit: 'orders delivered', tiers: [25, 200, 1000], progress: (s) => st(s, 'orders') },
@@ -349,6 +349,31 @@ export function newGame(): GameState {
   return s;
 }
 
+// Pigs and their goods were taken out of the game. Saves that still hold them are paid back in
+// coins, and orders, stall slots, boat crates and queues that mention them are cleaned up.
+const REMOVED_VALUE: Record<string, number> = { bacon: 50, pig_feed: 14 };
+const REMOVED_BUILDING: Record<string, { cost: number; animal: number }> = { pigpen: { cost: 1000, animal: 160 } };
+function dropRemoved(s: GameState) {
+  for (const o of s.objects) {
+    const r = REMOVED_BUILDING[o.type];
+    if (r) s.coins += r.cost + (o.pen?.animals.length ?? 0) * r.animal;
+  }
+  for (const k of Object.keys(s.inv)) {
+    if (ITEMS[k]) continue;
+    s.coins += (REMOVED_VALUE[k] ?? 0) * s.inv[k];
+    delete s.inv[k];
+  }
+  s.stall = s.stall.map((x) => {
+    if (!x.item || ITEMS[x.item]) return x;
+    s.coins += (REMOVED_VALUE[x.item] ?? 0) * x.qty;
+    return emptySlot();
+  });
+  if (s.boat) for (const c of s.boat.crates) if (!ITEMS[c.item]) { c.item = 'egg'; }
+  const now = Date.now();
+  s.orders = s.orders.map((o) => (o.items.every((it) => ITEMS[it.id]) ? o : genOrder(s, now)));
+  for (const o of s.objects) if (o.prod) o.prod.queue = o.prod.queue.filter((e) => RECIPE[e.recipe]);
+}
+
 // Moves a farm laid out on the old 28 tile map to the middle of the current map.
 function shiftMap(s: GameState) {
   const cs = MAP_OFF / CHUNK;
@@ -382,6 +407,7 @@ function migrate(d: Partial<GameState>): GameState {
   s.tutorial = typeof d.tutorial === 'number' ? d.tutorial : TUTORIAL_DONE;
   if (!Array.isArray(s.objects) || !Array.isArray(s.chunks)) return base;
   if ((d.mapV ?? 1) < 2) shiftMap(s);
+  dropRemoved(s);
   s.objects = s.objects.filter((o) => BUILDING[o.type]);
   return s;
 }

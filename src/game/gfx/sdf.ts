@@ -1,6 +1,6 @@
 // Sculpting with signed distance fields. Shapes are smooth unions of spheres, ellipsoids and
 // tapered capsules, meshed once with naive surface nets. This gives soft, seamless, organic
-// forms (a cow's body flowing into its neck, a pig's snout growing out of its face) that plain
+// forms (a cow's body flowing into its neck, a horse's muzzle growing out of its face) that plain
 // primitives cannot, and it all happens in code at load time.
 import * as THREE from 'three';
 

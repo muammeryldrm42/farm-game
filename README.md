@@ -23,7 +23,7 @@ By Talons Protocol.
 - Free camera: drag to pan, pinch or scroll to zoom, twist with two fingers or press Q and E to rotate
 - 9 crops (wheat to sunflower) with drag to plant and drag to harvest
 - 7 production buildings (Bakery, Feed Mill, Dairy, Sugar Mill, BBQ Grill, Juice Press, Loom) with queues and extra slots
-- 4 animal homes (chickens, cows, pigs, sheep) that need feed and give eggs, milk, bacon and wool
+- Animal homes (chickens, cows, sheep and more) that need feed and give eggs, milk, wool and other goods
 - Order board with rotating orders, rewards and discard cooldown
 - Silo and barn storage with capacity upgrades and a market to sell goods
 - Land expansion, obstacles to clear, 10 decorations
