@@ -182,7 +182,19 @@ function build(cd: CropDef): CropGeo {
     }
   }
   if (fruit.empty) fruit.add(P.sphere, W, [0, -1, 0], [0, 0, 0], 0.001);
-  return { plant: plant.build(), fruit: fruit.build() };
+  const fg = fruit.build();
+  if (cd.id === 'watermelon') {
+    // dark green stripes running along the melon
+    const pos = fg.getAttribute('position') as THREE.BufferAttribute, col = fg.getAttribute('color') as THREE.BufferAttribute;
+    const ax = new THREE.Vector3(Math.sin(0.6), 0, Math.cos(0.6)), v = new THREE.Vector3(), side = new THREE.Vector3(Math.cos(0.6), 0, -Math.sin(0.6));
+    for (let i = 0; i < pos.count; i++) {
+      v.set(pos.getX(i), pos.getY(i) - 0.07, pos.getZ(i));
+      const a = Math.atan2(v.y, v.dot(side));
+      const k = Math.sin(a * 7 + Math.sin(v.dot(ax) * 60) * 0.5) > 0.15 ? 0.4 : 1;
+      col.setXYZ(i, k, k, k);
+    }
+  }
+  return { plant: plant.build(), fruit: fg };
 }
 
 const cache = new Map<string, CropGeo>();
