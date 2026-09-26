@@ -11,7 +11,7 @@ export interface ItemDef {
   level: number;
 }
 
-export type CropShape = 'grain' | 'stalk' | 'root' | 'bush' | 'vine' | 'flower' | 'cane';
+export type CropShape = 'grain' | 'stalk' | 'root' | 'bush' | 'vine' | 'flower' | 'cane' | 'leafy';
 
 export interface CropDef {
   id: string;
@@ -93,11 +93,18 @@ item('sunflower', 'Sunflower', '🌻', 'silo', 36, 12);
 item('rice', 'Rice', '🍚', 'silo', 40, 13);
 item('cotton', 'Cotton', '☁️', 'silo', 44, 14);
 item('chili', 'Chili Pepper', '🌶️', 'silo', 48, 15);
+item('lettuce', 'Lettuce', '🥬', 'silo', 12, 5);
+item('blueberry', 'Blueberry', '🫐', 'silo', 30, 10);
+item('watermelon', 'Watermelon', '🍉', 'silo', 52, 16);
+item('coffee_bean', 'Coffee Beans', '🫘', 'silo', 46, 17);
 
 // fruit (silo)
 item('apple', 'Apple', '🍎', 'silo', 22, 6);
 item('cherry', 'Cherry', '🍒', 'silo', 30, 9);
 item('orange', 'Orange', '🍊', 'silo', 38, 11);
+item('peach', 'Peach', '🍑', 'silo', 34, 10);
+item('lemon', 'Lemon', '🍋', 'silo', 36, 13);
+item('coconut', 'Coconut', '🥥', 'silo', 50, 16);
 
 // feed (barn)
 item('chicken_feed', 'Chicken Feed', '🥣', 'barn', 6, 2);
@@ -116,6 +123,7 @@ item('feather', 'Feather', '🪶', 'barn', 28, 6);
 item('goat_milk', 'Goat Milk', '🍼', 'barn', 70, 12);
 item('honey', 'Honey', '🍯', 'barn', 80, 13);
 item('horseshoe', 'Lucky Horseshoe', '🧲', 'barn', 95, 15);
+item('goose_egg', 'Goose Egg', '🪺', 'barn', 55, 11);
 item('angora', 'Angora Fur', '🤍', 'barn', 65, 9);
 item('alpaca_wool', 'Alpaca Wool', '🦙', 'barn', 110, 14);
 item('goat_cheese', 'Goat Cheese', '🫕', 'barn', 180, 12);
@@ -153,7 +161,20 @@ item('lobster_roll', 'Lobster Roll', '🥪', 'barn', 260, 14);
 item('cotton_shirt', 'Cotton Shirt', '👕', 'barn', 150, 14);
 item('hot_chili', 'Hot Chili', '🍲', 'barn', 240, 15);
 item('angora_hat', 'Angora Hat', '👒', 'barn', 170, 10);
-item('poncho', 'Poncho', '🧥', 'barn', 290, 14);
+item('poncho', 'Poncho', '🥼', 'barn', 290, 14);
+item('blueberry_muffin', 'Blueberry Muffin', '🍰', 'barn', 150, 10);
+item('custard_tart', 'Custard Tart', '🍮', 'barn', 190, 12);
+item('peach_jam', 'Peach Jam', '🧂', 'barn', 125, 10);
+item('peach_juice', 'Peach Juice', '🥭', 'barn', 120, 10);
+item('watermelon_juice', 'Melon Cooler', '🧉', 'barn', 150, 16);
+item('garden_salad', 'Garden Salad', '🥙', 'barn', 120, 10);
+item('fruit_salad', 'Fruit Salad', '🍱', 'barn', 190, 13);
+item('pizza', 'Pizza', '🍕', 'barn', 260, 12);
+item('spicy_pizza', 'Spicy Pizza', '🫓', 'barn', 300, 15);
+item('lemonade', 'Lemonade', '🍸', 'barn', 120, 13);
+item('espresso', 'Espresso', '☕', 'barn', 130, 17);
+item('latte', 'Latte', '🍵', 'barn', 190, 17);
+item('coconut_cake', 'Coconut Cake', '🎂', 'barn', 280, 16);
 
 export const ITEMS: Record<string, ItemDef> = Object.fromEntries(ITEM_LIST.map((i) => [i.id, i]));
 
@@ -172,6 +193,10 @@ export const CROPS: CropDef[] = [
   { id: 'rice', time: 720, xp: 12, seedCost: 20, level: 13, shape: 'grain', leaf: '#8cc152', fruit: '#f3ecc8' },
   { id: 'cotton', time: 840, xp: 13, seedCost: 22, level: 14, shape: 'bush', leaf: '#5c9a3a', fruit: '#ffffff' },
   { id: 'chili', time: 900, xp: 14, seedCost: 24, level: 15, shape: 'bush', leaf: '#3f8f37', fruit: '#d62828' },
+  { id: 'lettuce', time: 70, xp: 2, seedCost: 4, level: 5, shape: 'leafy', leaf: '#8ad05a', fruit: '#b9e27a' },
+  { id: 'blueberry', time: 480, xp: 9, seedCost: 15, level: 10, shape: 'bush', leaf: '#3f7f3a', fruit: '#4a5bd4' },
+  { id: 'watermelon', time: 960, xp: 15, seedCost: 26, level: 16, shape: 'vine', leaf: '#4d9a3c', fruit: '#6cc05a' },
+  { id: 'coffee_bean', time: 1020, xp: 16, seedCost: 28, level: 17, shape: 'bush', leaf: '#2f6f35', fruit: '#b0282a' },
 ];
 export const CROP: Record<string, CropDef> = Object.fromEntries(CROPS.map((c) => [c.id, c]));
 
@@ -222,6 +247,20 @@ recipe('orange_juice', 'juice_press', { orange: 3 }, 210, 11, 11);
 recipe('hot_chili', 'bbq_grill', { chili: 3, tomato: 2, bacon: 1 }, 300, 16, 15);
 
 recipe('fish', 'fishing_pier', { corn: 2 }, 120, 5, 7);
+
+recipe('blueberry_muffin', 'bakery', { wheat: 2, blueberry: 2, egg: 1 }, 240, 12, 10);
+recipe('custard_tart', 'bakery', { goose_egg: 1, milk: 1, sugar: 1 }, 270, 13, 12);
+recipe('coconut_cake', 'bakery', { coconut: 2, wheat: 2, goose_egg: 1 }, 360, 17, 16);
+recipe('peach_jam', 'jam_maker', { peach: 3 }, 200, 10, 10);
+recipe('peach_juice', 'juice_press', { peach: 3 }, 180, 9, 10);
+recipe('watermelon_juice', 'juice_press', { watermelon: 1, sugar: 1 }, 220, 12, 16);
+recipe('garden_salad', 'salad_bar', { lettuce: 2, tomato: 1, carrot: 1 }, 150, 8, 10);
+recipe('fruit_salad', 'salad_bar', { peach: 1, blueberry: 2, apple: 1 }, 240, 12, 13);
+recipe('pizza', 'pizzeria', { wheat: 3, tomato: 2, cheese: 1 }, 300, 15, 12);
+recipe('spicy_pizza', 'pizzeria', { bread: 1, chili: 2, cheese: 1 }, 330, 17, 15);
+recipe('lemonade', 'coffee_kiosk', { lemon: 3, sugar: 1 }, 150, 8, 13);
+recipe('espresso', 'coffee_kiosk', { coffee_bean: 2 }, 180, 10, 17);
+recipe('latte', 'coffee_kiosk', { coffee_bean: 2, milk: 1 }, 240, 13, 17);
 recipe('lobster', 'fishing_pier', { carrot: 3 }, 300, 10, 12);
 
 recipe('apple_jam', 'jam_maker', { apple: 3 }, 180, 9, 8);
@@ -248,6 +287,7 @@ export const ANIMALS: AnimalDef[] = [
   { id: 'bee', name: 'Bee Colony', icon: '🐝', house: 'beehive', feed: 'sunflower', product: 'honey', time: 240, xp: 6, cost: 250, level: 13 },
   { id: 'rabbit', name: 'Rabbit', icon: '🐇', house: 'rabbit_hutch', feed: 'carrot', product: 'angora', time: 180, xp: 4, cost: 120, level: 9 },
   { id: 'alpaca', name: 'Alpaca', icon: '🦙', house: 'alpaca_ranch', feed: 'wheat', product: 'alpaca_wool', time: 320, xp: 8, cost: 320, level: 14 },
+  { id: 'goose', name: 'Goose', icon: '🪿', house: 'goose_pen', feed: 'duck_feed', product: 'goose_egg', time: 210, xp: 5, cost: 150, level: 11 },
   { id: 'horse', name: 'Horse', icon: '🐎', house: 'stable', feed: 'carrot', product: 'horseshoe', time: 360, xp: 8, cost: 400, level: 15 },
 ];
 export const ANIMAL: Record<string, AnimalDef> = Object.fromEntries(ANIMALS.map((a) => [a.id, a]));
@@ -289,6 +329,9 @@ export const BUILDINGS: BuildingDef[] = [
 
   b({ id: 'apple_tree', name: 'Apple Tree', icon: '🍎', kind: 'tree', cost: 150, level: 6, max: 12, xp: 5, height: 64, sellable: true, fruit: 'apple', growTime: 240, desc: 'Gives 2 apples again and again.' }),
   b({ id: 'cherry_tree', name: 'Cherry Tree', icon: '🍒', kind: 'tree', cost: 300, level: 9, max: 12, xp: 8, height: 64, sellable: true, fruit: 'cherry', growTime: 360, desc: 'Gives 2 cherries again and again.' }),
+  b({ id: 'peach_tree', name: 'Peach Tree', icon: '🍑', kind: 'tree', cost: 380, level: 10, max: 12, xp: 9, height: 64, sellable: true, fruit: 'peach', growTime: 420, desc: 'Gives 2 peaches again and again.' }),
+  b({ id: 'lemon_tree', name: 'Lemon Tree', icon: '🍋', kind: 'tree', cost: 520, level: 13, max: 12, xp: 11, height: 64, sellable: true, fruit: 'lemon', growTime: 540, desc: 'Gives 2 lemons again and again.' }),
+  b({ id: 'coconut_palm', name: 'Coconut Palm', icon: '🥥', kind: 'tree', cost: 700, level: 16, max: 10, xp: 14, height: 80, sellable: true, fruit: 'coconut', growTime: 660, desc: 'A tall palm that gives 2 coconuts again and again.' }),
   b({ id: 'orange_tree', name: 'Orange Tree', icon: '🍊', kind: 'tree', cost: 450, level: 11, max: 12, xp: 10, height: 64, sellable: true, fruit: 'orange', growTime: 480, desc: 'Gives 2 oranges again and again.' }),
 
   b({ id: 'coop', name: 'Chicken Coop', icon: '🐔', kind: 'pen', w: 2, h: 2, cost: 150, level: 2, xp: 10, height: 26, wall: '#e3cf94', roof: '#b5452c', animal: 'chicken', capacity: 6, desc: 'Home for up to 6 chickens.' }),
@@ -301,7 +344,11 @@ export const BUILDINGS: BuildingDef[] = [
   b({ id: 'beehive', name: 'Bee Garden', icon: '🐝', kind: 'pen', w: 2, h: 2, cost: 1600, level: 13, xp: 45, height: 26, wall: '#9ccc5a', roof: '#f5b92b', animal: 'bee', capacity: 4, desc: 'Up to 4 hives. Bees love sunflowers.' }),
   b({ id: 'rabbit_hutch', name: 'Rabbit Hutch', icon: '🐇', kind: 'pen', w: 2, h: 2, cost: 900, level: 9, xp: 35, height: 26, wall: '#d9b98a', roof: '#c0392b', animal: 'rabbit', capacity: 5, desc: 'Fluffy rabbits give soft angora fur. They love carrots.' }),
   b({ id: 'alpaca_ranch', name: 'Alpaca Ranch', icon: '🦙', kind: 'pen', w: 3, h: 3, cost: 2200, level: 14, xp: 55, height: 26, wall: '#a8cf6a', roof: '#7d5ba6', animal: 'alpaca', capacity: 5, desc: 'Alpacas grow warm wool. Feed them wheat.' }),
+  b({ id: 'goose_pen', name: 'Goose Green', icon: '🪿', kind: 'pen', w: 2, h: 2, cost: 1200, level: 11, xp: 40, height: 26, wall: '#9ccc5a', roof: '#3f7fbf', animal: 'goose', capacity: 5, desc: 'Geese lay big eggs for tarts and cakes. They eat duck feed.' }),
   b({ id: 'stable', name: 'Stable', icon: '🐎', kind: 'pen', w: 3, h: 3, cost: 2500, level: 15, xp: 60, height: 26, wall: '#c2a36b', roof: '#8e2c20', animal: 'horse', capacity: 5, desc: 'Up to 5 horses. Each horse adds 5% to order coins.' }),
+  b({ id: 'salad_bar', name: 'Salad Bar', icon: '🥙', kind: 'production', w: 2, h: 2, cost: 1300, level: 10, xp: 45, height: 52, wall: '#e9f7dc', roof: '#5aa83a', desc: 'Tosses fresh garden and fruit salads.' }),
+  b({ id: 'pizzeria', name: 'Pizzeria', icon: '🍕', kind: 'production', w: 2, h: 2, cost: 2400, level: 12, xp: 60, height: 58, wall: '#f7e1c4', roof: '#c0392b', desc: 'A wood fired oven for pizzas.' }),
+  b({ id: 'coffee_kiosk', name: 'Coffee Kiosk', icon: '☕', kind: 'production', w: 2, h: 2, cost: 2800, level: 13, xp: 65, height: 54, wall: '#efe0cf', roof: '#6b4226', desc: 'Brews lemonade, espresso and lattes.' }),
   b({ id: 'workshop', name: 'Workshop', icon: '🛠️', kind: 'production', w: 2, h: 2, cost: 3000, level: 16, xp: 70, height: 58, wall: '#e8d3a8', roof: '#4a6a8a', desc: 'Crafts candles and pillows.' }),
 
   b({ id: 'hay_bale', name: 'Hay Bale', icon: '🌾', kind: 'deco', cost: 15, level: 1, max: 30, xp: 1, height: 18, sellable: true, desc: 'A cozy stack of hay.' }),

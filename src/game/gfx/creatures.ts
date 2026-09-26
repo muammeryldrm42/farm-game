@@ -230,7 +230,24 @@ function alpaca(): CreatureParts {
   return { body, head, headAt: [0, 0.58, 0.17], leg: leg(0.25, 0.046, c, '#4a3a30', 0.03), legs: [[-0.055, 0.1], [0.055, 0.1], [-0.055, -0.1], [0.055, -0.1]], legLen: 0.25, tail: null, tailAt: [0, 0, 0], wool: true };
 }
 
-const makers: Record<string, () => CreatureParts> = { cow, pig, sheep, goat, horse, chicken, duck, rabbit, alpaca, dog: dogParts };
+function goose(): CreatureParts {
+  const w = '#fbfbf8';
+  const body = new Sculpt()
+    .add(ellipsoid(0, 0.16, -0.01, 0.085, 0.078, 0.13), w)
+    .add(ellipsoid(0, 0.19, -0.13, 0.04, 0.035, 0.05), '#f1f1ec', 0.03)
+    .add(ellipsoid(0.07, 0.17, -0.02, 0.025, 0.05, 0.09), '#ececea', 0.012)
+    .add(ellipsoid(-0.07, 0.17, -0.02, 0.025, 0.05, 0.09), '#ececea', 0.012)
+    .add(capsule(0, 0.18, 0.08, 0, 0.3, 0.11, 0.036, 0.026), w, 0.04)
+    .build([-0.11, 0.06, -0.19], [0.11, 0.34, 0.16], C * 0.7);
+  const head = new Sculpt()
+    .add(sphere(0, 0.01, 0, 0.04), w)
+    .add(capsule(0, 0.0, 0.03, 0, -0.008, 0.08, 0.018, 0.011), '#f08a24', 0.01)
+    .add(sphere(0, 0.018, 0.035, 0.013), '#f08a24', 0.008)
+    .build([-0.06, -0.05, -0.05], [0.06, 0.06, 0.11], C * 0.5);
+  return { body, head, headAt: [0, 0.31, 0.11], leg: leg(0.1, 0.022, '#f08a24', '#f08a24', 0.012), legs: [[-0.035, 0], [0.035, 0]], legLen: 0.1, tail: null, tailAt: [0, 0, 0] };
+}
+
+const makers: Record<string, () => CreatureParts> = { cow, pig, sheep, goat, horse, chicken, duck, rabbit, alpaca, goose, dog: dogParts };
 const cache = new Map<string, CreatureParts>();
 
 export function creature(kind: string) {

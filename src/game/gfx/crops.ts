@@ -26,6 +26,7 @@ function build(cd: CropDef): CropGeo {
   const plant = new Kit(), fruit = new Kit();
   const L = cd.leaf, F = cd.fruit;
   const dark = shade(L, -0.1);
+  const W = '#ffffff';
   switch (cd.shape) {
     case 'grain': {
       // a dense clump of stalks with heavy, slightly nodding ears
@@ -38,10 +39,10 @@ function build(cd: CropDef): CropGeo {
         plant.add(cylinder(0.004, 0.006, 5), shade(L, 0.05), [x, 0, z], [lx, 0, lz], [1, h, 1]);
         const top = tip([x, 0, z], [lx, 0, lz], h);
         if (rice) {
-          for (let j = 0; j < 4; j++) fruit.add(P.sphere, F, [top[0] + (j - 1.5) * 0.008, top[1] - j * 0.018, top[2] + 0.01 + j * 0.008], [0, 0, 0], [0.008, 0.013, 0.008]);
+          for (let j = 0; j < 4; j++) fruit.add(P.sphere, W, [top[0] + (j - 1.5) * 0.008, top[1] - j * 0.018, top[2] + 0.01 + j * 0.008], [0, 0, 0], [0.008, 0.013, 0.008]);
         } else {
-          fruit.add(P.sphere, F, top, [lx + 0.25, 0, lz], [0.014, 0.045, 0.014]);
-          for (let j = 0; j < 3; j++) fruit.add(cylinder(0.0015, 0.0015, 3), shade(F, 0.1), [top[0], top[1] + 0.03, top[2]], [lx + 0.2 + (j - 1) * 0.25, 0, lz + (j - 1) * 0.2], [1, 0.05, 1]);
+          fruit.add(P.sphere, W, top, [lx + 0.25, 0, lz], [0.014, 0.045, 0.014]);
+          for (let j = 0; j < 3; j++) fruit.add(cylinder(0.0015, 0.0015, 3), W, [top[0], top[1] + 0.03, top[2]], [lx + 0.2 + (j - 1) * 0.25, 0, lz + (j - 1) * 0.2], [1, 0.05, 1]);
         }
       }
       leaves(plant, 6, dark, 0.14, 0.018, 0, 0.55, 7);
@@ -56,7 +57,7 @@ function build(cd: CropDef): CropGeo {
       for (let j = 0; j < 5; j++) plant.add(cylinder(0.001, 0.003, 3), '#d9c27a', [0, 0.55, 0], [(j - 2) * 0.3, j * 1.2, 0.3], [1, 0.07, 1]);
       for (const [y, a] of [[0.26, 0.4], [0.36, 3.5]]) {
         const cx = Math.sin(a) * 0.03, cz = Math.cos(a) * 0.03;
-        fruit.add(P.sphere, F, [cx, y, cz], [0.35 * Math.cos(a), 0, -0.35 * Math.sin(a)], [0.022, 0.055, 0.022]);
+        fruit.add(P.sphere, W, [cx, y, cz], [0.35 * Math.cos(a), 0, -0.35 * Math.sin(a)], [0.022, 0.055, 0.022]);
         plant.add(blade(0.1, 0.05, 0.3), shade(L, 0.08), [cx * 0.8, y - 0.05, cz * 0.8], [0.3, a, 0]);
       }
       break;
@@ -65,20 +66,35 @@ function build(cd: CropDef): CropGeo {
       if (cd.id === 'potato') {
         // bushy potato plant with a few tubers peeking out of the soil
         for (let i = 0; i < 5; i++) plant.add(lump(30 + i, 0.25, 12), shade(L, (r(i, 8) - 0.5) * 0.1), [(r(i, 1) - 0.5) * 0.12, 0.09 + r(i, 2) * 0.06, (r(i, 3) - 0.5) * 0.12], [0, 0, 0], [0.07, 0.055, 0.07]);
-        for (let i = 0; i < 3; i++) fruit.add(lump(40 + i, 0.3, 10), F, [Math.cos(i * 2.1) * 0.09, 0.005, Math.sin(i * 2.1) * 0.09], [0, i, 0], [0.04, 0.028, 0.032]);
+        for (let i = 0; i < 3; i++) fruit.add(lump(40 + i, 0.3, 10), W, [Math.cos(i * 2.1) * 0.09, 0.005, Math.sin(i * 2.1) * 0.09], [0, i, 0], [0.04, 0.028, 0.032]);
       } else {
         // carrot: a fan of feathery fronds over a fat orange shoulder
         for (let i = 0; i < 8; i++) {
           const a = (i / 8) * Math.PI * 2;
           plant.add(blade(0.27 + r(i, 1) * 0.08, 0.045, 0.6), shade(L, (r(i, 2) - 0.5) * 0.1), [0, 0.03, 0], [0.35 + r(i, 3) * 0.25, a, 0]);
         }
-        fruit.add(cylinder(0.05, 0.03, 12), F, [0, -0.02, 0], [0, 0, 0], [1, 0.06, 1]);
-        fruit.add(P.sphere, F, [0, 0.04, 0], [0, 0, 0], [0.05, 0.016, 0.05]);
+        fruit.add(cylinder(0.05, 0.03, 12), W, [0, -0.02, 0], [0, 0, 0], [1, 0.06, 1]);
+        fruit.add(P.sphere, W, [0, 0.04, 0], [0, 0, 0], [0.05, 0.016, 0.05]);
       }
       break;
     }
     case 'bush': {
       const cotton = cd.id === 'cotton', straw = cd.id === 'strawberry', chili = cd.id === 'chili';
+      const berry = cd.id === 'blueberry', coffee = cd.id === 'coffee_bean';
+      if (berry || coffee) {
+        // a leafy shrub hung with clusters of small berries or coffee cherries
+        for (let i = 0; i < 6; i++) {
+          const a = (i / 6) * Math.PI * 2;
+          plant.add(lump(70 + i, 0.25, 12), shade(L, (r(i, 5) - 0.5) * 0.12), [Math.cos(a) * 0.065, 0.13 + r(i, 6) * 0.07, Math.sin(a) * 0.065], [0, a, 0], [0.07, 0.075, 0.07]);
+        }
+        plant.add(lump(77, 0.2, 12), shade(L, 0.06), [0, 0.22, 0], [0, 0, 0], [0.075, 0.07, 0.075]);
+        for (let c = 0; c < 6; c++) {
+          const a = (c / 6) * Math.PI * 2 + 0.25;
+          const cx = Math.cos(a) * 0.1, cz = Math.sin(a) * 0.1, cy = 0.1 + r(c, 8) * 0.14;
+          for (let j = 0; j < 4; j++) fruit.add(P.sphere, W, [cx + (r(j, c) - 0.5) * 0.03, cy - j * 0.012, cz + (r(j, c + 9) - 0.5) * 0.03], [0, 0, 0], coffee ? [0.012, 0.014, 0.012] : 0.014);
+        }
+        break;
+      }
       const h = straw ? 0.08 : 0.14;
       if (cotton) for (let i = 0; i < 5; i++) plant.add(cylinder(0.003, 0.006, 4), '#7a5a3a', [0, 0, 0], [(r(i, 1) - 0.5) * 0.9, i * 1.3, 0], [1, 0.24, 1]);
       for (let i = 0; i < (straw ? 6 : 5); i++) {
@@ -93,13 +109,13 @@ function build(cd: CropDef): CropGeo {
         const d = straw ? 0.11 : 0.1;
         const y = straw ? 0.03 + r(i, 7) * 0.04 : h - 0.02 + r(i, 7) * 0.12;
         const p: V3 = [Math.cos(a) * d, y, Math.sin(a) * d];
-        if (cotton) fruit.add(lump(60 + i, 0.35, 10), F, [p[0], p[1] + 0.04, p[2]], [0, 0, 0], 0.03);
+        if (cotton) fruit.add(lump(60 + i, 0.35, 10), W, [p[0], p[1] + 0.04, p[2]], [0, 0, 0], 0.03);
         else if (straw) {
-          fruit.add(P.sphere, F, p, [Math.PI, 0, 0.3], [0.018, 0.026, 0.018]);
+          fruit.add(P.sphere, W, p, [Math.PI, 0, 0.3], [0.018, 0.026, 0.018]);
           plant.add(P.sphere, '#3d8a2f', [p[0], p[1] + 0.022, p[2]], [0, 0, 0], [0.014, 0.005, 0.014]);
-        } else if (chili) fruit.add(P.sphere, F, p, [0.2, a, 0.3], [0.011, 0.04, 0.011]);
+        } else if (chili) fruit.add(P.sphere, W, p, [0.2, a, 0.3], [0.011, 0.04, 0.011]);
         else {
-          fruit.add(P.sphereHi, F, p, [0, 0, 0], [0.032, 0.029, 0.032]);
+          fruit.add(P.sphereHi, W, p, [0, 0, 0], [0.032, 0.029, 0.032]);
           plant.add(P.sphere, '#2f7a2a', [p[0], p[1] + 0.027, p[2]], [0, 0, 0], [0.014, 0.005, 0.014]);
         }
       }
@@ -115,7 +131,8 @@ function build(cd: CropDef): CropGeo {
         const a = i * 0.6;
         plant.add(P.sphere, dark, [Math.cos(a) * (0.05 + i * 0.01), 0.02, Math.sin(a) * (0.05 + i * 0.01)], [0, 0, 0], 0.008);
       }
-      fruit.add(ribs(8), F, [0, 0.07, 0], [0, 0, 0], [0.1, 0.1, 0.1]);
+      if (cd.id === 'watermelon') fruit.add(P.sphereHi, W, [0, 0.07, 0], [0, 0.6, 0], [0.1, 0.085, 0.13]);
+      else fruit.add(ribs(8), W, [0, 0.07, 0], [0, 0, 0], [0.1, 0.1, 0.1]);
       plant.add(cylinder(0.006, 0.01, 6), '#6b8a2a', [0, 0.13, 0], [0.3, 0, 0.2], [1, 0.05, 1]);
       break;
     }
@@ -133,8 +150,21 @@ function build(cd: CropDef): CropGeo {
           .multiply(new THREE.Matrix4().makeTranslation(0, 0.012, 0.075))
           .multiply(new THREE.Matrix4().makeRotationX(Math.PI / 2))
           .multiply(new THREE.Matrix4().makeScale(0.018, 0.04, 0.006));
-        fruit.addMatrix(P.sphere, F, m);
+        fruit.addMatrix(P.sphere, W, m);
       }
+      break;
+    }
+    case 'leafy': {
+      // lettuce: a loose rosette of ruffled leaves around a tight pale heart
+      for (let ring = 0; ring < 3; ring++) {
+        const n = 7 - ring;
+        for (let i = 0; i < n; i++) {
+          const a = (i / n) * Math.PI * 2 + ring * 0.5;
+          const d = 0.075 - ring * 0.022;
+          plant.add(lump(80 + ring * 10 + i, 0.3, 12), shade(L, -0.08 + ring * 0.05), [Math.cos(a) * d, 0.035 + ring * 0.022, Math.sin(a) * d], [0.9 - ring * 0.25, -a + Math.PI / 2, 0], [0.055, 0.012, 0.07 - ring * 0.01]);
+        }
+      }
+      fruit.add(lump(95, 0.2, 14), W, [0, 0.07, 0], [0, 0, 0], [0.045, 0.045, 0.045]);
       break;
     }
     case 'cane': {
@@ -144,14 +174,14 @@ function build(cd: CropDef): CropGeo {
         const h = 0.48 + r(c, 3) * 0.1;
         const lean: V3 = [(r(c, 4) - 0.5) * 0.12, 0, (r(c, 5) - 0.5) * 0.12];
         plant.add(cylinder(0.014, 0.016, 8), shade(L, -0.05), [x, 0, z], lean, [1, h, 1]);
-        for (let j = 1; j < 5; j++) fruit.add(cylinder(0.018, 0.018, 8), F, tip([x, 0, z], lean, (j / 5) * h), lean, [1, 0.012, 1]);
+        for (let j = 1; j < 5; j++) fruit.add(cylinder(0.018, 0.018, 8), W, tip([x, 0, z], lean, (j / 5) * h), lean, [1, 0.012, 1]);
         const top = tip([x, 0, z], lean, h - 0.02);
         for (let i = 0; i < 4; i++) plant.add(blade(0.22, 0.028, 0.5), shade(L, (r(i, c) - 0.5) * 0.08), top, [0.9 + r(i, c + 3) * 0.3, (i / 4) * Math.PI * 2 + c, 0]);
       }
       break;
     }
   }
-  if (fruit.empty) fruit.add(P.sphere, F, [0, -1, 0], [0, 0, 0], 0.001);
+  if (fruit.empty) fruit.add(P.sphere, W, [0, -1, 0], [0, 0, 0], 0.001);
   return { plant: plant.build(), fruit: fruit.build() };
 }
 

@@ -418,11 +418,11 @@ function dropDown(src: THREE.Object3D, delay = 0) {
 const HIT_MAT = new THREE.MeshBasicMaterial({ visible: false });
 // middle of the starting farm
 const FARM_C = { x: 13.5 + MAP_OFF, y: 11.5 + MAP_OFF };
-const FRUIT_COLOR: Record<string, string> = { apple: '#e53935', cherry: '#b0102a', orange: '#ff9800' };
-const TREE_LEAF: Record<string, string> = { apple_tree: '#4f9e36', cherry_tree: '#3f8a3a', orange_tree: '#2f7d32' };
-const GRASSY_PEN = new Set(['pasture', 'sheepfold', 'beehive', 'rabbit_hutch', 'alpaca_ranch']);
+const FRUIT_COLOR: Record<string, string> = { apple: '#e53935', cherry: '#b0102a', orange: '#ff9800', peach: '#ffa274', lemon: '#ffe03a', coconut: '#7a4a26' };
+const TREE_LEAF: Record<string, string> = { apple_tree: '#4f9e36', cherry_tree: '#3f8a3a', orange_tree: '#2f7d32', peach_tree: '#5aa53a', lemon_tree: '#3b8f3c', coconut_palm: '#4c9a38' };
+const GRASSY_PEN = new Set(['pasture', 'sheepfold', 'beehive', 'rabbit_hutch', 'alpaca_ranch', 'goose_pen']);
 const PEN_GROUND: Record<string, string> = {
-  rabbit_hutch: '#86c24f', alpaca_ranch: '#8fc45a',
+  rabbit_hutch: '#86c24f', alpaca_ranch: '#8fc45a', goose_pen: '#86c24f',
   coop: '#d9c08a', pasture: '#86c24f', pigpen: '#94704a', sheepfold: '#9ccc5a',
   duck_pond: '#8fc45a', goat_yard: '#b8a46c', beehive: '#7fbf4f', stable: '#c9b27a',
 };
@@ -1886,6 +1886,7 @@ function animalBody(kind: string) {
     case 'duck': eyes(head, 0.035, 0.02, 0.037, 0.011, false); break;
     case 'rabbit': eyes(head, 0.03, 0.012, 0.052, 0.013); g.userData.hop = true; break;
     case 'alpaca': eyes(head, 0.032, 0.008, 0.066, 0.014); break;
+    case 'goose': eyes(head, 0.028, 0.02, 0.025, 0.01, false); g.userData.peck = true; break;
   }
   return g;
 }
@@ -1944,7 +1945,7 @@ function animalSpot(d: BuildingDef, id: number, t: number) {
 const fruitMats = new Map<string, THREE.MeshStandardMaterial>();
 function fruitMat(color: string) {
   let m = fruitMats.get(color);
-  if (!m) { m = new THREE.MeshStandardMaterial({ color, roughness: 0.4 }); fruitMats.set(color, m); }
+  if (!m) { m = new THREE.MeshStandardMaterial({ color, roughness: 0.4, vertexColors: true }); fruitMats.set(color, m); }
   return m;
 }
 
@@ -2120,6 +2121,40 @@ function buildHouse(e: Entry, d: BuildingDef) {
     const z = cz - dd / 2 + ((i + 1) * dd) / (nW + 1);
     windowUnit(g, rx + 0.01, y0 + H * 0.3, z, Math.PI / 2, barn ? '#fbeee0' : shutter, !barn && i === 0);
   }
+  let oven: ((on: boolean, t: number) => void) | null = null;
+  switch (d.id) {
+    case 'pizzeria': {
+      // wood fired brick oven with a glowing mouth on the side of the shop
+      const ox = rx + 0.02, oz = cz + 0.1;
+      mk(g, G.dome, surfaceMat('stone', '#b0624a', 6), 0.22, 0.24, 0.22, ox, y0, oz);
+      bxT(g, 0.5, y0, 0.5, 'stone', '#9a968a', ox, 0, oz, 4);
+      mk(g, G.dome, LAMP, 0.08, 0.1, 0.02, ox + 0.2, y0, oz).rotation.set(0, Math.PI / 2, 0);
+      bxT(g, 0.08, 0.2, 0.08, 'stone', '#8c4a3a', ox, y0 + 0.2, oz - 0.08, 6);
+      oven = smoke(g, ox, y0 + 0.5, oz - 0.08);
+      break;
+    }
+    case 'coffee_kiosk': {
+      // striped awning across the front and a giant cup on the roof ridge
+      for (let i = 0; i < 6; i++) {
+        const st = bx(g, (ww + 0.1) / 6, 0.03, 0.34, i % 2 ? '#fff6df' : '#6b4226', cx - ww / 2 - 0.05 + (i + 0.5) * ((ww + 0.1) / 6), y0 + H * 0.78, fz + 0.14);
+        st.rotation.x = 0.35;
+      }
+      const cup = group(g, cx, y0 + H + 0.45 + Math.min(ww, dd) * 0.3, cz);
+      mk(cup, cylGeo(0.12, 0.09, 16), M('#ffffff'), 1, 0.18, 1, 0, 0.09, 0);
+      mk(cup, cylGeo(0.11, 0.11, 16), M('#6b3f1f'), 1, 0.01, 1, 0, 0.175, 0);
+      mk(cup, new THREE.TorusGeometry(0.05, 0.015, 8, 14), M('#ffffff'), 1, 1, 1, 0.13, 0.1, 0).rotation.y = 0;
+      break;
+    }
+    case 'salad_bar': {
+      // crates of fresh produce by the door
+      const veg = ['#e8432e', '#8ad05a', '#f0862a', '#ffd23a'];
+      for (const [i, x] of [[0, cx - ww / 2 + 0.12], [1, cx + ww / 2 - 0.12]] as const) {
+        bxT(g, 0.22, 0.1, 0.16, 'planks', '#b98048', x, y0, fz + 0.12, 5);
+        for (let k = 0; k < 5; k++) ball(g, 0.03, veg[(i * 2 + k) % 4], x - 0.07 + (k % 3) * 0.07, y0 + 0.12, fz + 0.09 + Math.floor(k / 3) * 0.06, 1, 1, 1, false);
+      }
+      break;
+    }
+  }
   let puff: ((on: boolean, t: number) => void) | null = null;
   if (!barn) {
     const chx = cx + ww * 0.25, chz = cz - dd * 0.1;
@@ -2134,6 +2169,7 @@ function buildHouse(e: Entry, d: BuildingDef) {
     const info = prodInfo(o, now);
     const busy = !!info.current;
     if (puff) puff(d.kind === 'house' || busy, t);
+    if (oven) oven(busy, t + 400);
     if (d.kind !== 'production') return;
     // react to the queue: a big hop when goods finish, a small one when queued or collected
     const q = o.prod?.queue.length ?? 0, done = info.done.length;
@@ -2272,6 +2308,15 @@ function buildPen(e: Entry, d: BuildingDef) {
       e.top = 1.0;
       break;
     }
+    case 'goose_pen':
+      // a little pond in one corner and an A-frame goose house
+      cyl(g, 0.42, 0.45, 0.03, '#d8c38e', 1.45, 0.02, 1.45, 20, false);
+      mk(g, cylGeo(0.37, 0.37, 20), WATER, 1, 0.03, 1, 1.45, 0.05, 1.45, false);
+      bxT(g, 0.5, 0.3, 0.46, 'boards', '#f3e6c8', 0.45, 0.04, 0.42, 2);
+      roofT(g, 0.6, 0.24, 0.58, '#3f7fbf', surfaceMat('boards', '#f3e6c8', 2), 0.45, 0.34, 0.42, 0.05);
+      bx(g, 0.14, 0.16, 0.02, '#4a3020', 0.45, 0.04, 0.655);
+      e.top = 0.8;
+      break;
     case 'beehive':
       for (let i = 0; i < 14; i++) {
         const x = 0.2 + hash(i, 4, 1) * 1.6, z = 0.2 + hash(i, 5, 1) * 1.6;
@@ -2288,7 +2333,7 @@ function buildPen(e: Entry, d: BuildingDef) {
       bxT(g, 0.5, 0.25, 0.35, 'thatch', '#e2c15a', 0.55, 0.04, 0.5, 3);
     }
   }
-  if (d.id !== 'beehive' && d.id !== 'duck_pond') {
+  if (d.id !== 'beehive' && d.id !== 'duck_pond' && d.id !== 'goose_pen') {
     bx(g, 0.55, 0.12, 0.18, '#8a5a2b', w - 0.55, 0.04, h - 0.35);
     bx(g, 0.47, 0.03, 0.12, '#e2c15a', w - 0.55, 0.14, h - 0.35, false);
   }
@@ -2406,9 +2451,43 @@ function crownSpots(n: number, cx: number, cy: number, cz: number, r: number) {
   return out;
 }
 
+// Coconut palm: a curved ringed trunk and a crown of long arching fronds.
+function palmTree(g: P, leaf: string) {
+  const crown = group(g, 0.5, 0, 0.5);
+  const segs = 9;
+  let x = 0, z = 0;
+  const bark = surfaceMat('bark', '#9a7248', 3);
+  for (let i = 0; i < segs; i++) {
+    const t = i / segs;
+    const nx = Math.sin(t * 1.4) * 0.16, ny = (i + 1) * 0.15;
+    const seg = mk(crown, cylGeo(0.055 - t * 0.02, 0.065 - t * 0.02, 10), bark, 1, 0.16, 1, (x + nx) / 2, ny - 0.075, z);
+    seg.rotation.z = -Math.atan2(nx - x, 0.15);
+    mk(crown, cylGeo(0.07 - t * 0.02, 0.07 - t * 0.02, 10), M('#7a5634'), 1, 0.02, 1, nx, ny - 0.01, z);
+    x = nx;
+  }
+  const top = group(crown, x, segs * 0.15, z);
+  for (let i = 0; i < 9; i++) {
+    const a = (i / 9) * Math.PI * 2 + (i % 2) * 0.2;
+    const f = group(top);
+    f.rotation.y = a;
+    // each frond is a row of leaflets drooping further toward the tip
+    for (let k = 0; k < 7; k++) {
+      const u = k / 6;
+      const px = 0.06 + u * 0.48, py = 0.05 + Math.sin(u * 2.4) * 0.12 - u * u * 0.3;
+      for (const sd of [-1, 1]) {
+        const lf = mk(f, G.ball, M(shade(leaf, (k % 2) * 0.04 - 0.06)), 0.05, 0.01, 0.12 - u * 0.05, px, py, sd * (0.07 - u * 0.02), false);
+        lf.rotation.set(sd * 0.5, sd * 0.5, -0.3 - u * 0.6);
+      }
+      mk(f, G.ball, M(shade(leaf, -0.14)), 0.05, 0.012, 0.012, px, py + 0.004, 0, false);
+    }
+  }
+  return { crown, top };
+}
+
 function buildFruitTree(e: Entry, d: BuildingDef) {
   const g = e.root;
   const leaf = TREE_LEAF[d.id] ?? '#4f9e36';
+  if (d.id === 'coconut_palm') return buildPalm(e, d, leaf);
   const { crown } = leafyTree(g, 0.5, 0.5, leaf, 1, d.id.length);
   const fc = FRUIT_COLOR[d.fruit ?? 'apple'] ?? '#e53935';
   const fm = new THREE.MeshStandardMaterial({ color: fc, roughness: 0.35 });
@@ -2440,6 +2519,34 @@ function buildFruitTree(e: Entry, d: BuildingDef) {
     const wobble = u >= 0 && u < 1 ? Math.sin(u * Math.PI * 7) * (1 - u) * 0.1 : 0;
     crown.rotation.z = Math.sin(t / 1100 + o.id) * 0.02 + wobble;
     crown.rotation.x = Math.sin(t / 1400 + o.id * 2) * 0.012 + wobble * 0.5;
+  };
+}
+
+function buildPalm(e: Entry, d: BuildingDef, leaf: string) {
+  const g = e.root;
+  const { crown, top } = palmTree(g, leaf);
+  const nut = new THREE.MeshStandardMaterial({ color: FRUIT_COLOR.coconut, roughness: 0.8 });
+  const fruit = [0, 1, 2, 3, 4].map((i) => {
+    const a = (i / 5) * Math.PI * 2;
+    return mk(top, G.ball, nut, 0.06, 0.055, 0.06, Math.cos(a) * 0.07, -0.04, Math.sin(a) * 0.07);
+  });
+  e.top = 1.7;
+  let start = -1, wasReady = false, shake = -1e9;
+  e.update = (o, now, t) => {
+    const ti = treeInfo(o, now);
+    const st = o.tree?.startAt ?? 0;
+    if (start >= 0 && st !== start && wasReady) {
+      fruit.forEach((f, i) => { if (f.visible) dropDown(f, i * 0.06); });
+      shake = t;
+      bump(e);
+    }
+    start = st; wasReady = ti.ready;
+    const n = ti.ready ? fruit.length : Math.floor(ti.p * fruit.length);
+    fruit.forEach((f, i) => { f.visible = i < n; f.scale.setScalar(0.06 * (ti.ready ? 1 : 0.6 + ti.p * 0.4)); });
+    const u = (t - shake) / 900;
+    const wobble = u >= 0 && u < 1 ? Math.sin(u * Math.PI * 7) * (1 - u) * 0.08 : 0;
+    crown.rotation.z = Math.sin(t / 1500 + o.id) * 0.025 + wobble;
+    top.children.forEach((f, i) => { f.rotation.z = Math.sin(t / 700 + i + o.id) * 0.06; });
   };
 }
 
