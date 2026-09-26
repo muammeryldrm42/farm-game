@@ -8,6 +8,7 @@ import { Sky } from './gfx/sky';
 import { makeWater } from './gfx/water';
 import { Foliage, type Spot } from './gfx/foliage';
 import { Post } from './gfx/post';
+import { PLANT_MAT, cropGeo } from './gfx/crops';
 import { meterBox, meterRoof, surface, surfaceMat, type SurfaceKind } from './gfx/textures';
 import { ANIMAL, BUILDING, CROP, ITEMS, type BuildingDef, type CropDef } from './data';
 import {
@@ -669,6 +670,8 @@ export class Renderer {
       isl.add(m);
     }
 
+    this.buildShore();
+
     const grass = new THREE.MeshStandardMaterial({ color: '#ffffff', roughness: 0.95, ...surface('grass') });
     grass.normalScale.set(0.8, 0.8);
     // sample the lawn texture in world space so it flows across tiles without repeating per tile
@@ -694,6 +697,51 @@ export class Renderer {
       this.tiles.setColorAt(y * GRID + x, new THREE.Color('#7cc450'));
     }
     this.land.add(this.tiles);
+  }
+
+  // boulders along the beach and in the surf, plus a few starfish on the sand
+  private buildShore() {
+    const rocks: THREE.Matrix4[] = [];
+    const cols: THREE.Color[] = [];
+    const m = new THREE.Matrix4(), q = new THREE.Quaternion(), e = new THREE.Euler();
+    const pv = new THREE.Vector3(), sv = new THREE.Vector3();
+    const edge = (i: number, k: number) => {
+      // walk the four sides of the island
+      const side = i % 4, t = hash(i, 1, 21) * (GRID + 1.2) - 0.6;
+      const out = 0.35 + hash(i, 2, 21) * k;
+      if (side === 0) return [t, -out];
+      if (side === 1) return [t, GRID + out];
+      if (side === 2) return [-out, t];
+      return [GRID + out, t];
+    };
+    for (let i = 0; i < 150; i++) {
+      const [x, z] = edge(i, 1.1);
+      const sc = 0.08 + Math.pow(hash(i, 3, 21), 2) * 0.32;
+      e.set(hash(i, 4, 21) * 3, hash(i, 5, 21) * 6, hash(i, 6, 21) * 3);
+      m.compose(pv.set(x, -0.42 + sc * 0.35, z), q.setFromEuler(e), sv.set(sc * 1.3, sc * 0.8, sc));
+      rocks.push(m.clone());
+      cols.push(new THREE.Color('#9da3a8').offsetHSL(0, 0, (hash(i, 7, 21) - 0.5) * 0.18));
+    }
+    const im = new THREE.InstancedMesh(G.rock, MF('#ffffff'), rocks.length);
+    rocks.forEach((mm, i) => { im.setMatrixAt(i, mm); im.setColorAt(i, cols[i]); });
+    im.castShadow = true; im.receiveShadow = true;
+    this.land.add(im);
+    const star = new THREE.Shape();
+    for (let i = 0; i < 10; i++) {
+      const a = (i / 10) * Math.PI * 2, r = i % 2 ? 0.4 : 1;
+      if (i === 0) star.moveTo(Math.cos(a) * r, Math.sin(a) * r); else star.lineTo(Math.cos(a) * r, Math.sin(a) * r);
+    }
+    const sg = new THREE.ExtrudeGeometry(star, { depth: 0.25, bevelEnabled: true, bevelSize: 0.15, bevelThickness: 0.15, bevelSegments: 2 });
+    sg.rotateX(-Math.PI / 2);
+    for (let i = 0; i < 10; i++) {
+      const [x, z] = edge(i + 400, 0.08);
+      const sm = new THREE.Mesh(sg, M(['#ff8a5c', '#ff6f91', '#ffb347'][i % 3]));
+      sm.scale.setScalar(0.06);
+      sm.position.set(x, -0.19, z);
+      sm.rotation.y = hash(i, 9, 21) * 6;
+      sm.receiveShadow = true;
+      this.land.add(sm);
+    }
   }
 
   // tiles free of buildings get instanced grass tufts and wild flowers
@@ -1336,6 +1384,7 @@ export class Renderer {
       a.g.rotation.y = cur + diff * Math.min(1, dt * 10);
       animateLegs(a.g, a.moving ? Math.sin(a.phase) * 0.7 : 0);
       const head = a.g.userData.head as THREE.Object3D | undefined;
+      blink(a.g, t, a === g ? 7 : 3);
       if (a === g) {
         const tail = a.g.userData.tail as THREE.Object3D;
         if (tail) tail.rotation.z = Math.sin(t / (a.moving ? 60 : 120)) * 0.6;
@@ -1386,12 +1435,28 @@ function caps(p: P, r: number, len: number, color: string | THREE.Material, x: n
 const EYE_W = new THREE.MeshStandardMaterial({ color: '#ffffff', roughness: 0.3 });
 const EYE_B = new THREE.MeshStandardMaterial({ color: '#16110d', roughness: 0.15 });
 // a pair of cartoon eyes looking along +z, centered on x = 0
+// Each eye sits in its own group so it can blink by squashing it vertically.
 function eyes(p: P, spread: number, y: number, z: number, r: number, white = true) {
+  const list: THREE.Object3D[] = (p.userData.eyes as THREE.Object3D[] | undefined) ?? [];
   for (const sx of [-1, 1]) {
-    if (white) mk(p, G.ball, EYE_W, r, r * 1.1, r * 0.6, sx * spread, y, z, false);
-    mk(p, G.ball, EYE_B, r * 0.62, r * 0.72, r * 0.45, sx * spread, y, z + r * 0.3, false);
-    mk(p, G.ball, EYE_W, r * 0.2, r * 0.2, r * 0.15, sx * spread + r * 0.18, y + r * 0.25, z + r * 0.5, false);
+    const e = group(p, sx * spread, y, z);
+    if (white) mk(e, G.ball, EYE_W, r, r * 1.1, r * 0.6, 0, 0, 0, false);
+    mk(e, G.ball, EYE_B, r * 0.62, r * 0.72, r * 0.45, 0, 0, r * 0.3, false);
+    mk(e, G.ball, EYE_W, r * 0.2, r * 0.2, r * 0.15, r * 0.18, r * 0.25, r * 0.5, false);
+    list.push(e);
   }
+  p.userData.eyes = list;
+}
+
+// quick blink every few seconds, each creature on its own rhythm
+function blink(m: THREE.Object3D, t: number, id: number) {
+  const head = (m.userData.head as THREE.Object3D | undefined) ?? m;
+  const list = head.userData.eyes as THREE.Object3D[] | undefined;
+  if (!list) return;
+  const period = 3200 + (id % 7) * 450;
+  const ph = (t + id * 997) % period;
+  const k = ph < 140 ? 0.12 : 1;
+  for (const e of list) e.scale.y = k;
 }
 
 function legPivot(g: THREE.Group, x: number, y: number, z: number, len: number, th: number, color: string, list: THREE.Object3D[], foot?: string) {
@@ -1490,6 +1555,14 @@ function fourLegs(g: THREE.Group, w: number, d: number, len: number, th: number,
 }
 
 function buildAnimal(kind: string) {
+  const g = animalBody(kind);
+  // slightly oversized heads read as cute from the farm camera
+  const head = g.userData.head as THREE.Object3D | undefined;
+  if (head && kind !== 'horse') head.scale.setScalar(1.15);
+  return g;
+}
+
+function animalBody(kind: string) {
   const g = new THREE.Group();
   switch (kind) {
     case 'chicken': {
@@ -1658,50 +1731,20 @@ function animalSpot(d: BuildingDef, id: number, t: number) {
 
 // ------------------------------------------------------------------ crops
 
+const fruitMats = new Map<string, THREE.MeshStandardMaterial>();
+function fruitMat(color: string) {
+  let m = fruitMats.get(color);
+  if (!m) { m = new THREE.MeshStandardMaterial({ color, roughness: 0.4 }); fruitMats.set(color, m); }
+  return m;
+}
+
 function plantModel(cd: CropDef) {
   const g = new THREE.Group();
-  const fruit: THREE.Mesh[] = [];
-  const L = cd.leaf, F = cd.fruit;
-  switch (cd.shape) {
-    case 'grain':
-      cyl(g, 0.015, 0.05, 0.3, L, 0, 0, 0, 5, false);
-      fruit.push(ball(g, 0.05, F, 0, 0.34, 0, 1, 2, 1, false));
-      break;
-    case 'stalk':
-      cyl(g, 0.018, 0.03, 0.52, L, 0, 0, 0, 5, false);
-      bx(g, 0.22, 0.015, 0.05, L, 0, 0.2, 0, false).rotation.z = 0.4;
-      bx(g, 0.22, 0.015, 0.05, L, 0, 0.3, 0, false).rotation.z = -0.4;
-      fruit.push(ball(g, 0.04, F, 0.04, 0.34, 0.02, 1, 2.1, 1, false));
-      break;
-    case 'root':
-      for (const r of [-0.4, 0, 0.4]) mk(g, cylGeo(0, 0.04, 5), M(L), 1, 0.22, 1, Math.sin(r) * 0.04, 0.11, 0, false).rotation.z = r;
-      fruit.push(ball(g, 0.06, F, 0, 0.02, 0, 1, 0.8, 1, false));
-      break;
-    case 'bush':
-      ball(g, 0.12, L, 0, 0.12, 0, 1, 0.9, 1, false);
-      for (const [x, y, z] of [[0.08, 0.14, 0.06], [-0.07, 0.1, 0.08], [0.02, 0.2, 0.09], [-0.06, 0.17, -0.06]]) fruit.push(ball(g, 0.035, F, x, y, z, 1, 1, 1, false));
-      break;
-    case 'vine':
-      ball(g, 0.09, L, -0.06, 0.03, 0.04, 1, 0.4, 1, false);
-      ball(g, 0.08, L, 0.07, 0.03, -0.05, 1, 0.4, 1, false);
-      fruit.push(ball(g, 0.1, F, 0, 0.07, 0, 1, 0.75, 1, false));
-      break;
-    case 'flower': {
-      cyl(g, 0.012, 0.02, 0.48, L, 0, 0, 0, 5, false);
-      bx(g, 0.14, 0.012, 0.05, L, 0, 0.22, 0, false).rotation.z = 0.35;
-      const head = mk(g, cylGeo(0.09, 0.09, 10), M(F), 1, 0.03, 1, 0, 0.5, 0.02, false);
-      head.rotation.x = 1.0;
-      const c = mk(g, cylGeo(0.045, 0.045, 8), M('#6b3f1f'), 1, 0.035, 1, 0, 0.505, 0.03, false);
-      c.rotation.x = 1.0;
-      fruit.push(head);
-      break;
-    }
-    case 'cane':
-      for (const [x, z] of [[-0.04, 0], [0.04, 0.03], [0, -0.04]]) cyl(g, 0.018, 0.022, 0.55, L, x, 0, z, 5, false);
-      fruit.push(ball(g, 0.03, F, 0, 0.56, 0, 1, 1, 1, false));
-      break;
-  }
-  return { g, fruit };
+  const geo = cropGeo(cd);
+  const plant = new THREE.Mesh(geo.plant, PLANT_MAT);
+  const fr = new THREE.Mesh(geo.fruit, fruitMat(cd.fruit));
+  for (const m of [plant, fr]) { m.castShadow = true; m.receiveShadow = true; g.add(m); }
+  return { g, fruit: [fr] };
 }
 
 // ------------------------------------------------------------------ object builders
@@ -1779,7 +1822,7 @@ function buildPlot(e: Entry) {
       const ripe = pp.ready ? 1 : 0;
       for (const f of pl.fruit) { f.visible = s > 0.45; }
       if (pl.ripe !== ripe) {
-        for (const f of pl.fruit) f.material = ripe ? M(cd.fruit) : M(cd.shape === 'flower' ? '#9cc45a' : '#b9d36a');
+        for (const f of pl.fruit) f.material = ripe ? fruitMat(cd.fruit) : fruitMat(cd.shape === 'flower' ? '#9cc45a' : '#b9d36a');
         pl.ripe = ripe;
       }
     });
@@ -1824,30 +1867,48 @@ function buildHouse(e: Entry, d: BuildingDef) {
   for (const [ex, ez] of [[-1, -1], [1, -1], [-1, 1], [1, 1]]) bx(g, 0.07, H, 0.07, barnTrim(d), cx + ex * ww / 2, y0, cz + ez * dd / 2);
   const fz = cz + dd / 2, rx = cx + ww / 2;
   const barn = d.kind === 'barn';
-  // door on the front face
+  const shutter = shade(d.roof, 0.04);
   const doorX = d.kind === 'house' ? cx - ww * 0.22 : cx;
   const dh = H * (barn ? 0.62 : 0.5);
-  bx(g, barn ? 0.5 : 0.3, dh, 0.04, barn ? '#8e2c20' : '#6b4226', doorX, y0, fz + 0.01);
   if (barn) {
-    for (const r of [0.85, -0.85]) { const m = bx(g, 0.035, dh * 1.15, 0.02, '#fbeee0', doorX, y0 + dh / 2 - dh * 0.575, fz + 0.04); m.rotation.z = r; m.position.y = y0 + dh / 2; }
-    bx(g, 0.3, 0.26, 0.03, '#fbeee0', cx, y0 + H * 0.74, fz + 0.01);
+    // big barn door with white X braces, a hay loft and a hoist beam
+    const bd = group(g, doorX, y0, fz + 0.01);
+    bxT(bd, 0.56, dh, 0.04, 'boards', '#9a3326', 0, 0, 0, 2);
+    bx(bd, 0.64, 0.05, 0.05, '#fbeee0', 0, dh, 0.01);
+    for (const sx of [-1, 1]) bx(bd, 0.05, dh, 0.05, '#fbeee0', sx * 0.3, 0, 0.01);
+    for (const r of [0.72, -0.72]) { const m = bx(bd, 0.035, dh * 1.2, 0.02, '#fbeee0', 0, 0, 0.035); m.rotation.z = r; m.position.y = dh / 2; }
+    const loft = group(g, cx, y0 + H * 0.7, fz + 0.01);
+    bx(loft, 0.34, 0.3, 0.03, '#6b2a20', 0, 0, 0);
+    bx(loft, 0.4, 0.04, 0.05, '#fbeee0', 0, 0.3, 0.01);
+    for (const sx of [-1, 1]) bx(loft, 0.04, 0.3, 0.05, '#fbeee0', sx * 0.18, 0, 0.01);
+    mk(loft, G.box, surfaceMat('thatch', '#e8c865', 3), 0.28, 0.1, 0.06, 0, 0.05, 0.02);
+    bx(loft, 0.06, 0.06, 0.28, '#6b4226', 0, 0.42, 0.1);
     bx(g, ww, 0.06, 0.05, '#fbeee0', cx, y0 + H - 0.06, fz);
   } else {
-    ball(g, 0.02, '#e9c46a', doorX + 0.09, y0 + dh * 0.5, fz + 0.04);
-    bx(g, 0.34, 0.04, 0.14, '#9a968a', doorX, y0, fz + 0.08);
+    // paneled door in a white frame with a stone step, a little awning and a porch lamp
+    const dw = 0.3;
+    const dg = group(g, doorX, y0, fz + 0.01);
+    bxT(dg, dw, dh, 0.04, 'boards', d.kind === 'house' ? '#7a4a28' : shade(d.roof, -0.08), 0, 0, 0, 3);
+    for (const [px, py] of [[-0.065, 0.55], [0.065, 0.55], [-0.065, 0.12], [0.065, 0.12]]) bx(dg, 0.1, dh * 0.33, 0.012, '#ffffff', px, dh * py, 0.02).material = MT('#000000', 0.12);
+    bx(dg, dw + 0.08, 0.05, 0.05, '#f4efe6', 0, dh, 0.005);
+    for (const sx of [-1, 1]) bx(dg, 0.04, dh, 0.05, '#f4efe6', sx * (dw / 2 + 0.02), 0, 0.005);
+    ball(dg, 0.018, '#e9c46a', dw * 0.32, dh * 0.48, 0.035);
+    bxT(g, dw + 0.16, 0.05, 0.16, 'stone', '#b5b0a2', doorX, y0 - 0.05, fz + 0.08, 4);
+    roofT(g, dw + 0.22, 0.12, 0.34, d.roof, M(d.roof), doorX, y0 + dh + 0.05, fz + 0.02);
+    for (const sx of [-1, 1]) bx(g, 0.02, 0.1, 0.02, '#f4efe6', doorX + sx * (dw / 2 + 0.06), y0 + dh - 0.04, fz + 0.18);
+    const lx = doorX + dw / 2 + 0.1;
+    bx(g, 0.02, 0.06, 0.05, '#3a3a3a', lx, y0 + dh * 0.72, fz + 0.03);
+    mk(g, G.box, LAMP, 0.05, 0.07, 0.05, lx, y0 + dh * 0.72 + 0.07, fz + 0.06);
+    groundGlow(g, lx, fz + 0.35, 1.1);
   }
-  if (d.kind === 'house') {
-    mk(g, G.box, WIN, 0.3, 0.26, 0.04, cx + ww * 0.2, y0 + H * 0.55, fz + 0.01);
-    bx(g, 0.36, 0.04, 0.08, '#8a5a2b', cx + ww * 0.2, y0 + H * 0.36, fz + 0.03);
-    for (let i = 0; i < 3; i++) ball(g, 0.03, ['#ff6b8a', '#ffd23a', '#ffffff'][i], cx + ww * 0.2 - 0.1 + i * 0.1, y0 + H * 0.36 + 0.07, fz + 0.05);
-  }
-  // windows on the right face
+  // front windows: the house has one next to the door, workshops one on each side
+  const front = d.kind === 'house' ? [cx + ww * 0.2] : barn ? [] : ww > 1.2 ? [cx - ww * 0.3, cx + ww * 0.3] : [];
+  for (const x of front) windowUnit(g, x, y0 + H * 0.3, fz + 0.01, 0, shutter, true);
+  // side windows on the right face
   const nW = dd > 1.3 ? 2 : 1;
   for (let i = 0; i < nW; i++) {
     const z = cz - dd / 2 + ((i + 1) * dd) / (nW + 1);
-    bx(g, 0.03, 0.34, 0.36, '#ffffff', rx + 0.005, y0 + H * 0.38, z);
-    mk(g, G.box, WIN, 0.04, 0.28, 0.3, rx + 0.01, y0 + H * 0.38 + 0.17, z);
-    bx(g, 0.045, 0.28, 0.02, '#ffffff', rx + 0.012, y0 + H * 0.38 + 0.03, z);
+    windowUnit(g, rx + 0.01, y0 + H * 0.3, z, Math.PI / 2, barn ? '#fbeee0' : shutter, !barn && i === 0);
   }
   let puff: ((on: boolean, t: number) => void) | null = null;
   if (!barn) {
@@ -1874,6 +1935,30 @@ function buildHouse(e: Entry, d: BuildingDef) {
     // while working the building chugs along with a gentle rhythm
     if (busy && t - beat > 1400) { beat = t; bump(e, 'work'); }
   };
+}
+
+// a framed window with a cross mullion, sill, shutters and an optional flower box.
+// It faces +z, turned by `rotY`, and (x, y, z) is the bottom center on the wall.
+function windowUnit(g: P, x: number, y: number, z: number, rotY: number, shutter: string, flowers: boolean) {
+  const w = group(g, x, y, z);
+  w.rotation.y = rotY;
+  const W = 0.28, Hh = 0.3;
+  bx(w, W + 0.06, Hh + 0.06, 0.03, '#f7f3ea', 0, -0.03, 0);
+  mk(w, G.box, WIN, W, Hh, 0.03, 0, Hh / 2, 0.012);
+  bx(w, 0.022, Hh, 0.02, '#f7f3ea', 0, 0, 0.03);
+  bx(w, W, 0.022, 0.02, '#f7f3ea', 0, Hh / 2 - 0.011, 0.03);
+  bx(w, W + 0.1, 0.03, 0.07, '#f7f3ea', 0, -0.05, 0.03);
+  for (const sx of [-1, 1]) {
+    bxT(w, 0.1, Hh + 0.04, 0.025, 'boards', shutter, sx * (W / 2 + 0.07), -0.02, 0.01, 6);
+  }
+  if (flowers) {
+    bxT(w, W + 0.06, 0.07, 0.08, 'planks', '#8a5a2b', 0, -0.13, 0.06, 4);
+    const cols = ['#ff6b8a', '#ffd23a', '#ffffff', '#ff9f43', '#b58cff'];
+    for (let i = 0; i < 6; i++) {
+      ball(w, 0.03, '#4f9e36', -0.12 + i * 0.048, -0.05, 0.06, 1, 0.8, 1, false);
+      ball(w, 0.022, cols[i % cols.length], -0.12 + i * 0.048, -0.03 + (i % 2) * 0.015, 0.08, 1, 1, 1, false);
+    }
+  }
 }
 
 function barnTrim(d: BuildingDef) {
@@ -2027,12 +2112,14 @@ function buildPen(e: Entry, d: BuildingDef) {
         m.position.set(1.7 + Math.cos(ang) * r, 0.08 + Math.sin(t / 400 + id) * 0.01 + jump * 0.5, 1.7 + Math.sin(ang) * r);
         m.rotation.y = Math.atan2(-Math.sin(ang), Math.cos(ang));
         m.rotation.z = Math.sin(t / 520 + id) * 0.06;
+        blink(m, t, id);
         // now and then a duck dips its head under water
         if (head) head.rotation.x = Math.max(0, Math.sin(t / 900 + id * 2.3) - 0.85) * 8;
         return;
       }
       const sp = animalSpot(d, id, t);
-      m.position.set(sp.x, 0.04 + jump, sp.z);
+      blink(m, t, id);
+      m.position.set(sp.x, 0.04 + jump + Math.abs(Math.sin(t / 110 + id)) * 0.008, sp.z);
       m.rotation.y = sp.heading;
       animateLegs(m, Math.sin(t / 110 + id) * 0.28);
       if (head) {
