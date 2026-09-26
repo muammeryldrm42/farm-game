@@ -1,0 +1,96 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+html,
+body {
+  margin: 0;
+  height: 100%;
+  overflow: hidden;
+  background: #3f9fd8;
+  overscroll-behavior: none;
+  -webkit-tap-highlight-color: transparent;
+  user-select: none;
+  -webkit-user-select: none;
+}
+
+canvas {
+  touch-action: none;
+  display: block;
+}
+
+@layer components {
+  .panel {
+    @apply rounded-3xl border-4 border-[#8a5a2b] bg-[#fff6df] text-[#5a3a1a] shadow-[0_8px_0_#5d3a1f,0_16px_30px_rgba(0,0,0,0.35)];
+  }
+  .card {
+    @apply rounded-2xl border-2 border-[#e2cc9c] bg-[#fffaf0] shadow-[0_3px_0_#e2cc9c];
+  }
+  .btn {
+    @apply inline-flex select-none items-center justify-center gap-1 rounded-2xl px-3 py-2 font-bold text-white transition active:translate-y-[3px] disabled:cursor-not-allowed disabled:opacity-50;
+    text-shadow: 0 1px 0 rgba(0, 0, 0, 0.35);
+  }
+  .btn:active:not(:disabled) {
+    box-shadow: 0 1px 0 rgba(0, 0, 0, 0.3) !important;
+  }
+  .btn-green {
+    @apply bg-[#5cb82e];
+    box-shadow: 0 4px 0 #3a7d1a;
+  }
+  .btn-yellow {
+    @apply bg-[#f5b92b] text-[#5a3a1a];
+    box-shadow: 0 4px 0 #b9811a;
+    text-shadow: none;
+  }
+  .btn-red {
+    @apply bg-[#e0533d];
+    box-shadow: 0 4px 0 #9c3020;
+  }
+  .btn-blue {
+    @apply bg-[#3f9fd8];
+    box-shadow: 0 4px 0 #276f9c;
+  }
+  .btn-wood {
+    @apply bg-[#a8733f];
+    box-shadow: 0 4px 0 #6b4226;
+  }
+  .btn-ghost {
+    @apply bg-[#efe0bc] text-[#5a3a1a];
+    box-shadow: 0 4px 0 #cdb482;
+    text-shadow: none;
+  }
+  .pill {
+    @apply flex items-center gap-1.5 rounded-full border-[3px] border-[#5d3a1f] bg-[#fff6df] py-0.5 pl-1 pr-3 font-bold text-[#5a3a1a] shadow-[0_3px_0_#5d3a1f];
+  }
+  .emoji {
+    font-family: 'Apple Color Emoji', 'Segoe UI Emoji', 'Noto Color Emoji', sans-serif;
+    line-height: 1;
+  }
+  .coin {
+    display: inline-block;
+    width: 1.1em;
+    height: 1.1em;
+    border-radius: 9999px;
+    background: radial-gradient(circle at 35% 30%, #fff3a0 0 18%, #ffd23a 30%, #e6a51a 75%);
+    box-shadow: inset 0 0 0 2px #c98612, 0 1px 0 rgba(0, 0, 0, 0.2);
+    position: relative;
+    flex-shrink: 0;
+    vertical-align: -0.15em;
+  }
+  .coin::after {
+    content: '';
+    position: absolute;
+    inset: 28%;
+    border-radius: 9999px;
+    border: 2px solid rgba(201, 134, 18, 0.7);
+  }
+  .scroll-soft {
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
+    touch-action: pan-y;
+    scrollbar-width: thin;
+  }
+  .badge {
+    @apply absolute -right-1 -top-1 grid h-6 min-w-6 place-items-center rounded-full border-2 border-white bg-[#e0533d] px-1 text-xs font-bold text-white;
+  }
+}

@@ -1,0 +1,54 @@
+# Talons Farm
+
+A cozy 3D farming game in the style of Hay Day and FarmVille, built with Next.js 14, TypeScript, Tailwind and three.js. Every model is built from low poly primitives in code, no asset files. No real money purchases. Everything is earned in game with coins, gems and XP.
+
+By Talons Protocol.
+
+## Features
+
+- Real time 3D farm with sun shadows, drifting cloud shadows, day and night cycle with glowing windows, sea shimmer, chimney smoke and turning windmills
+- Free camera: drag to pan, pinch or scroll to zoom, twist with two fingers or press Q and E to rotate
+- 9 crops (wheat to sunflower) with drag to plant and drag to harvest
+- 7 production buildings (Bakery, Feed Mill, Dairy, Sugar Mill, BBQ Grill, Juice Press, Loom) with queues and extra slots
+- 4 animal homes (chickens, cows, pigs, sheep) that need feed and give eggs, milk, bacon and wool
+- Order board with rotating orders, rewards and discard cooldown
+- Silo and barn storage with capacity upgrades and a market to sell goods
+- Land expansion, obstacles to clear, 10 decorations
+- Levels with unlocks, farm goals, 7 day daily gift streak
+- Gems to finish timers early or add production slots (earned by leveling, goals, orders, clearing land)
+- Offline progress (timers are timestamp based), autosave in the browser, save code export and import
+- Mouse, touch and pinch controls, hold anything to move it, keyboard shortcuts (Esc, Enter, + and -)
+- Sound effects and a soft generative background tune, all synthesized with WebAudio, no asset files needed
+- A farmer and his dog walking around the farm, harvested goods flying into storage
+- Weather and seasons (showers, winter snow, spring petals, autumn leaves), purely cosmetic
+- 3 fruit trees (apple, cherry, orange) that keep giving fruit
+- Fishing Pier, Jam Maker, Ice Cream Shop and Sushi Bar, 3 new crops (rice, cotton, chili) and 20 new goods
+- Cargo boat with crates to fill for big bonus rewards
+- Roadside stall where you set your own prices and villagers buy over time
+- 11 badges with bronze, silver and gold tiers
+- A 5 step tutorial for new players (older saves skip it)
+- 8 animals: chickens, cows, pigs, sheep, ducks, goats, bees and horses (each horse adds 5% to order coins)
+- Workshop for candles and feather pillows, goat cheese at the dairy
+
+## Run locally
+
+```bash
+npm install
+npm run dev
+```
+
+Open http://localhost:3000
+
+## Deploy
+
+Push to GitHub, then import the repo on Vercel. No environment variables are needed.
+
+## Project layout
+
+- `src/game/data.ts` items, crops, recipes, animals, buildings
+- `src/game/state.ts` game state, save and load, every player action
+- `src/game/render3d.ts` three.js renderer and all 3D models
+- `src/game/audio.ts` sound effects
+- `src/components` React UI (canvas, HUD, panels)
+
+The game logic lives in `src/game` and has no React dependency, so it can be moved to another frontend or a server later.
