@@ -64,7 +64,7 @@ const grey = (o: Px, k: number, h: number) => { o[0] = k; o[1] = k; o[2] = k; o[
 const PAINT: Record<SurfaceKind, { size: number; bump: number; paint: Painter }> = {
   // overlapping clay tiles in staggered rows, 4 x 4 tiles per texture
   roof: {
-    size: 256, bump: 5,
+    size: 512, bump: 5,
     paint(u, v, o) {
       const rows = 4, cols = 4;
       const ry = v * rows, row = Math.floor(ry), fy = ry - row;
@@ -82,7 +82,7 @@ const PAINT: Record<SurfaceKind, { size: number; bump: number; paint: Painter }>
   },
   // vertical boards with grain, used on barn walls
   boards: {
-    size: 256, bump: 4,
+    size: 512, bump: 4,
     paint(u, v, o) {
       const n = 6, bu = u * n, b = Math.floor(bu), f = bu - b;
       const gap = f < 0.05 || f > 0.97;
@@ -95,7 +95,7 @@ const PAINT: Record<SurfaceKind, { size: number; bump: number; paint: Painter }>
   },
   // horizontal deck planks with nails
   planks: {
-    size: 256, bump: 4,
+    size: 512, bump: 4,
     paint(u, v, o) {
       const n = 5, bv = v * n, b = Math.floor(bv), f = bv - b;
       const gap = f < 0.06;
@@ -110,7 +110,7 @@ const PAINT: Record<SurfaceKind, { size: number; bump: number; paint: Painter }>
   },
   // painted clapboard siding, 8 boards per texture
   siding: {
-    size: 256, bump: 6,
+    size: 512, bump: 6,
     paint(u, v, o) {
       const n = 8, bv = v * n, f = bv - Math.floor(bv);
       const paint = fbm(u, v, 8, 31, 3);
@@ -122,7 +122,7 @@ const PAINT: Record<SurfaceKind, { size: number; bump: number; paint: Painter }>
   },
   // fieldstone with mortar
   stone: {
-    size: 256, bump: 7,
+    size: 512, bump: 7,
     paint(u, v, o) {
       const c = cells(u, v, 6, 51);
       const edge = c.d2 - c.d1;
@@ -148,7 +148,7 @@ const PAINT: Record<SurfaceKind, { size: number; bump: number; paint: Painter }>
   },
   // tilled soil with small clods
   soil: {
-    size: 256, bump: 6,
+    size: 512, bump: 6,
     paint(u, v, o) {
       const c = cells(u, v, 14, 71);
       const clod = Math.max(0, 1 - c.d1 * 2.2);
@@ -159,7 +159,7 @@ const PAINT: Record<SurfaceKind, { size: number; bump: number; paint: Painter }>
   },
   // vertical bark ridges
   bark: {
-    size: 256, bump: 7,
+    size: 512, bump: 7,
     paint(u, v, o) {
       const n = fbm(u, v * 0.25, 8, 81, 4);
       const ridge = Math.abs(Math.sin((u * 10 + n * 2.5) * Math.PI));
@@ -168,7 +168,7 @@ const PAINT: Record<SurfaceKind, { size: number; bump: number; paint: Painter }>
     },
   },
   sand: {
-    size: 256, bump: 2,
+    size: 512, bump: 2,
     paint(u, v, o) {
       const n = fbm(u, v, 8, 91, 4);
       const g = h2(Math.floor(u * 256), Math.floor(v * 256), 93);
@@ -179,7 +179,7 @@ const PAINT: Record<SurfaceKind, { size: number; bump: number; paint: Painter }>
   },
   // corrugated sheet metal with a bit of wear
   metal: {
-    size: 256, bump: 5,
+    size: 512, bump: 5,
     paint(u, v, o) {
       const rib = Math.sin(u * 16 * Math.PI * 2) * 0.5 + 0.5;
       const wear = fbm(u, v, 6, 101, 4);
@@ -189,7 +189,7 @@ const PAINT: Record<SurfaceKind, { size: number; bump: number; paint: Painter }>
   },
   // straw bundles for hay and thatch
   thatch: {
-    size: 256, bump: 5,
+    size: 512, bump: 5,
     paint(u, v, o) {
       const n = vnoise(u * 1.0, v * 0.1, 96, 111);
       const m = vnoise(u, v * 0.2, 48, 113);

@@ -180,5 +180,34 @@ export class Sculpt {
   }
 }
 
-export const SCULPT_MAT = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.62, metalness: 0 });
-export const WOOL_MAT = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.95, metalness: 0 });
+// Fine surface detail for skin, hair and wool: the normal is nudged by the gradient of a small
+// world space noise, so light breaks up the way it does on fur instead of sliding over plastic.
+function microDetail<T extends THREE.Material>(m: T, freq: number, amount: number, key: string): T {
+  m.onBeforeCompile = (sh) => {
+    sh.vertexShader = sh.vertexShader
+      .replace('#include <common>', '#include <common>\nvarying vec3 vFurW;')
+      .replace('#include <begin_vertex>', '#include <begin_vertex>\nvFurW = (modelMatrix * vec4(transformed, 1.0)).xyz;');
+    sh.fragmentShader = sh.fragmentShader
+      .replace('#include <common>', `#include <common>
+varying vec3 vFurW;
+float fH(vec3 p) { return fract(sin(dot(p, vec3(127.1, 311.7, 74.7))) * 43758.5453); }
+float fN(vec3 p) {
+  vec3 i = floor(p), f = fract(p); f = f * f * (3.0 - 2.0 * f);
+  return mix(mix(mix(fH(i), fH(i + vec3(1, 0, 0)), f.x), mix(fH(i + vec3(0, 1, 0)), fH(i + vec3(1, 1, 0)), f.x), f.y),
+             mix(mix(fH(i + vec3(0, 0, 1)), fH(i + vec3(1, 0, 1)), f.x), mix(fH(i + vec3(0, 1, 1)), fH(i + vec3(1, 1, 1)), f.x), f.y), f.z);
+}`)
+      .replace('#include <normal_fragment_maps>', `#include <normal_fragment_maps>
+{
+  vec3 q = vFurW * ${freq.toFixed(1)};
+  float e = 0.35, n0 = fN(q);
+  vec3 gr = vec3(fN(q + vec3(e, 0.0, 0.0)) - n0, fN(q + vec3(0.0, e, 0.0)) - n0, fN(q + vec3(0.0, 0.0, e)) - n0) / e;
+  normal = normalize(normal + (viewMatrix * vec4(gr, 0.0)).xyz * ${amount.toFixed(3)});
+}`);
+  };
+  m.customProgramCacheKey = () => key;
+  return m;
+}
+
+// sheen gives the soft bright rim that fur, felt and feathers have against the light
+export const SCULPT_MAT = microDetail(new THREE.MeshPhysicalMaterial({ vertexColors: true, roughness: 0.6, metalness: 0, sheen: 0.55, sheenRoughness: 0.7, sheenColor: new THREE.Color('#ffffff') }), 260, 0.12, 'fur');
+export const WOOL_MAT = microDetail(new THREE.MeshPhysicalMaterial({ vertexColors: true, roughness: 0.95, metalness: 0, sheen: 1, sheenRoughness: 0.9, sheenColor: new THREE.Color('#fff8ec') }), 180, 0.3, 'wool');

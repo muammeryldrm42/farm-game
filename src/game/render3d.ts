@@ -541,13 +541,13 @@ export class Renderer {
   private applyQuality(q: Quality) {
     this.quality = q;
     const high = q === 'high';
-    const ms = high ? 2048 : 1024;
+    const ms = high ? 4096 : 1024;
     if (this.sun.shadow.mapSize.x !== ms) {
       this.sun.shadow.mapSize.set(ms, ms);
       this.sun.shadow.map?.dispose();
       this.sun.shadow.map = null as unknown as THREE.WebGLRenderTarget;
     }
-    this.sun.shadow.radius = high ? 3 : 1.5;
+    this.sun.shadow.radius = high ? 2.2 : 1.5;
     if (high && !this.post) this.post = new Post(this.gl, this.scene, this.camera, [this.sky.mesh, this.fxLayer, this.foliage.group]);
     if (!high && this.post) { this.post.dispose(); this.post = null; }
     this.foliageKey = '';
@@ -701,6 +701,7 @@ export class Renderer {
     }
 
     this.buildShore();
+    this.buildDistantIslands();
 
     const grass = new THREE.MeshStandardMaterial({ color: '#ffffff', roughness: 0.95, ...surface('grass') });
     grass.normalScale.set(0.8, 0.8);
@@ -741,6 +742,23 @@ export class Renderer {
       this.tiles.setColorAt(y * GRID + x, new THREE.Color('#7cc450'));
     }
     this.land.add(this.tiles);
+  }
+
+  // hazy green islands out at sea, so the horizon has depth when zoomed out
+  private buildDistantIslands() {
+    const spots: [number, number, number][] = [[-34, -10, 7], [GRID + 30, 6, 9], [GRID / 2 + 6, GRID + 36, 8], [-26, GRID + 22, 6], [GRID + 26, GRID + 30, 5], [GRID / 2 - 10, -34, 7]];
+    const sand = M('#e8d49a'), hill = M('#5f9a44'), rock = MF('#9a9ea3');
+    spots.forEach(([x, z, r], i) => {
+      const isl = group(this.scene, x, -0.55, z);
+      mk(isl, cylGeo(r * 1.08, r * 1.15, 24), sand, 1, 0.25, 1, 0, 0.05, 0, false);
+      mk(isl, blobGeo(90 + i, true), hill, r * 0.95, r * 0.45, r * 0.8, 0, 0.1, 0, false);
+      mk(isl, blobGeo(96 + i, true), hill, r * 0.5, r * 0.55, r * 0.45, r * 0.25, 0.3, -r * 0.1, false);
+      for (let k = 0; k < 7; k++) {
+        const a = hash(k, i, 3) * Math.PI * 2, d = hash(k, i, 4) * r * 0.6;
+        mk(isl, pineGeo(), M('#2f6b2a'), 0.35 + hash(k, i, 5) * 0.3, 1.2 + hash(k, i, 6) * 0.8, 0.35 + hash(k, i, 5) * 0.3, Math.cos(a) * d, r * 0.3 + 0.6, Math.sin(a) * d, false);
+      }
+      mk(isl, G.rock, rock, r * 0.2, r * 0.15, r * 0.18, r * 0.9, 0.1, r * 0.3, false);
+    });
   }
 
   // boulders along the beach and in the surf, plus a few starfish on the sand
@@ -1807,6 +1825,7 @@ export function buildFarmer(shirt = '#d64541', overall = '#3b6fa8', jeans = '#2f
   mk(hat, G.dome, M('#edc865'), 0.1, 0.09, 0.1, 0, 0.01, 0);
   mk(hat, cylGeo(0.102, 0.102, 20), M('#b5452c'), 1, 0.025, 1, 0, 0.022, 0);
   hat.rotation.x = -0.12;
+  contactShadow(g, 0.34, 0.26);
   g.userData.legs = legs;
   g.userData.signs = [1, -1];
   g.userData.arms = arms;
@@ -1837,6 +1856,29 @@ function buildAnimal(kind: string) {
   return animalBody(kind);
 }
 
+// Soft contact shadow under a creature, so it sits on the ground even where the sun shadow is
+// thin (and in low quality, where there is no ambient occlusion pass).
+let blobMat: THREE.MeshBasicMaterial | null = null;
+function contactShadow(p: P, w: number, d: number) {
+  if (!blobMat) {
+    const tex = canvasTex('blob', 64, 64, (c) => {
+      const gr = c.createRadialGradient(32, 32, 0, 32, 32, 32);
+      gr.addColorStop(0, 'rgba(0,0,0,0.55)');
+      gr.addColorStop(0.6, 'rgba(0,0,0,0.25)');
+      gr.addColorStop(1, 'rgba(0,0,0,0)');
+      c.fillStyle = gr; c.fillRect(0, 0, 64, 64);
+    });
+    blobMat = new THREE.MeshBasicMaterial({ map: tex, transparent: true, depthWrite: false, color: '#ffffff' });
+  }
+  const m = new THREE.Mesh(G.plane, blobMat);
+  m.rotation.x = -Math.PI / 2;
+  m.scale.set(w, d, 1);
+  m.position.y = 0.006;
+  m.renderOrder = 1;
+  p.add(m);
+  return m;
+}
+
 // Puts a sculpted creature together on pivots: legs swing from the hips, the head nods from
 // the neck and the tail swishes from its root.
 function assemble(kind: string) {
@@ -1851,6 +1893,9 @@ function assemble(kind: string) {
     return m;
   };
   add(g, cp.body, cp.wool ? WOOL_MAT : SCULPT_MAT);
+  cp.body.computeBoundingBox();
+  const bb = cp.body.boundingBox as THREE.Box3;
+  g.userData.shadow = contactShadow(g, (bb.max.x - bb.min.x) * 1.5, (bb.max.z - bb.min.z) * 1.25);
   const legs: THREE.Object3D[] = [];
   for (const [x, z] of cp.legs) {
     const pv = group(g, x, cp.legLen, z);
@@ -2506,9 +2551,11 @@ function buildPen(e: Entry, d: BuildingDef) {
       }
       const sp = animalSpot(d, id, t);
       blink(m, t, id);
+      const cs = m.userData.shadow as THREE.Object3D | undefined;
       m.position.set(sp.x, 0.04 + jump + Math.abs(Math.sin(t / 110 + id)) * 0.008, sp.z);
       m.rotation.y = sp.heading;
       animateLegs(m, Math.sin(t / 110 + id) * 0.28);
+      if (cs) cs.position.y = 0.006 - (m.position.y - 0.04);
       if (m.userData.hop) {
         // rabbits bound along in little hops, then sit and twitch their ears
         const hopping = Math.max(0, Math.sin(t / 2400 + id * 1.3));

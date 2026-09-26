@@ -491,14 +491,22 @@ export function personParts(shirt: string, overall: string) {
     .add(ellipsoid(0.03, 0.058, 0.07, 0.05, 0.022, 0.035), '#6b4020', 0.02)
     .carve(ellipsoid(0, -0.052, 0.09, 0.026, 0.006, 0.02), 0.004)
     .build([-0.14, -0.13, -0.14], [0.14, 0.14, 0.14], 0.005);
+  // plaid flannel shirt and faded denim overalls
+  const sc = new THREE.Color(shirt), dk = '#' + sc.clone().multiplyScalar(0.55).getHexString(), lt = '#' + sc.clone().lerp(new THREE.Color('#ffffff'), 0.25).getHexString();
+  const plaid = (x: number, y: number) => {
+    const a = Math.sin(x * 160) > 0.55, b = Math.sin(y * 160) > 0.55;
+    return a && b ? dk : a || b ? shirt : lt;
+  };
+  const oc = new THREE.Color(overall);
+  const denim = (x: number, y: number, z: number) => '#' + oc.clone().multiplyScalar(0.85 + noise3(x * 80, y * 200, z * 80) * 0.3).getHexString();
   const torso = new Sculpt()
     .add(capsule(0, 0.39, 0, 0, 0.49, 0, 0.105, 0.1), (x, y, z) => {
-      if (y < 0.415) return overall;
-      if (z > 0.05 && Math.abs(x) < 0.062 && y < 0.5) return overall;
-      if (z > 0 && Math.abs(Math.abs(x) - 0.05) < 0.013 && y < 0.56) return overall;
-      return shirt;
+      if (y < 0.415) return denim(x, y, z);
+      if (z > 0.05 && Math.abs(x) < 0.062 && y < 0.5) return denim(x, y, z);
+      if (z > 0 && Math.abs(Math.abs(x) - 0.05) < 0.013 && y < 0.56) return denim(x, y, z);
+      return plaid(x, y);
     })
-    .add(ellipsoid(0, 0.31, 0, 0.112, 0.07, 0.115), overall, 0.03)
+    .add(ellipsoid(0, 0.31, 0, 0.112, 0.07, 0.115), denim, 0.03)
     .build([-0.13, 0.22, -0.13], [0.13, 0.62, 0.13], 0.006);
   p = { head, torso };
   people.set(key, p);
