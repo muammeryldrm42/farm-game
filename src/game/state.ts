@@ -63,6 +63,7 @@ export interface GameState {
   tutorial: number;
   mapV?: number;
   fishing?: FishingData;
+  restedOn?: string; // day key of the last nap that earned the rested bonus
 }
 
 // ---------------------------------------------------------------- helpers
@@ -204,6 +205,9 @@ export function fishingInfo(s: GameState, now: number) {
   if (now >= f.catchAt) return { state: 'ready' as const, remaining: 0, p: 1 };
   return { state: 'waiting' as const, remaining: f.catchAt - now, p: (now - f.castAt) / total };
 }
+
+export const NAP_MS = 20000;
+export const restBonus = (level: number) => 40 + level * 10;
 
 export function todayKey(d = new Date()) {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
@@ -433,7 +437,7 @@ export type Sfx = 'harvest' | 'plant' | 'coin' | 'build' | 'error' | 'levelup' |
 export interface Fx { kind: 'float' | 'burst'; gx: number; gy: number; text?: string; color?: string; z?: number }
 export interface Placing { type: string; x: number; y: number; moveId?: number }
 export interface Tool { kind: 'plant'; crop: string }
-export type Panel = 'shop' | 'orders' | 'storage' | 'settings' | 'quests' | 'stall' | 'boat' | 'fishing' | null;
+export type Panel = 'shop' | 'orders' | 'storage' | 'settings' | 'quests' | 'stall' | 'boat' | 'fishing' | 'home' | null;
 export interface Flyer { icon: string; gx: number; gy: number; z: number; target: 'storage' | 'coins' | 'xp' }
 export interface Toast { id: number; text: string; tone: 'info' | 'bad' | 'good'; at: number }
 
@@ -446,6 +450,8 @@ export interface UIState {
   expand: { cx: number; cy: number } | null;
   levelUp: number | null;
   daily: boolean;
+  napping: boolean; // the farmer is asleep at home
+  napAt: number;
 }
 
 export class GameStore {
@@ -465,7 +471,7 @@ export class GameStore {
 
   constructor(s: GameState) {
     this.s = s;
-    this.ui = { selectedId: null, placing: null, tool: null, panel: null, storageTab: 'silo', expand: null, levelUp: null, daily: false };
+    this.ui = { selectedId: null, placing: null, tool: null, panel: null, storageTab: 'silo', expand: null, levelUp: null, daily: false, napping: false, napAt: 0 };
     this.ensureOrders();
     this.ui.daily = this.canDaily();
   }
@@ -648,7 +654,7 @@ export class GameStore {
       case 'barn': this.ui.storageTab = 'barn'; this.openPanel('storage'); return;
       case 'silo': this.ui.storageTab = 'silo'; this.openPanel('storage'); return;
       case 'board': this.openPanel('orders'); return;
-      case 'house': this.openPanel('quests'); return;
+      case 'house': this.openPanel('home'); return;
       case 'tree':
         if (treeInfo(o, now).ready) this.collectTree(o);
         this.select(o.id);
@@ -1117,6 +1123,35 @@ export class GameStore {
 
   canDaily() { return this.s.lastDaily !== todayKey(); }
 
+  // ---- sleeping at home (the farmhouse, or the manor once built)
+  canRest() { return this.s.restedOn !== todayKey(); }
+  sleep() {
+    if (this.ui.napping) return;
+    this.ui.napping = true;
+    this.ui.napAt = Date.now();
+    this.ui.panel = null;
+    this.ui.selectedId = null;
+    this.sound('click');
+    this.emit(false);
+  }
+  // the first nap of each day that lasts NAP_MS earns a small rested bonus
+  wake() {
+    if (!this.ui.napping) return;
+    this.ui.napping = false;
+    const s = this.s;
+    if (this.canRest()) {
+      if (Date.now() - this.ui.napAt >= NAP_MS) {
+        s.restedOn = todayKey();
+        const coins = restBonus(s.level);
+        this.earn(coins);
+        this.addXp(10);
+        this.sound('levelup');
+        this.toast(`Well rested! +${coins} coins, +10 XP`, 'good');
+      } else this.toast('Up already? Sleep a little longer for the rested bonus.');
+    }
+    this.emit();
+  }
+
   claimDaily() {
     if (!this.canDaily()) return;
     const y = new Date(); y.setDate(y.getDate() - 1);
@@ -1325,7 +1360,7 @@ export class GameStore {
 
   private replace(s: GameState) {
     this.s = s;
-    this.ui = { selectedId: null, placing: null, tool: null, panel: null, storageTab: 'silo', expand: null, levelUp: null, daily: this.canDaily() };
+    this.ui = { selectedId: null, placing: null, tool: null, panel: null, storageTab: 'silo', expand: null, levelUp: null, daily: this.canDaily(), napping: false, napAt: 0 };
     this.ensureOrders();
     this.objVersion++;
     this.emit();

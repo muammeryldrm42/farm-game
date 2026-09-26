@@ -222,7 +222,10 @@ function FarmCanvas() {
         else if (hitSpot) store.tapFishing();
         else {
           // tapping free farmland sends the farmer (and the dog) walking there
-          if (store.isUnlocked(hitTile.x, hitTile.y) && !store.objectAt(hitTile.x, hitTile.y)) r.walkTo(hitTile.x, hitTile.y);
+          if (store.isUnlocked(hitTile.x, hitTile.y) && !store.objectAt(hitTile.x, hitTile.y)) {
+            store.wake();
+            r.walkTo(hitTile.x, hitTile.y);
+          }
           store.tapTile(hitTile.x, hitTile.y);
         }
       }

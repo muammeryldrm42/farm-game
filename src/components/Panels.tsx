@@ -1,6 +1,6 @@
 'use client';
 import Ico from './Ico';
-import { useState, type ReactNode } from 'react';
+import { useEffect, useState, type ReactNode } from 'react';
 import { BUILDING, BUILDINGS, CROPS, ITEMS, ITEM_LIST, RECIPES, unlocksAt, type BuildingDef } from '@/game/data';
 import {
   ACHIEVEMENTS,
@@ -31,6 +31,8 @@ import {
   storageUsed,
   todayKey,
   upgradeCost,
+  NAP_MS,
+  restBonus,
   type FarmObject,
 } from '@/game/state';
 import { getQuality, setQuality, type Quality } from '@/game/quality';
@@ -132,6 +134,8 @@ export default function Panels() {
       {ui.panel === 'stall' && <StallModal />}
       {ui.panel === 'boat' && <BoatModal />}
       {ui.panel === 'fishing' && <FishingModal />}
+      {ui.panel === 'home' && <HomeModal />}
+      {ui.napping && <SleepOverlay />}
       {ui.expand && <ExpandModal />}
       {ui.daily && ui.levelUp === null && <DailyModal />}
       {ui.levelUp !== null && <LevelUpModal level={ui.levelUp} />}
@@ -618,6 +622,53 @@ function StallModal() {
 }
 
 // ------------------------------------------------------------------ boat
+
+// The farmer's home: the farmhouse, or the manor once it is built. Rest here, or check goals.
+function HomeModal() {
+  const store = useStore();
+  const s = store.s;
+  const manor = s.objects.some((o) => o.type === 'manor');
+  const close = () => store.openPanel(null);
+  return (
+    <Modal title={manor ? 'Manor' : 'Farmhouse'} icon={manor ? '🏰' : '🏡'} onClose={close}>
+      <div className="flex flex-col items-center gap-3 py-2 text-center">
+        <span className="emoji animate-bob text-5xl">🛏️</span>
+        <p className="font-bold">{manor ? 'A grand bedroom with a soft four poster bed.' : 'A cozy bed under the eaves.'}</p>
+        <p className="text-sm text-[#8a6a44]">
+          {store.canRest()
+            ? `Take a nap of ${NAP_MS / 1000} seconds or more to wake up well rested: +${restBonus(s.level)} coins and +10 XP, once a day. Your farm keeps growing while you sleep.`
+            : 'You already woke up well rested today. You can still nap as much as you like.'}
+        </p>
+        <div className="flex flex-wrap justify-center gap-2">
+          <button className="btn btn-blue px-6 py-2" onClick={() => store.sleep()}>Go to sleep</button>
+          <button className="btn btn-wood px-6 py-2" onClick={() => store.openPanel('quests')}>Goals</button>
+        </div>
+      </div>
+    </Modal>
+  );
+}
+
+// Night falls over the screen while the farmer sleeps; tap to wake up.
+function SleepOverlay() {
+  const store = useStore();
+  const [, tick] = useState(0);
+  useEffect(() => {
+    const id = setInterval(() => tick((n) => n + 1), 500);
+    return () => clearInterval(id);
+  }, []);
+  const left = Math.max(0, Math.ceil((store.ui.napAt + NAP_MS - Date.now()) / 1000));
+  const rest = store.canRest();
+  return (
+    <div className="pointer-events-auto fixed inset-0 z-20 flex flex-col items-center justify-end bg-[#0b1a3a]/55 pb-28 text-center text-white" onPointerDown={(e) => e.target === e.currentTarget && store.wake()}>
+      <div className="panel flex flex-col items-center gap-2 px-6 py-4 text-[#5a3a1a]">
+        <span className="emoji animate-bob text-4xl">😴</span>
+        <p className="font-bold">Sleeping... z Z z</p>
+        {rest && <p className="text-sm">{left > 0 ? `Well rested in ${left}s` : 'Well rested! Wake up for your bonus.'}</p>}
+        <button className="btn btn-green px-8 py-2" onClick={() => store.wake()}>Wake up</button>
+      </div>
+    </div>
+  );
+}
 
 function FishingModal() {
   const store = useStore();

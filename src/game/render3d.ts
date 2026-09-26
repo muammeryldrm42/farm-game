@@ -1461,6 +1461,7 @@ export class Renderer {
   private navKey = '';
   private marker: THREE.Mesh | null = null;
   private markerT = 0;
+  private homeZzz: THREE.Sprite | null = null;
   private nightMode = false;
   private zzz: THREE.Sprite | null = null;
 
@@ -1613,18 +1614,19 @@ export class Renderer {
 
     // bedtime and morning
     const nf = this.store.s.settings.dayNight ? nightFactor(now) : { night: 0, dusk: 0 };
-    const nightNow = nf.night > 0.55;
+    // bedtime comes with the night, or whenever the player sends the farmer to nap
+    const nightNow = nf.night > 0.55 || this.store.ui.napping;
     if (nightNow !== this.nightMode) {
       this.nightMode = nightNow;
       const h = this.homeDoor();
       if (nightNow && h) {
         const d = this.free(h.door.x, h.door.y) ? h.door : this.nearestFree(h.door.x, h.door.y, 4);
-        if (d) {
-          this.send(f, d.x, d.y);
-          f.goHome = true;
-          const ds = h.kennel ? this.nearestFree(Math.floor(h.kennel.x), Math.floor(h.kennel.y + 0.6), 3) : this.dogSpot(d.x, d.y);
-          if (ds) { this.send(g, ds.x, ds.y); g.goHome = true; }
-        }
+        const walking = d ? this.send(f, d.x, d.y) : false;
+        f.goHome = true;
+        // no way to the door (fenced in): step straight inside
+        if (!walking) f.path = [];
+        const ds = h.kennel ? this.nearestFree(Math.floor(h.kennel.x), Math.floor(h.kennel.y + 0.6), 3) : d ? this.dogSpot(d.x, d.y) : null;
+        if (ds) { this.send(g, ds.x, ds.y); g.goHome = true; }
       } else if (!nightNow) {
         if (f.inside) { f.inside = false; }
         g.sleeping = false;
@@ -1715,6 +1717,19 @@ export class Renderer {
     if (g.sleeping) {
       this.zzz.position.set(g.x + 0.15, 0.45 + Math.sin(t / 600) * 0.05, g.y);
       this.zzz.material.opacity = 0.6 + Math.sin(t / 400) * 0.3;
+    }
+    // and a bigger one drifting up from the roof while the farmer sleeps inside
+    if (!this.homeZzz) {
+      this.homeZzz = new THREE.Sprite(new THREE.SpriteMaterial({ map: textTex('z Z z', '#eef3ff'), transparent: true, depthWrite: false }));
+      this.fxLayer.add(this.homeZzz);
+    }
+    const home = f.inside ? this.homeDoor() : null;
+    this.homeZzz.visible = !!home;
+    if (home) {
+      const k = (t / 2200) % 1;
+      this.homeZzz.position.set(home.door.x + 0.6 + k * 0.3, 2.2 + k * 0.8, home.door.y - 1);
+      this.homeZzz.scale.set(1.4 + k * 0.4, 0.27 + k * 0.08, 1);
+      this.homeZzz.material.opacity = Math.sin(k * Math.PI) * 0.9;
     }
   }
 
