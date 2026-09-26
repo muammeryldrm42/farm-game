@@ -1,6 +1,7 @@
 // Instanced grass tufts and wild flowers that sway in the wind. The sway runs in the vertex
 // shader, so thousands of blades cost one draw call per layer.
 import * as THREE from 'three';
+import { toonCrown } from './toon';
 import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 import { U } from './shared';
 
@@ -118,6 +119,7 @@ function flowerGeometry() {
 
 export interface Spot { x: number; z: number; open: boolean }
 
+const BUSH_COLORS = ['#5cb83a', '#4fa834', '#6cc444'];
 const FLOWER_COLORS = ['#ffffff', '#ffd23a', '#ff8fb0', '#b58cff', '#ff6b6b', '#8fd3ff'];
 
 export class Foliage {
@@ -127,6 +129,7 @@ export class Foliage {
   private grassMat = windify(new THREE.MeshStandardMaterial({ vertexColors: true, side: THREE.DoubleSide, roughness: 0.95 }), 0.25, 1);
   private flowerMat = windify(new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.8 }), 0.18, 0.8);
   private meshes: THREE.InstancedMesh[] = [];
+  private bushMat = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.75 });
 
   // tiles: every free tile the grass may grow on; density: tufts per open tile
   rebuild(tiles: Spot[], density: number) {
@@ -138,6 +141,7 @@ export class Foliage {
 
     const tufts: [number, number, number, number, boolean][][] = this.grassGeos.map(() => []);
     const flowers: [number, number, number, number][] = [];
+    const bushes: [number, number, number][] = [];
     tiles.forEach((t, ti) => {
       const n = t.open ? density : Math.max(1, Math.round(density * 0.35));
       for (let k = 0; k < n; k++) {
@@ -145,6 +149,8 @@ export class Foliage {
         const x = t.x + 0.08 + rnd(s, 1) * 0.84, z = t.z + 0.08 + rnd(s, 2) * 0.84;
         tufts[Math.floor(rnd(s, 3) * tufts.length)].push([x, z, rnd(s, 4) * Math.PI * 2, 0.75 + rnd(s, 5) * 0.6, t.open]);
       }
+      // now and then a round leafy bush, for a lush garden feel
+      if (t.open && rnd(ti, 31) < 0.03) bushes.push([t.x + 0.3 + rnd(ti, 32) * 0.4, t.z + 0.3 + rnd(ti, 33) * 0.4, 0.28 + rnd(ti, 34) * 0.14]);
       if (t.open && rnd(ti, 9) < 0.12) {
         const c = 3 + Math.floor(rnd(ti, 10) * 4);
         for (let k = 0; k < c; k++) flowers.push([t.x + 0.15 + rnd(ti * 7 + k, 11) * 0.7, t.z + 0.15 + rnd(ti * 7 + k, 12) * 0.7, rnd(ti * 7 + k, 13) * 6, rnd(ti, 14)]);
@@ -170,6 +176,20 @@ export class Foliage {
       this.meshes.push(im);
       this.group.add(im);
     });
+    if (bushes.length) {
+      const im = new THREE.InstancedMesh(toonCrown(4), this.bushMat, bushes.length);
+      bushes.forEach(([x, z, s], i) => {
+        q.setFromAxisAngle(up, rnd(i, 40) * 6);
+        // the crown sits around y 0.8 with its underside near 0.36, so sink it to the ground
+        m4.compose(pv.set(x, -0.3 * s, z), q, sv.set(s * 1.15, s, s * 1.15));
+        im.setMatrixAt(i, m4);
+        im.setColorAt(i, col.set(BUSH_COLORS[i % BUSH_COLORS.length]));
+      });
+      im.castShadow = true;
+      im.receiveShadow = true;
+      this.meshes.push(im);
+      this.group.add(im);
+    }
     if (flowers.length) {
       const im = new THREE.InstancedMesh(this.flowerGeo, this.flowerMat, flowers.length);
       flowers.forEach(([x, z, r, c], i) => {

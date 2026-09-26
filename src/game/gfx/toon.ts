@@ -1,6 +1,7 @@
 // Cartoon style animals, in the spirit of classic farm games: big heads, short sturdy legs,
 // round bodies, clean bright coats and large friendly eyes. Every kind keeps the same pivots
 // as its realistic sculpt (legs, head, tail), so all the animations work unchanged.
+import * as THREE from 'three';
 import { Sculpt, capsule, ellipsoid, noise3, sphere, type Paint } from './sdf';
 import type { CreatureParts } from './creatures';
 
@@ -552,6 +553,107 @@ function quail(): CreatureParts {
   };
 }
 
+// calico farm cat: white with orange and black patches, pointy ears and a long curling tail
+function cat(): CreatureParts {
+  const coat = (x: number, y: number, z: number) => {
+    const w = '#fbf6ee';
+    const o = patches(x, y, z, 0.55, '#e8913a', w);
+    return o !== w ? mixHex(o, '#2a2624', smooth(0.6, 0.66, noise3(x * 9 + 20, y * 9, z * 9))) : o;
+  };
+  const b = new Sculpt()
+    .add(ellipsoid(0, 0.15, -0.01, 0.05, 0.05, 0.085), coat)
+    .add(sphere(0, 0.155, 0.05, 0.05), coat, 0.04)
+    .add(capsule(0, 0.16, 0.06, 0, 0.2, 0.085, 0.036, 0.032), coat, 0.03);
+  const body = build(b, [-0.08, 0.08, -0.12], [0.08, 0.26, 0.14], C * 0.5);
+  const h = new Sculpt()
+    .add(ellipsoid(0, 0, 0, 0.058, 0.052, 0.052), coat)
+    .add(sphere(0.012, -0.018, 0.043, 0.016), '#fbf6ee', 0.01)
+    .add(sphere(-0.012, -0.018, 0.043, 0.016), '#fbf6ee', 0.01)
+    .add(sphere(0, -0.006, 0.053, 0.008), '#f08aa0', 0.004);
+  for (const sx of [-1, 1]) {
+    h.add(capsule(sx * 0.03, 0.035, -0.005, sx * 0.044, 0.078, -0.01, 0.019, 0.004), sx < 0 ? '#e8913a' : '#2a2624', 0.01);
+    h.add(ellipsoid(sx * 0.035, 0.05, 0.004, 0.008, 0.016, 0.004), '#f4a9b8', 0.003);
+  }
+  const head = build(h, [-0.08, -0.06, -0.06], [0.08, 0.1, 0.08], C * 0.4);
+  const tail = build(new Sculpt()
+    .add(capsule(0, 0, 0, 0, 0.08, -0.04, 0.012, 0.01), '#e8913a')
+    .add(capsule(0, 0.08, -0.04, 0, 0.14, -0.015, 0.01, 0.009), '#2a2624', 0.01), [-0.03, -0.02, -0.07], [0.03, 0.17, 0.02], C * 0.4);
+  return {
+    toon: true, eye: eyeOn(0.055, 0.44, 0.2, 0.3, 0.35), body, head, headAt: [0, 0.21, 0.09],
+    leg: toonLeg(0.1, 0.034, '#fbf6ee', '#fbf6ee'), legs: [[-0.028, 0.05], [0.028, 0.05], [-0.028, -0.06], [0.028, -0.06]], legLen: 0.1, tail, tailAt: [0, 0.17, -0.09],
+  };
+}
+
 export const toonMakers: Record<string, () => CreatureParts> = {
-  cow, sheep, goat, horse, donkey, buffalo, yak, camel, alpaca, rabbit, dog, chicken, duck, goose, gobbler, peacock, ostrich, quail,
+  cow, sheep, goat, horse, donkey, buffalo, yak, camel, alpaca, rabbit, dog, cat, chicken, duck, goose, gobbler, peacock, ostrich, quail,
 };
+
+// ---------------------------------------------------------------- farmer
+// A friendly cartoon farmer: big round head with rosy cheeks, button nose and a smile, a plaid
+// shirt under denim overalls. The renderer adds eyes, arms, boots and the straw hat.
+const people = new Map<string, { head: THREE.BufferGeometry; torso: THREE.BufferGeometry }>();
+export function toonPersonParts(shirt: string, overall: string) {
+  const key = `${shirt}|${overall}`;
+  const hit = people.get(key);
+  if (hit) return hit;
+  const skin = '#f6c9a0', hair = '#6b4020';
+  const face = (x: number, y: number, z: number) => (z > 0.07 && Math.abs(x) > 0.05 && y < -0.01 && y > -0.06 ? '#f4a0a0' : skin);
+  const h = new Sculpt()
+    .add(sphere(0, 0, 0, 0.135), face)
+    .add(sphere(0, -0.012, 0.134, 0.028), '#f2a888', 0.012)
+    .add(ellipsoid(0.133, -0.005, 0, 0.022, 0.036, 0.026), skin, 0.012)
+    .add(ellipsoid(-0.133, -0.005, 0, 0.022, 0.036, 0.026), skin, 0.012)
+    .add(ellipsoid(0, 0.03, -0.022, 0.142, 0.115, 0.13), hair, 0.012)
+    .add(ellipsoid(0.11, -0.03, -0.02, 0.03, 0.05, 0.05), hair, 0.02)
+    .add(ellipsoid(-0.11, -0.03, -0.02, 0.03, 0.05, 0.05), hair, 0.02)
+    .carve(capsule(-0.045, -0.052, 0.116, 0, -0.07, 0.126, 0.006), 0.004)
+    .carve(capsule(0, -0.07, 0.126, 0.045, -0.052, 0.116, 0.006), 0.004);
+  const head = build(h, [-0.17, -0.16, -0.17], [0.17, 0.17, 0.18], 0.005, 0.012);
+  const dk = mixHex(shirt, '#000000', 0.4), lt = mixHex(shirt, '#ffffff', 0.25);
+  const plaid = (x: number, y: number) => {
+    const a = Math.sin(x * 140) > 0.5, b = Math.sin(y * 140) > 0.5;
+    return a && b ? dk : a || b ? shirt : lt;
+  };
+  const denim = (x: number, y: number, z: number) => mixHex(overall, '#000000', noise3(x * 80, y * 200, z * 80) * 0.18);
+  const t = new Sculpt()
+    .add(capsule(0, 0.39, 0, 0, 0.5, 0, 0.125, 0.115), (x, y, z) => {
+      if (y < 0.42) return denim(x, y, z);
+      if (z > 0.05 && Math.abs(x) < 0.07 && y < 0.51) return denim(x, y, z);
+      if (z > 0 && Math.abs(Math.abs(x) - 0.058) < 0.015 && y < 0.58) return denim(x, y, z);
+      return plaid(x, y);
+    })
+    .add(ellipsoid(0, 0.33, 0.01, 0.13, 0.08, 0.13), denim, 0.04)
+    // bib pocket
+    .add(ellipsoid(0, 0.465, 0.105, 0.035, 0.025, 0.008), mixHex(overall, '#000000', 0.15), 0.006);
+  const torso = build(t, [-0.16, 0.22, -0.16], [0.16, 0.66, 0.16], 0.006, 0.012);
+  const p = { head, torso };
+  people.set(key, p);
+  return p;
+}
+
+// ---------------------------------------------------------------- trees
+// A puffy cartoon tree crown: a cluster of soft round leaf balls, darker underneath and sunlit
+// on top, sculpted as one smooth piece. Colors are baked in grey so any leaf color can tint it.
+const crowns = new Map<number, THREE.BufferGeometry>();
+export function toonCrown(seed: number) {
+  const key = seed % 6;
+  const hit = crowns.get(key);
+  if (hit) return hit;
+  const shadeY = (_x: number, y: number) => mixHex('#8c9488', '#ffffff', smooth(0.5, 1.2, y));
+  const s = new Sculpt().add(sphere(0, 0.8, 0, 0.33), shadeY);
+  const ga = Math.PI * (3 - Math.sqrt(5));
+  const n = 9;
+  for (let i = 0; i < n; i++) {
+    const y = 0.85 - (1.7 * (i + 0.5)) / n;
+    const rad = Math.sqrt(1 - y * y), th = ga * i + key * 1.3;
+    const r = 0.16 + ((Math.sin(i * 7.1 + key * 3.3) + 1) / 2) * 0.06;
+    s.add(sphere(Math.cos(th) * rad * 0.3, 0.8 + y * 0.27, Math.sin(th) * rad * 0.3, r), shadeY, 0.07);
+  }
+  s.add(sphere(0.04, 1.08, -0.02, 0.17), shadeY, 0.08);
+  // a few leafy bumps break up the silhouette
+  s.displace((x, y, z) => (noise3(x * 12 + key, y * 12, z * 12) - 0.5) * 0.016);
+  s.grain = 0.05;
+  const g = s.build([-0.62, 0.3, -0.62], [0.62, 1.34, 0.62], 0.014);
+  crowns.set(key, g);
+  return g;
+}

@@ -12,7 +12,8 @@ import { Post } from './gfx/post';
 import { PLANT_MAT, cropGeo } from './gfx/crops';
 import { PRODUCE_MAT, produceGeo } from './gfx/produce';
 import { ribs, ruffledLeaf } from './gfx/kit';
-import { creature, hasCreature, personParts } from './gfx/creatures';
+import { artStyle, creature, hasCreature, personParts } from './gfx/creatures';
+import { toonCrown, toonPersonParts } from './gfx/toon';
 import { SCULPT_MAT, TOON_MAT, TOON_WOOL, WOOL_MAT } from './gfx/sdf';
 import { leafShell, leafTexture, meterBox, meterHip, meterRoof, surface, surfaceMat, type SurfaceKind } from './gfx/textures';
 import { ANIMAL, BUILDING, CROP, ITEMS, type BuildingDef, type CropDef } from './data';
@@ -475,6 +476,8 @@ export class Renderer {
   private sel: THREE.Group;
   private farmer: Actor;
   private dog: Actor;
+  private cat: Actor;
+  private catWait = 3;
   private wx: { pts: THREE.Points | null; rain: THREE.LineSegments | null; kind: string; vel: Float32Array | null } = { pts: null, rain: null, kind: 'none', vel: null };
   private season: Season = seasonOf();
   private last = 0;
@@ -514,7 +517,8 @@ export class Renderer {
     this.sel = this.buildSelection();
     this.farmer = actor(FARM_C.x - 0.5, FARM_C.y + 0.5, buildFarmer());
     this.dog = actor(FARM_C.x + 0.5, FARM_C.y + 0.5, buildDog());
-    this.world.add(this.farmer.g, this.dog.g);
+    this.cat = actor(FARM_C.x + 1.5, FARM_C.y + 1.5, buildCat());
+    this.world.add(this.farmer.g, this.dog.g, this.cat.g);
     this.applyQuality(this.quality);
     this.offQuality = onQuality((q) => this.applyQuality(q));
     this.updateCamera();
@@ -882,7 +886,10 @@ export class Renderer {
     const trunks = new THREE.InstancedMesh(cylGeo(0.06, 0.09, 8), surfaceMat('bark', '#7a4a26', 4), pines.length + rounds.length);
     const pineA = new THREE.InstancedMesh(pineGeo(), new THREE.MeshStandardMaterial({ color: '#ffffff', roughness: 0.85 }), pines.length);
     const pineB = new THREE.InstancedMesh(pineGeo(), new THREE.MeshStandardMaterial({ color: '#ffffff', roughness: 0.85 }), pines.length);
-    const crown = new THREE.InstancedMesh(blobGeo(1, true), new THREE.MeshStandardMaterial({ color: '#ffffff', roughness: 0.85 }), rounds.length);
+    const toon = artStyle() === 'toon';
+    const crown = toon
+      ? new THREE.InstancedMesh(toonCrown(2), new THREE.MeshStandardMaterial({ color: '#ffffff', vertexColors: true, roughness: 0.8 }), rounds.length)
+      : new THREE.InstancedMesh(blobGeo(1, true), new THREE.MeshStandardMaterial({ color: '#ffffff', roughness: 0.85 }), rounds.length);
     let ti = 0;
     pines.forEach(([x, z, sc], i) => {
       mtx.compose(pv.set(x, 0.2 * sc, z), q, sv.set(1, 0.4 * sc, 1)); trunks.setMatrixAt(ti++, mtx);
@@ -893,12 +900,14 @@ export class Renderer {
     });
     rounds.forEach(([x, z, sc], i) => {
       mtx.compose(pv.set(x, 0.25 * sc, z), q, sv.set(1, 0.5 * sc, 1)); trunks.setMatrixAt(ti++, mtx);
-      mtx.compose(pv.set(x, 0.8 * sc, z), q, sv.set(0.42 * sc, 0.4 * sc, 0.42 * sc)); crown.setMatrixAt(i, mtx);
+      if (toon) mtx.compose(pv.set(x, 0, z), q, sv.setScalar(0.95 * sc));
+      else mtx.compose(pv.set(x, 0.8 * sc, z), q, sv.set(0.42 * sc, 0.4 * sc, 0.42 * sc));
+      crown.setMatrixAt(i, mtx);
       col.set('#3f7d2e').offsetHSL(0, 0, (hash(i, 9) - 0.5) * 0.1);
       crown.setColorAt(i, col);
     });
     // leafy card shells on the forest crowns only in high quality, they cost a lot of fill rate
-    const shell = new THREE.InstancedMesh(leafShell(3, 40), leafMat('#ffffff'), this.quality === 'high' ? rounds.length : 0);
+    const shell = new THREE.InstancedMesh(leafShell(3, 40), leafMat('#ffffff'), this.quality === 'high' && !toon ? rounds.length : 0);
     for (let i = 0; i < shell.count; i++) {
       crown.getMatrixAt(i, mtx);
       mtx.decompose(pv, q, sv);
@@ -1052,6 +1061,7 @@ export class Renderer {
     this.consumeFx();
     this.updateFx(dt);
     this.updateActors(dt, t, now);
+    this.updateCat(dt, t);
     this.updateClouds(dt);
     this.updateFishing(t, now);
     this.life.update(dt, t, this.nightNow(now), this.target);
@@ -1733,6 +1743,60 @@ export class Renderer {
     }
   }
 
+  // The farm cat does as it pleases: it strolls between the house and wherever the farmer is,
+  // sits for a while, and curls up by the door at night or while the farmer naps.
+  private updateCat(dt: number, t: number) {
+    const c = this.cat;
+    const tx = Math.floor(c.x), ty = Math.floor(c.y);
+    if (!c.sleeping && !this.free(tx, ty)) {
+      const n = this.nearestFree(tx, ty);
+      if (n) { c.x = n.x + 0.5; c.y = n.y + 0.5; c.path = []; }
+    }
+    const home = this.homeDoor();
+    if (this.nightMode) {
+      if (!c.sleeping && !c.goHome && home) {
+        const d = this.nearestFree(home.door.x + 1, home.door.y, 4);
+        if (d && this.send(c, d.x, d.y)) c.goHome = true;
+        else c.sleeping = true;
+      }
+      if (c.goHome && !c.path.length) { c.goHome = false; c.sleeping = true; }
+    } else {
+      c.sleeping = false;
+      c.goHome = false;
+      this.catWait -= dt;
+      if (this.catWait <= 0 && !c.path.length) {
+        this.catWait = 4 + Math.random() * 6;
+        const f = this.farmer;
+        const around = Math.random() < 0.55 && home ? home.door : { x: Math.floor(f.x), y: Math.floor(f.y) };
+        const gx = around.x + Math.floor(Math.random() * 7) - 3, gy = around.y + Math.floor(Math.random() * 5) - 1;
+        if (this.free(gx, gy)) this.send(c, gx, gy);
+      }
+    }
+    this.step(c, 1.6, dt);
+    c.phase += dt * (c.moving ? 14 : 0);
+    c.g.position.set(c.x, 0, c.y);
+    let diff = c.heading - c.g.rotation.y;
+    while (diff > Math.PI) diff -= Math.PI * 2;
+    while (diff < -Math.PI) diff += Math.PI * 2;
+    c.g.rotation.y += diff * Math.min(1, dt * 8);
+    const legs = c.g.userData.legs as THREE.Object3D[];
+    const head = c.g.userData.head as THREE.Object3D | undefined;
+    const tail = c.g.userData.tail as THREE.Object3D | undefined;
+    if (c.sleeping) {
+      // curled up: legs tucked, body low, tail wrapped round
+      legs.forEach((l, i) => { l.rotation.x = i < 2 ? -1.4 : 1.4; });
+      c.g.position.y = -0.07 + Math.sin(t / 900) * 0.003;
+      if (head) { head.rotation.x = 0.4; head.rotation.y = 0.5; }
+      if (tail) tail.rotation.z = 1.1;
+      for (const e of (head?.userData.eyes as THREE.Object3D[] | undefined) ?? []) e.scale.y = 0.1;
+    } else {
+      animateLegs(c.g, c.moving ? Math.sin(c.phase) * 0.6 : 0);
+      blink(c.g, t, 11);
+      if (head) { head.rotation.x = 0; head.rotation.y = c.moving ? 0 : Math.sin(t / 1900) * 0.6; }
+      if (tail) tail.rotation.z = Math.sin(t / (c.moving ? 180 : 700)) * 0.45;
+    }
+  }
+
   // follow the path; returns true when standing still
   private step(a: Actor, speed: number, dt: number) {
     if (a.inside || a.sleeping || !a.path.length) { a.moving = false; return true; }
@@ -1816,6 +1880,7 @@ function animateLegs(g: THREE.Object3D, s: number) {
 }
 
 export function buildFarmer(shirt = '#d64541', overall = '#3b6fa8', jeans = '#2f5d8a') {
+  if (artStyle() === 'toon') return buildToonFarmer(shirt, overall, jeans);
   const g = new THREE.Group();
   const legs: THREE.Object3D[] = [];
   legPivot(g, -0.05, 0.3, 0, 0.28, 0.08, jeans, legs);
@@ -1853,6 +1918,56 @@ export function buildFarmer(shirt = '#d64541', overall = '#3b6fa8', jeans = '#2f
   g.userData.arms = arms;
   g.userData.head = head;
   g.userData.body = body;
+  return g;
+}
+
+// Cartoon farmer to match the cartoon animals: big head, round belly, chunky boots and hands
+function buildToonFarmer(shirt: string, overall: string, jeans: string) {
+  const g = new THREE.Group();
+  const legs: THREE.Object3D[] = [];
+  legPivot(g, -0.06, 0.28, 0, 0.26, 0.095, jeans, legs);
+  legPivot(g, 0.06, 0.28, 0, 0.26, 0.095, jeans, legs);
+  legs.forEach((l) => ball(l, 0.062, '#6a3e1c', 0, -0.26, 0.03, 0.95, 0.7, 1.45));
+  const body = group(g);
+  const pp = toonPersonParts(shirt, overall);
+  const torso = new THREE.Mesh(pp.torso, TOON_MAT);
+  torso.castShadow = torso.receiveShadow = true;
+  body.add(torso);
+  for (const sx of [-1, 1]) ball(body, 0.015, '#f2d16b', sx * 0.058, 0.515, 0.118);
+  const arms: THREE.Object3D[] = [];
+  for (const sx of [-1, 1]) {
+    const a = group(body, sx * 0.15, 0.53, 0);
+    caps(a, 0.046, 0.12, shirt, 0, -0.08, 0);
+    ball(a, 0.052, '#f6c9a0', 0, -0.2, 0);
+    a.rotation.z = sx * 0.16;
+    arms.push(a);
+  }
+  const head = group(body, 0, 0.74, 0);
+  const hm = new THREE.Mesh(pp.head, TOON_MAT);
+  hm.castShadow = hm.receiveShadow = true;
+  head.add(hm);
+  toonEyes(head, [0.05, 0.028, 0.116, 0.03, 0.22], '#6b4020');
+  // big straw hat with a red band
+  const hat = group(head, 0, 0.085, -0.01);
+  mk(hat, cylGeo(0.235, 0.225, 28), M('#efc95e'), 1, 0.022, 1, 0, 0.0, 0);
+  mk(hat, G.dome, M('#f2cf68'), 0.14, 0.12, 0.14, 0, 0.01, 0);
+  mk(hat, cylGeo(0.142, 0.142, 24), M('#c0392b'), 1, 0.032, 1, 0, 0.026, 0);
+  // tipped back so the face shows from the farm camera
+  hat.rotation.x = -0.32;
+  contactShadow(g, 0.4, 0.3);
+  g.userData.legs = legs;
+  g.userData.signs = [1, -1];
+  g.userData.arms = arms;
+  g.userData.head = head;
+  g.userData.body = body;
+  return g;
+}
+
+export function buildCat() {
+  const g = assemble('cat');
+  const cp = creature('cat');
+  if (cp?.eye) toonEyes(g.userData.head as THREE.Group, cp.eye, '#3a2e28');
+  g.scale.setScalar(1.25);
   return g;
 }
 
@@ -2706,7 +2821,36 @@ function leafMat(color: string) {
 
 // Leafy tree: tapered bark trunk with two limbs and a crown of lumpy foliage puffs.
 // Returns the crown group (pivot at the trunk base, for swaying) and its main puff.
+// cartoon leaf material per color: smooth and bright, tinted over the baked crown shading
+const toonLeafCache = new Map<string, THREE.Material>();
+function toonLeafMat(leaf: string) {
+  let m = toonLeafCache.get(leaf);
+  if (!m) {
+    const c = new THREE.Color(leaf);
+    c.offsetHSL(0, 0.12, 0.08);
+    m = new THREE.MeshStandardMaterial({ color: c, vertexColors: true, roughness: 0.7 });
+    toonLeafCache.set(leaf, m);
+  }
+  return m;
+}
+
+// Cartoon tree: a stout curving trunk with root flares and one puffy round crown
+function toonTree(g: P, x: number, z: number, leaf: string, k: number, seed: number) {
+  const bark = M('#8a5a32');
+  const trunk = mk(g, cylGeo(0.07, 0.12, 12), bark, k, 0.6 * k, k, x, 0.3 * k, z);
+  trunk.rotation.z = (hash(seed, 3) - 0.5) * 0.12;
+  for (let i = 0; i < 4; i++) {
+    const a = (i / 4) * Math.PI * 2 + seed;
+    mk(g, G.ball, bark, 0.05 * k, 0.035 * k, 0.05 * k, x + Math.cos(a) * 0.09 * k, 0.02, z + Math.sin(a) * 0.09 * k);
+  }
+  const crown = group(g, x, 0, z);
+  const m = mk(crown, toonCrown(seed), toonLeafMat(leaf), k, k, k, 0, 0, 0);
+  m.receiveShadow = true;
+  return { crown, main: m };
+}
+
 function leafyTree(g: P, x: number, z: number, leaf: string, k = 1, seed = 1) {
+  if (artStyle() === 'toon') return toonTree(g, x, z, leaf, k, seed);
   const bark = surfaceMat('bark', '#7a4b26', 3);
   mk(g, cylGeo(0.055, 0.095, 10), bark, k, 0.55 * k, k, x, 0.275 * k, z);
   for (const [a, rz] of [[0.6, 0.7], [3.4, -0.6]]) {

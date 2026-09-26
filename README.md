@@ -44,6 +44,7 @@ By Talons Protocol.
 - Workshop for candles and feather pillows, goat cheese at the dairy
 - Tap the farmhouse (or the manor once built) to send the farmer to bed and keep farming meanwhile; a nap of 20 seconds or more gives a once a day rested bonus
 - Two animal art styles, picked in Settings: Cartoon (chunky friendly sculpts with big eyes, the default) and Realistic
+- Cartoon farmer, puffy cartoon trees and round garden bushes; a calico farm cat roams between the house and the farmer and curls up by the door at night
 - Animals use a light mesh from afar and a detailed one up close, built in idle time
 
 ## Run locally
