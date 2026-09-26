@@ -525,7 +525,7 @@ export class Renderer {
       this.sun.shadow.map = null as unknown as THREE.WebGLRenderTarget;
     }
     this.sun.shadow.radius = high ? 3 : 1.5;
-    if (high && !this.post) this.post = new Post(this.gl, this.scene, this.camera, [this.sky.mesh, this.fxLayer]);
+    if (high && !this.post) this.post = new Post(this.gl, this.scene, this.camera, [this.sky.mesh, this.fxLayer, this.foliage.group]);
     if (!high && this.post) { this.post.dispose(); this.post = null; }
     this.foliageKey = '';
     this.resize(this.size.w, this.size.h, this.size.dpr);
@@ -965,7 +965,8 @@ export class Renderer {
     GLOW.opacity = n * 0.55;
     if (this.post) {
       this.post.bloom.strength = 0.12 + n * 0.75;
-      this.post.bloom.threshold = lerp(1.0, 0.75, n);
+      // above 1.0 only emissive lights glow; white UI bubbles and sunlit walls stay crisp
+      this.post.bloom.threshold = 1.02;
     }
   }
 
@@ -2234,14 +2235,24 @@ function buildObstacle(e: Entry, o: FarmObject) {
   }
 }
 
+// warm pool of light on the ground around a lamp, faded in at night
+function groundGlow(g: P, x: number, z: number, size: number) {
+  const m = new THREE.Mesh(G.plane, glowMat());
+  m.rotation.x = -Math.PI / 2;
+  m.scale.set(size, size, 1);
+  m.position.set(x, 0.03, z);
+  m.renderOrder = 2;
+  g.add(m);
+}
+
 function buildDeco(e: Entry, d: BuildingDef) {
   const g = e.root;
   e.top = d.height * ZU + 0.2;
   switch (d.id) {
     case 'hay_bale': {
-      const m = mk(g, cylGeo(0.2, 0.2, 10), M('#e2c15a'), 1, 0.55, 1, 0.5, 0.2, 0.5);
+      const m = mk(g, cylGeo(0.2, 0.2, 20), surfaceMat('thatch', '#e8c865', 2, 0.95, 1, 1), 1, 0.55, 1, 0.5, 0.2, 0.5);
       m.rotation.z = Math.PI / 2;
-      for (const x of [0.35, 0.65]) { const b = mk(g, cylGeo(0.205, 0.205, 10), M('#b8923a'), 1, 0.03, 1, x, 0.2, 0.5, false); b.rotation.z = Math.PI / 2; }
+      for (const x of [0.35, 0.65]) { const b = mk(g, cylGeo(0.205, 0.205, 20), M('#a8322a'), 1, 0.025, 1, x, 0.2, 0.5, false); b.rotation.z = Math.PI / 2; }
       break;
     }
     case 'oak': {
@@ -2262,14 +2273,15 @@ function buildDeco(e: Entry, d: BuildingDef) {
       break;
     }
     case 'bench':
-      bx(g, 0.72, 0.05, 0.26, '#a8733f', 0.5, 0.2, 0.5);
-      bx(g, 0.72, 0.2, 0.04, '#a8733f', 0.5, 0.27, 0.38);
+      bxT(g, 0.72, 0.05, 0.26, 'planks', '#b98048', 0.5, 0.2, 0.5, 3);
+      bxT(g, 0.72, 0.2, 0.04, 'planks', '#b98048', 0.5, 0.27, 0.38, 3);
       for (const x of [0.2, 0.8]) for (const z of [0.4, 0.6]) bx(g, 0.04, 0.2, 0.04, '#4a3a30', x, 0, z);
       break;
     case 'lamp':
       cyl(g, 0.03, 0.04, 1.1, '#3a3a3a', 0.5, 0, 0.5, 6);
       mk(g, G.box, LAMP, 0.15, 0.18, 0.15, 0.5, 1.19, 0.5);
       mk(g, cylGeo(0, 0.13, 4), M('#3a3a3a'), 1, 0.1, 1, 0.5, 1.33, 0.5).rotation.y = Math.PI / 4;
+      groundGlow(g, 0.5, 0.5, 2.4);
       e.top = 1.45;
       break;
     case 'scarecrow':
@@ -2282,8 +2294,8 @@ function buildDeco(e: Entry, d: BuildingDef) {
       e.top = 1.3;
       break;
     case 'windmill': {
-      mk(g, cylGeo(0.35, 0.55, 8), M('#f3ead6'), 1, 2.0, 1, 1, 1.0, 1);
-      mk(g, cylGeo(0, 0.42, 8), M('#8e2c20'), 1, 0.45, 1, 1, 2.22, 1);
+      mk(g, cylGeo(0.35, 0.55, 16), surfaceMat('stone', '#efe6d2', 3, 0.9, 1, 2), 1, 2.0, 1, 1, 1.0, 1);
+      mk(g, cylGeo(0, 0.42, 16), surfaceMat('roof', '#9a3526', 3, 0.7, 1, 1.5), 1, 0.45, 1, 1, 2.22, 1);
       bx(g, 0.26, 0.4, 0.04, '#6b4226', 1, 0, 1.52);
       const hub = group(g, 1, 1.75, 1.42);
       ball(hub, 0.08, '#6b4226', 0, 0, 0.02);
@@ -2306,7 +2318,7 @@ function buildDeco(e: Entry, d: BuildingDef) {
       e.top = 0.5;
       break;
     case 'fountain': {
-      cyl(g, 0.85, 0.9, 0.22, '#a9a496', 1, 0, 1, 16);
+      mk(g, cylGeo(0.85, 0.9, 32), surfaceMat('stone', '#c2bcac', 8, 0.9, 1, 0.5), 1, 0.22, 1, 1, 0.11, 1);
       mk(g, cylGeo(0.75, 0.75, 16), WATER, 1, 0.04, 1, 1, 0.2, 1, false);
       cyl(g, 0.1, 0.14, 0.6, '#bfb9a8', 1, 0.2, 1, 8);
       cyl(g, 0.34, 0.28, 0.08, '#cfcabb', 1, 0.75, 1, 12);
@@ -2330,7 +2342,7 @@ function buildDeco(e: Entry, d: BuildingDef) {
       e.top = 0.9;
       break;
     case 'gazebo':
-      cyl(g, 0.85, 0.9, 0.1, '#e6e0d0', 1, 0, 1, 8);
+      mk(g, cylGeo(0.85, 0.9, 8), surfaceMat('stone', '#e6e0d0', 6, 0.9, 1, 0.3), 1, 0.1, 1, 1, 0.05, 1);
       for (let i = 0; i < 8; i++) {
         const a = (i / 8) * Math.PI * 2 + Math.PI / 8;
         cyl(g, 0.035, 0.035, 0.9, '#fdfaf2', 1 + Math.cos(a) * 0.74, 0.1, 1 + Math.sin(a) * 0.74, 6);
@@ -2339,6 +2351,7 @@ function buildDeco(e: Entry, d: BuildingDef) {
       cyl(g, 0.5, 0.5, 0.04, '#a8733f', 1, 0.35, 1, 12);
       cyl(g, 0.08, 0.1, 0.25, '#a8733f', 1, 0.1, 1, 6);
       mk(g, G.box, LAMP, 0.1, 0.1, 0.1, 1, 0.85, 1);
+      groundGlow(g, 1, 1, 2.2);
       e.top = 1.7;
       break;
   }

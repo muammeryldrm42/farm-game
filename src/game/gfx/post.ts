@@ -30,6 +30,10 @@ export class Post {
       render(...args);
       hide.forEach((o, i) => { o.visible = was[i]; });
     };
+    // AO is soft by nature, so it runs at half resolution and is blended over the full image
+    const aoSize = this.ao.setSize.bind(this.ao);
+    this.ao.setSize = (w: number, h: number) => aoSize(Math.max(1, Math.round(w / 2)), Math.max(1, Math.round(h / 2)));
+    this.ao.setSize(size.x, size.y);
     this.composer.addPass(this.ao);
 
     this.bloom = new UnrealBloomPass(new THREE.Vector2(size.x, size.y), 0.25, 0.55, 1.0);

@@ -139,7 +139,7 @@ export class Foliage {
     const tufts: [number, number, number, number, boolean][][] = this.grassGeos.map(() => []);
     const flowers: [number, number, number, number][] = [];
     tiles.forEach((t, ti) => {
-      const n = t.open ? density : Math.max(1, Math.round(density * 0.5));
+      const n = t.open ? density : Math.max(1, Math.round(density * 0.35));
       for (let k = 0; k < n; k++) {
         const s = ti * 13 + k;
         const x = t.x + 0.08 + rnd(s, 1) * 0.84, z = t.z + 0.08 + rnd(s, 2) * 0.84;
