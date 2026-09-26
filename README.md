@@ -11,6 +11,10 @@ By Talons Protocol.
 - Wind blown instanced grass and wild flowers, animated water with shallows and surf, gradient sky with stars
 - ACES tone mapping, soft shadows, ambient occlusion (GTAO) and bloom for night lights
 - Harvest, planting, production, animal and tree animations
+- A bigger 44 x 44 island (older saves are moved to the middle automatically)
+- Fishing spot off the south shore: cast a line, wait for a bite, reel in fish and lobsters
+- Manor for the farmer; tap free land to walk the farmer and dog there, at night they go home to sleep
+- Butterflies, gulls, leaping fish and a sailboat on the horizon
 - High and Low graphics quality in Settings (kept per device, outside the save)
 - Free camera: drag to pan, pinch or scroll to zoom, twist with two fingers or press Q and E to rotate
 - 9 crops (wheat to sunflower) with drag to plant and drag to harvest

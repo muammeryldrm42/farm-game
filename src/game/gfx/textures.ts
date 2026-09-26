@@ -343,3 +343,30 @@ export function meterRoof(w: number, h: number, d: number, inset = 0) {
   roofCache.set(key, g);
   return g;
 }
+
+const hipCache = new Map<string, THREE.BufferGeometry>();
+// Hip roof: four slopes rising to a short ridge along x, base centered at the origin, UVs in meters.
+export function meterHip(w: number, h: number, d: number) {
+  const key = `${w.toFixed(3)}|${h.toFixed(3)}|${d.toFixed(3)}`;
+  let g = hipCache.get(key);
+  if (g) return g;
+  const hw = w / 2, hd = d / 2, rx = Math.max(0.01, hw - hd);
+  const sl = Math.hypot(hd, h);
+  const pos: number[] = [], uvs: number[] = [];
+  const tri = (a: number[], b: number[], c: number[], ua: number[], ub: number[], uc: number[]) => { pos.push(...a, ...b, ...c); uvs.push(...ua, ...ub, ...uc); };
+  // front and back trapezoids
+  tri([-hw, 0, hd], [hw, 0, hd], [rx, h, 0], [0, 0], [w, 0], [hw + rx, sl]);
+  tri([-hw, 0, hd], [rx, h, 0], [-rx, h, 0], [0, 0], [hw + rx, sl], [hw - rx, sl]);
+  tri([hw, 0, -hd], [-hw, 0, -hd], [-rx, h, 0], [0, 0], [w, 0], [hw + rx, sl]);
+  tri([hw, 0, -hd], [-rx, h, 0], [rx, h, 0], [0, 0], [hw + rx, sl], [hw - rx, sl]);
+  // hipped ends
+  const el = Math.hypot(hw - rx, h);
+  tri([hw, 0, hd], [hw, 0, -hd], [rx, h, 0], [0, 0], [d, 0], [hd, el]);
+  tri([-hw, 0, -hd], [-hw, 0, hd], [-rx, h, 0], [0, 0], [d, 0], [hd, el]);
+  g = new THREE.BufferGeometry();
+  g.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
+  g.setAttribute('uv', new THREE.Float32BufferAttribute(uvs, 2));
+  g.computeVertexNormals();
+  hipCache.set(key, g);
+  return g;
+}

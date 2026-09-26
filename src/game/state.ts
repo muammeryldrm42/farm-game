@@ -1,11 +1,17 @@
 // Talons Farm - game state, persistence and all player actions
 import { ANIMAL, BUILDING, BUILDINGS, CROP, ITEMS, ITEM_LIST, RECIPE, type BuildingDef } from './data';
 
-export const GRID = 28;
+export const GRID = 44;
+// older saves were made on a 28 tile map; their farm is moved by this many tiles to the new center
+export const MAP_OFF = 8;
 export const CHUNK = 4;
 export const NCH = GRID / CHUNK;
 export const SAVE_KEY = 'talons-farm-save-v1';
 
+export interface FishingData { open: boolean; castAt: number | null; catchAt: number | null }
+// the fishing spot lies in the sea just off the south shore
+export const FISH_SPOT = { x: GRID / 2, y: GRID + 2.3 };
+export const FISHING = { level: 5, cost: 800, time: 45 };
 export interface PlotData { crop: string | null; plantedAt: number }
 export interface QueueEntry { recipe: string; startAt: number; endsAt: number }
 export interface ProdData { queue: QueueEntry[]; slots: number }
@@ -55,6 +61,8 @@ export interface GameState {
   boat: Boat | null;
   achievements: Record<string, number>;
   tutorial: number;
+  mapV?: number;
+  fishing?: FishingData;
 }
 
 // ---------------------------------------------------------------- helpers
@@ -183,7 +191,18 @@ export function chunkState(s: GameState, cx: number, cy: number): 'open' | 'buya
 
 export function expandInfo(s: GameState) {
   const n = Math.max(0, s.chunks.length - 9);
-  return { cost: Math.round((300 * Math.pow(1.35, n)) / 10) * 10, level: Math.min(35, 2 + Math.floor(n * 0.8)) };
+  // prices grow fast at first, then level off so the bigger map stays reachable
+  const cost = 300 * Math.pow(1.35, Math.min(n, 18)) + Math.max(0, n - 18) * 3000;
+  return { cost: Math.round(cost / 10) * 10, level: Math.min(35, 2 + Math.floor(n * 0.8)) };
+}
+
+export function fishingInfo(s: GameState, now: number) {
+  const f = s.fishing;
+  if (!f?.open) return { state: 'locked' as const, remaining: 0, p: 0 };
+  if (f.castAt === null || f.catchAt === null) return { state: 'idle' as const, remaining: 0, p: 0 };
+  const total = f.catchAt - f.castAt;
+  if (now >= f.catchAt) return { state: 'ready' as const, remaining: 0, p: 1 };
+  return { state: 'waiting' as const, remaining: f.catchAt - now, p: (now - f.castAt) / total };
 }
 
 export function todayKey(d = new Date()) {
@@ -326,7 +345,19 @@ export function newGame(): GameState {
   for (let i = 0; i < orderCount(1); i++) s.orders.push(genOrder(s, now));
   // first order is always doable with starting wheat, for the tutorial
   s.orders[0] = { ...s.orders[0], items: [{ id: 'wheat', qty: 6 }], coins: 30, xp: 5, gems: 0 };
+  shiftMap(s);
   return s;
+}
+
+// Moves a farm laid out on the old 28 tile map to the middle of the current map.
+function shiftMap(s: GameState) {
+  const cs = MAP_OFF / CHUNK;
+  s.objects = s.objects.map((o) => ({ ...o, x: o.x + MAP_OFF, y: o.y + MAP_OFF }));
+  s.chunks = s.chunks.map((k) => {
+    const [x, y] = k.split(',').map(Number);
+    return `${x + cs},${y + cs}`;
+  });
+  s.mapV = 2;
 }
 
 export function loadGame(): GameState {
@@ -350,6 +381,7 @@ function migrate(d: Partial<GameState>): GameState {
   // saves from before the tutorial existed skip it
   s.tutorial = typeof d.tutorial === 'number' ? d.tutorial : TUTORIAL_DONE;
   if (!Array.isArray(s.objects) || !Array.isArray(s.chunks)) return base;
+  if ((d.mapV ?? 1) < 2) shiftMap(s);
   s.objects = s.objects.filter((o) => BUILDING[o.type]);
   return s;
 }
@@ -360,7 +392,7 @@ export type Sfx = 'harvest' | 'plant' | 'coin' | 'build' | 'error' | 'levelup' |
 export interface Fx { kind: 'float' | 'burst'; gx: number; gy: number; text?: string; color?: string; z?: number }
 export interface Placing { type: string; x: number; y: number; moveId?: number }
 export interface Tool { kind: 'plant'; crop: string }
-export type Panel = 'shop' | 'orders' | 'storage' | 'settings' | 'quests' | 'stall' | 'boat' | null;
+export type Panel = 'shop' | 'orders' | 'storage' | 'settings' | 'quests' | 'stall' | 'boat' | 'fishing' | null;
 export interface Flyer { icon: string; gx: number; gy: number; z: number; target: 'storage' | 'coins' | 'xp' }
 export interface Toast { id: number; text: string; tone: 'info' | 'bad' | 'good'; at: number }
 
@@ -385,7 +417,7 @@ export class GameStore {
   toScreen: (gx: number, gy: number, z: number) => { x: number; y: number } | null = () => null;
   toasts: Toast[] = [];
   sound: (n: Sfx) => void = () => {};
-  viewCenter: () => { x: number; y: number } = () => ({ x: 13, y: 13 });
+  viewCenter: () => { x: number; y: number } = () => ({ x: GRID / 2, y: GRID / 2 });
   private listeners = new Set<() => void>();
   private saveT: ReturnType<typeof setTimeout> | null = null;
   private toastId = 0;
@@ -584,6 +616,56 @@ export class GameStore {
       case 'dock': this.openPanel('boat'); return;
       default: this.select(o.id);
     }
+  }
+
+  // ------------------------------------------------ fishing spot
+
+  tapFishing() {
+    this.sound('click');
+    if (fishingInfo(this.s, Date.now()).state === 'ready') { this.reelIn(); return; }
+    this.openPanel('fishing');
+  }
+
+  buyFishing() {
+    if (this.s.fishing?.open) return;
+    if (this.s.level < FISHING.level) { this.toast(`The fishing spot opens at level ${FISHING.level}.`, 'bad'); return; }
+    if (this.s.coins < FISHING.cost) { this.toast('Not enough coins.', 'bad'); return; }
+    this.s.coins -= FISHING.cost;
+    this.s.fishing = { open: true, castAt: null, catchAt: null };
+    this.sound('build');
+    this.fx.push({ kind: 'burst', gx: FISH_SPOT.x, gy: FISH_SPOT.y, color: '#8fd3ff', z: 10 });
+    this.fx.push({ kind: 'float', gx: FISH_SPOT.x, gy: FISH_SPOT.y, text: 'Fishing spot open!', color: '#e6f7ff', z: 30 });
+    this.emit();
+  }
+
+  castLine() {
+    const f = this.s.fishing;
+    if (!f?.open || f.castAt !== null) return;
+    const now = Date.now();
+    f.castAt = now;
+    f.catchAt = now + FISHING.time * 1000;
+    this.sound('plant');
+    this.emit();
+  }
+
+  reelIn() {
+    const f = this.s.fishing;
+    const now = Date.now();
+    if (!f || fishingInfo(this.s, now).state !== 'ready') return;
+    const lobster = this.s.level >= 12 && Math.random() < 0.22;
+    const id = lobster ? 'lobster' : 'fish';
+    const qty = lobster ? 1 : 1 + (Math.random() < 0.4 ? 1 : 0);
+    if (!this.canStore(id, qty)) { this.fullToast(id); return; }
+    this.add(id, qty);
+    f.castAt = null;
+    f.catchAt = null;
+    this.stat('fish', qty);
+    this.addXp(lobster ? 6 : 3);
+    this.sound('collect');
+    if (this.flyers.length < 40) this.flyers.push({ icon: ITEMS[id].icon, gx: FISH_SPOT.x, gy: FISH_SPOT.y, z: 20, target: 'storage' });
+    this.fx.push({ kind: 'float', gx: FISH_SPOT.x, gy: FISH_SPOT.y, text: `+${qty} ${ITEMS[id].icon}`, color: '#ffffff', z: 40 });
+    this.fx.push({ kind: 'burst', gx: FISH_SPOT.x, gy: FISH_SPOT.y, color: '#bfe9ff', z: 5 });
+    this.emit();
   }
 
   tapTile(x: number, y: number) {

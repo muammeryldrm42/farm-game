@@ -7,6 +7,8 @@ import {
   MAX_SLOTS,
   activeQuests,
   boatState,
+  FISHING,
+  fishingInfo,
   claimableBadges,
   stallValue,
   treeInfo,
@@ -127,6 +129,7 @@ export default function Panels() {
       {ui.panel === 'settings' && <SettingsModal />}
       {ui.panel === 'stall' && <StallModal />}
       {ui.panel === 'boat' && <BoatModal />}
+      {ui.panel === 'fishing' && <FishingModal />}
       {ui.expand && <ExpandModal />}
       {ui.daily && ui.levelUp === null && <DailyModal />}
       {ui.levelUp !== null && <LevelUpModal level={ui.levelUp} />}
@@ -614,6 +617,52 @@ function StallModal() {
 
 // ------------------------------------------------------------------ boat
 
+function FishingModal() {
+  const store = useStore();
+  const s = store.s;
+  const now = Date.now();
+  const fi = fishingInfo(s, now);
+  const close = () => store.openPanel(null);
+  return (
+    <Modal title="Fishing Spot" icon="🎣" onClose={close}>
+      <div className="flex flex-col items-center gap-3 py-2 text-center">
+        <span className="emoji animate-bob text-5xl">{fi.state === 'ready' ? '🐟' : '🌊'}</span>
+        {fi.state === 'locked' && (
+          <>
+            <p className="font-bold">Open a fishing spot off the south shore.</p>
+            <p className="text-sm text-[#8a6a44]">Cast a line, wait a little and reel in fish. Lobsters bite from level 12.</p>
+            {s.level < FISHING.level ? (
+              <Lock level={FISHING.level} />
+            ) : (
+              <button className="btn btn-green px-8 py-2" disabled={s.coins < FISHING.cost} onClick={() => store.buyFishing()}>
+                Open for <Coins n={FISHING.cost} />
+              </button>
+            )}
+          </>
+        )}
+        {fi.state === 'idle' && (
+          <>
+            <p className="font-bold">The water is calm. Cast your line!</p>
+            <button className="btn btn-blue px-8 py-2" onClick={() => { store.castLine(); close(); }}>Cast line</button>
+          </>
+        )}
+        {fi.state === 'waiting' && (
+          <>
+            <p className="font-bold">Waiting for a bite...</p>
+            <div className="h-3 w-48 overflow-hidden rounded-full bg-[#e6e0d0]">
+              <div className="h-full bg-[#2f8fd0]" style={{ width: `${Math.round(fi.p * 100)}%` }} />
+            </div>
+            <p className="text-sm text-[#8a6a44]">{fmtTime(fi.remaining)} left</p>
+          </>
+        )}
+        {fi.state === 'ready' && (
+          <button className="btn btn-green px-8 py-2" onClick={() => { store.reelIn(); close(); }}>Reel in</button>
+        )}
+      </div>
+    </Modal>
+  );
+}
+
 function BoatModal() {
   const store = useStore();
   const s = store.s;
@@ -679,7 +728,7 @@ function BoatModal() {
 type ShopTab = 'farming' | 'buildings' | 'animals' | 'decor';
 const SHOP_TABS: { id: ShopTab; label: string; icon: string; filter: (d: BuildingDef) => boolean }[] = [
   { id: 'farming', label: 'Farming', icon: '🌱', filter: (d) => d.kind === 'plot' || d.kind === 'tree' },
-  { id: 'buildings', label: 'Buildings', icon: '🏭', filter: (d) => d.kind === 'production' || d.kind === 'stall' || d.kind === 'dock' },
+  { id: 'buildings', label: 'Buildings', icon: '🏭', filter: (d) => d.kind === 'production' || d.kind === 'stall' || d.kind === 'dock' || (d.kind === 'house' && d.buyable) },
   { id: 'animals', label: 'Animals', icon: '🐔', filter: (d) => d.kind === 'pen' },
   { id: 'decor', label: 'Decor', icon: '🌷', filter: (d) => d.kind === 'deco' },
 ];

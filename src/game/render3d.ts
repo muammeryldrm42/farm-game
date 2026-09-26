@@ -9,10 +9,10 @@ import { makeWater } from './gfx/water';
 import { Foliage, type Spot } from './gfx/foliage';
 import { Post } from './gfx/post';
 import { PLANT_MAT, cropGeo } from './gfx/crops';
-import { meterBox, meterRoof, surface, surfaceMat, type SurfaceKind } from './gfx/textures';
+import { meterBox, meterHip, meterRoof, surface, surfaceMat, type SurfaceKind } from './gfx/textures';
 import { ANIMAL, BUILDING, CROP, ITEMS, type BuildingDef, type CropDef } from './data';
 import {
-  CHUNK, GRID, NCH, animalReady, boatState, canFulfill, chunkState, penInfo, plotProgress, prodInfo, treeInfo,
+  CHUNK, FISH_SPOT, GRID, MAP_OFF, NCH, animalReady, fishingInfo, boatState, canFulfill, chunkState, penInfo, plotProgress, prodInfo, treeInfo,
   type FarmObject, type GameStore,
 } from './state';
 
@@ -337,7 +337,12 @@ function bump(e: Entry, kind: 'bump' | 'big' | 'work' = 'bump') {
 }
 interface Burst { pts: THREE.Points; vel: Float32Array; life: number }
 interface Float { s: THREE.Sprite; life: number }
-interface Actor { x: number; y: number; tx: number; ty: number; wait: number; heading: number; moving: boolean; g: THREE.Group; phase: number }
+interface Actor {
+  x: number; y: number; heading: number; moving: boolean; g: THREE.Group; phase: number;
+  path: { x: number; y: number }[]; goal: { x: number; y: number } | null;
+  inside: boolean; sleeping: boolean; goHome: boolean; fade: number;
+}
+const actor = (x: number, y: number, g: THREE.Group): Actor => ({ x, y, heading: 0, moving: false, g, phase: 0, path: [], goal: null, inside: false, sleeping: false, goHome: false, fade: 1 });
 
 // ------------------------------------------------------------------ short lived animations
 // Model update functions start these (harvest pops, falling fruit...). The renderer ticks them.
@@ -409,6 +414,8 @@ function dropDown(src: THREE.Object3D, delay = 0) {
 }
 
 const HIT_MAT = new THREE.MeshBasicMaterial({ visible: false });
+// middle of the starting farm
+const FARM_C = { x: 13.5 + MAP_OFF, y: 11.5 + MAP_OFF };
 const FRUIT_COLOR: Record<string, string> = { apple: '#e53935', cherry: '#b0102a', orange: '#ff9800' };
 const TREE_LEAF: Record<string, string> = { apple_tree: '#4f9e36', cherry_tree: '#3f8a3a', orange_tree: '#2f7d32' };
 const GRASSY_PEN = new Set(['pasture', 'sheepfold', 'beehive']);
@@ -426,7 +433,7 @@ export class Renderer {
   private gl: THREE.WebGLRenderer;
   private scene = new THREE.Scene();
   private camera = new THREE.PerspectiveCamera(32, 1, 0.5, 400);
-  private target = new THREE.Vector3(13.5, 0, 11.5);
+  private target = new THREE.Vector3(FARM_C.x, 0, FARM_C.y);
   private az = Math.PI / 4;
   private azGoal = Math.PI / 4;
   private el = 0.86;
@@ -442,6 +449,9 @@ export class Renderer {
   private landKey = '';
   private tiles!: THREE.InstancedMesh;
   private sea!: THREE.Mesh;
+  private fishing!: ReturnType<typeof buildFishingSpot>;
+  private life!: Life;
+  private fishBubble: THREE.Sprite | null = null;
   private sky = new Sky();
   private foliage = new Foliage();
   private foliageKey = '';
@@ -488,9 +498,12 @@ export class Renderer {
 
     this.buildSea();
     this.buildClouds();
+    this.fishing = buildFishingSpot();
+    this.scene.add(this.fishing.root);
+    this.life = new Life(this.scene);
     this.sel = this.buildSelection();
-    this.farmer = { x: 12.5, y: 11.2, tx: 12.5, ty: 11.2, wait: 2, heading: 0, moving: false, g: buildFarmer(), phase: 0 };
-    this.dog = { x: 13.2, y: 11.6, tx: 13.2, ty: 11.6, wait: 0, heading: 0, moving: false, g: buildDog(), phase: 0 };
+    this.farmer = actor(FARM_C.x - 0.5, FARM_C.y + 0.5, buildFarmer());
+    this.dog = actor(FARM_C.x + 0.5, FARM_C.y + 0.5, buildDog());
     this.world.add(this.farmer.g, this.dog.g);
     this.applyQuality(this.quality);
     this.offQuality = onQuality((q) => this.applyQuality(q));
@@ -620,7 +633,7 @@ export class Renderer {
   }
 
   resetView(zoom: number) {
-    this.centerOn(13.5, 11.5);
+    this.centerOn(FARM_C.x, FARM_C.y);
     this.cam.zoom = zoom;
     this.azGoal = Math.round((this.az - Math.PI / 4) / (Math.PI * 2)) * Math.PI * 2 + Math.PI / 4;
   }
@@ -632,13 +645,14 @@ export class Renderer {
 
   // ------------------------------------------------ picking
 
-  pick(sx: number, sy: number): { obj?: FarmObject; tile: { x: number; y: number } } {
+  pick(sx: number, sy: number): { obj?: FarmObject; tile: { x: number; y: number }; spot?: 'fishing' } {
     const tile = this.gridAt(sx, sy);
     const moveId = this.store.ui.placing?.moveId;
-    const hits: THREE.Object3D[] = [];
+    const hits: THREE.Object3D[] = [this.fishing.hit];
     for (const e of this.entries.values()) if (e.id !== moveId) hits.push(e.hit);
     const r = this.rayAt(sx, sy).intersectObjects(hits, false);
     if (r.length) {
+      if (r[0].object === this.fishing.hit) return { tile, spot: 'fishing' };
       const id = r[0].object.userData.objId as number;
       const obj = this.store.obj(id);
       if (obj) return { obj, tile };
@@ -652,7 +666,7 @@ export class Renderer {
     // island rectangle including the beach, used for shallow water and surf
     this.sea = new THREE.Mesh(new THREE.PlaneGeometry(600, 600, 1, 1), makeWater({ sea: true, rect: [-0.75, -0.75, GRID + 0.75, GRID + 0.75], shallow: '#62d9d2', deep: '#1f78c2' }));
     this.sea.rotation.x = -Math.PI / 2;
-    this.sea.position.set(14, -0.55, 14);
+    this.sea.position.set(GRID / 2, -0.55, GRID / 2);
     this.sea.receiveShadow = true;
     this.scene.add(this.sea);
 
@@ -971,8 +985,11 @@ export class Renderer {
     this.updateBubbles(t, now);
     this.consumeFx();
     this.updateFx(dt);
-    this.updateActors(dt, t);
+    this.updateActors(dt, t, now);
     this.updateClouds(dt);
+    this.updateFishing(t, now);
+    this.life.update(dt, t, this.nightNow(now), this.target);
+    this.followSun();
     const wk = this.updateWeather(dt, now);
     this.updateLight(now, t, wk);
 
@@ -1121,6 +1138,48 @@ export class Renderer {
     }
   }
 
+  private nightNow(now: number) {
+    return this.store.s.settings.dayNight ? nightFactor(now).night : 0;
+  }
+
+  // the shadow camera follows the view so shadows stay crisp on the big map
+  private followSun() {
+    const sc = this.sun.shadow.camera;
+    const half = clamp(Math.round(22 / this.cam.zoom), 12, 48);
+    if (sc.right !== half) { sc.left = -half; sc.right = half; sc.top = half; sc.bottom = -half; sc.updateProjectionMatrix(); }
+    const texel = (half * 2) / this.sun.shadow.mapSize.x;
+    const x = Math.round(this.target.x / texel) * texel, z = Math.round(this.target.z / texel) * texel;
+    this.sun.target.position.set(x, 0, z);
+    this.sun.position.set(x + 14, 26, z + 8);
+    this.sun.target.updateMatrixWorld();
+  }
+
+  private updateFishing(t: number, now: number) {
+    const fi = fishingInfo(this.store.s, now);
+    this.fishing.update(fi.state, fi.p, t);
+    if (!this.fishBubble) {
+      this.fishBubble = new THREE.Sprite(new THREE.SpriteMaterial({ depthTest: false, transparent: true }));
+      this.fishBubble.center.set(0.5, 0);
+      this.fishBubble.renderOrder = 10;
+      this.fxLayer.add(this.fishBubble);
+    }
+    const b = this.fishBubble;
+    const show = fi.state === 'ready' || fi.state === 'waiting' || fi.state === 'idle';
+    b.visible = show;
+    if (!show) return;
+    const mode = fi.state === 'ready' ? 'ready' : fi.state === 'waiting' ? 'progress' : 'faded';
+    const step = Math.round(fi.p * 24);
+    const key = `${mode}|${step}`;
+    if (b.userData.key !== key) {
+      b.material.map = bubbleTex(fi.state === 'idle' ? '🎣' : '🐟', mode, step, 0);
+      b.material.needsUpdate = true;
+      b.userData.key = key;
+    }
+    const sc = mode === 'ready' ? 0.62 : 0.5;
+    b.scale.set(sc, sc * 1.25, 1);
+    b.position.set(FISH_SPOT.x, 1.4 + (mode === 'ready' ? Math.abs(Math.sin(t / 260)) * 0.14 : 0), FISH_SPOT.y);
+  }
+
   private updateBubbles(t: number, now: number) {
     const moveId = this.store.ui.placing?.moveId;
     for (const o of this.store.s.objects) {
@@ -1212,7 +1271,7 @@ export class Renderer {
 
   private buildClouds() {
     const mat = new THREE.MeshBasicMaterial();
-    for (let i = 0; i < 7; i++) {
+    for (let i = 0; i < 12; i++) {
       const g = new THREE.Group();
       const n = 3 + Math.floor(hash(i, 2) * 3);
       for (let k = 0; k < n; k++) {
@@ -1224,7 +1283,7 @@ export class Renderer {
         m.layers.set(2);
         g.add(m);
       }
-      g.position.set(-20 + hash(i, 7) * 70, 14 + hash(i, 8) * 4, -6 + hash(i, 9) * 40);
+      g.position.set(-20 + hash(i, 7) * (GRID + 40), 14 + hash(i, 8) * 4, -6 + hash(i, 9) * (GRID + 12));
       g.userData.speed = 0.35 + hash(i, 10) * 0.35;
       this.scene.add(g);
       this.clouds.push(g);
@@ -1236,7 +1295,7 @@ export class Renderer {
     for (const g of this.clouds) {
       g.visible = on;
       g.position.x += (g.userData.speed as number) * dt;
-      if (g.position.x > GRID + 26) { g.position.x = -26; g.position.z = -6 + Math.random() * 40; }
+      if (g.position.x > GRID + 26) { g.position.x = -26; g.position.z = -6 + Math.random() * (GRID + 12); }
     }
   }
 
@@ -1328,54 +1387,219 @@ export class Renderer {
   }
 
   // ------------------------------------------------ farmer and dog
+  // Nobody wanders on their own: the farmer walks where the player taps, the dog trots along
+  // and sits beside the farmer. At night both head home. Paths come from A* on the tile grid,
+  // so neither walks through buildings.
 
-  private freeTile(near: Actor, r: number) {
-    const s = this.store;
-    for (let i = 0; i < 24; i++) {
-      const x = Math.floor(near.x + (Math.random() - 0.5) * r * 2);
-      const y = Math.floor(near.y + (Math.random() - 0.5) * r * 2);
-      if (s.isUnlocked(x, y) && !s.objectAt(x, y)) return { x: x + 0.5, y: y + 0.5 };
+  private nav = new Uint8Array(GRID * GRID); // 1 = blocked
+  private navKey = '';
+  private marker: THREE.Mesh | null = null;
+  private markerT = 0;
+  private nightMode = false;
+  private zzz: THREE.Sprite | null = null;
+
+  private rebuildNav() {
+    const s = this.store.s;
+    const key = `${this.landKey}|${this.store.objVersion}|${s.objects.length}`;
+    if (key === this.navKey) return false;
+    this.navKey = key;
+    this.nav.fill(0);
+    for (let y = 0; y < GRID; y++) for (let x = 0; x < GRID; x++) if (!this.store.isUnlocked(x, y)) this.nav[y * GRID + x] = 1;
+    for (const o of s.objects) {
+      const d = BUILDING[o.type];
+      for (let j = 0; j < d.h; j++) for (let i = 0; i < d.w; i++) {
+        const x = o.x + i, y = o.y + j;
+        if (x >= 0 && y >= 0 && x < GRID && y < GRID) this.nav[y * GRID + x] = 1;
+      }
+    }
+    return true;
+  }
+
+  private free(x: number, y: number) {
+    return x >= 0 && y >= 0 && x < GRID && y < GRID && !this.nav[y * GRID + x];
+  }
+
+  // nearest walkable tile to (x, y), searching outward in rings
+  private nearestFree(x: number, y: number, max = 12) {
+    for (let r = 0; r <= max; r++) {
+      let best: { x: number; y: number } | null = null, bd = 1e9;
+      for (let dy = -r; dy <= r; dy++) for (let dx = -r; dx <= r; dx++) {
+        if (Math.max(Math.abs(dx), Math.abs(dy)) !== r || !this.free(x + dx, y + dy)) continue;
+        const d = dx * dx + dy * dy;
+        if (d < bd) { bd = d; best = { x: x + dx, y: y + dy }; }
+      }
+      if (best) return best;
     }
     return null;
   }
 
-  private step(a: Actor, speed: number, dt: number) {
-    const dx = a.tx - a.x, dy = a.ty - a.y;
-    if (Math.abs(dx) + Math.abs(dy) < 0.03) { a.moving = false; a.x = a.tx; a.y = a.ty; return true; }
-    a.moving = true;
-    const mv = speed * dt;
-    // walk along one axis at a time, like following the tile grid
-    if (Math.abs(dx) > 0.02) { const m = Math.sign(dx) * Math.min(Math.abs(dx), mv); a.x += m; a.heading = m > 0 ? Math.PI / 2 : -Math.PI / 2; }
-    else { const m = Math.sign(dy) * Math.min(Math.abs(dy), mv); a.y += m; a.heading = m > 0 ? 0 : Math.PI; }
-    return false;
-  }
-
-  private updateActors(dt: number, t: number) {
-    const f = this.farmer, g = this.dog;
-    if (!this.store.isUnlocked(Math.floor(f.x), Math.floor(f.y))) {
-      const c = this.store.viewCenter();
-      f.x = f.tx = c.x + 0.5; f.y = f.ty = c.y + 0.5;
-    }
-    if (this.step(f, 1.2, dt)) {
-      f.wait -= dt;
-      if (f.wait <= 0) {
-        const n = this.freeTile(f, 5);
-        if (n) { f.tx = n.x; f.ty = n.y; }
-        f.wait = 1.5 + Math.random() * 4;
+  // A* over tiles with diagonal steps (no corner cutting); returns tile centers to walk through
+  private findPath(sx: number, sy: number, tx: number, ty: number) {
+    if (!this.free(tx, ty)) return null;
+    const N = GRID * GRID, start = sy * GRID + sx, goal = ty * GRID + tx;
+    if (start === goal) return [];
+    const gs = new Float32Array(N).fill(Infinity), from = new Int32Array(N).fill(-1), closed = new Uint8Array(N);
+    const open: number[] = [start];
+    const fs = new Float32Array(N).fill(Infinity);
+    const hh = (i: number) => { const dx = Math.abs((i % GRID) - tx), dy = Math.abs(Math.floor(i / GRID) - ty); return Math.max(dx, dy) + 0.41 * Math.min(dx, dy); };
+    gs[start] = 0; fs[start] = hh(start);
+    let guard = 0;
+    while (open.length && guard++ < 6000) {
+      let bi = 0;
+      for (let i = 1; i < open.length; i++) if (fs[open[i]] < fs[open[bi]]) bi = i;
+      const cur = open[bi];
+      open.splice(bi, 1);
+      if (cur === goal) break;
+      closed[cur] = 1;
+      const cx = cur % GRID, cy = Math.floor(cur / GRID);
+      for (let dy = -1; dy <= 1; dy++) for (let dx = -1; dx <= 1; dx++) {
+        if (!dx && !dy) continue;
+        const nx = cx + dx, ny = cy + dy;
+        if (!this.free(nx, ny)) continue;
+        if (dx && dy && (!this.free(cx + dx, cy) || !this.free(cx, cy + dy))) continue;
+        const ni = ny * GRID + nx;
+        if (closed[ni]) continue;
+        const ng = gs[cur] + (dx && dy ? 1.414 : 1);
+        if (ng < gs[ni]) {
+          gs[ni] = ng; fs[ni] = ng + hh(ni); from[ni] = cur;
+          if (!open.includes(ni)) open.push(ni);
+        }
       }
     }
-    const fd = Math.abs(g.x - f.x) + Math.abs(g.y - f.y);
-    if (fd > 2.2 || (fd > 0.9 && !g.moving && Math.random() < dt * 0.8)) {
-      g.tx = f.x + (Math.random() < 0.5 ? 0.6 : -0.6);
-      g.ty = f.y + (Math.random() < 0.5 ? 0.5 : -0.5);
-    } else if (!g.moving && Math.random() < dt * 0.15) {
-      const n = this.freeTile(g, 2);
-      if (n) { g.tx = n.x; g.ty = n.y; }
+    if (from[goal] < 0) return null;
+    const path: { x: number; y: number }[] = [];
+    for (let i = goal; i !== start; i = from[i]) path.push({ x: (i % GRID) + 0.5, y: Math.floor(i / GRID) + 0.5 });
+    return path.reverse();
+  }
+
+  private send(a: Actor, tx: number, ty: number) {
+    const sx = Math.floor(a.x), sy = Math.floor(a.y);
+    const p = this.findPath(sx, sy, tx, ty);
+    if (!p) return false;
+    a.path = p;
+    a.goal = { x: tx, y: ty };
+    return true;
+  }
+
+  // a free tile next to the farmer's goal for the dog to sit on
+  private dogSpot(tx: number, ty: number) {
+    for (const [dx, dy] of [[1, 0], [-1, 0], [0, 1], [0, -1], [1, 1], [-1, 1], [1, -1], [-1, -1]]) {
+      if (this.free(tx + dx, ty + dy)) return { x: tx + dx, y: ty + dy };
     }
-    if (fd > 8) { g.x = f.x; g.y = f.y; }
-    this.step(g, 1.9, dt);
+    return null;
+  }
+
+  // called when the player taps free farmland
+  walkTo(tx: number, ty: number) {
+    this.rebuildNav();
+    const f = this.farmer, g = this.dog;
+    f.inside = false;
+    g.sleeping = false;
+    if (!this.send(f, tx, ty)) return;
+    const ds = this.dogSpot(tx, ty);
+    if (ds) this.send(g, ds.x, ds.y);
+    this.showMarker(tx + 0.5, ty + 0.5);
+  }
+
+  private showMarker(x: number, z: number) {
+    if (!this.marker) {
+      const tex = canvasTex('ring', 128, 128, (c) => {
+        c.strokeStyle = '#ffffff'; c.lineWidth = 10;
+        c.beginPath(); c.arc(64, 64, 50, 0, Math.PI * 2); c.stroke();
+        c.fillStyle = 'rgba(255,255,255,0.35)';
+        c.beginPath(); c.arc(64, 64, 20, 0, Math.PI * 2); c.fill();
+      });
+      this.marker = new THREE.Mesh(G.plane, new THREE.MeshBasicMaterial({ map: tex, transparent: true, depthWrite: false, color: '#fff3a0' }));
+      this.marker.rotation.x = -Math.PI / 2;
+      this.fxLayer.add(this.marker);
+    }
+    this.marker.position.set(x, 0.05, z);
+    this.markerT = 1;
+  }
+
+  // the farmer's home door: the manor if there is one, else the farmhouse
+  private homeDoor() {
+    const s = this.store.s;
+    const home = s.objects.find((o) => o.type === 'manor') ?? s.objects.find((o) => o.type === 'house');
+    if (!home) return null;
+    const d = BUILDING[home.type];
+    const door = home.type === 'manor' ? { x: home.x + 1, y: home.y + d.h } : { x: home.x, y: home.y + d.h };
+    const kennel = home.type === 'manor' ? { x: home.x + 2.62, y: home.y + 2.55, rot: -0.5 } : null;
+    return { door, kennel };
+  }
+
+  private updateActors(dt: number, t: number, now: number) {
+    const f = this.farmer, g = this.dog;
+    this.rebuildNav();
+    // placed a building on top of them: hop to the nearest free tile
+    for (const a of [f, g]) {
+      if (a.inside || a.sleeping) continue;
+      const tx = Math.floor(a.x), ty = Math.floor(a.y);
+      if (!this.free(tx, ty)) {
+        const n = this.nearestFree(tx, ty) ?? this.nearestFree(Math.floor(this.target.x), Math.floor(this.target.z), 30);
+        if (n) { a.x = n.x + 0.5; a.y = n.y + 0.5; a.path = []; }
+      }
+      // the path got blocked by something new: plan again or stop
+      if (a.path.length && a.path.some((p) => !this.free(Math.floor(p.x), Math.floor(p.y)))) {
+        if (!a.goal || !this.send(a, a.goal.x, a.goal.y)) a.path = [];
+      }
+    }
+
+    // bedtime and morning
+    const nf = this.store.s.settings.dayNight ? nightFactor(now) : { night: 0, dusk: 0 };
+    const nightNow = nf.night > 0.55;
+    if (nightNow !== this.nightMode) {
+      this.nightMode = nightNow;
+      const h = this.homeDoor();
+      if (nightNow && h) {
+        const d = this.free(h.door.x, h.door.y) ? h.door : this.nearestFree(h.door.x, h.door.y, 4);
+        if (d) {
+          this.send(f, d.x, d.y);
+          f.goHome = true;
+          const ds = h.kennel ? this.nearestFree(Math.floor(h.kennel.x), Math.floor(h.kennel.y + 0.6), 3) : this.dogSpot(d.x, d.y);
+          if (ds) { this.send(g, ds.x, ds.y); g.goHome = true; }
+        }
+      } else if (!nightNow) {
+        if (f.inside) { f.inside = false; }
+        g.sleeping = false;
+        f.goHome = g.goHome = false;
+      }
+    }
+
+    this.step(f, 1.3, dt);
+    this.step(g, 2.0, dt);
+    if (f.goHome && !f.path.length) { f.goHome = false; if (this.nightMode) f.inside = true; }
+    if (g.goHome && !g.path.length) {
+      g.goHome = false;
+      if (this.nightMode) {
+        g.sleeping = true;
+        const h = this.homeDoor();
+        if (h?.kennel) { g.heading = h.kennel.rot + Math.PI; }
+      }
+    }
+    // the dog keeps up: if it falls far behind the farmer it catches up by path
+    const fd = Math.hypot(g.x - f.x, g.y - f.y);
+    if (!g.sleeping && !g.goHome && !g.path.length && fd > 2.5 && !f.inside) {
+      const ds = this.dogSpot(Math.floor(f.x), Math.floor(f.y));
+      if (ds) this.send(g, ds.x, ds.y);
+    }
+    // idle: the dog sits facing the farmer
+    if (!g.moving && !g.sleeping && fd < 2.6 && fd > 0.1) g.heading = Math.atan2(f.x - g.x, f.y - g.y);
+
+    if (this.marker) {
+      this.markerT = Math.max(0, this.markerT - dt * 0.9);
+      const k = this.markerT;
+      this.marker.visible = k > 0;
+      this.marker.scale.setScalar(0.5 + (1 - k) * 0.5);
+      (this.marker.material as THREE.MeshBasicMaterial).opacity = k;
+    }
+
     for (const a of [f, g]) {
       a.phase += dt * (a.moving ? (a === g ? 16 : 10) : 0);
+      // stepping inside the door: shrink away, and grow back out in the morning
+      a.fade = clamp(a.fade + (a.inside ? -dt * 3 : dt * 3), 0, 1);
+      a.g.visible = a.fade > 0.01;
+      a.g.scale.setScalar(0.3 + a.fade * 0.7);
       a.g.position.set(a.x, a.moving ? Math.abs(Math.sin(a.phase)) * 0.03 : 0, a.y);
       const cur = a.g.rotation.y;
       let diff = a.heading - cur;
@@ -1387,9 +1611,18 @@ export class Renderer {
       blink(a.g, t, a === g ? 7 : 3);
       if (a === g) {
         const tail = a.g.userData.tail as THREE.Object3D;
-        if (tail) tail.rotation.z = Math.sin(t / (a.moving ? 60 : 120)) * 0.6;
-        // idle dog tilts its head, curious
-        if (head) head.rotation.z = a.moving ? 0 : Math.sin(t / 1700) * 0.22;
+        const legs = a.g.userData.legs as THREE.Object3D[];
+        if (a.sleeping) {
+          // curled up asleep: legs tucked, body low, slow breathing, eyes shut
+          legs.forEach((l, i) => { l.rotation.x = i < 2 ? -1.4 : 1.4; });
+          a.g.position.y = -0.1 + Math.sin(t / 900) * 0.004;
+          if (head) { head.rotation.x = 0.35; head.rotation.z = 0; }
+          if (tail) tail.rotation.z = 0.9;
+          for (const e of (head?.userData.eyes as THREE.Object3D[] | undefined) ?? []) e.scale.y = 0.1;
+        } else {
+          if (tail) tail.rotation.z = Math.sin(t / (a.moving ? 60 : 120)) * 0.6;
+          if (head) { head.rotation.z = a.moving ? 0 : Math.sin(t / 1700) * 0.22; head.rotation.x = a.moving ? 0 : Math.max(0, Math.sin(t / 2100) - 0.7) * 1.5; }
+        }
       } else {
         const body = a.g.userData.body as THREE.Object3D | undefined;
         // breathing and looking around while standing still
@@ -1405,6 +1638,31 @@ export class Renderer {
         }
       }
     }
+
+    // sleepy Z z z above the dog
+    if (!this.zzz) {
+      this.zzz = new THREE.Sprite(new THREE.SpriteMaterial({ map: textTex('z Z z', '#dfe8ff'), transparent: true, depthWrite: false }));
+      this.zzz.scale.set(0.9, 0.17, 1);
+      this.fxLayer.add(this.zzz);
+    }
+    this.zzz.visible = g.sleeping;
+    if (g.sleeping) {
+      this.zzz.position.set(g.x + 0.15, 0.45 + Math.sin(t / 600) * 0.05, g.y);
+      this.zzz.material.opacity = 0.6 + Math.sin(t / 400) * 0.3;
+    }
+  }
+
+  // follow the path; returns true when standing still
+  private step(a: Actor, speed: number, dt: number) {
+    if (a.inside || a.sleeping || !a.path.length) { a.moving = false; return true; }
+    const p = a.path[0];
+    const dx = p.x - a.x, dy = p.y - a.y, d = Math.hypot(dx, dy);
+    const mv = speed * dt;
+    a.moving = true;
+    a.heading = Math.atan2(dx, dy);
+    if (d <= mv) { a.x = p.x; a.y = p.y; a.path.shift(); if (!a.path.length) a.moving = false; }
+    else { a.x += (dx / d) * mv; a.y += (dy / d) * mv; }
+    return !a.moving;
   }
 }
 
@@ -1476,26 +1734,26 @@ function animateLegs(g: THREE.Object3D, s: number) {
   if (arms) arms.forEach((a, i) => { a.rotation.x = s * (i ? 0.8 : -0.8); });
 }
 
-export function buildFarmer() {
+export function buildFarmer(shirt = '#d64541', overall = '#3b6fa8', jeans = '#2f5d8a') {
   const g = new THREE.Group();
   const legs: THREE.Object3D[] = [];
-  legPivot(g, -0.05, 0.3, 0, 0.28, 0.08, '#2f5d8a', legs);
-  legPivot(g, 0.05, 0.3, 0, 0.28, 0.08, '#2f5d8a', legs);
+  legPivot(g, -0.05, 0.3, 0, 0.28, 0.08, jeans, legs);
+  legPivot(g, 0.05, 0.3, 0, 0.28, 0.08, jeans, legs);
   legs.forEach((l) => ball(l, 0.05, '#5a3517', 0, -0.28, 0.025, 0.9, 0.6, 1.4));
   const body = group(g);
   // shirt, then overalls with a bib and straps
-  caps(body, 0.105, 0.1, '#d64541', 0, 0.44, 0);
-  mk(body, cylGeo(0.112, 0.118, 16), M('#3b6fa8'), 1, 0.13, 1, 0, 0.345, 0);
-  mk(body, G.ball, M('#3b6fa8'), 0.112, 0.06, 0.118, 0, 0.28, 0);
-  bx(body, 0.12, 0.1, 0.03, '#3b6fa8', 0, 0.38, 0.09);
+  caps(body, 0.105, 0.1, shirt, 0, 0.44, 0);
+  mk(body, cylGeo(0.112, 0.118, 16), M(overall), 1, 0.13, 1, 0, 0.345, 0);
+  mk(body, G.ball, M(overall), 0.112, 0.06, 0.118, 0, 0.28, 0);
+  bx(body, 0.12, 0.1, 0.03, overall, 0, 0.38, 0.09);
   for (const sx of [-1, 1]) {
-    bx(body, 0.028, 0.14, 0.02, '#3b6fa8', sx * 0.05, 0.44, 0.095).rotation.x = -0.12;
+    bx(body, 0.028, 0.14, 0.02, overall, sx * 0.05, 0.44, 0.095).rotation.x = -0.12;
     ball(body, 0.012, '#f2d16b', sx * 0.05, 0.475, 0.11);
   }
   const arms: THREE.Object3D[] = [];
   for (const sx of [-1, 1]) {
     const a = group(body, sx * 0.13, 0.52, 0);
-    caps(a, 0.036, 0.12, '#d64541', 0, -0.08, 0);
+    caps(a, 0.036, 0.12, shirt, 0, -0.08, 0);
     ball(a, 0.038, '#f2c49b', 0, -0.19, 0);
     a.rotation.z = sx * 0.12;
     arms.push(a);
@@ -1752,7 +2010,7 @@ function plantModel(cd: CropDef) {
 function buildObject(e: Entry, o: FarmObject, d: BuildingDef, store: GameStore) {
   switch (d.kind) {
     case 'plot': return buildPlot(e);
-    case 'house': case 'barn': return buildHouse(e, d);
+    case 'house': case 'barn': return d.id === 'manor' ? buildManor(e, d) : buildHouse(e, d);
     case 'production': return d.id === 'fishing_pier' ? buildPier(e, d) : buildHouse(e, d);
     case 'silo': return buildSilo(e);
     case 'board': return buildBoard(e);
@@ -2441,5 +2699,390 @@ function buildDeco(e: Entry, d: BuildingDef) {
       groundGlow(g, 1, 1, 2.2);
       e.top = 1.7;
       break;
+  }
+}
+
+// ------------------------------------------------------------------ fishing spot
+// A jetty off the south shore. Once opened a fisher waits in a rowboat inside a ring of buoys;
+// the bobber dances when a fish bites and fish leap out when the catch is ready.
+
+function signTex(text: string) {
+  return canvasTex(`sign|${text}`, 256, 128, (c) => {
+    c.fillStyle = '#c98a45'; c.fillRect(0, 0, 256, 128);
+    c.strokeStyle = '#6b4226'; c.lineWidth = 12; c.strokeRect(6, 6, 244, 116);
+    c.fillStyle = '#fff8e6'; c.font = '900 44px ui-rounded, "Trebuchet MS", system-ui, sans-serif';
+    c.textAlign = 'center'; c.textBaseline = 'middle'; c.fillText(text, 128, 66);
+  });
+}
+
+function splashRing() {
+  const m = new THREE.Mesh(new THREE.RingGeometry(0.7, 1, 24), new THREE.MeshBasicMaterial({ color: '#ffffff', transparent: true, opacity: 0, depthWrite: false }));
+  m.rotation.x = -Math.PI / 2;
+  return m;
+}
+
+function fishModel(color = '#ff9a3c') {
+  const g = new THREE.Group();
+  mk(g, G.ball, new THREE.MeshStandardMaterial({ color, roughness: 0.3, metalness: 0.2 }), 0.05, 0.035, 0.1, 0, 0, 0);
+  const tail = mk(g, cylGeo(0, 0.04, 4), M(shade(color, -0.08)), 1, 0.06, 0.3, 0, 0, -0.11);
+  tail.rotation.x = -Math.PI / 2;
+  eyes(g, 0.03, 0.01, 0.06, 0.01, true);
+  return g;
+}
+
+function buildFishingSpot() {
+  const root = new THREE.Group();
+  const X = FISH_SPOT.x, Z0 = GRID + 0.25, Z1 = FISH_SPOT.y - 0.2;
+  // jetty deck on posts
+  const deck = new THREE.Mesh(meterBox(Z1 - Z0, 0.07, 0.7), surfaceMat('planks', '#c49660', 1.2));
+  deck.rotation.y = Math.PI / 2;
+  deck.position.set(X, -0.12, (Z0 + Z1) / 2);
+  deck.castShadow = deck.receiveShadow = true;
+  root.add(deck);
+  for (let z = Z0 + 0.15; z <= Z1 + 0.01; z += 0.55) for (const sx of [-1, 1]) {
+    mk(root, cylGeo(0.045, 0.05, 8), surfaceMat('bark', '#6b4226', 4), 1, 0.9, 1, X + sx * 0.32, -0.55, z);
+  }
+  for (const sx of [-1, 1]) mk(root, cylGeo(0.05, 0.05, 8), surfaceMat('bark', '#6b4226', 4), 1, 0.35, 1, X + sx * 0.32, 0.02, Z1);
+  // sign at the shore end
+  const sign = group(root, X - 0.55, -0.2, Z0 + 0.15);
+  cyl(sign, 0.03, 0.03, 0.75, '#6b4226', 0, 0, 0, 6);
+  const board = new THREE.Mesh(G.box, [M('#a8733f'), M('#a8733f'), M('#a8733f'), M('#a8733f'), new THREE.MeshStandardMaterial({ map: signTex('FISHING') }), new THREE.MeshStandardMaterial({ map: signTex('FISHING') })]);
+  board.scale.set(0.62, 0.3, 0.05);
+  board.position.set(0, 0.72, 0);
+  board.castShadow = true;
+  sign.add(board);
+  const lock = badge(root, '🔒', 0.3, X, 0.35, Z0 + 0.3);
+  lock.rotation.x = -0.3;
+  // chain rope across the jetty while locked
+  const rope = mk(root, cylGeo(0.012, 0.012, 6), M('#8a6a44'), 1, 0.66, 1, X, 0.02, Z0 + 0.3);
+  rope.rotation.z = Math.PI / 2;
+
+  // buoys marking the fishing area
+  const open = group(root);
+  const buoys: THREE.Object3D[] = [];
+  for (let i = 0; i < 7; i++) {
+    const a = (i / 7) * Math.PI * 2 + 0.3;
+    const b = group(open, X + Math.cos(a) * 1.35, -0.5, FISH_SPOT.y + 0.4 + Math.sin(a) * 1.0);
+    ball(b, 0.07, i % 2 ? '#ffffff' : '#e74c3c', 0, 0, 0, 1, 0.9, 1);
+    cyl(b, 0.01, 0.01, 0.12, '#3a3a3a', 0, 0.04, 0, 4);
+    buoys.push(b);
+  }
+  // rowboat with a fisher in a yellow raincoat
+  const boat = group(open, X + 0.75, -0.62, FISH_SPOT.y + 0.35);
+  boat.rotation.y = 0.5;
+  const hull = mk(boat, G.dome, surfaceMat('planks', '#9a5a32', 3), 0.26, 0.2, 0.55, 0, 0.3, 0);
+  hull.rotation.x = Math.PI;
+  mk(boat, new THREE.TorusGeometry(1, 0.06, 6, 24), M('#7a4a28'), 0.26, 0.55, 0.4, 0, 0.3, 0).rotation.x = Math.PI / 2;
+  mk(boat, G.ball, M('#f4efe6'), 0.27, 0.05, 0.56, 0, 0.16, 0);
+  bx(boat, 0.44, 0.03, 0.1, '#7a4a28', 0, 0.22, -0.12);
+  const fisher = buildFarmer('#f2b134', '#3a5a40', '#3a5a40');
+  fisher.position.set(0, 0.0, -0.12);
+  fisher.scale.setScalar(0.9);
+  const fl = fisher.userData.legs as THREE.Object3D[];
+  fl.forEach((l) => { l.rotation.x = -1.4; });
+  const arms = fisher.userData.arms as THREE.Object3D[];
+  arms.forEach((a) => { a.rotation.x = -1.1; });
+  boat.add(fisher);
+  const rod = group(boat, 0.08, 0.4, 0.1);
+  mk(rod, cylGeo(0.006, 0.012, 5), M('#5a3a1a'), 1, 0.9, 1, 0, 0.45, 0);
+  rod.rotation.x = 0.9;
+  rod.rotation.z = 0.5;
+  const bobber = group(open, X - 0.25, -0.53, FISH_SPOT.y + 0.8);
+  ball(bobber, 0.035, '#e74c3c', 0, 0.02, 0);
+  ball(bobber, 0.036, '#ffffff', 0, -0.005, 0, 1, 0.5, 1);
+  const lineGeo = new THREE.BufferGeometry().setFromPoints([new THREE.Vector3(), new THREE.Vector3()]);
+  const line = new THREE.Line(lineGeo, new THREE.LineBasicMaterial({ color: '#f5f5f5' }));
+  line.frustumCulled = false;
+  open.add(line);
+  const fish = fishModel();
+  fish.visible = false;
+  open.add(fish);
+  const ring = splashRing();
+  open.add(ring);
+
+  const hit = new THREE.Mesh(G.box, HIT_MAT);
+  hit.scale.set(3, 1.4, Z1 - Z0 + 1.8);
+  hit.position.set(X, 0.2, (Z0 + Z1) / 2 + 0.6);
+  root.add(hit);
+
+  const tipV = new THREE.Vector3();
+  const update = (state: 'locked' | 'idle' | 'waiting' | 'ready', p: number, t: number) => {
+    const isOpen = state !== 'locked';
+    open.visible = isOpen;
+    lock.visible = rope.visible = !isOpen;
+    if (!isOpen) return;
+    buoys.forEach((b, i) => { b.position.y = -0.5 + Math.sin(t / 600 + i) * 0.02; b.rotation.z = Math.sin(t / 800 + i) * 0.1; });
+    boat.position.y = -0.62 + Math.sin(t / 900) * 0.015;
+    boat.rotation.z = Math.sin(t / 1100) * 0.04;
+    const casting = state !== 'idle';
+    bobber.visible = line.visible = casting;
+    rod.rotation.x = casting ? 0.9 : 0.2;
+    // the bobber twitches as a bite gets closer, and plunges when the fish is on
+    let dip = Math.sin(t / 500) * 0.012;
+    if (state === 'waiting' && p > 0.8) dip -= Math.max(0, Math.sin(t / 90)) * 0.03;
+    if (state === 'ready') dip -= Math.max(0, Math.sin(t / 140)) * 0.06;
+    bobber.position.y = -0.53 + dip;
+    if (casting) {
+      rod.updateWorldMatrix(true, false);
+      tipV.set(0, 0.9, 0).applyMatrix4(rod.matrixWorld);
+      open.worldToLocal(tipV);
+      const pos = line.geometry.getAttribute('position') as THREE.BufferAttribute;
+      pos.setXYZ(0, tipV.x, tipV.y, tipV.z);
+      pos.setXYZ(1, bobber.position.x, bobber.position.y + 0.03, bobber.position.z);
+      pos.needsUpdate = true;
+    }
+    // leaping fish and splash rings while the catch waits
+    const u = ((t / 1700) % 1);
+    fish.visible = state === 'ready' && u < 0.45;
+    if (fish.visible) {
+      const k = u / 0.45;
+      fish.position.set(bobber.position.x + 0.35 - k * 0.7, -0.55 + Math.sin(k * Math.PI) * 0.45, bobber.position.z + 0.1);
+      fish.rotation.set(0, -Math.PI / 2, 0);
+      fish.rotateX(-Math.cos(k * Math.PI) * 1.1);
+    }
+    const rk = state === 'ready' ? ((t / 1700 + 0.55) % 1) : 1;
+    ring.position.set(bobber.position.x - 0.35, -0.53, bobber.position.z + 0.1);
+    ring.scale.setScalar(0.05 + rk * 0.35);
+    (ring.material as THREE.MeshBasicMaterial).opacity = state === 'ready' ? (1 - rk) * 0.8 : 0;
+  };
+  return { root, hit, update };
+}
+
+// ------------------------------------------------------------------ manor
+// A grand two story home: columned porch with a balcony, hipped roof with dormers,
+// twin chimneys, lanterns, hedges, a stone path and a kennel for the dog.
+
+function buildManor(e: Entry, d: BuildingDef) {
+  const g = e.root;
+  const H = d.height * ZU, y0 = 0.1;
+  const wall = surfaceMat('siding', d.wall, 1.1);
+  const trim = '#fbf7ee';
+  const bw = 2.5, bd = 1.45, cx = 1.5, cz = 1.05, fz = cz + bd / 2;
+  bxT(g, 2.9, y0, 2.0, 'stone', '#bdb6a6', cx, 0, cz, 2.2);
+  const body = new THREE.Mesh(meterBox(bw, H, bd), wall);
+  body.position.set(cx, y0 + H / 2, cz);
+  body.castShadow = body.receiveShadow = true;
+  g.add(body);
+  // floor band and corner quoins
+  bx(g, bw + 0.04, 0.06, bd + 0.04, trim, cx, y0 + H * 0.5, cz);
+  for (const [ex, ez] of [[-1, -1], [1, -1], [-1, 1], [1, 1]]) bx(g, 0.1, H, 0.1, trim, cx + ex * bw / 2, y0, cz + ez * bd / 2);
+  // hipped roof with eaves trim
+  const rh = 0.85;
+  const roofM = new THREE.Mesh(meterHip(bw + 0.36, rh, bd + 0.36), surfaceMat('roof', d.roof, 1.8, 0.65));
+  roofM.position.set(cx, y0 + H, cz);
+  roofM.castShadow = roofM.receiveShadow = true;
+  g.add(roofM);
+  bx(g, bw + 0.4, 0.07, bd + 0.4, trim, cx, y0 + H - 0.04, cz);
+  // dormers on the front slope
+  for (const sx of [-0.62, 0.62]) {
+    const dg = group(g, cx + sx, y0 + H + 0.18, fz - 0.05);
+    bxT(dg, 0.34, 0.34, 0.4, 'siding', d.wall, 0, 0, 0, 2);
+    roofT(dg, 0.44, 0.2, 0.5, d.roof, wall, 0, 0.34, 0, 0.05).rotation.y = Math.PI / 2;
+    windowUnit(dg, 0, 0.06, 0.205, 0, shade(d.roof, 0.05), false);
+  }
+  // chimneys
+  for (const sx of [-1, 1]) {
+    const x = cx + sx * (bw / 2 - 0.3);
+    bxT(g, 0.22, 0.95, 0.22, 'stone', '#b0624a', x, y0 + H + 0.1, cz - 0.2, 5);
+    bx(g, 0.28, 0.06, 0.28, '#7d4536', x, y0 + H + 1.05, cz - 0.2);
+  }
+  const puffA = smoke(g, cx - bw / 2 + 0.3, y0 + H + 1.15, cz - 0.2);
+  const puffB = smoke(g, cx + bw / 2 - 0.3, y0 + H + 1.15, cz - 0.2);
+  // portico: columns, balcony with railing and a pediment
+  const pz = fz + 0.42;
+  bxT(g, 1.1, 0.08, 0.5, 'stone', '#d9d3c4', cx, y0, fz + 0.22, 3);
+  for (let i = 0; i < 3; i++) bxT(g, 0.9 - i * 0.12, 0.05, 0.14, 'stone', '#cfc9b9', cx, y0 - 0.05 - i * 0.03 + 0.02, pz + 0.12 + i * 0.1, 4);
+  for (const sx of [-0.45, -0.15, 0.15, 0.45]) {
+    mk(g, cylGeo(0.045, 0.05, 14), M(trim), 1, H * 0.5 - 0.08, 1, cx + sx, y0 + 0.08 + (H * 0.5 - 0.08) / 2, pz);
+    bx(g, 0.12, 0.05, 0.12, trim, cx + sx, y0 + 0.08, pz);
+  }
+  bxT(g, 1.15, 0.07, 0.58, 'planks', '#e9e2d2', cx, y0 + H * 0.5, fz + 0.24, 3);
+  for (let i = 0; i <= 10; i++) cyl(g, 0.012, 0.012, 0.2, trim, cx - 0.52 + i * 0.104, y0 + H * 0.5 + 0.07, pz + 0.05, 5);
+  bx(g, 1.1, 0.03, 0.04, trim, cx, y0 + H * 0.5 + 0.27, pz + 0.05);
+  roofT(g, 0.34, 0.34, 1.12, d.roof, M(trim), cx, y0 + H - 0.03, fz + 0.14, 0).rotation.y = Math.PI / 2;
+  // entrance door and balcony door
+  const door = group(g, cx, y0, fz + 0.01);
+  bxT(door, 0.36, H * 0.36, 0.04, 'boards', '#6b3a22', 0, 0, 0, 3);
+  mk(door, G.dome, WIN, 0.18, 0.12, 0.03, 0, H * 0.36, 0.005).rotation.x = Math.PI / 2;
+  bx(door, 0.44, 0.05, 0.05, trim, 0, H * 0.36, 0.01);
+  ball(door, 0.02, '#e9c46a', 0.12, H * 0.18, 0.035);
+  const bdoor = group(g, cx, y0 + H * 0.5 + 0.07, fz + 0.01);
+  mk(bdoor, G.box, WIN, 0.3, H * 0.3, 0.03, 0, H * 0.15, 0);
+  bx(bdoor, 0.36, 0.05, 0.05, trim, 0, H * 0.3, 0.01);
+  // windows on both floors, front and right side
+  for (const x of [-0.95, -0.55, 0.55, 0.95]) {
+    windowUnit(g, cx + x, y0 + H * 0.12, fz + 0.01, 0, '#3f5f8a', Math.abs(x) > 0.9);
+    windowUnit(g, cx + x, y0 + H * 0.62, fz + 0.01, 0, '#3f5f8a', false);
+  }
+  for (const z of [-0.35, 0.35]) {
+    windowUnit(g, cx + bw / 2 + 0.01, y0 + H * 0.12, cz + z, Math.PI / 2, '#3f5f8a', false);
+    windowUnit(g, cx + bw / 2 + 0.01, y0 + H * 0.62, cz + z, Math.PI / 2, '#3f5f8a', false);
+  }
+  // lanterns by the steps
+  for (const sx of [-1, 1]) {
+    const lx = cx + sx * 0.62;
+    cyl(g, 0.02, 0.03, 0.55, '#2f2f2f', lx, y0, pz + 0.25, 6);
+    mk(g, G.box, LAMP, 0.08, 0.1, 0.08, lx, y0 + 0.6, pz + 0.25);
+    mk(g, cylGeo(0, 0.07, 4), M('#2f2f2f'), 1, 0.06, 1, lx, y0 + 0.68, pz + 0.25).rotation.y = Math.PI / 4;
+  }
+  groundGlow(g, cx, pz + 0.4, 2.4);
+  // hedges, flower beds and a stepping stone path
+  for (const sx of [-1, 1]) {
+    for (let i = 0; i < 3; i++) mk(g, blobGeo(20 + i + (sx > 0 ? 3 : 0)), M(shade('#3f8a33', (i % 2) * 0.05)), 0.2, 0.17, 0.16, cx + sx * (0.85 + i * 0.3), 0.16, fz + 0.28);
+    for (let i = 0; i < 5; i++) ball(g, 0.035, ['#ff6b8a', '#ffd23a', '#ffffff', '#b58cff', '#ff9f43'][(i + (sx > 0 ? 2 : 0)) % 5], cx + sx * (0.8 + i * 0.16), 0.08, fz + 0.52, 1, 0.8, 1, false);
+  }
+  for (let i = 0; i < 3; i++) {
+    const st = mk(g, cylGeo(0.12, 0.13, 10), surfaceMat('stone', '#cfc8b8', 6), 1, 0.03, 1, cx + (i % 2 ? 0.05 : -0.05), 0.015, pz + 0.55 + i * 0.25, false);
+    st.scale.z = 0.8;
+  }
+  // kennel for the dog in the front right corner
+  const k = group(g, 2.62, 0, 2.55);
+  k.rotation.y = -0.5;
+  bxT(k, 0.34, 0.24, 0.3, 'boards', '#b5452c', 0, 0, 0, 4);
+  roofT(k, 0.4, 0.16, 0.38, '#5d3a1f', surfaceMat('boards', '#b5452c', 4), 0, 0.24, 0, 0.03).rotation.y = Math.PI / 2;
+  mk(k, G.dome, M('#2a1a10'), 0.08, 0.13, 0.02, 0, 0, 0.152).rotation.set(0, 0, 0);
+  mk(k, cylGeo(0.06, 0.06, 12), M('#9aa3ab'), 1, 0.02, 1, 0.22, 0, 0.12);
+  e.top = y0 + H + rh + 0.2;
+  e.update = (_o, _now, t) => { puffA(true, t); puffB(true, t + 700); };
+}
+
+// ------------------------------------------------------------------ ambient life
+// Butterflies over the grass, gulls circling above the shore, fish leaping in the sea and a
+// sailboat drifting on the horizon. Purely cosmetic.
+
+class Life {
+  private butterflies: { g: THREE.Group; wings: THREE.Mesh[]; hx: number; hz: number; seed: number }[] = [];
+  private gulls: { g: THREE.Group; wings: THREE.Object3D[]; cx: number; cz: number; r: number; h: number; sp: number; ph: number }[] = [];
+  private fish: { g: THREE.Group; ring: THREE.Mesh; t: number; x: number; z: number; dir: number }[] = [];
+  private sail: THREE.Group;
+  private nextFish = 2;
+
+  constructor(scene: THREE.Scene) {
+    const wingMat = (c: string) => new THREE.MeshStandardMaterial({ color: c, side: THREE.DoubleSide, roughness: 0.6 });
+    const wingGeo = new THREE.CircleGeometry(1, 10);
+    wingGeo.translate(1, 0, 0);
+    const colors = ['#ffd23a', '#ffffff', '#ff8fb0', '#8fd3ff', '#ff9f43', '#b58cff'];
+    for (let i = 0; i < 14; i++) {
+      const g = new THREE.Group();
+      const wings: THREE.Mesh[] = [];
+      for (const sx of [-1, 1]) {
+        const w = new THREE.Mesh(wingGeo, wingMat(colors[i % colors.length]));
+        w.scale.set(0.045 * sx, 0.035, 1);
+        w.rotation.x = -Math.PI / 2;
+        const pivot = new THREE.Group();
+        pivot.add(w);
+        g.add(pivot);
+        wings.push(pivot as unknown as THREE.Mesh);
+      }
+      mk(g, G.ball, M('#3a2616'), 0.008, 0.008, 0.035, 0, 0, 0, false);
+      scene.add(g);
+      this.butterflies.push({ g, wings, hx: 0, hz: 0, seed: i * 7.3 });
+    }
+    for (let i = 0; i < 6; i++) {
+      const g = new THREE.Group();
+      mk(g, G.ball, M('#ffffff'), 0.05, 0.045, 0.13, 0, 0, 0);
+      mk(g, G.ball, M('#ffffff'), 0.035, 0.035, 0.04, 0, 0.02, 0.11);
+      mk(g, cylGeo(0, 0.012, 5), M('#f0a030'), 1, 0.05, 1, 0, 0.02, 0.16).rotation.x = Math.PI / 2;
+      const wings: THREE.Object3D[] = [];
+      for (const sx of [-1, 1]) {
+        const p = group(g, sx * 0.03, 0.02, 0);
+        const w = bx(p, 0.26, 0.012, 0.08, '#f2f2f2', sx * 0.13, 0, 0);
+        bx(p, 0.08, 0.013, 0.08, '#3a3a3a', sx * 0.25, 0, 0).position.y = 0.0005;
+        void w;
+        wings.push(p);
+      }
+      const side = i % 4, t = 0.2 + (i / 6) * 0.6;
+      const cx = side === 0 ? GRID * t : side === 1 ? GRID * t : side === 2 ? -3 : GRID + 3;
+      const cz = side === 0 ? -3 : side === 1 ? GRID + 3 : GRID * t;
+      scene.add(g);
+      this.gulls.push({ g, wings, cx, cz, r: 2 + hash(i, 3) * 2.5, h: 4 + hash(i, 4) * 2.5, sp: 0.25 + hash(i, 5) * 0.2, ph: i * 1.7 });
+    }
+    for (let i = 0; i < 3; i++) {
+      const g = fishModel(['#ff9a3c', '#8fb8d8', '#f2d16b'][i]);
+      g.visible = false;
+      const ring = splashRing();
+      scene.add(g, ring);
+      this.fish.push({ g, ring, t: 99, x: 0, z: 0, dir: 0 });
+    }
+    // sailboat far out at sea
+    this.sail = new THREE.Group();
+    const hull = mk(this.sail, G.dome, M('#f4efe6'), 0.35, 0.25, 0.9, 0, 0.1, 0);
+    hull.rotation.x = Math.PI;
+    bx(this.sail, 0.5, 0.05, 1.4, '#2e6da4', 0, 0.08, 0).scale.set(0.5, 1, 1);
+    cyl(this.sail, 0.02, 0.025, 1.6, '#6b4226', 0, 0.1, 0.05, 6);
+    const sailM = new THREE.Mesh(sailGeo(), new THREE.MeshStandardMaterial({ color: '#fffaf0', side: THREE.DoubleSide }));
+    sailM.scale.set(1, 1.4, 0.7);
+    sailM.position.set(0, 0.25, 0.08);
+    this.sail.add(sailM);
+    scene.add(this.sail);
+  }
+
+  update(dt: number, t: number, night: number, target: THREE.Vector3) {
+    const day = night < 0.4;
+    // butterflies flutter around home points near the view, respawning when left behind
+    this.butterflies.forEach((b, i) => {
+      b.g.visible = day;
+      if (!day) return;
+      if (Math.hypot(b.hx - target.x, b.hz - target.z) > 11 || (b.hx === 0 && b.hz === 0)) {
+        b.hx = clamp(target.x + (Math.random() - 0.5) * 16, 1, GRID - 1);
+        b.hz = clamp(target.z + (Math.random() - 0.5) * 16, 1, GRID - 1);
+      }
+      const k = t / 1000 + b.seed;
+      const x = b.hx + Math.sin(k * 0.7) * 1.2 + Math.sin(k * 1.9) * 0.3;
+      const z = b.hz + Math.cos(k * 0.55) * 1.2 + Math.cos(k * 2.3) * 0.3;
+      const y = 0.45 + Math.sin(k * 3.1) * 0.15 + Math.sin(k * 0.9) * 0.1;
+      const px = b.g.position.x, pz = b.g.position.z;
+      b.g.position.set(x, y, z);
+      b.g.rotation.y = Math.atan2(x - px, z - pz);
+      const flap = Math.sin(t / 45 + i) * 1.1;
+      b.wings[0].rotation.z = flap;
+      b.wings[1].rotation.z = -flap;
+    });
+    // gulls glide in wide circles, flapping now and then
+    this.gulls.forEach((gl) => {
+      const a = (t / 1000) * gl.sp + gl.ph;
+      gl.g.position.set(gl.cx + Math.cos(a) * gl.r, gl.h + Math.sin(a * 2) * 0.3, gl.cz + Math.sin(a) * gl.r);
+      gl.g.rotation.set(0, -a, 0.35);
+      const flap = Math.sin(t / 1500 + gl.ph) > 0.3 ? Math.sin(t / 90 + gl.ph) * 0.6 : 0.08;
+      gl.wings[0].rotation.z = flap;
+      gl.wings[1].rotation.z = -flap;
+    });
+    // now and then a fish leaps out of the sea near the shore in view
+    this.nextFish -= dt;
+    if (this.nextFish <= 0) {
+      this.nextFish = 1.5 + Math.random() * 3;
+      const f = this.fish.find((x) => x.t > 1.2);
+      if (f) {
+        const side = Math.floor(Math.random() * 4);
+        const along = clamp((side < 2 ? target.x : target.z) + (Math.random() - 0.5) * 14, 0, GRID);
+        const out = 1.4 + Math.random() * 4;
+        f.x = side === 2 ? -out : side === 3 ? GRID + out : along;
+        f.z = side === 0 ? -out : side === 1 ? GRID + out : along;
+        f.dir = Math.random() * Math.PI * 2;
+        f.t = 0;
+      }
+    }
+    for (const f of this.fish) {
+      f.t += dt;
+      const k = f.t / 0.8;
+      f.g.visible = k < 1;
+      if (k < 1) {
+        const dx = Math.sin(f.dir), dz = Math.cos(f.dir);
+        f.g.position.set(f.x + dx * (k - 0.5) * 0.9, -0.55 + Math.sin(k * Math.PI) * 0.6, f.z + dz * (k - 0.5) * 0.9);
+        f.g.rotation.set(0, f.dir, 0);
+        f.g.rotateX(-Math.cos(k * Math.PI) * 1.2);
+      }
+      const rk = f.t / 1.2;
+      const m = f.ring.material as THREE.MeshBasicMaterial;
+      m.opacity = rk < 1 ? (1 - rk) * 0.7 : 0;
+      f.ring.visible = rk < 1;
+      f.ring.position.set(f.x + Math.sin(f.dir) * 0.45, -0.53, f.z + Math.cos(f.dir) * 0.45);
+      f.ring.scale.setScalar(0.08 + rk * 0.45);
+    }
+    // the sailboat circles the island far out
+    const a = t / 90000;
+    const R = GRID / 2 + 16;
+    this.sail.position.set(GRID / 2 + Math.cos(a) * R, -0.5 + Math.sin(t / 900) * 0.03, GRID / 2 + Math.sin(a) * R);
+    this.sail.rotation.set(Math.sin(t / 1300) * 0.03, -a, Math.sin(t / 1100) * 0.04);
   }
 }
