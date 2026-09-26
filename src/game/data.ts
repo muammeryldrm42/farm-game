@@ -436,7 +436,7 @@ function b(d: Partial<BuildingDef> & Pick<BuildingDef, 'id' | 'name' | 'icon' | 
 export const BUILDINGS: BuildingDef[] = [
   b({ id: 'plot', name: 'Field', icon: '🟫', kind: 'plot', cost: 10, max: 60, xp: 1, height: 0, desc: 'Plant crops here. Harvest gives you two back.', wall: '#8a5a34' }),
 
-  b({ id: 'house', name: 'Farmhouse', icon: '🏡', kind: 'house', w: 2, h: 2, buyable: false, height: 58, wall: '#f6e3c4', roof: '#d35400', desc: 'Your home. Open it to see your goals.' }),
+  b({ id: 'house', name: 'Farmhouse', icon: '🏡', kind: 'house', w: 2, h: 2, buyable: false, height: 58, wall: '#f7f4ee', roof: '#7a4a2e', desc: 'Your home. Open it to see your goals.' }),
   b({ id: 'manor', name: 'Manor', icon: '🏰', kind: 'house', w: 3, h: 3, cost: 4000, level: 8, xp: 80, height: 92, wall: '#f4ead8', roof: '#3f5f8a', desc: 'A grand home for your farmer, who rests here at night.' }),
   b({ id: 'barn', name: 'Barn', icon: '🏚️', kind: 'barn', w: 2, h: 2, buyable: false, height: 64, wall: '#c0392b', roof: '#5d3a1f', desc: 'Stores goods and animal products.' }),
   b({ id: 'silo', name: 'Silo', icon: '🌾', kind: 'silo', buyable: false, height: 88, wall: '#d7dbe0', roof: '#c0392b', desc: 'Stores crops.' }),
@@ -505,6 +505,7 @@ export const BUILDINGS: BuildingDef[] = [
   b({ id: 'hay_bale', name: 'Hay Bale', icon: '🌾', kind: 'deco', cost: 15, level: 1, max: 30, xp: 1, height: 18, sellable: true, desc: 'A cozy stack of hay.' }),
   b({ id: 'oak', name: 'Oak Tree', icon: '🌳', kind: 'deco', cost: 25, level: 1, max: 30, xp: 2, height: 62, sellable: true, desc: 'Shade for a sunny farm.' }),
   b({ id: 'picket_fence', name: 'Picket Fence', icon: '🤍', kind: 'deco', cost: 10, level: 2, max: 80, xp: 1, height: 16, sellable: true, desc: 'A white picket fence panel.' }),
+  b({ id: 'dirt_path', name: 'Dirt Path', icon: '🟫', kind: 'deco', cost: 5, level: 1, max: 300, xp: 1, height: 1, sellable: true, desc: 'A packed earth path. Joins up with the path tiles next to it.' }),
   b({ id: 'stone_path', name: 'Stone Path', icon: '🪨', kind: 'deco', cost: 8, level: 2, max: 120, xp: 1, height: 2, sellable: true, desc: 'Stepping stones for a tidy path.' }),
   b({ id: 'bird_house', name: 'Bird House', icon: '🐦', kind: 'deco', cost: 50, level: 4, max: 10, xp: 3, height: 50, sellable: true, desc: 'Little birds come and go all day.' }),
   b({ id: 'pumpkin_pile', name: 'Pumpkin Pile', icon: '🎃', kind: 'deco', cost: 40, level: 5, max: 20, xp: 2, height: 20, sellable: true, desc: 'A cheerful harvest heap.' }),

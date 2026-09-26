@@ -820,7 +820,7 @@ export class Renderer {
   private rebuildFoliage() {
     const s = this.store.s;
     // a clean lawn with a few tufts reads better than a dense carpet of blades
-    const dens = this.quality === 'high' ? 3 : 0;
+    const dens = this.quality === 'high' ? 3 : 1;
     const key = `${dens}|${this.landKey}|${this.store.objVersion}|${s.objects.length}`;
     if (key === this.foliageKey) return;
     this.foliageKey = key;
@@ -895,7 +895,7 @@ export class Renderer {
       mtx.compose(pv.set(x, 0.2 * sc, z), q, sv.set(1, 0.4 * sc, 1)); trunks.setMatrixAt(ti++, mtx);
       mtx.compose(pv.set(x, 0.75 * sc, z), q, sv.set(0.42 * sc, 0.9 * sc, 0.42 * sc)); pineA.setMatrixAt(i, mtx);
       mtx.compose(pv.set(x, 1.2 * sc, z), q, sv.set(0.3 * sc, 0.7 * sc, 0.3 * sc)); pineB.setMatrixAt(i, mtx);
-      col.set('#2f6b2a').offsetHSL(0, 0, (hash(i, 5) - 0.5) * 0.08);
+      col.set(toon ? '#3d8a30' : '#2f6b2a').offsetHSL(0, 0, (hash(i, 5) - 0.5) * 0.08);
       pineA.setColorAt(i, col); pineB.setColorAt(i, col.offsetHSL(0, 0, 0.04));
     });
     rounds.forEach(([x, z, sc], i) => {
@@ -903,7 +903,7 @@ export class Renderer {
       if (toon) mtx.compose(pv.set(x, 0, z), q, sv.setScalar(0.95 * sc));
       else mtx.compose(pv.set(x, 0.8 * sc, z), q, sv.set(0.42 * sc, 0.4 * sc, 0.42 * sc));
       crown.setMatrixAt(i, mtx);
-      col.set('#3f7d2e').offsetHSL(0, 0, (hash(i, 9) - 0.5) * 0.1);
+      col.set(toon ? '#5aa83c' : '#3f7d2e').offsetHSL(0, 0, (hash(i, 9) - 0.5) * 0.1);
       crown.setColorAt(i, col);
     });
     // leafy card shells on the forest crowns only in high quality, they cost a lot of fill rate
@@ -1482,8 +1482,14 @@ export class Renderer {
     this.navKey = key;
     this.nav.fill(0);
     for (let y = 0; y < GRID; y++) for (let x = 0; x < GRID; x++) if (!this.store.isUnlocked(x, y)) this.nav[y * GRID + x] = 1;
+    pathTiles.clear();
     for (const o of s.objects) {
       const d = BUILDING[o.type];
+      // paths are for walking on
+      if (WALKABLE.has(o.type)) {
+        if (o.type === 'dirt_path') pathTiles.add(o.y * GRID + o.x);
+        continue;
+      }
       for (let j = 0; j < d.h; j++) for (let i = 0; i < d.w; i++) {
         const x = o.x + i, y = o.y + j;
         if (x >= 0 && y >= 0 && x < GRID && y < GRID) this.nav[y * GRID + x] = 1;
@@ -2456,6 +2462,57 @@ function buildHouse(e: Entry, d: BuildingDef) {
   }
   let oven: ((on: boolean, t: number) => void) | null = null;
   switch (d.id) {
+    case 'house': {
+      // front porch: a plank deck with posts, a railing, a rocking chair and a doormat
+      const pz = fz + 0.13;
+      bxT(g, ww + 0.1, 0.06, 0.26, 'planks', '#b07a42', cx, y0 - 0.02, pz, 3);
+      for (const x of [cx - ww / 2, cx + ww / 2, cx + ww * 0.02]) {
+        bx(g, 0.05, H * 0.62, 0.05, '#f4efe6', x, y0 + 0.04, pz + 0.1);
+      }
+      bxT(g, ww + 0.2, 0.04, 0.34, 'planks', shade(d.roof, -0.05), cx, y0 + 0.04 + H * 0.62, pz + 0.02, 3);
+      for (const y of [0.1, 0.2]) bx(g, ww * 0.45, 0.025, 0.025, '#f4efe6', cx + ww * 0.27, y0 + 0.04 + y, pz + 0.1);
+      for (let i = 0; i < 6; i++) bx(g, 0.018, 0.12, 0.018, '#f4efe6', cx + ww * 0.06 + i * (ww * 0.42) / 5, y0 + 0.08, pz + 0.1);
+      const chair = group(g, cx + ww * 0.3, y0 + 0.04, pz - 0.02);
+      chair.rotation.y = -0.4;
+      bx(chair, 0.13, 0.02, 0.12, '#8a5530', 0, 0.08, 0);
+      bx(chair, 0.13, 0.13, 0.02, '#8a5530', 0, 0.09, -0.055).rotation.x = -0.15;
+      for (const sx of [-1, 1]) {
+        const rk = mk(chair, new THREE.TorusGeometry(0.08, 0.008, 4, 12, Math.PI * 0.5), M('#6b4226'), 1, 1, 1, sx * 0.055, 0.09, 0);
+        rk.rotation.set(0, Math.PI / 2, Math.PI * 1.25);
+      }
+      bx(g, 0.2, 0.008, 0.1, '#b5452c', doorX, y0 + 0.045, pz + 0.02, false);
+      // two dormers on the front slope of the roof
+      for (const sx of [-0.25, 0.22]) {
+        const dx = cx + ww * sx, dy = y0 + H + rh * 0.28, dz = cz + dd * 0.28;
+        bxT(g, 0.26, 0.22, 0.26, 'siding', d.wall, dx, dy, dz, 1);
+        roofT(g, 0.34, 0.14, 0.34, d.roof, wallMat, dx, dy + 0.22, dz, 0.04);
+        windowUnit(g, dx, dy + 0.03, dz + 0.135, 0, shutter, false);
+      }
+      // mailbox on a post by the path
+      const mb = group(g, cx - ww / 2 - 0.12, 0, fz + 0.2);
+      bx(mb, 0.035, 0.3, 0.035, '#6b4226', 0, 0, 0);
+      mk(mb, cylGeo(0.045, 0.045, 12), M('#3f6fa8'), 1, 0.18, 1, 0, 0.34, 0).rotation.x = Math.PI / 2;
+      bx(mb, 0.01, 0.07, 0.04, '#c0392b', 0.05, 0.36, -0.02);
+      break;
+    }
+    case 'barn': {
+      // a louvered cupola on the ridge topped with a rooster weathervane
+      const ry = y0 + H + rh;
+      bxT(g, 0.26, 0.2, 0.26, 'boards', d.wall, cx, ry - 0.06, cz, 3);
+      for (const sx of [-1, 1]) bx(g, 0.012, 0.12, 0.16, '#fbeee0', cx + sx * 0.132, ry - 0.02, cz);
+      mk(g, cylGeo(0, 0.22, 4), M(d.roof), 1, 0.16, 1, cx, ry + 0.14, cz).rotation.y = Math.PI / 4;
+      cyl(g, 0.008, 0.008, 0.22, '#3a3a3a', cx, ry + 0.22, cz, 6);
+      const vane = group(g, cx, ry + 0.4, cz);
+      bx(vane, 0.16, 0.012, 0.012, '#3a3a3a', 0, 0, 0);
+      mk(vane, G.ball, M('#3a3a3a'), 0.035, 0.04, 0.012, 0.02, 0.04, 0);
+      bx(vane, 0.012, 0.05, 0.05, '#3a3a3a', -0.07, 0.02, 0).rotation.x = Math.PI / 4;
+      // hay bales stacked by the door
+      for (const [bxp, by, bz] of [[cx + ww / 2 - 0.08, 0, fz + 0.14], [cx + ww / 2 - 0.08, 0.14, fz + 0.14], [cx + ww / 2 - 0.26, 0, fz + 0.14]] as const) {
+        const hb = mk(g, cylGeo(0.07, 0.07, 14), surfaceMat('thatch', '#e8c865', 3), 1, 0.16, 1, bxp, by + 0.07, bz);
+        hb.rotation.z = Math.PI / 2;
+      }
+      break;
+    }
     case 'pizzeria': {
       // wood fired brick oven with a glowing mouth on the side of the shop
       const ox = rx + 0.02, oz = cz + 0.1;
@@ -3167,6 +3224,39 @@ function groundGlow(g: P, x: number, z: number, size: number) {
   g.add(m);
 }
 
+// Path tiles, refreshed with the walk grid. Paths never block the farmer.
+const pathTiles = new Set<number>();
+const WALKABLE = new Set(['dirt_path', 'stone_path']);
+// One material per neighbor mask (north 1, east 2, south 4, west 8): a round center plus arms
+// running to each connected side, drawn soft so tiles blend into one winding path.
+const pathMats = new Map<number, THREE.Material>();
+function pathMat(mask: number) {
+  let m = pathMats.get(mask);
+  if (m) return m;
+  const tex = canvasTex(`path${mask}`, 128, 128, (c) => {
+    c.clearRect(0, 0, 128, 128);
+    c.filter = 'blur(5px)';
+    c.fillStyle = '#b07a46';
+    c.beginPath(); c.arc(64, 64, 40, 0, Math.PI * 2); c.fill();
+    if (mask & 1) c.fillRect(26, -10, 76, 74);
+    if (mask & 4) c.fillRect(26, 64, 76, 74);
+    if (mask & 2) c.fillRect(64, 26, 74, 76);
+    if (mask & 8) c.fillRect(-10, 26, 74, 76);
+    c.filter = 'none';
+    // darker wheel ruts and a scatter of pebbles
+    c.globalCompositeOperation = 'source-atop';
+    for (let i = 0; i < 90; i++) {
+      const x = hash(i, mask, 1) * 128, y = hash(i, mask, 2) * 128, r = 1 + hash(i, mask, 3) * 3;
+      c.fillStyle = i % 3 ? 'rgba(120, 84, 50, 0.35)' : 'rgba(235, 215, 180, 0.6)';
+      c.beginPath(); c.arc(x, y, r, 0, Math.PI * 2); c.fill();
+    }
+    c.globalCompositeOperation = 'source-over';
+  });
+  m = new THREE.MeshStandardMaterial({ map: tex, transparent: true, depthWrite: false, roughness: 0.95, polygonOffset: true, polygonOffsetFactor: -2 });
+  pathMats.set(mask, m);
+  return m;
+}
+
 function buildDeco(e: Entry, d: BuildingDef) {
   const g = e.root;
   e.top = d.height * ZU + 0.2;
@@ -3182,6 +3272,23 @@ function buildDeco(e: Entry, d: BuildingDef) {
       }
       for (const y of [0.08, 0.24]) bx(g, 0.96, 0.035, 0.02, '#ece6da', 0.5, y, 0.485);
       e.top = 0.5;
+      break;
+    }
+    case 'dirt_path': {
+      // a soft edged patch of packed earth that reaches toward neighboring path tiles
+      const m = new THREE.Mesh(G.plane, pathMat(0));
+      m.rotation.x = -Math.PI / 2;
+      m.position.set(0.5, 0.014, 0.5);
+      m.scale.set(1.02, 1.02, 1);
+      m.receiveShadow = true;
+      g.add(m);
+      e.top = 0.1;
+      let mask = -1;
+      e.update = (o) => {
+        const k = (pathTiles.has((o.y - 1) * GRID + o.x) ? 1 : 0) | (pathTiles.has(o.y * GRID + o.x + 1) ? 2 : 0)
+          | (pathTiles.has((o.y + 1) * GRID + o.x) ? 4 : 0) | (pathTiles.has(o.y * GRID + o.x - 1) ? 8 : 0);
+        if (k !== mask) { mask = k; m.material = pathMat(k); }
+      };
       break;
     }
     case 'stone_path': {

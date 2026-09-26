@@ -45,6 +45,7 @@ By Talons Protocol.
 - Tap the farmhouse (or the manor once built) to send the farmer to bed and keep farming meanwhile; a nap of 20 seconds or more gives a once a day rested bonus
 - Two animal art styles, picked in Settings: Cartoon (chunky friendly sculpts with big eyes, the default) and Realistic
 - Cartoon farmer, puffy cartoon trees and round garden bushes; a calico farm cat roams between the house and the farmer and curls up by the door at night
+- Dirt paths that join up with their neighbors (new farms start with one), a porch, dormers and mailbox on the farmhouse, a cupola and weathervane on the barn, and meadow scatter of lupines, wild flowers and pebbles
 - Animals use a light mesh from afar and a detailed one up close, built in idle time
 
 ## Run locally

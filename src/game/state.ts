@@ -346,6 +346,9 @@ export function newGame(): GameState {
     [19, 19, 'tree_obs'], [17, 17, 'rock_obs'], [8, 14, 'bush_obs'], [15, 14, 'tree_obs'], [19, 12, 'bush_obs'],
   ];
   for (const [x, y, t] of obs) add(t, x, y);
+  // a dirt path past the front doors and down to the fields
+  for (let x = 8; x <= 17; x++) add('dirt_path', x, 10);
+  for (let y = 11; y <= 13; y++) add('dirt_path', 9, y);
   for (let i = 0; i < orderCount(1); i++) s.orders.push(genOrder(s, now));
   // first order is always doable with starting wheat, for the tutorial
   s.orders[0] = { ...s.orders[0], items: [{ id: 'wheat', qty: 6 }], coins: 30, xp: 5, gems: 0 };

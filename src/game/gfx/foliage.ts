@@ -91,6 +91,7 @@ function tuftGeometry(seed: number) {
 
 export interface Spot { x: number; z: number; open: boolean }
 
+const SPIKE_COLORS = ['#9a6ad8', '#b78af0', '#e8c23a'];
 const BUSH_COLORS = ['#5cb83a', '#4fa834', '#6cc444'];
 const FLOWER_COLORS = ['#ffffff', '#ffd23a', '#ff8fb0', '#b58cff', '#ff6b6b', '#8fd3ff'];
 
@@ -101,6 +102,7 @@ export class Foliage {
   private flowerMat = windify(new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.6 }), 0.18, 0.8);
   private meshes: THREE.InstancedMesh[] = [];
   private bushMat = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.75 });
+  private pebbleMat = new THREE.MeshStandardMaterial({ color: '#b7b3aa', roughness: 0.9, flatShading: true });
 
   // tiles: every free tile the grass may grow on; density: tufts per open tile
   rebuild(tiles: Spot[], density: number) {
@@ -112,6 +114,8 @@ export class Foliage {
     const tufts: [number, number, number, number, boolean][][] = this.grassGeos.map(() => []);
     const flowers: [number, number, number, number][] = [];
     const bushes: [number, number, number][] = [];
+    const spikes: [number, number, number, number][] = [];
+    const pebbles: [number, number, number][] = [];
     tiles.forEach((t, ti) => {
       const n = t.open ? density : Math.max(1, Math.round(density * 0.35));
       for (let k = 0; k < n; k++) {
@@ -119,6 +123,12 @@ export class Foliage {
         const x = t.x + 0.08 + rnd(s, 1) * 0.84, z = t.z + 0.08 + rnd(s, 2) * 0.84;
         tufts[Math.floor(rnd(s, 3) * tufts.length)].push([x, z, rnd(s, 4) * Math.PI * 2, 0.75 + rnd(s, 5) * 0.6, t.open]);
       }
+      // meadow scatter: clumps of lupines and the odd pebble
+      if (rnd(ti, 51) < (t.open ? 0.16 : 0.22)) {
+        const n = 3 + Math.floor(rnd(ti, 52) * 4), c = rnd(ti, 53);
+        for (let k = 0; k < n; k++) spikes.push([t.x + 0.2 + rnd(ti * 5 + k, 54) * 0.6, t.z + 0.2 + rnd(ti * 5 + k, 55) * 0.6, rnd(ti * 5 + k, 56) * 6, c]);
+      }
+      if (rnd(ti, 61) < 0.025) pebbles.push([t.x + 0.2 + rnd(ti, 62) * 0.6, t.z + 0.2 + rnd(ti, 63) * 0.6, 0.04 + rnd(ti, 64) * 0.05]);
       // now and then a round leafy bush, for a lush garden feel
       if (t.open && rnd(ti, 31) < 0.03) bushes.push([t.x + 0.3 + rnd(ti, 32) * 0.4, t.z + 0.3 + rnd(ti, 33) * 0.4, 0.28 + rnd(ti, 34) * 0.14]);
       if (t.open && rnd(ti, 9) < 0.12) {
@@ -161,6 +171,31 @@ export class Foliage {
       this.meshes.push(im);
       this.group.add(im);
     }
+    SPIKE_COLORS.forEach((sc, ci) => {
+      const list = spikes.filter(([, , , c]) => Math.floor(c * SPIKE_COLORS.length) === ci);
+      if (!list.length) return;
+      const im = new THREE.InstancedMesh(flowerKit('spike', sc, 0.16), this.flowerMat, list.length);
+      list.forEach(([x, z, r], i) => {
+        q.setFromAxisAngle(up, r);
+        m4.compose(pv.set(x, 0, z), q, sv.setScalar(1 + rnd(i, 57) * 0.6));
+        im.setMatrixAt(i, m4);
+      });
+      im.receiveShadow = true;
+      this.meshes.push(im);
+      this.group.add(im);
+    });
+    if (pebbles.length) {
+      const im = new THREE.InstancedMesh(new THREE.DodecahedronGeometry(1, 1), this.pebbleMat, pebbles.length);
+      pebbles.forEach(([x, z, s], i) => {
+        q.setFromAxisAngle(up, rnd(i, 65) * 6);
+        m4.compose(pv.set(x, s * 0.2, z), q, sv.set(s, s * 0.6, s * 0.8));
+        im.setMatrixAt(i, m4);
+      });
+      im.castShadow = true;
+      im.receiveShadow = true;
+      this.meshes.push(im);
+      this.group.add(im);
+    }
     // wild flowers in little clumps: one instanced batch per color, each a real daisy or tulip
     FLOWER_COLORS.forEach((fc, ci) => {
       const list = flowers.filter(([, , , c]) => Math.floor(c * FLOWER_COLORS.length) === ci);
@@ -181,7 +216,7 @@ export class Foliage {
 // ---------------------------------------------------------------- garden flowers
 // Cartoon garden flowers built from soft petal shapes, with a leafy stem, baked into vertex
 // colors so a whole bed draws with one material: daisies, tulips and round rosettes.
-export type FlowerKind = 'daisy' | 'tulip' | 'rose';
+export type FlowerKind = 'daisy' | 'tulip' | 'rose' | 'spike';
 const kitCache = new Map<string, THREE.BufferGeometry>();
 export const FLOWER_KIT_MAT = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.6 });
 
@@ -242,6 +277,14 @@ export function flowerKit(kind: FlowerKind, petal: string, h = 0.22) {
       p.rotateY((i / 6) * Math.PI * 2 + (i % 2) * 0.5);
       p.translate(0, h - 0.008, 0);
       parts.push(painted(p, i % 2 ? petal : dark));
+    }
+  } else if (kind === 'spike') {
+    // lupine or lavender: little florets stacked up the top of the stem, smaller toward the tip
+    for (let i = 0; i < 9; i++) {
+      const t = i / 8, r = 0.013 * (1 - t * 0.55);
+      const fl = new THREE.SphereGeometry(r, 6, 4);
+      fl.translate(Math.cos(i * 2.4) * r * 0.6, h * (0.62 + t * 0.4), Math.sin(i * 2.4) * r * 0.6);
+      parts.push(painted(fl, i % 2 ? petal : dark));
     }
   } else {
     // rosette: rings of cupped petals, tighter toward the middle
