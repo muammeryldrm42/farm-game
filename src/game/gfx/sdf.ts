@@ -5,7 +5,7 @@
 import * as THREE from 'three';
 
 export type Dist = (x: number, y: number, z: number) => number;
-type Paint = string | ((x: number, y: number, z: number) => string);
+export type Paint = string | ((x: number, y: number, z: number) => string);
 
 export const sphere = (cx: number, cy: number, cz: number, r: number): Dist =>
   (x, y, z) => Math.hypot(x - cx, y - cy, z - cz) - r;
@@ -98,8 +98,9 @@ export class Sculpt {
   }
 
   // mesh the surface inside the box [min, max] with cubes of size `cell`
-  build(min: [number, number, number], max: [number, number, number], cell: number) {
-    cell *= sculptDetail;
+  // `maxScale` caps the detail multiplier, so thin parts (bird legs) never mesh too coarse to show
+  build(min: [number, number, number], max: [number, number, number], cell: number, maxScale = Infinity) {
+    cell *= Math.min(sculptDetail, maxScale);
     const nx = Math.ceil((max[0] - min[0]) / cell) + 1;
     const ny = Math.ceil((max[1] - min[1]) / cell) + 1;
     const nz = Math.ceil((max[2] - min[2]) / cell) + 1;
@@ -229,3 +230,7 @@ float fN(vec3 p) {
 // sheen gives the soft bright rim that fur, felt and feathers have against the light
 export const SCULPT_MAT = microDetail(new THREE.MeshPhysicalMaterial({ vertexColors: true, roughness: 0.6, metalness: 0, sheen: 0.55, sheenRoughness: 0.7, sheenColor: new THREE.Color('#ffffff') }), 260, 0.12, 'fur');
 export const WOOL_MAT = microDetail(new THREE.MeshPhysicalMaterial({ vertexColors: true, roughness: 0.95, metalness: 0, sheen: 1, sheenRoughness: 0.9, sheenColor: new THREE.Color('#fff8ec') }), 180, 0.3, 'wool');
+
+// cartoon style coats: clean and smooth, with only a whisper of surface grain
+export const TOON_MAT = microDetail(new THREE.MeshPhysicalMaterial({ vertexColors: true, roughness: 0.55, metalness: 0, sheen: 0.35, sheenRoughness: 0.5, sheenColor: new THREE.Color('#ffffff') }), 200, 0.035, 'toon');
+export const TOON_WOOL = microDetail(new THREE.MeshPhysicalMaterial({ vertexColors: true, roughness: 0.9, metalness: 0, sheen: 0.8, sheenRoughness: 0.8, sheenColor: new THREE.Color('#fffaf0') }), 90, 0.18, 'toonwool');

@@ -13,7 +13,7 @@ import { PLANT_MAT, cropGeo } from './gfx/crops';
 import { PRODUCE_MAT, produceGeo } from './gfx/produce';
 import { ribs, ruffledLeaf } from './gfx/kit';
 import { creature, hasCreature, personParts } from './gfx/creatures';
-import { SCULPT_MAT, WOOL_MAT } from './gfx/sdf';
+import { SCULPT_MAT, TOON_MAT, TOON_WOOL, WOOL_MAT } from './gfx/sdf';
 import { leafShell, leafTexture, meterBox, meterHip, meterRoof, surface, surfaceMat, type SurfaceKind } from './gfx/textures';
 import { ANIMAL, BUILDING, CROP, ITEMS, type BuildingDef, type CropDef } from './data';
 import {
@@ -544,6 +544,8 @@ export class Renderer {
     // the soft fur sheen is a costly extra lobe; low quality keeps plain matte fur
     SCULPT_MAT.sheen = high ? 0.55 : 0;
     WOOL_MAT.sheen = high ? 1 : 0;
+    TOON_MAT.sheen = high ? 0.35 : 0;
+    TOON_WOOL.sheen = high ? 0.8 : 0;
     const ms = high ? 4096 : 1024;
     if (this.sun.shadow.mapSize.x !== ms) {
       this.sun.shadow.mapSize.set(ms, ms);
@@ -1840,7 +1842,8 @@ export function buildFarmer(shirt = '#d64541', overall = '#3b6fa8', jeans = '#2f
 export function buildDog() {
   const g = assemble('dog');
   const dp = creature('dog');
-  if (dp?.eye) realEyes(g.userData.head as THREE.Group, dp.eye, LID.dog);
+  if (dp?.eye && dp.toon) toonEyes(g.userData.head as THREE.Group, dp.eye, '#3a2e28');
+  else if (dp?.eye) realEyes(g.userData.head as THREE.Group, dp.eye, LID.dog);
   const tail = g.userData.tail as THREE.Object3D;
   tail.rotation.x = -0.6;
   return g;
@@ -1935,24 +1938,25 @@ function assemble(kind: string) {
     p.add(m);
     return m;
   };
-  add(g, cp.body, cp.wool ? WOOL_MAT : SCULPT_MAT, 'body');
+  const fur = cp.toon ? TOON_MAT : SCULPT_MAT;
+  add(g, cp.body, cp.wool ? (cp.toon ? TOON_WOOL : WOOL_MAT) : fur, 'body');
   cp.body.computeBoundingBox();
   const bb = cp.body.boundingBox as THREE.Box3;
   g.userData.shadow = contactShadow(g, (bb.max.x - bb.min.x) * 1.5, (bb.max.z - bb.min.z) * 1.25);
   const legs: THREE.Object3D[] = [];
   for (const [x, z] of cp.legs) {
     const pv = group(g, x, cp.legLen, z);
-    if (cp.leg) add(pv, cp.leg, SCULPT_MAT, 'leg');
+    if (cp.leg) add(pv, cp.leg, fur, 'leg');
     legs.push(pv);
   }
   const head = group(g, ...cp.headAt);
-  add(head, cp.head, SCULPT_MAT, 'head');
+  add(head, cp.head, fur, 'head');
   g.userData.legs = legs;
   g.userData.signs = legs.length === 4 ? [1, -1, -1, 1] : [1, -1];
   g.userData.head = head;
   if (cp.tail) {
     const tail = group(g, ...cp.tailAt);
-    add(tail, cp.tail, SCULPT_MAT, 'tail');
+    add(tail, cp.tail, fur, 'tail');
     g.userData.tail = tail;
   }
   return g;
@@ -2036,6 +2040,7 @@ function animalBody(kind: string) {
   }
   switch (kind) {
     case 'goat':
+      if (cp?.toon) break;
       // ridged horns sweeping back over the neck
       for (const sx of [-1, 1]) {
         const horn = new THREE.Mesh(torus(0.05, 0.01, 8, 18, Math.PI * 0.85), M('#8d8479'));
@@ -2047,6 +2052,7 @@ function animalBody(kind: string) {
       break;
     case 'chicken': case 'goose': case 'gobbler': case 'peacock': case 'ostrich': case 'quail': g.userData.peck = true; break;
     case 'yak':
+      if (cp?.toon) break;
       // long horns curving up and out
       for (const sx of [-1, 1]) {
         const horn = new THREE.Mesh(torus(0.07, 0.014, 8, 16, Math.PI * 0.6), M('#e8e0cc'));
@@ -2057,6 +2063,7 @@ function animalBody(kind: string) {
       }
       break;
     case 'buffalo':
+      if (cp?.toon) break;
       // wide crescent horns sweeping back from the top of the head
       for (const sx of [-1, 1]) {
         const horn = new THREE.Mesh(torus(0.1, 0.018, 8, 20, Math.PI * 0.75), M('#5a5048'));

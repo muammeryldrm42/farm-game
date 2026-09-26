@@ -42,6 +42,8 @@ By Talons Protocol.
 - A 5 step tutorial for new players (older saves skip it)
 - Animals: chickens, cows, sheep, ducks, geese, gobblers, quails, goats, rabbits, alpacas, donkeys, water buffalo, peacocks, ostriches, yaks, camels, bees and horses (each horse adds 5% to order coins)
 - Workshop for candles and feather pillows, goat cheese at the dairy
+- Two animal art styles, picked in Settings: Cartoon (chunky friendly sculpts with big eyes, the default) and Realistic
+- Animals use a light mesh from afar and a detailed one up close, built in idle time
 
 ## Run locally
 

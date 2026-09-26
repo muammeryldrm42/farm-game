@@ -3,6 +3,7 @@
 // heads can graze, legs can walk and tails can swish. Built once per kind and cached.
 import * as THREE from 'three';
 import { Sculpt, capsule, ellipsoid, noise3, sphere, withDetail } from './sdf';
+import { toonMakers } from './toon';
 
 export interface CreatureParts {
   body: THREE.BufferGeometry;
@@ -468,87 +469,13 @@ function camel(): CreatureParts {
 }
 
 
-// ---------------------------------------------------------------- cartoon style
-// Chunky, friendly proportions in the spirit of classic farm games: big heads, short sturdy
-// legs, round bodies, clean bright coats and large expressive eyes.
-
-function toonLeg(len: number, th: number, color: string, hoof: string) {
-  const paint = (_x: number, y: number) => (y < -len + 0.035 ? hoof : color);
-  return new Sculpt()
-    .add(capsule(0, 0.02, 0, 0, -len + 0.03, 0.004, th * 0.62, th * 0.5), paint)
-    .add(ellipsoid(0, -len + 0.018, 0.006, th * 0.58, 0.022, th * 0.64), hoof, 0.02)
-    .build([-th, -len - 0.01, -th], [th, 0.05, th + 0.02], C * 0.7);
-}
-
-// blend two hex colors, t from 0 to 1
-function mixHex(a: string, b: string, t: number) {
-  const pa = parseInt(a.slice(1), 16), pb = parseInt(b.slice(1), 16);
-  const ch = (sh: number) => Math.round(((pa >> sh) & 255) * (1 - t) + ((pb >> sh) & 255) * t);
-  return '#' + ((ch(16) << 16) | (ch(8) << 8) | ch(0)).toString(16).padStart(6, '0');
-}
-// soft edged patches: a narrow blend band instead of a hard threshold, so the patch outlines
-// stay round and clean instead of following the voxel grid
-function patches(x: number, y: number, z: number, th: number, spot: string, base: string) {
-  const v = noise3(x * 5 + 3, y * 5, z * 5) * 0.8 + noise3(x * 11 + 8, y * 11, z * 11) * 0.2;
-  const t = Math.max(0, Math.min(1, (v - th) / 0.07 + 0.5));
-  return mixHex(base, spot, t * t * (3 - 2 * t));
-}
-const toonPatches = (x: number, y: number, z: number, th = 0.6) => patches(x, y, z, th, '#2a2826', '#fbf9f4');
-
-function cowToon(): CreatureParts {
-  const coat = (x: number, y: number, z: number) => toonPatches(x, y, z);
-  const b = new Sculpt()
-    .add(ellipsoid(0, 0.3, -0.01, 0.15, 0.135, 0.2), coat)
-    .add(sphere(0, 0.31, 0.1, 0.13), coat, 0.09)
-    .add(sphere(0, 0.31, -0.12, 0.13), coat, 0.09)
-    .add(capsule(0, 0.33, 0.14, 0, 0.39, 0.21, 0.09, 0.08), coat, 0.07)
-    // round pink udder
-    .add(ellipsoid(0, 0.19, -0.1, 0.06, 0.04, 0.055), '#f4a9b8', 0.04)
-    .add(sphere(0.022, 0.155, -0.085, 0.012), '#ee97a8', 0.012)
-    .add(sphere(-0.022, 0.155, -0.085, 0.012), '#ee97a8', 0.012)
-    .add(sphere(0.022, 0.155, -0.12, 0.012), '#ee97a8', 0.012)
-    .add(sphere(-0.022, 0.155, -0.12, 0.012), '#ee97a8', 0.012);
-  b.grain = 0.02;
-  const body = b.build([-0.18, 0.12, -0.3], [0.18, 0.48, 0.3], C);
-  const face = (x: number, y: number, z: number) => (z > 0.02 && Math.abs(x) < 0.05 + y * 0.2 ? '#fbf9f4' : toonPatches(x + 3, y, z, 0.45));
-  const h = new Sculpt()
-    // big round head with a wide friendly muzzle
-    .add(sphere(0, 0.03, 0.0, 0.1), face)
-    .add(ellipsoid(0, -0.02, 0.06, 0.088, 0.075, 0.07), face, 0.05)
-    .add(ellipsoid(0, -0.05, 0.12, 0.09, 0.062, 0.058), '#f7b3c0', 0.03)
-    .carve(ellipsoid(0.035, -0.04, 0.175, 0.014, 0.018, 0.014), 0.006)
-    .carve(ellipsoid(-0.035, -0.04, 0.175, 0.014, 0.018, 0.014), 0.006)
-    // smile line
-    .carve(capsule(-0.03, -0.085, 0.165, 0.03, -0.085, 0.165, 0.004), 0.004)
-    // floppy ears with pink insides, little cream horns and a tuft of hair
-    .add(ellipsoid(0.12, 0.04, -0.01, 0.055, 0.022, 0.032), '#2a2826', 0.02)
-    .add(ellipsoid(-0.12, 0.04, -0.01, 0.055, 0.022, 0.032), '#2a2826', 0.02)
-    .add(ellipsoid(0.13, 0.04, 0.012, 0.035, 0.012, 0.016), '#f4a9b8', 0.006)
-    .add(ellipsoid(-0.13, 0.04, 0.012, 0.035, 0.012, 0.016), '#f4a9b8', 0.006)
-    .add(capsule(0.05, 0.11, -0.01, 0.075, 0.145, -0.02, 0.018, 0.011), '#f3e6c4', 0.015)
-    .add(capsule(-0.05, 0.11, -0.01, -0.075, 0.145, -0.02, 0.018, 0.011), '#f3e6c4', 0.015)
-    .add(sphere(0, 0.125, 0.01, 0.028), '#2a2826', 0.02)
-    .add(sphere(0.02, 0.13, 0.03, 0.02), '#2a2826', 0.015)
-    .add(sphere(-0.02, 0.13, 0.03, 0.02), '#2a2826', 0.015);
-  h.grain = 0.015;
-  const head = h.build([-0.19, -0.13, -0.11], [0.19, 0.18, 0.2], C * 0.6);
-  const tail = new Sculpt()
-    .add(capsule(0, 0, 0, 0, -0.17, 0.01, 0.012, 0.009), '#fbf9f4')
-    .add(sphere(0, -0.19, 0.012, 0.026), '#2a2826', 0.02)
-    .build([-0.04, -0.23, -0.04], [0.04, 0.02, 0.05], C * 0.55);
-  return {
-    toon: true, eye: [0.046, 0.05, 0.094, 0.033, 0.36], bell: [0, 0.36, 0.18, 0.1],
-    body, head, headAt: [0, 0.42, 0.24], leg: toonLeg(0.17, 0.075, '#fbf9f4', '#4a3a30'),
-    legs: [[-0.085, 0.12], [0.085, 0.12], [-0.085, -0.12], [0.085, -0.12]], legLen: 0.17, tail, tailAt: [0, 0.38, -0.21],
-  };
-}
-
-// Art style: 'real' sculpts or 'toon' cartoon ones. Kinds without a cartoon sculpt yet keep
-// their realistic one. Stored per device, like the quality setting, so saves are untouched.
+// Art style: 'real' sculpts or 'toon' cartoon ones (see toon.ts). Stored per device, like the quality setting, so saves are untouched.
 export type ArtStyle = 'real' | 'toon';
-const toonMakers: Record<string, () => CreatureParts> = { cow: cowToon };
 export function artStyle(): ArtStyle {
   try { return localStorage.getItem('talons-farm-style') === 'real' ? 'real' : 'toon'; } catch { return 'toon'; }
+}
+export function setArtStyle(a: ArtStyle) {
+  try { localStorage.setItem('talons-farm-style', a); } catch { /* storage blocked */ }
 }
 
 const makers: Record<string, () => CreatureParts> = { quail, yak, camel, gobbler, donkey, buffalo, peacock, ostrich, cow, sheep, goat, horse, chicken, duck, rabbit, alpaca, goose, dog: dogParts };
