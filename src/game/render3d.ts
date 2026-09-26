@@ -10,6 +10,7 @@ import { makeWater } from './gfx/water';
 import { Foliage, windify, type Spot } from './gfx/foliage';
 import { Post } from './gfx/post';
 import { PLANT_MAT, cropGeo } from './gfx/crops';
+import { PRODUCE_MAT, produceGeo } from './gfx/produce';
 import { creature, personParts } from './gfx/creatures';
 import { SCULPT_MAT, WOOL_MAT } from './gfx/sdf';
 import { leafShell, leafTexture, meterBox, meterHip, meterRoof, surface, surfaceMat, type SurfaceKind } from './gfx/textures';
@@ -1815,7 +1816,8 @@ export function buildFarmer(shirt = '#d64541', overall = '#3b6fa8', jeans = '#2f
 
 export function buildDog() {
   const g = assemble('dog');
-  eyes(g.userData.head as THREE.Group, 0.028, 0.02, 0.055, 0.014, false);
+  const dp = creature('dog');
+  if (dp?.eye) realEyes(g.userData.head as THREE.Group, dp.eye, LID.dog);
   const tail = g.userData.tail as THREE.Object3D;
   tail.rotation.x = -0.6;
   return g;
@@ -1831,11 +1833,7 @@ function fourLegs(g: THREE.Group, w: number, d: number, len: number, th: number,
 }
 
 function buildAnimal(kind: string) {
-  const g = animalBody(kind);
-  // slightly oversized heads read as cute from the farm camera
-  const head = g.userData.head as THREE.Object3D | undefined;
-  if (head && kind !== 'horse' && kind !== 'cow') head.scale.setScalar(1.15);
-  return g;
+  return animalBody(kind);
 }
 
 // Puts a sculpted creature together on pivots: legs swing from the hips, the head nods from
@@ -1871,49 +1869,56 @@ function assemble(kind: string) {
   return g;
 }
 
+// Realistic eyes: a glossy dark eyeball set into the side of the head with a lid rim and a
+// tiny catch light, turned outward the way prey animals' eyes are.
+const EYE_REAL = new THREE.MeshStandardMaterial({ color: '#140e0a', roughness: 0.05, metalness: 0.1 });
+function realEyes(head: THREE.Object3D, spec: [number, number, number, number, number], lid: string) {
+  const [x, y, z, r, yaw] = spec;
+  const list: THREE.Object3D[] = (head.userData.eyes as THREE.Object3D[] | undefined) ?? [];
+  for (const sx of [-1, 1]) {
+    const e = group(head, sx * x, y, z);
+    e.rotation.y = sx * yaw;
+    mk(e, G.ball, EYE_REAL, r, r * 0.9, r * 0.75, 0, 0, 0, false);
+    mk(e, G.ball, EYE_W, r * 0.22, r * 0.22, r * 0.12, sx * r * 0.25, r * 0.3, r * 0.68, false);
+    const rim = mk(e, new THREE.TorusGeometry(1, 0.22, 6, 18), M(lid), r * 1.02, r * 0.92, r * 1.0, 0, 0, r * 0.1, false);
+    rim.rotation.y = 0;
+    list.push(e);
+  }
+  head.userData.eyes = list;
+}
+
+const LID: Record<string, string> = {
+  cow: '#e9e3d8', pig: '#e8a8a4', sheep: '#1f1b19', goat: '#e3dccd', horse: '#6a3e22', chicken: '#c9642c',
+  duck: '#1a4a2e', rabbit: '#8a7058', alpaca: '#c9b08c', goose: '#e8a33a', dog: '#7a4b26',
+};
+
 function animalBody(kind: string) {
   const g = assemble(kind);
   const head = g.userData.head as THREE.Group | undefined;
   if (!head) return g;
+  const cp = creature(kind);
+  if (cp?.eye) realEyes(head, cp.eye, LID[kind] ?? '#3a2a20');
   switch (kind) {
-    case 'cow':
-      // eyes sit on the sides of the head, like a real cow's
-      for (const sx of [-1, 1]) {
-        const e = group(head, sx * 0.058, 0.04, 0.045);
-        e.rotation.y = sx * 0.9;
-        mk(e, G.ball, EYE_B, 0.016, 0.014, 0.01, 0, 0, 0, false);
-        mk(e, G.ball, EYE_W, 0.004, 0.004, 0.003, 0.004, 0.004, 0.008, false);
-        const list = (head.userData.eyes as THREE.Object3D[] | undefined) ?? [];
-        list.push(e);
-        head.userData.eyes = list;
-      }
-      break;
     case 'pig': {
-      eyes(head, 0.045, 0.03, 0.078, 0.016);
-      const tail = group(g, 0, 0.23, -0.165);
-      const curl = new THREE.Mesh(new THREE.TorusGeometry(0.022, 0.008, 8, 16, Math.PI * 1.7), M('#f0a0b0'));
+      const tail = group(g, 0, 0.24, -0.205);
+      const curl = new THREE.Mesh(new THREE.TorusGeometry(0.02, 0.007, 8, 16, Math.PI * 1.7), M('#f2b8b2'));
       curl.rotation.y = Math.PI / 2;
       tail.add(curl);
       g.userData.tail = tail;
       break;
     }
-    case 'sheep': eyes(head, 0.032, 0.012, 0.085, 0.015); break;
     case 'goat':
-      eyes(head, 0.035, 0.015, 0.065, 0.014);
+      // ridged horns sweeping back over the neck
       for (const sx of [-1, 1]) {
-        const horn = new THREE.Mesh(new THREE.TorusGeometry(0.045, 0.011, 8, 14, Math.PI * 0.9), M('#8a8f96'));
-        horn.position.set(sx * 0.025, 0.035, -0.035);
-        horn.rotation.set(0, Math.PI / 2, 0);
+        const horn = new THREE.Mesh(new THREE.TorusGeometry(0.05, 0.01, 8, 18, Math.PI * 0.85), M('#8d8479'));
+        horn.position.set(sx * 0.022, 0.04, -0.045);
+        horn.rotation.set(0, Math.PI / 2, 0.1);
         horn.castShadow = true;
         head.add(horn);
       }
       break;
-    case 'horse': eyes(head, 0.046, 0.015, 0.035, 0.014); break;
-    case 'chicken': eyes(head, 0.035, 0.03, 0.058, 0.012, false); g.userData.peck = true; break;
-    case 'duck': eyes(head, 0.035, 0.02, 0.037, 0.011, false); break;
-    case 'rabbit': eyes(head, 0.03, 0.012, 0.052, 0.013); g.userData.hop = true; break;
-    case 'alpaca': eyes(head, 0.032, 0.008, 0.066, 0.014); break;
-    case 'goose': eyes(head, 0.028, 0.02, 0.025, 0.01, false); g.userData.peck = true; break;
+    case 'chicken': case 'goose': g.userData.peck = true; break;
+    case 'rabbit': g.userData.hop = true; break;
   }
   return g;
 }
@@ -1982,6 +1987,16 @@ function plantModel(cd: CropDef) {
   const plant = new THREE.Mesh(geo.plant, PLANT_MAT);
   const fr = new THREE.Mesh(geo.fruit, fruitMat(cd.fruit));
   for (const m of [plant, fr]) { m.castShadow = true; m.receiveShadow = true; g.add(m); }
+  // bushy crops get a shell of painted leaf cards over their leafy core, like the trees
+  const bushy = (cd.shape === 'bush' && cd.id !== 'cotton') || cd.id === 'potato';
+  if (bushy) {
+    const low = cd.id === 'strawberry';
+    const shell = new THREE.Mesh(leafShell(cd.id.length * 3 + 1, 36), leafMat(shade(cd.leaf, 0.02)));
+    shell.scale.set(0.088, low ? 0.05 : 0.085, 0.088);
+    shell.position.set(0, low ? 0.07 : 0.17, 0);
+    shell.receiveShadow = true;
+    g.add(shell);
+  }
   return { g, fruit: [fr] };
 }
 
@@ -2537,8 +2552,14 @@ function buildFruitTree(e: Entry, d: BuildingDef) {
   if (d.id === 'coconut_palm') return buildPalm(e, d, leaf);
   const { crown } = leafyTree(g, 0.5, 0.5, leaf, 1, d.id.length);
   const fc = FRUIT_COLOR[d.fruit ?? 'apple'] ?? '#e53935';
-  const fm = new THREE.MeshStandardMaterial({ color: fc, roughness: 0.35 });
-  const fruit = crownSpots(9, 0, 0.8, 0, 0.36).map(([x, y, z]) => mk(crown, G.ball, fm, 0.055, 0.055, 0.055, x, y, z));
+  // realistic fruit: dimpled apples, paired cherries, pitted oranges, blushing peaches, lemons
+  const pg = produceGeo(d.fruit ?? 'apple');
+  const fm = pg ? PRODUCE_MAT : new THREE.MeshStandardMaterial({ color: fc, roughness: 0.35 });
+  const fruit = crownSpots(11, 0, 0.8, 0, 0.45).map(([x, y, z], i) => {
+    const f = mk(crown, pg ?? G.ball, fm, 0.055, 0.055, 0.055, x, y, z);
+    f.rotation.set((hash(i, 2) - 0.5) * 0.6, hash(i, 3) * 6, (hash(i, 4) - 0.5) * 0.6);
+    return f;
+  });
   e.top = 1.25;
   let start = -1, wasReady = false, shake = -1e9;
   const shown: number[] = fruit.map(() => 0);
@@ -2554,7 +2575,7 @@ function buildFruitTree(e: Entry, d: BuildingDef) {
     start = st; wasReady = ti.ready;
     const n = ti.ready ? fruit.length : Math.floor(ti.p * fruit.length);
     const sc = ti.ready ? 1 : 0.5 + ti.p * 0.4;
-    const base = d.fruit === 'cherry' ? 0.04 : 0.055;
+    const base = d.fruit === 'cherry' ? 0.075 : d.fruit === 'lemon' ? 0.07 : 0.085;
     fruit.forEach((f, i) => {
       // new fruit swells in instead of popping into existence
       shown[i] = i < n ? Math.min(1, shown[i] + 0.04) : 0;
@@ -2572,10 +2593,10 @@ function buildFruitTree(e: Entry, d: BuildingDef) {
 function buildPalm(e: Entry, d: BuildingDef, leaf: string) {
   const g = e.root;
   const { crown, top } = palmTree(g, leaf);
-  const nut = new THREE.MeshStandardMaterial({ color: FRUIT_COLOR.coconut, roughness: 0.8 });
+  const nut = PRODUCE_MAT;
   const fruit = [0, 1, 2, 3, 4].map((i) => {
     const a = (i / 5) * Math.PI * 2;
-    return mk(top, G.ball, nut, 0.06, 0.055, 0.06, Math.cos(a) * 0.07, -0.04, Math.sin(a) * 0.07);
+    return mk(top, produceGeo('coconut') ?? G.ball, nut, 0.06, 0.055, 0.06, Math.cos(a) * 0.07, -0.04, Math.sin(a) * 0.07);
   });
   e.top = 1.7;
   let start = -1, wasReady = false, shake = -1e9;

@@ -4,6 +4,7 @@
 import * as THREE from 'three';
 import type { CropDef } from '../data';
 import { Kit, P, blade, cylinder, lump, ribs, ruffledLeaf, tip, type V3 } from './kit';
+import { produceGeo } from './produce';
 
 const r = (i: number, s: number) => {
   let h = Math.imul(i | 0, 374761393) ^ Math.imul(s | 0, 668265263);
@@ -111,11 +112,11 @@ function build(cd: CropDef): CropGeo {
         const p: V3 = [Math.cos(a) * d, y, Math.sin(a) * d];
         if (cotton) fruit.add(lump(60 + i, 0.35, 10), W, [p[0], p[1] + 0.04, p[2]], [0, 0, 0], 0.03);
         else if (straw) {
-          fruit.add(P.sphere, W, p, [Math.PI, 0, 0.3], [0.018, 0.026, 0.018]);
+          fruit.add(produceGeo('strawberry') as THREE.BufferGeometry, W, p, [0.3, a, 0.2], 0.022);
           plant.add(P.sphere, '#3d8a2f', [p[0], p[1] + 0.022, p[2]], [0, 0, 0], [0.014, 0.005, 0.014]);
-        } else if (chili) fruit.add(P.sphere, W, p, [0.2, a, 0.3], [0.011, 0.04, 0.011]);
+        } else if (chili) fruit.add(produceGeo('chili') as THREE.BufferGeometry, W, [p[0], p[1] + 0.02, p[2]], [0.2, a, 0.3], 0.04);
         else {
-          fruit.add(P.sphereHi, W, p, [0, 0, 0], [0.032, 0.029, 0.032]);
+          fruit.add(produceGeo('tomato') as THREE.BufferGeometry, W, p, [0, a, 0], 0.033);
           plant.add(P.sphere, '#2f7a2a', [p[0], p[1] + 0.027, p[2]], [0, 0, 0], [0.014, 0.005, 0.014]);
         }
       }

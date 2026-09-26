@@ -16,6 +16,7 @@ By Talons Protocol.
 - Manor for the farmer; tap free land to walk the farmer and dog there, at night they go home to sleep
 - Butterflies, gulls, leaping fish and a sailboat on the horizon
 - Rabbits (angora fur) and alpacas (alpaca wool) with new loom goods; straw skep beehives
+- Realistic sculpted animals (jointed legs, lifelike eyes, breed colors) and painted produce: dimpled apples, cherry pairs, pitted oranges, blushing peaches, lemons, tomatoes, strawberries, chilies
 - Hand painted canvas icons for goods without a fitting emoji; leaf card tree crowns; realistic Holstein cows; ruffled lettuce
 - Sculpted signed distance field animals, rolling sea swell and a subtle tilt shift miniature look
 - High and Low graphics quality in Settings (kept per device, outside the save)
