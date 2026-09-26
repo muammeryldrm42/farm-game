@@ -113,6 +113,12 @@ item('beet', 'Beetroot', '@beet', 'silo', 20, 9);
 item('pea', 'Peas', '@pea', 'silo', 26, 10);
 item('zucchini', 'Zucchini', '@zucchini', 'silo', 30, 13);
 item('sweet_potato', 'Sweet Potato', '🍠', 'silo', 36, 15);
+item('oat', 'Oats', '@oat', 'silo', 8, 3);
+item('barley', 'Barley', '@barley', 'silo', 12, 6);
+item('soybean', 'Soybeans', '@soybean', 'silo', 22, 8);
+item('tulip', 'Tulip', '🌷', 'silo', 26, 7);
+item('rose', 'Rose', '🌹', 'silo', 38, 11);
+item('lavender', 'Lavender', '@lavender', 'silo', 34, 12);
 
 // fruit (silo)
 item('apple', 'Apple', '🍎', 'silo', 22, 6);
@@ -157,6 +163,8 @@ item('ostrich_egg', 'Ostrich Egg', '@ostrich_egg', 'barn', 110, 19);
 item('quail_egg', 'Quail Eggs', '@quail_egg', 'barn', 40, 9);
 item('yak_wool', 'Yak Wool', '@yak_wool', 'barn', 100, 18);
 item('camel_milk', 'Camel Milk', '@camel_milk', 'barn', 120, 20);
+item('salmon', 'Salmon', '@salmon', 'barn', 70, 10);
+item('crab', 'Crab', '🦀', 'barn', 85, 14);
 item('angora', 'Angora Fur', '@angora', 'barn', 65, 9);
 item('alpaca_wool', 'Alpaca Wool', '🦙', 'barn', 110, 14);
 item('goat_cheese', 'Goat Cheese', '🫕', 'barn', 180, 12);
@@ -231,6 +239,14 @@ item('roast_veggies', 'Roast Vegetables', '@roast_veggies', 'barn', 210, 15);
 item('quail_quiche', 'Quail Quiche', '@quail_quiche', 'barn', 180, 9);
 item('yak_blanket', 'Yak Blanket', '@yak_blanket', 'barn', 320, 18);
 item('camel_cheese', 'Camel Cheese', '@camel_cheese', 'barn', 330, 20);
+item('bouquet', 'Bouquet', '💐', 'barn', 160, 11);
+item('lavender_sachet', 'Lavender Sachet', '@lavender_sachet', 'barn', 150, 12);
+item('flower_crown', 'Flower Crown', '@flower_crown', 'barn', 210, 13);
+item('oat_cookie', 'Oat Cookies', '@oat_cookie', 'barn', 90, 4);
+item('barley_bread', 'Barley Loaf', '@barley_bread', 'barn', 110, 6);
+item('soy_milk', 'Soy Milk', '@soy_milk', 'barn', 95, 8);
+item('salmon_roll', 'Salmon Roll', '@salmon_roll', 'barn', 240, 13);
+item('crab_cake', 'Crab Cakes', '@crab_cake', 'barn', 260, 14);
 
 export const ITEMS: Record<string, ItemDef> = Object.fromEntries(ITEM_LIST.map((i) => [i.id, i]));
 
@@ -268,6 +284,12 @@ export const CROPS: CropDef[] = [
   { id: 'pea', time: 300, xp: 6, seedCost: 11, level: 10, shape: 'trellis', leaf: '#6ab84a', fruit: '#7ac850' },
   { id: 'zucchini', time: 380, xp: 7, seedCost: 13, level: 13, shape: 'vine', leaf: '#4f9a3a', fruit: '#2f6a24' },
   { id: 'sweet_potato', time: 500, xp: 9, seedCost: 16, level: 15, shape: 'root', leaf: '#5a9a3a', fruit: '#c0603a' },
+  { id: 'oat', time: 30, xp: 1, seedCost: 2, level: 3, shape: 'grain', leaf: '#8cbf4a', fruit: '#e6d9a0' },
+  { id: 'barley', time: 150, xp: 4, seedCost: 6, level: 6, shape: 'grain', leaf: '#86b848', fruit: '#e0c870' },
+  { id: 'tulip', time: 160, xp: 4, seedCost: 7, level: 7, shape: 'flower', leaf: '#5aa83a', fruit: '#e8305a' },
+  { id: 'soybean', time: 260, xp: 6, seedCost: 10, level: 8, shape: 'bush', leaf: '#5a9a3a', fruit: '#9ab85a' },
+  { id: 'rose', time: 400, xp: 8, seedCost: 14, level: 11, shape: 'flower', leaf: '#3f7f32', fruit: '#c8102e' },
+  { id: 'lavender', time: 460, xp: 9, seedCost: 15, level: 12, shape: 'flower', leaf: '#7a9a6a', fruit: '#8a6ad0' },
   { id: 'coffee_bean', time: 1020, xp: 16, seedCost: 28, level: 17, shape: 'bush', leaf: '#2f6f35', fruit: '#b0282a' },
 ];
 export const CROP: Record<string, CropDef> = Object.fromEntries(CROPS.map((c) => [c.id, c]));
@@ -342,6 +364,14 @@ recipe('roast_veggies', 'bbq_grill', { zucchini: 1, sweet_potato: 1, beet: 1 }, 
 recipe('quail_quiche', 'bakery', { quail_egg: 3, spinach: 1, wheat: 1 }, 240, 12, 9);
 recipe('yak_blanket', 'loom', { yak_wool: 2 }, 390, 19, 18);
 recipe('camel_cheese', 'dairy', { camel_milk: 2 }, 360, 19, 20);
+recipe('bouquet', 'florist', { rose: 2, tulip: 2, sunflower: 1 }, 240, 12, 11);
+recipe('lavender_sachet', 'florist', { lavender: 2, cotton: 1 }, 270, 13, 12);
+recipe('flower_crown', 'florist', { rose: 1, lavender: 1, tulip: 2 }, 330, 16, 13);
+recipe('oat_cookie', 'bakery', { oat: 3, sugar: 1 }, 120, 6, 4);
+recipe('barley_bread', 'bakery', { barley: 3 }, 150, 7, 6);
+recipe('soy_milk', 'dairy', { soybean: 3 }, 150, 8, 8);
+recipe('salmon_roll', 'sushi_bar', { salmon: 1, rice: 2 }, 300, 15, 13);
+recipe('crab_cake', 'bbq_grill', { crab: 1, bread: 1, egg: 1 }, 300, 16, 14);
 recipe('blueberry_muffin', 'bakery', { wheat: 2, blueberry: 2, egg: 1 }, 240, 12, 10);
 recipe('custard_tart', 'bakery', { goose_egg: 1, milk: 1, sugar: 1 }, 270, 13, 12);
 recipe('coconut_cake', 'bakery', { coconut: 2, wheat: 2, goose_egg: 1 }, 360, 17, 16);
@@ -469,10 +499,21 @@ export const BUILDINGS: BuildingDef[] = [
   b({ id: 'pizzeria', name: 'Pizzeria', icon: '🍕', kind: 'production', w: 2, h: 2, cost: 2400, level: 12, xp: 60, height: 58, wall: '#f7e1c4', roof: '#c0392b', desc: 'A wood fired oven for pizzas.' }),
   b({ id: 'coffee_kiosk', name: 'Coffee Kiosk', icon: '☕', kind: 'production', w: 2, h: 2, cost: 2800, level: 13, xp: 65, height: 54, wall: '#efe0cf', roof: '#6b4226', desc: 'Brews lemonade, espresso and lattes.' }),
   b({ id: 'oil_press', name: 'Olive Press', icon: '@olive_oil', kind: 'production', w: 2, h: 2, cost: 3400, level: 17, xp: 70, height: 56, wall: '#efe4cc', roof: '#6a7a3a', desc: 'Presses olives into oil and blends pesto.' }),
+  b({ id: 'florist', name: 'Flower Shop', icon: '💐', kind: 'production', w: 2, h: 2, cost: 1600, level: 11, xp: 50, height: 54, wall: '#fbe8ef', roof: '#d8568a', desc: 'Ties bouquets, sachets and flower crowns.' }),
   b({ id: 'workshop', name: 'Workshop', icon: '🛠️', kind: 'production', w: 2, h: 2, cost: 3000, level: 16, xp: 70, height: 58, wall: '#e8d3a8', roof: '#4a6a8a', desc: 'Crafts candles and pillows.' }),
 
   b({ id: 'hay_bale', name: 'Hay Bale', icon: '🌾', kind: 'deco', cost: 15, level: 1, max: 30, xp: 1, height: 18, sellable: true, desc: 'A cozy stack of hay.' }),
   b({ id: 'oak', name: 'Oak Tree', icon: '🌳', kind: 'deco', cost: 25, level: 1, max: 30, xp: 2, height: 62, sellable: true, desc: 'Shade for a sunny farm.' }),
+  b({ id: 'picket_fence', name: 'Picket Fence', icon: '🤍', kind: 'deco', cost: 10, level: 2, max: 80, xp: 1, height: 16, sellable: true, desc: 'A white picket fence panel.' }),
+  b({ id: 'stone_path', name: 'Stone Path', icon: '🪨', kind: 'deco', cost: 8, level: 2, max: 120, xp: 1, height: 2, sellable: true, desc: 'Stepping stones for a tidy path.' }),
+  b({ id: 'bird_house', name: 'Bird House', icon: '🐦', kind: 'deco', cost: 50, level: 4, max: 10, xp: 3, height: 50, sellable: true, desc: 'Little birds come and go all day.' }),
+  b({ id: 'pumpkin_pile', name: 'Pumpkin Pile', icon: '🎃', kind: 'deco', cost: 40, level: 5, max: 20, xp: 2, height: 20, sellable: true, desc: 'A cheerful harvest heap.' }),
+  b({ id: 'birdbath', name: 'Bird Bath', icon: '🕊️', kind: 'deco', cost: 90, level: 6, max: 6, xp: 4, height: 30, sellable: true, desc: 'Birds stop by for a splash.' }),
+  b({ id: 'topiary', name: 'Topiary', icon: '🌳', kind: 'deco', cost: 110, level: 8, max: 12, xp: 5, height: 50, sellable: true, desc: 'A neatly clipped hedge sculpture.' }),
+  b({ id: 'well', name: 'Water Well', icon: '🪣', kind: 'deco', cost: 220, level: 8, max: 3, xp: 8, height: 60, sellable: true, desc: 'An old stone well with a bucket.' }),
+  b({ id: 'flower_arch', name: 'Flower Arch', icon: '🌸', kind: 'deco', cost: 260, level: 10, max: 4, xp: 10, height: 70, sellable: true, desc: 'A rose covered garden arch.' }),
+  b({ id: 'hay_wagon', name: 'Hay Wagon', icon: '🛒', kind: 'deco', w: 2, h: 1, cost: 380, level: 12, max: 3, xp: 14, height: 44, sellable: true, desc: 'A wooden wagon piled with hay.' }),
+  b({ id: 'tractor', name: 'Tractor', icon: '🚜', kind: 'deco', w: 2, h: 2, cost: 1500, level: 15, max: 1, xp: 45, height: 60, sellable: true, desc: 'A shiny red farm tractor.' }),
   b({ id: 'flowers', name: 'Flower Bed', icon: '🌷', kind: 'deco', cost: 30, level: 3, max: 30, xp: 2, height: 12, sellable: true, desc: 'A splash of color.' }),
   b({ id: 'bench', name: 'Bench', icon: '🪑', kind: 'deco', cost: 45, level: 4, max: 20, xp: 3, height: 20, sellable: true, desc: 'Sit and enjoy the view.' }),
   b({ id: 'lamp', name: 'Lamp Post', icon: '💡', kind: 'deco', cost: 60, level: 5, max: 20, xp: 3, height: 52, sellable: true, desc: 'Glows warmly at night.' }),

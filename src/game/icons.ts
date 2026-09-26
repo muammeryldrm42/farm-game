@@ -133,7 +133,87 @@ function wedge(col: [string, string]): Painter {
   };
 }
 
+// a bundle of grain stalks tied with a ribbon
+function sheaf(head: string, awns: boolean): Painter {
+  return (c) => {
+    for (let i = -3; i <= 3; i++) {
+      c.save(); c.translate(64, 110); c.rotate(i * 0.12);
+      c.strokeStyle = '#a8a050'; c.lineWidth = 3; c.beginPath(); c.moveTo(0, 0); c.lineTo(0, -70); c.stroke();
+      for (let k = 0; k < 5; k++) {
+        c.fillStyle = head; c.beginPath(); c.ellipse(k % 2 ? 5 : -5, -70 - k * 7, 5, 8, k % 2 ? 0.5 : -0.5, 0, Math.PI * 2); c.fill();
+        if (awns) { c.strokeStyle = head; c.lineWidth = 1.2; c.beginPath(); c.moveTo(k % 2 ? 8 : -8, -74 - k * 7); c.lineTo(k % 2 ? 18 : -18, -90 - k * 7); c.stroke(); }
+      }
+      c.restore();
+    }
+    rrect(c, 46, 84, 36, 10, 4); c.fillStyle = '#c0392b'; c.fill(); outline(c, 2);
+  };
+}
+
 const PAINTERS: Record<string, Painter> = {
+  oat: sheaf('#e6d9a0', false),
+  barley: sheaf('#e0c870', true),
+  soybean: (c) => {
+    c.save(); c.translate(64, 64); c.rotate(-0.5);
+    c.beginPath(); c.moveTo(-48, 0); c.bezierCurveTo(-26, -26, 26, -26, 48, 0); c.bezierCurveTo(26, 16, -26, 16, -48, 0);
+    c.fillStyle = lin(c, 0, -20, 0, 14, [[0, '#b8d070'], [1, '#6a8a2a']]); c.fill(); outline(c);
+    for (let i = -1; i <= 1; i++) circle(c, i * 22, -3, 10, rad(c, i * 22, -3, 10, [[0, '#fff0b0'], [1, '#c8b060']]));
+    c.restore();
+  },
+  lavender: (c) => {
+    for (let i = -2; i <= 2; i++) {
+      c.save(); c.translate(64, 116); c.rotate(i * 0.16);
+      c.strokeStyle = '#6a8a5a'; c.lineWidth = 3; c.beginPath(); c.moveTo(0, 0); c.lineTo(0, -70); c.stroke();
+      for (let k = 0; k < 7; k++) circle(c, (k % 2 ? 3 : -3), -64 - k * 6, 5, k % 2 ? '#8a6ad0' : '#a88ae8');
+      c.restore();
+    }
+  },
+  salmon: (c) => {
+    c.beginPath(); c.ellipse(60, 64, 44, 22, 0, 0, Math.PI * 2); c.fillStyle = lin(c, 0, 42, 0, 86, [[0, '#6a8aa8'], [0.5, '#e8a8a0'], [1, '#f2ece0']]); c.fill(); outline(c);
+    c.beginPath(); c.moveTo(100, 64); c.lineTo(122, 44); c.lineTo(122, 84); c.closePath(); c.fillStyle = '#6a8aa8'; c.fill(); outline(c, 3);
+    circle(c, 30, 58, 5, '#1a1a1a'); circle(c, 31, 57, 1.5, '#ffffff');
+    c.fillStyle = 'rgba(30,40,60,0.5)'; for (let i = 0; i < 8; i++) { c.beginPath(); c.arc(46 + i * 7, 52 + (i % 2) * 4, 1.8, 0, Math.PI * 2); c.fill(); }
+  },
+  lavender_sachet: (c) => {
+    c.beginPath(); c.moveTo(34, 50); c.quadraticCurveTo(28, 110, 64, 116); c.quadraticCurveTo(100, 110, 94, 50); c.closePath();
+    c.fillStyle = lin(c, 30, 0, 98, 0, [[0, '#b8a0e8'], [0.5, '#d8c8f8'], [1, '#a890d8']]); c.fill(); outline(c);
+    c.fillStyle = '#8a6ad0'; for (const [x, y] of [[50, 80], [66, 92], [80, 76], [58, 100]]) { c.beginPath(); c.arc(x, y, 4, 0, Math.PI * 2); c.fill(); }
+    rrect(c, 40, 42, 48, 10, 4); c.fillStyle = '#e8c43a'; c.fill(); outline(c, 2);
+    c.fillStyle = '#6a8a5a'; for (let i = 0; i < 4; i++) { c.beginPath(); c.ellipse(48 + i * 10, 30, 4, 12, (i - 1.5) * 0.3, 0, Math.PI * 2); c.fill(); }
+  },
+  flower_crown: (c) => {
+    c.beginPath(); c.ellipse(64, 70, 46, 24, 0, 0, Math.PI * 2); c.lineWidth = 8; c.strokeStyle = '#4f8a3a'; c.stroke();
+    const cols = ['#e8305a', '#f2d23a', '#8a6ad0', '#ffffff', '#ff8fb0', '#e8305a', '#8a6ad0', '#f2d23a'];
+    cols.forEach((col, i) => { const a = (i / cols.length) * Math.PI * 2; const x = 64 + Math.cos(a) * 46, y = 70 + Math.sin(a) * 24; for (let k = 0; k < 5; k++) circle(c, x + Math.cos(k * 1.26) * 6, y + Math.sin(k * 1.26) * 6, 5, col); circle(c, x, y, 3.5, '#f2b33a'); });
+  },
+  oat_cookie: (c) => {
+    for (const [x, y] of [[46, 76], [82, 72], [64, 50]]) {
+      circle(c, x, y, 26, rad(c, x, y, 26, [[0, '#e0c080'], [1, '#a87a3a']]));
+      c.beginPath(); c.arc(x, y, 26, 0, Math.PI * 2); outline(c, 3);
+      c.fillStyle = '#f2e6c0'; for (let i = 0; i < 6; i++) { c.beginPath(); c.ellipse(x + Math.cos(i * 1.1) * 14, y + Math.sin(i * 1.3) * 12, 4, 2, i, 0, Math.PI * 2); c.fill(); }
+    }
+  },
+  barley_bread: (c) => {
+    c.beginPath(); c.ellipse(64, 72, 50, 32, 0, 0, Math.PI * 2); c.fillStyle = rad(c, 64, 64, 50, [[0, '#d8a060'], [1, '#8a5a2a']]); c.fill(); outline(c);
+    c.strokeStyle = '#f2d8a0'; c.lineWidth = 4; for (const x of [44, 64, 84]) { c.beginPath(); c.moveTo(x - 8, 56); c.lineTo(x + 8, 82); c.stroke(); }
+    c.fillStyle = '#e8d8a0'; for (let i = 0; i < 12; i++) { c.beginPath(); c.ellipse(30 + (i * 17) % 70, 50 + (i * 11) % 40, 3, 1.5, i, 0, Math.PI * 2); c.fill(); }
+  },
+  soy_milk: bottle('#fdf8ea', '#6a8a2a', '#d8e8a8'),
+  salmon_roll: (c) => {
+    for (const [x, y] of [[40, 70], [88, 70], [64, 52]]) {
+      circle(c, x, y, 24, '#1f2a1f'); circle(c, x, y, 19, '#fbfaf5');
+      c.fillStyle = '#f08a6a'; c.beginPath(); c.arc(x, y, 9, 0, Math.PI * 2); c.fill();
+      c.fillStyle = '#8ac850'; c.beginPath(); c.arc(x + 5, y - 3, 4, 0, Math.PI * 2); c.fill();
+      c.beginPath(); c.arc(x, y, 24, 0, Math.PI * 2); outline(c, 3);
+    }
+  },
+  crab_cake: (c) => {
+    for (const [x, y] of [[44, 76], [84, 76], [64, 56]]) {
+      c.beginPath(); c.ellipse(x, y, 26, 16, 0, 0, Math.PI * 2); c.fillStyle = rad(c, x, y, 26, [[0, '#f2c070'], [1, '#b0702a']]); c.fill(); outline(c, 3);
+      c.fillStyle = 'rgba(255,230,190,0.7)'; for (let i = 0; i < 5; i++) { c.beginPath(); c.arc(x - 12 + i * 6, y - 3 + (i % 2) * 5, 2, 0, Math.PI * 2); c.fill(); }
+    }
+    c.fillStyle = '#ffe066'; c.beginPath(); c.moveTo(96, 40); c.lineTo(118, 30); c.lineTo(110, 52); c.closePath(); c.fill(); outline(c, 2);
+  },
+
   apricot: fruit(['#ffc070', '#e0782a']),
   lime: fruit(['#b8e050', '#3f8a1e'], undefined, '#4f6a2a'),
   fig: (c) => {

@@ -678,8 +678,10 @@ export class GameStore {
     const f = this.s.fishing;
     const now = Date.now();
     if (!f || fishingInfo(this.s, now).state !== 'ready') return;
-    const lobster = this.s.level >= 12 && Math.random() < 0.22;
-    const id = lobster ? 'lobster' : 'fish';
+    // what bites depends on luck and level: fish most often, then salmon, lobster and crab
+    const roll = Math.random(), lv = this.s.level;
+    const id = lv >= 14 && roll < 0.14 ? 'crab' : lv >= 12 && roll < 0.3 ? 'lobster' : lv >= 10 && roll < 0.5 ? 'salmon' : 'fish';
+    const lobster = id !== 'fish';
     const qty = lobster ? 1 : 1 + (Math.random() < 0.4 ? 1 : 0);
     if (!this.canStore(id, qty)) { this.fullToast(id); return; }
     this.add(id, qty);

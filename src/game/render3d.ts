@@ -11,7 +11,7 @@ import { Foliage, windify, type Spot } from './gfx/foliage';
 import { Post } from './gfx/post';
 import { PLANT_MAT, cropGeo } from './gfx/crops';
 import { PRODUCE_MAT, produceGeo } from './gfx/produce';
-import { ruffledLeaf } from './gfx/kit';
+import { ribs, ruffledLeaf } from './gfx/kit';
 import { creature, personParts } from './gfx/creatures';
 import { SCULPT_MAT, WOOL_MAT } from './gfx/sdf';
 import { leafShell, leafTexture, meterBox, meterHip, meterRoof, surface, surfaceMat, type SurfaceKind } from './gfx/textures';
@@ -2202,6 +2202,17 @@ function buildHouse(e: Entry, d: BuildingDef) {
       mk(cup, new THREE.TorusGeometry(0.05, 0.015, 8, 14), M('#ffffff'), 1, 1, 1, 0.13, 0.1, 0).rotation.y = 0;
       break;
     }
+    case 'florist': {
+      // buckets of fresh cut flowers along the front
+      const cols = ['#e8305a', '#f2d23a', '#8a6ad0', '#ffffff', '#ff8fb0'];
+      for (let i = 0; i < 4; i++) {
+        const x = cx - ww / 2 + 0.12 + i * (ww - 0.24) / 3;
+        if (Math.abs(x - cx) < 0.2) continue;
+        mk(g, cylGeo(0.06, 0.05, 12), M('#8a8f96'), 1, 0.1, 1, x, y0 + 0.05, fz + 0.14);
+        for (let k = 0; k < 5; k++) ball(g, 0.025, cols[(i + k) % 5], x + Math.cos(k * 1.3) * 0.035, y0 + 0.13 + (k % 2) * 0.02, fz + 0.14 + Math.sin(k * 1.3) * 0.035, 1, 1, 1, false);
+      }
+      break;
+    }
     case 'oil_press': {
       // a stone basin with an upright millstone and a stack of olive baskets
       const ox = rx + 0.05, oz = cz + 0.1;
@@ -2849,6 +2860,172 @@ function buildDeco(e: Entry, d: BuildingDef) {
   const g = e.root;
   e.top = d.height * ZU + 0.2;
   switch (d.id) {
+    case 'picket_fence': {
+      // white pickets with pointed tops on two rails
+      for (let i = 0; i < 6; i++) {
+        const x = 0.1 + i * 0.16;
+        bx(g, 0.07, 0.34, 0.025, '#f7f3ea', x, 0, 0.5);
+        const tipM = mk(g, cylGeo(0, 0.05, 4), M('#f7f3ea'), 1, 0.06, 1, x, 0.37, 0.5);
+        tipM.rotation.y = Math.PI / 4;
+        tipM.scale.set(1, 1, 0.35);
+      }
+      for (const y of [0.08, 0.24]) bx(g, 0.96, 0.035, 0.02, '#ece6da', 0.5, y, 0.485);
+      e.top = 0.5;
+      break;
+    }
+    case 'stone_path': {
+      // flat irregular flagstones set in the grass
+      const stone = surfaceMat('stone', '#c8c2b4', 6);
+      for (let i = 0; i < 5; i++) {
+        const st = mk(g, blobGeo(40 + i), stone, 0.16 + hash(i, 1) * 0.06, 0.02, 0.14 + hash(i, 2) * 0.05, 0.22 + (i % 3) * 0.28, 0.015, 0.25 + Math.floor(i / 3) * 0.45 + (i % 2) * 0.08, false);
+        st.rotation.y = hash(i, 3) * 3;
+      }
+      e.top = 0.1;
+      break;
+    }
+    case 'bird_house': {
+      // a little house on a post with a round door, and a bird hopping on the perch
+      cyl(g, 0.025, 0.03, 0.8, '#7a4a28', 0.5, 0, 0.5, 8);
+      bxT(g, 0.2, 0.18, 0.18, 'boards', '#6aa0d8', 0.5, 0.8, 0.5, 6);
+      roofT(g, 0.26, 0.1, 0.24, '#c0392b', surfaceMat('boards', '#6aa0d8', 6), 0.5, 0.98, 0.5, 0.03);
+      mk(g, cylGeo(0.035, 0.035, 14), M('#2a1a10'), 1, 0.01, 1, 0.5, 0.9, 0.592).rotation.x = Math.PI / 2;
+      mk(g, cylGeo(0.006, 0.006, 6), M('#7a4a28'), 1, 0.06, 1, 0.5, 0.85, 0.6).rotation.x = Math.PI / 2;
+      const bird = group(g, 0.5, 0.87, 0.64);
+      ball(bird, 0.025, '#e8563a', 0, 0.02, 0, 1, 0.9, 1.3);
+      ball(bird, 0.017, '#6a4a2a', 0, 0.045, 0.02);
+      mk(bird, cylGeo(0, 0.006, 5), M('#f2b33a'), 1, 0.015, 1, 0, 0.045, 0.04).rotation.x = Math.PI / 2;
+      e.top = 1.2;
+      e.update = (o, _n, t) => {
+        const k = Math.sin(t / 700 + o.id);
+        bird.visible = Math.sin(t / 5000 + o.id) > -0.4;
+        bird.position.y = 0.87 + Math.max(0, k) * 0.04;
+        bird.rotation.y = Math.sin(t / 900 + o.id) * 0.8;
+      };
+      break;
+    }
+    case 'pumpkin_pile': {
+      // pumpkins of every size in a heap, with a crate
+      const pm = new THREE.MeshStandardMaterial({ color: '#f08a24', roughness: 0.55 });
+      for (const [x, y, z, s] of [[0.35, 0.1, 0.4, 0.14], [0.62, 0.09, 0.35, 0.12], [0.5, 0.08, 0.65, 0.11], [0.5, 0.22, 0.45, 0.1], [0.72, 0.07, 0.62, 0.08]] as const) {
+        mk(g, ribs(8), pm, s, s, s, x, y, z);
+        cyl(g, 0.008, 0.012, 0.05, '#6a7a2a', x, y + s * 0.65, z, 6);
+      }
+      bxT(g, 0.26, 0.14, 0.2, 'planks', '#b98048', 0.22, 0, 0.72, 5);
+      e.top = 0.5;
+      break;
+    }
+    case 'birdbath': {
+      // carved stone bowl on a pedestal, with a little bird dipping in
+      const stone = surfaceMat('stone', '#d8d2c4', 6);
+      mk(g, cylGeo(0.14, 0.18, 16), stone, 1, 0.06, 1, 0.5, 0.03, 0.5);
+      mk(g, cylGeo(0.05, 0.07, 12), stone, 1, 0.45, 1, 0.5, 0.28, 0.5);
+      mk(g, G.dome, stone, 0.26, 0.1, 0.26, 0.5, 0.6, 0.5).rotation.x = Math.PI;
+      mk(g, cylGeo(0.24, 0.24, 20), WATER, 1, 0.01, 1, 0.5, 0.6, 0.5, false);
+      const bird = group(g, 0.62, 0.62, 0.5);
+      ball(bird, 0.022, '#6a8ab8', 0, 0.02, 0, 1, 0.9, 1.3);
+      ball(bird, 0.015, '#4a5a7a', 0, 0.04, 0.02);
+      e.top = 0.9;
+      e.update = (o, _n, t) => { bird.rotation.x = Math.max(0, Math.sin(t / 400 + o.id) - 0.6) * 1.5; bird.rotation.y = Math.sin(t / 2000 + o.id) * 2; };
+      break;
+    }
+    case 'topiary': {
+      // three clipped spheres on a stem, in a terracotta pot
+      mk(g, cylGeo(0.12, 0.09, 16), M('#c0643a'), 1, 0.16, 1, 0.5, 0.08, 0.5);
+      cyl(g, 0.02, 0.025, 0.7, '#6b4226', 0.5, 0.16, 0.5, 8);
+      for (const [y, r] of [[0.32, 0.13], [0.58, 0.11], [0.8, 0.08]] as const) {
+        mk(g, blobGeo(50 + Math.round(y * 10)), M('#3f7f32'), r, r, r, 0.5, y, 0.5);
+        const sh = new THREE.Mesh(leafShell(7 + Math.round(y * 10), 30), leafMat('#4f9a3a'));
+        sh.scale.setScalar(r * 1.05); sh.position.set(0.5, y, 0.5); sh.castShadow = true; g.add(sh);
+      }
+      e.top = 1.05;
+      break;
+    }
+    case 'well': {
+      // round stone well with a little roof, crank and bucket
+      const stone = surfaceMat('stone', '#bdb6a6', 5);
+      mk(g, cylGeo(0.3, 0.32, 20), stone, 1, 0.34, 1, 0.5, 0.17, 0.5);
+      mk(g, cylGeo(0.24, 0.24, 20), new THREE.MeshStandardMaterial({ color: '#0e1a24', roughness: 0.2 }), 1, 0.01, 1, 0.5, 0.3, 0.5, false);
+      for (const sx of [-1, 1]) cyl(g, 0.025, 0.025, 0.55, '#6b4226', 0.5 + sx * 0.27, 0.32, 0.5, 8);
+      roofT(g, 0.72, 0.22, 0.46, '#8e2c20', M('#6b4226'), 0.5, 0.86, 0.5);
+      const axle = mk(g, cylGeo(0.02, 0.02, 8), M('#6b4226'), 1, 0.6, 1, 0.5, 0.72, 0.5);
+      axle.rotation.z = Math.PI / 2;
+      bx(g, 0.03, 0.1, 0.02, '#6b4226', 0.84, 0.66, 0.5);
+      cyl(g, 0.004, 0.004, 0.25, '#c8b88a', 0.5, 0.47, 0.5, 4);
+      mk(g, cylGeo(0.06, 0.05, 12), M('#8a8f96'), 1, 0.08, 1, 0.5, 0.45, 0.5);
+      e.top = 1.2;
+      break;
+    }
+    case 'flower_arch': {
+      // white wooden arch smothered in climbing roses
+      for (const x of [0.12, 0.88]) for (const z of [0.4, 0.6]) cyl(g, 0.025, 0.025, 1.0, '#f7f3ea', x, 0, z, 8);
+      const arc = new THREE.Mesh(new THREE.TorusGeometry(0.38, 0.025, 8, 24, Math.PI), M('#f7f3ea'));
+      arc.position.set(0.5, 1.0, 0.5);
+      arc.castShadow = true;
+      g.add(arc);
+      const rm = new THREE.MeshStandardMaterial({ color: '#e8305a', roughness: 0.5 });
+      for (let i = 0; i < 22; i++) {
+        const a = (i / 21) * Math.PI;
+        const px = 0.5 + Math.cos(a) * 0.38, py = 1.0 + Math.sin(a) * 0.38;
+        mk(g, blobGeo(60 + (i % 4)), M(i % 2 ? '#3f8a2e' : '#4f9a36'), 0.06, 0.06, 0.06, px, py, 0.5 + (hash(i, 1) - 0.5) * 0.1);
+        if (i % 2 === 0) mk(g, produceGeo('rose') as THREE.BufferGeometry, rm, 0.03, 0.03, 0.03, px, py + 0.04, 0.56);
+      }
+      for (let i = 0; i < 10; i++) {
+        const x = i < 5 ? 0.12 : 0.88, y = 0.1 + (i % 5) * 0.18;
+        mk(g, blobGeo(70 + (i % 4)), M('#3f8a2e'), 0.05, 0.06, 0.05, x, y, 0.5);
+        if (i % 2) mk(g, produceGeo('rose') as THREE.BufferGeometry, rm, 0.028, 0.028, 0.028, x, y + 0.03, 0.56);
+      }
+      e.top = 1.5;
+      break;
+    }
+    case 'hay_wagon': {
+      // wooden farm wagon with spoked wheels and a load of hay
+      bxT(g, 1.5, 0.08, 0.6, 'planks', '#b98048', 1, 0.28, 0.5, 3);
+      for (const z of [0.22, 0.78]) bxT(g, 1.5, 0.16, 0.03, 'boards', '#9a6a3a', 1, 0.36, z, 3);
+      for (const [x, z] of [[0.45, 0.16], [1.55, 0.16], [0.45, 0.84], [1.55, 0.84]]) {
+        const w = group(g, x, 0.2, z);
+        const rim = new THREE.Mesh(new THREE.TorusGeometry(0.19, 0.02, 8, 20), M('#5a3a1f'));
+        rim.castShadow = true;
+        w.add(rim);
+        for (let k = 0; k < 6; k++) { const sp = mk(w, cylGeo(0.008, 0.008, 5), M('#7a4a28'), 1, 0.36, 1, 0, -0.18, 0); sp.rotation.z = (k / 6) * Math.PI; sp.position.set(0, 0, 0); }
+        ball(w, 0.03, '#3a2a1a', 0, 0, 0);
+      }
+      const hay = surfaceMat('thatch', '#e8c865', 3, 0.95, 1, 1);
+      mk(g, blobGeo(80), hay, 0.62, 0.22, 0.26, 1, 0.5, 0.5);
+      cyl(g, 0.015, 0.015, 0.5, '#6b4426', 0.1, 0.3, 0.5, 6).rotation.z = 1.2;
+      e.top = 0.9;
+      break;
+    }
+    case 'tractor': {
+      // red farm tractor: big rear wheels with treads, small front wheels, cab and exhaust
+      const red = new THREE.MeshStandardMaterial({ color: '#c8201e', roughness: 0.35, metalness: 0.3 });
+      const tire = new THREE.MeshStandardMaterial({ color: '#1e1e1e', roughness: 0.9 });
+      const hub = new THREE.MeshStandardMaterial({ color: '#f2d23a', roughness: 0.4, metalness: 0.3 });
+      mk(g, G.box, red, 0.5, 0.3, 0.9, 1, 0.45, 1.05);
+      mk(g, G.box, red, 0.55, 0.12, 0.5, 1, 0.42, 0.62);
+      mk(g, G.box, new THREE.MeshStandardMaterial({ color: '#2a2a2a', roughness: 0.6 }), 0.46, 0.04, 0.16, 1, 0.61, 1.45);
+      for (let i = 0; i < 5; i++) bx(g, 0.52, 0.015, 0.012, '#888888', 1, 0.36 + i * 0.04, 1.5);
+      for (const [x, z, r, w] of [[0.62, 0.62, 0.3, 0.14], [1.38, 0.62, 0.3, 0.14], [0.68, 1.4, 0.16, 0.1], [1.32, 1.4, 0.16, 0.1]] as const) {
+        const wh = mk(g, cylGeo(r, r, 24), tire, 1, w, 1, x, r, z);
+        wh.rotation.z = Math.PI / 2;
+        const hb = mk(g, cylGeo(r * 0.55, r * 0.55, 20), hub, 1, w + 0.01, 1, x, r, z);
+        hb.rotation.z = Math.PI / 2;
+        for (let k = 0; k < 12; k++) {
+          const a = (k / 12) * Math.PI * 2;
+          const tr = bx(g, w + 0.02, 0.03, 0.05, '#141414', x, r + Math.sin(a) * r - 0.015, z + Math.cos(a) * r);
+          tr.rotation.x = -a;
+        }
+      }
+      // cab with a roof and glass
+      for (const [x, z] of [[0.78, 0.45], [1.22, 0.45], [0.78, 0.8], [1.22, 0.8]]) bx(g, 0.03, 0.42, 0.03, '#2a2a2a', x, 0.55, z);
+      mk(g, G.box, red, 0.52, 0.04, 0.44, 1, 0.99, 0.62);
+      mk(g, G.box, WIN, 0.44, 0.3, 0.02, 1, 0.8, 0.8);
+      bx(g, 0.16, 0.08, 0.14, '#3a3a3a', 1, 0.5, 0.62);
+      cyl(g, 0.025, 0.025, 0.4, '#3a3a3a', 1.16, 0.6, 1.2, 8);
+      const puff = smoke(g, 1.16, 1.05, 1.2);
+      e.top = 1.3;
+      e.update = (_o, _n, t) => puff(true, t);
+      break;
+    }
     case 'hay_bale': {
       const m = mk(g, cylGeo(0.2, 0.2, 20), surfaceMat('thatch', '#e8c865', 2, 0.95, 1, 1), 1, 0.55, 1, 0.5, 0.2, 0.5);
       m.rotation.z = Math.PI / 2;

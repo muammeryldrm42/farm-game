@@ -380,7 +380,25 @@ function sweetPotato() {
   return g;
 }
 
+function tulip() {
+  // six petals forming a deep cup, slightly flared at the rim
+  return lathe([[0, -0.2], [0.35, -0.15], [0.62, 0.2], [0.7, 0.7], [0.66, 1.05], [0.5, 1.2]], 18, (x, y, z) => C.setScalar(0.8 + y * 0.2).clone(), (x, y, z) => Math.pow(Math.abs(Math.cos(Math.atan2(z, x) * 3)), 4) * 0.12 * Math.max(0, y));
+}
+
+function rose() {
+  // a spiral of cupped petals: several nested open cups
+  const parts: THREE.BufferGeometry[] = [];
+  for (let k = 0; k < 4; k++) {
+    const r = 1 - k * 0.22;
+    const g = lathe([[0, -0.3], [r * 0.5, -0.2], [r * 0.95, 0.15], [r, 0.45 + k * 0.08]], 14, () => C.setScalar(0.72 + k * 0.1).clone(), (x, y, z) => Math.sin(Math.atan2(z, x) * (5 - k) + k) * 0.08 * Math.max(0, y));
+    g.rotateY(k * 0.7);
+    parts.push(g);
+  }
+  return mergeGeometries(parts) as THREE.BufferGeometry;
+}
+
 const makers: Record<string, () => THREE.BufferGeometry> = {
+  tulip, rose, soybean: peaPod,
   apricot, lime, fig, olive, walnut, garlic, beet, pea: peaPod, zucchini, sweet_potato: sweetPotato,
   apple, cherry, orange, peach, lemon, coconut, tomato, strawberry, chili,
   pear, plum, mango, avocado, pomegranate, banana,

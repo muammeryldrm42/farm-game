@@ -39,7 +39,14 @@ function build(cd: CropDef): CropGeo {
         const lx = (r(i, 4) - 0.5) * 0.25, lz = (r(i, 5) - 0.5) * 0.25;
         plant.add(cylinder(0.004, 0.006, 5), shade(L, 0.05), [x, 0, z], [lx, 0, lz], [1, h, 1]);
         const top = tip([x, 0, z], [lx, 0, lz], h);
-        if (rice) {
+        if (cd.id === 'oat') {
+          // loose panicle of little spikelets dangling on threads
+          for (let j = 0; j < 6; j++) fruit.add(P.sphere, W, [top[0] + ((j % 3) - 1) * 0.014, top[1] - j * 0.012, top[2] + (j % 2) * 0.01], [0.3, j, 0.4], [0.006, 0.012, 0.006]);
+        } else if (cd.id === 'barley') {
+          // a dense head with long bristly awns sweeping upward
+          fruit.add(P.sphere, W, top, [lx + 0.2, 0, lz], [0.012, 0.04, 0.012]);
+          for (let j = 0; j < 6; j++) fruit.add(cylinder(0.0012, 0.0012, 3), W, [top[0], top[1] - 0.02 + j * 0.008, top[2]], [lx + (j % 2 ? 0.3 : -0.3), j * 1.05, lz], [1, 0.09, 1]);
+        } else if (rice) {
           for (let j = 0; j < 4; j++) fruit.add(P.sphere, W, [top[0] + (j - 1.5) * 0.008, top[1] - j * 0.018, top[2] + 0.01 + j * 0.008], [0, 0, 0], [0.008, 0.013, 0.008]);
         } else {
           fruit.add(P.sphere, W, top, [lx + 0.25, 0, lz], [0.014, 0.045, 0.014]);
@@ -85,7 +92,7 @@ function build(cd: CropDef): CropGeo {
     case 'bush': {
       const cotton = cd.id === 'cotton', straw = cd.id === 'strawberry', chili = cd.id === 'chili';
       const berry = cd.id === 'blueberry', coffee = cd.id === 'coffee_bean';
-      const hang = cd.id === 'bell_pepper' || cd.id === 'eggplant' || cd.id === 'raspberry';
+      const hang = cd.id === 'bell_pepper' || cd.id === 'eggplant' || cd.id === 'raspberry' || cd.id === 'soybean';
       if (hang) {
         // a leafy plant with its produce hanging under the leaves on short stems
         const n = cd.id === 'raspberry' ? 9 : 4;
@@ -98,7 +105,7 @@ function build(cd: CropDef): CropGeo {
           const a = (i / n) * Math.PI * 2 + 0.4;
           const d = cd.id === 'raspberry' ? 0.1 : 0.085;
           const y = cd.id === 'eggplant' ? 0.07 : cd.id === 'raspberry' ? 0.1 + r(i, 7) * 0.12 : 0.09 + r(i, 7) * 0.05;
-          const size = cd.id === 'eggplant' ? 0.05 : cd.id === 'raspberry' ? 0.016 : 0.036;
+          const size = cd.id === 'eggplant' ? 0.05 : cd.id === 'raspberry' ? 0.016 : cd.id === 'soybean' ? 0.04 : 0.036;
           fruit.add(produceGeo(cd.id) as THREE.BufferGeometry, W, [Math.cos(a) * d, y, Math.sin(a) * d], [0.25, a, 0], size);
           plant.add(P.sphere, '#3a6a2a', [Math.cos(a) * d, y + size * (cd.id === 'eggplant' ? 1.0 : 0.75), Math.sin(a) * d], [0, 0, 0], [size * 0.55, size * 0.25, size * 0.55]);
         }
@@ -168,6 +175,43 @@ function build(cd: CropDef): CropGeo {
       break;
     }
     case 'flower': {
+      if (cd.id === 'tulip') {
+        // a clump of tulips: broad blue green leaves and cup shaped blooms
+        for (let i = 0; i < 5; i++) {
+          const a = (i / 5) * Math.PI * 2, d = 0.05;
+          const h = 0.22 + r(i, 1) * 0.08;
+          const lean: V3 = [(r(i, 2) - 0.5) * 0.2, 0, (r(i, 3) - 0.5) * 0.2];
+          plant.add(cylinder(0.005, 0.007, 6), L, [Math.cos(a) * d, 0, Math.sin(a) * d], lean, [1, h, 1]);
+          plant.add(blade(0.13, 0.05, 0.4), shade(L, 0.06), [Math.cos(a) * d, 0, Math.sin(a) * d], [0.5, a, 0]);
+          fruit.add(produceGeo('tulip') as THREE.BufferGeometry, W, tip([Math.cos(a) * d, 0, Math.sin(a) * d], lean, h), [0, a, 0], 0.035);
+        }
+        break;
+      }
+      if (cd.id === 'rose') {
+        // a rose bush: glossy leaves and several open roses
+        for (let i = 0; i < 5; i++) {
+          const a = (i / 5) * Math.PI * 2;
+          plant.add(lump(130 + i, 0.25, 12), shade(L, (r(i, 5) - 0.5) * 0.12), [Math.cos(a) * 0.06, 0.13 + r(i, 6) * 0.06, Math.sin(a) * 0.06], [0, a, 0], [0.065, 0.06, 0.065]);
+        }
+        for (let i = 0; i < 6; i++) {
+          const a = (i / 6) * Math.PI * 2 + 0.3;
+          fruit.add(produceGeo('rose') as THREE.BufferGeometry, W, [Math.cos(a) * 0.075, 0.17 + r(i, 7) * 0.08, Math.sin(a) * 0.075], [0.3, a, 0], 0.032);
+        }
+        break;
+      }
+      if (cd.id === 'lavender') {
+        // a rounded mound of grey green shoots topped with purple flower spikes
+        for (let i = 0; i < 16; i++) {
+          const a = r(i, 1) * Math.PI * 2, d = Math.sqrt(r(i, 2)) * 0.07;
+          const lean: V3 = [Math.sin(a) * d * 4, 0, -Math.cos(a) * d * 4];
+          const h = 0.2 + r(i, 3) * 0.08;
+          plant.add(cylinder(0.003, 0.005, 4), L, [Math.cos(a) * d, 0.04, Math.sin(a) * d], lean, [1, h, 1]);
+          const t = tip([Math.cos(a) * d, 0.04, Math.sin(a) * d], lean, h);
+          fruit.add(P.sphere, W, [t[0], t[1] + 0.025, t[2]], lean, [0.01, 0.035, 0.01]);
+        }
+        plant.add(lump(140, 0.3, 12), shade(L, -0.05), [0, 0.05, 0], [0, 0, 0], [0.09, 0.05, 0.09]);
+        break;
+      }
       // sunflower: tall stalk, heart shaped leaves, a nodding head with a seed disc
       plant.add(cylinder(0.008, 0.013, 8), L, [0, 0, 0], [0, 0, 0], [1, 0.5, 1]);
       for (let i = 0; i < 4; i++) plant.add(P.sphere, shade(L, (i % 2) * 0.06), [Math.cos(i * 2.2) * 0.05, 0.14 + i * 0.08, Math.sin(i * 2.2) * 0.05], [0.4, i * 2.2, 0], [0.045, 0.008, 0.06]);
