@@ -636,7 +636,7 @@ function HomeModal() {
         <p className="font-bold">{manor ? 'A grand bedroom with a soft four poster bed.' : 'A cozy bed under the eaves.'}</p>
         <p className="text-sm text-[#8a6a44]">
           {store.canRest()
-            ? `Take a nap of ${NAP_MS / 1000} seconds or more to wake up well rested: +${restBonus(s.level)} coins and +10 XP, once a day. Your farm keeps growing while you sleep.`
+            ? `Take a nap of ${NAP_MS / 1000} seconds or more to wake up well rested: +${restBonus(s.level)} coins and +10 XP, once a day. You can keep farming while the farmer sleeps.`
             : 'You already woke up well rested today. You can still nap as much as you like.'}
         </p>
         <div className="flex flex-wrap justify-center gap-2">
@@ -648,7 +648,8 @@ function HomeModal() {
   );
 }
 
-// Night falls over the screen while the farmer sleeps; tap to wake up.
+// While the farmer sleeps a soft night tint falls over the farm and a small card shows the nap.
+// Nothing is blocked: the player keeps farming, and only walking the farmer somewhere wakes him.
 function SleepOverlay() {
   const store = useStore();
   const [, tick] = useState(0);
@@ -659,14 +660,17 @@ function SleepOverlay() {
   const left = Math.max(0, Math.ceil((store.ui.napAt + NAP_MS - Date.now()) / 1000));
   const rest = store.canRest();
   return (
-    <div className="pointer-events-auto fixed inset-0 z-20 flex flex-col items-center justify-end bg-[#0b1a3a]/55 pb-28 text-center text-white" onPointerDown={(e) => e.target === e.currentTarget && store.wake()}>
-      <div className="panel flex flex-col items-center gap-2 px-6 py-4 text-[#5a3a1a]">
-        <span className="emoji animate-bob text-4xl">😴</span>
-        <p className="font-bold">Sleeping... z Z z</p>
-        {rest && <p className="text-sm">{left > 0 ? `Well rested in ${left}s` : 'Well rested! Wake up for your bonus.'}</p>}
-        <button className="btn btn-green px-8 py-2" onClick={() => store.wake()}>Wake up</button>
+    <>
+      <div className="pointer-events-none fixed inset-0 z-10 bg-[#0b1a3a]/25" />
+      <div className="panel pointer-events-auto fixed left-1/2 top-16 z-20 flex -translate-x-1/2 items-center gap-3 px-4 py-2 text-[#5a3a1a]">
+        <span className="emoji animate-bob text-2xl">😴</span>
+        <div className="flex flex-col text-left leading-tight">
+          <span className="font-bold">Sleeping... z Z z</span>
+          {rest && <span className="text-xs">{left > 0 ? `Well rested in ${left}s` : 'Well rested! Wake up for your bonus.'}</span>}
+        </div>
+        <button className="btn btn-green px-4 py-1 text-sm" onClick={() => store.wake()}>Wake up</button>
       </div>
-    </div>
+    </>
   );
 }
 
