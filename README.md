@@ -1,12 +1,17 @@
 # Talons Farm
 
-A cozy 3D farming game in the style of Hay Day and FarmVille, built with Next.js 14, TypeScript, Tailwind and three.js. Every model is built from low poly primitives in code, no asset files. No real money purchases. Everything is earned in game with coins, gems and XP.
+A cozy 3D farming game in the style of Hay Day and FarmVille, built with Next.js 14, TypeScript, Tailwind and three.js. Every model, texture and shader is generated in code, no asset files. No real money purchases. Everything is earned in game with coins, gems and XP.
 
 By Talons Protocol.
 
 ## Features
 
 - Real time 3D farm with sun shadows, drifting cloud shadows, day and night cycle with glowing windows, sea shimmer, chimney smoke and turning windmills
+- Canvas generated textures with normal maps (roof tiles, boards, siding, stone, grass, soil, bark, sand, metal, straw), rounded animals, farmer and trees
+- Wind blown instanced grass and wild flowers, animated water with shallows and surf, gradient sky with stars
+- ACES tone mapping, soft shadows, ambient occlusion (GTAO) and bloom for night lights
+- Harvest, planting, production, animal and tree animations
+- High and Low graphics quality in Settings (kept per device, outside the save)
 - Free camera: drag to pan, pinch or scroll to zoom, twist with two fingers or press Q and E to rotate
 - 9 crops (wheat to sunflower) with drag to plant and drag to harvest
 - 7 production buildings (Bakery, Feed Mill, Dairy, Sugar Mill, BBQ Grill, Juice Press, Loom) with queues and extra slots
@@ -47,7 +52,9 @@ Push to GitHub, then import the repo on Vercel. No environment variables are nee
 
 - `src/game/data.ts` items, crops, recipes, animals, buildings
 - `src/game/state.ts` game state, save and load, every player action
-- `src/game/render3d.ts` three.js renderer and all 3D models
+- `src/game/render3d.ts` three.js renderer, all 3D models and their animations
+- `src/game/gfx` procedural textures, water, sky, wind grass and post processing
+- `src/game/quality.ts` High and Low graphics quality preference
 - `src/game/audio.ts` sound effects
 - `src/components` React UI (canvas, HUD, panels)
 
