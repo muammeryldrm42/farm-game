@@ -7,7 +7,7 @@ import { fillRich, isDrawn, paintIcon } from './icons';
 import { U } from './gfx/shared';
 import { Sky } from './gfx/sky';
 import { makeWater } from './gfx/water';
-import { Foliage, windify, type Spot } from './gfx/foliage';
+import { FLOWER_KIT_MAT, Foliage, flowerKit, windify, type FlowerKind, type Spot } from './gfx/foliage';
 import { Post } from './gfx/post';
 import { PLANT_MAT, cropGeo } from './gfx/crops';
 import { PRODUCE_MAT, produceGeo } from './gfx/produce';
@@ -3350,13 +3350,22 @@ function buildDeco(e: Entry, d: BuildingDef) {
       break;
     }
     case 'flowers': {
-      bx(g, 0.8, 0.08, 0.8, '#6d4522', 0.5, 0, 0.5);
-      bx(g, 0.72, 0.03, 0.72, '#5a8f3a', 0.5, 0.08, 0.5, false);
-      const cols = ['#ff6b8a', '#ffd23a', '#ffffff', '#b58cff', '#ff9f43'];
-      for (let i = 0; i < 12; i++) {
-        const x = 0.2 + (i % 4) * 0.2, z = 0.22 + Math.floor(i / 4) * 0.28;
-        cyl(g, 0.008, 0.008, 0.1, '#4f9e36', x, 0.1, z, 4, false);
-        ball(g, 0.045, cols[i % cols.length], x, 0.22, z, 1, 0.7, 1, false);
+      // a raised wooden bed of dark soil, leafy ground cover and a mix of garden flowers
+      for (const [w, d, x, z] of [[0.84, 0.06, 0.5, 0.11], [0.84, 0.06, 0.5, 0.89], [0.06, 0.72, 0.11, 0.5], [0.06, 0.72, 0.89, 0.5]] as const) {
+        bxT(g, w, 0.12, d, 'planks', '#b07a42', x, 0, z, 3);
+      }
+      bx(g, 0.72, 0.1, 0.72, '#4a2e18', 0.5, 0, 0.5, false);
+      for (let i = 0; i < 14; i++) {
+        const r = 0.07 + hash(i, 10, 5) * 0.04;
+        mk(g, G.ball, M(i % 3 ? '#3f932c' : '#4ea536'), r, r * 0.8, r, 0.2 + hash(i, 1, 5) * 0.6, 0.09, 0.2 + hash(i, 2, 5) * 0.6, false);
+      }
+      const cols = ['#ff5f86', '#ffd23a', '#ffffff', '#a97cff', '#ff8a3d', '#ff3b4f'];
+      const kinds: FlowerKind[] = ['tulip', 'daisy', 'rose'];
+      const seed = Math.abs(e.id);
+      for (let i = 0; i < 9; i++) {
+        const x = 0.24 + (i % 3) * 0.26 + (hash(i, 3, 5) - 0.5) * 0.08, z = 0.24 + Math.floor(i / 3) * 0.26 + (hash(i, 4, 5) - 0.5) * 0.08;
+        const f = mk(g, flowerKit(kinds[(i + seed) % 3], cols[(i * 5 + seed) % cols.length], 0.15 + hash(i, 6, 5) * 0.05), FLOWER_KIT_MAT, 1, 1, 1, x, 0.1, z, false);
+        f.rotation.set((hash(i, 7, 5) - 0.5) * 0.3, hash(i, 8, 5) * 6, (hash(i, 9, 5) - 0.5) * 0.3);
       }
       break;
     }
