@@ -13,7 +13,7 @@ import { VerticalTiltShiftShader } from 'three/examples/jsm/shaders/VerticalTilt
 // Final color grade in display space: a little extra saturation and warmth, lifted shadows
 // and a soft vignette, for the bright storybook look of mobile farm games.
 const Grade = {
-  uniforms: { tDiffuse: { value: null }, uSat: { value: 1.14 }, uWarm: { value: 0.03 }, uVig: { value: 0.28 } },
+  uniforms: { tDiffuse: { value: null }, uSat: { value: 1.12 }, uWarm: { value: 0.03 }, uVig: { value: 0.28 } },
   vertexShader: `varying vec2 vUv; void main() { vUv = uv; gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0); }`,
   fragmentShader: `
     uniform sampler2D tDiffuse; uniform float uSat; uniform float uWarm; uniform float uVig; varying vec2 vUv;
@@ -47,7 +47,7 @@ export class Post {
     this.ao = new GTAOPass(scene, camera, size.x, size.y);
     this.ao.updateGtaoMaterial({ radius: 0.55, distanceExponent: 1.4, thickness: 1.2, scale: 1.1, samples: 12 });
     this.ao.updatePdMaterial({ lumaPhi: 10, depthPhi: 2, normalPhi: 3, radius: 6, rings: 2, samples: 12 });
-    this.ao.blendIntensity = 0.85;
+    this.ao.blendIntensity = 0.65;
     const render = this.ao.render.bind(this.ao);
     this.ao.render = (...args: Parameters<GTAOPass['render']>) => {
       const was = hide.map((o) => o.visible);

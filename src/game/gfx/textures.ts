@@ -137,12 +137,12 @@ const PAINT: Record<SurfaceKind, { size: number; bump: number; paint: Painter }>
   },
   // soft lawn: speckles of lighter and darker blades
   grass: {
-    size: 512, bump: 2.5,
+    size: 512, bump: 1.2,
     paint(u, v, o) {
       const big = fbm(u, v, 4, 61, 3);
       const fine = vnoise(u, v, 128, 63);
       const blade = vnoise(u * 1.0, v * 0.25, 256, 65);
-      const k = 0.78 + big * 0.2 + (fine - 0.5) * 0.12 + (blade - 0.5) * 0.1;
+      const k = 0.84 + big * 0.12 + (fine - 0.5) * 0.05 + (blade - 0.5) * 0.04;
       o[0] = k * 0.96; o[1] = k; o[2] = k * 0.9; o[3] = fine * 0.6 + blade * 0.4;
     },
   },

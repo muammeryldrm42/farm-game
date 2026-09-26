@@ -485,8 +485,9 @@ export class Renderer {
     this.gl = new THREE.WebGLRenderer({ canvas, antialias: true, powerPreference: 'high-performance' });
     this.gl.shadowMap.enabled = true;
     this.gl.shadowMap.type = THREE.PCFShadowMap;
-    this.gl.toneMapping = THREE.ACESFilmicToneMapping;
-    this.gl.toneMappingExposure = 0.95;
+    // neutral tone mapping keeps the bright saturated colors of a cartoon farm, where ACES would dull them
+    this.gl.toneMapping = THREE.NeutralToneMapping;
+    this.gl.toneMappingExposure = 0.9;
     this.scene.fog = new THREE.Fog('#8fd3f5', 60, 140);
     this.scene.background = this.bg;
     this.scene.add(this.sky.mesh);
@@ -733,8 +734,8 @@ export class Renderer {
       {
         float n1 = gN(vGW * 0.16) * 0.65 + gN(vGW * 0.45 + 13.0) * 0.35;
         float n2 = gN(vGW * 1.3 + 41.0);
-        vec3 tint = mix(vec3(0.86, 1.03, 0.8), vec3(1.1, 1.02, 0.78), smoothstep(0.35, 0.8, n1));
-        diffuseColor.rgb *= tint * (0.93 + n2 * 0.12);
+        vec3 tint = mix(vec3(0.92, 1.03, 0.86), vec3(1.06, 1.03, 0.82), smoothstep(0.35, 0.8, n1));
+        diffuseColor.rgb *= tint * (0.96 + n2 * 0.06);
       }`);
     };
     this.tiles = new THREE.InstancedMesh(G.box, grass, GRID * GRID);
@@ -814,7 +815,8 @@ export class Renderer {
   // tiles free of buildings get instanced grass tufts and wild flowers
   private rebuildFoliage() {
     const s = this.store.s;
-    const dens = this.quality === 'high' ? 9 : 0;
+    // a clean lawn with a few tufts reads better than a dense carpet of blades
+    const dens = this.quality === 'high' ? 3 : 0;
     const key = `${dens}|${this.landKey}|${this.store.objVersion}|${s.objects.length}`;
     if (key === this.foliageKey) return;
     this.foliageKey = key;
@@ -849,7 +851,7 @@ export class Renderer {
     for (let y = 0; y < GRID; y++) for (let x = 0; x < GRID; x++) {
       const cs = chunkState(s, Math.floor(x / CHUNK), Math.floor(y / CHUNK));
       const h = hash(x, y, 3);
-      if (cs === 'open') col.set((x + y) % 2 ? '#6fc23a' : '#6abd36').offsetHSL((h - 0.5) * 0.02, 0, (h - 0.5) * 0.04);
+      if (cs === 'open') col.set('#62b92a').offsetHSL((h - 0.5) * 0.01, 0, (h - 0.5) * 0.02);
       else if (cs === 'buyable') col.set('#58a032').offsetHSL(0, 0, (h - 0.5) * 0.05);
       else col.set('#468a2c').offsetHSL(0, 0, (h - 0.5) * 0.05);
       this.tiles.setColorAt(y * GRID + x, col);
@@ -1994,7 +1996,9 @@ function realEyes(head: THREE.Object3D, spec: [number, number, number, number, n
 const EYE_PUPIL = new THREE.MeshStandardMaterial({ color: '#1a120c', roughness: 0.08 });
 const EYE_GLOSS = new THREE.MeshBasicMaterial({ color: '#ffffff' });
 function toonEyes(head: THREE.Object3D, spec: [number, number, number, number, number], lid: string) {
-  const [x, y, z, r, yaw] = spec;
+  const [x, y, z, r0, yaw] = spec;
+  // big googly eyes are most of a cartoon animal's charm
+  const r = r0 * 1.25;
   const list: THREE.Object3D[] = [];
   for (const sx of [-1, 1]) {
     const e = group(head, sx * x, y, z);
@@ -2023,6 +2027,8 @@ function animalBody(kind: string) {
   const head = g.userData.head as THREE.Group | undefined;
   if (!head) return g;
   const cp = creature(kind);
+  // cartoon animals read bigger against their pens, like in classic farm games
+  if (cp?.toon) g.scale.setScalar(kind === 'camel' || kind === 'ostrich' ? 1.15 : 1.35);
   if (cp?.eye && cp.toon) toonEyes(head, cp.eye, '#3a2e28');
   else if (cp?.eye) realEyes(head, cp.eye, LID[kind] ?? '#3a2a20');
   if (cp?.bell) {
@@ -2454,22 +2460,26 @@ function buildBoard(e: Entry) {
   e.top = 1.2;
 }
 
-function fence(g: THREE.Group, w: number, h: number) {
-  const c = '#b07a42';
+// Chunky rail fence with capped posts: warm wood, or white paint for the tidier pens
+const WHITE_FENCE = new Set(['sheepfold', 'stable', 'alpaca_ranch', 'peacock_garden', 'rabbit_hutch']);
+function fence(g: THREE.Group, w: number, h: number, white = false) {
+  const c = white ? '#f5f2ea' : '#c0864a';
   const pts: [number, number][] = [];
   for (let x = 0.05; x <= w - 0.04; x += 0.5) { pts.push([x, 0.05], [x, h - 0.05]); }
   for (let z = 0.55; z <= h - 0.5; z += 0.5) { pts.push([0.05, z], [w - 0.05, z]); }
   pts.push([w - 0.05, 0.05], [w - 0.05, h - 0.05]);
-  const post = surfaceMat('boards', c, 4);
+  const post = white ? M(c) : surfaceMat('boards', c, 4);
+  const rail = (rw: number, rh: number, rd: number, x: number, y: number, z: number) =>
+    white ? bx(g, rw, rh, rd, c, x, y, z) : bxT(g, rw, rh, rd, 'planks', c, x, y, z, 3);
   for (const [x, z] of pts) {
-    mk(g, cylGeo(0.035, 0.04, 8), post, 1, 0.34, 1, x, 0.17, z);
-    mk(g, G.dome, M(shade(c, -0.05)), 0.035, 0.03, 0.035, x, 0.34, z);
+    mk(g, cylGeo(0.05, 0.055, 10), post, 1, 0.38, 1, x, 0.19, z);
+    mk(g, G.dome, M(white ? '#e4dfd4' : shade(c, -0.08)), 0.058, 0.045, 0.058, x, 0.38, z);
   }
-  for (const y of [0.13, 0.26]) {
-    bxT(g, w - 0.1, 0.04, 0.03, 'planks', c, w / 2, y, 0.05, 3);
-    bxT(g, w - 0.1, 0.04, 0.03, 'planks', c, w / 2, y, h - 0.05, 3);
-    bxT(g, 0.03, 0.04, h - 0.1, 'planks', c, 0.05, y, h / 2, 3);
-    bxT(g, 0.03, 0.04, h - 0.1, 'planks', c, w - 0.05, y, h / 2, 3);
+  for (const y of [0.12, 0.23, 0.33]) {
+    rail(w - 0.1, 0.05, 0.035, w / 2, y, 0.05);
+    rail(w - 0.1, 0.05, 0.035, w / 2, y, h - 0.05);
+    rail(0.035, 0.05, h - 0.1, 0.05, y, h / 2);
+    rail(0.035, 0.05, h - 0.1, w - 0.05, y, h / 2);
   }
 }
 
@@ -2481,7 +2491,7 @@ function buildPen(e: Entry, d: BuildingDef) {
     const dirt = d.id !== 'duck_pond';
     bxT(g, w - 0.1, 0.04, h - 0.1, dirt ? 'soil' : 'grass', PEN_GROUND[d.id] ?? d.wall, w / 2, 0, h / 2, dirt ? 1.5 : 0.8, false);
   }
-  if (d.id !== 'beehive') fence(g, w, h);
+  if (d.id !== 'beehive') fence(g, w, h, WHITE_FENCE.has(d.id));
   e.top = 0.9;
   switch (d.id) {
     case 'coop':

@@ -145,8 +145,8 @@ export class Foliage {
         const x = t.x + 0.08 + rnd(s, 1) * 0.84, z = t.z + 0.08 + rnd(s, 2) * 0.84;
         tufts[Math.floor(rnd(s, 3) * tufts.length)].push([x, z, rnd(s, 4) * Math.PI * 2, 0.75 + rnd(s, 5) * 0.6, t.open]);
       }
-      if (t.open && rnd(ti, 9) < 0.16) {
-        const c = 1 + Math.floor(rnd(ti, 10) * 3);
+      if (t.open && rnd(ti, 9) < 0.12) {
+        const c = 3 + Math.floor(rnd(ti, 10) * 4);
         for (let k = 0; k < c; k++) flowers.push([t.x + 0.15 + rnd(ti * 7 + k, 11) * 0.7, t.z + 0.15 + rnd(ti * 7 + k, 12) * 0.7, rnd(ti * 7 + k, 13) * 6, rnd(ti, 14)]);
       }
     });
