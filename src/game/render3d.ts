@@ -2724,8 +2724,8 @@ function buildPen(e: Entry, d: BuildingDef) {
       break;
     case 'muscovy_pond':
       // a small pond in the corner for the walking ducks, and a duck house
-      cyl(g, 0.55, 0.6, 0.03, '#d8c38e', 2.25, 0.02, 2.25, 14, false);
-      mk(g, cylGeo(0.48, 0.48, 14), WATER, 1, 0.03, 1, 2.25, 0.05, 2.25, false);
+      cyl(g, 0.55, 0.6, 0.03, '#d8c38e', 0.8, 0.02, 2.2, 14, false);
+      mk(g, cylGeo(0.48, 0.48, 14), WATER, 1, 0.03, 1, 0.8, 0.05, 2.2, false);
       bxT(g, 0.5, 0.35, 0.45, 'boards', '#f3e6c8', 0.45, 0.04, 0.45, 2);
       roofT(g, 0.62, 0.22, 0.58, d.roof, surfaceMat('boards', '#f3e6c8', 2), 0.45, 0.39, 0.45, 0.06);
       break;
