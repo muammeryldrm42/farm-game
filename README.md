@@ -40,7 +40,7 @@ By Talons Protocol.
 - Roadside stall where you set your own prices and villagers buy over time
 - 11 badges with bronze, silver and gold tiers
 - A 5 step tutorial for new players (older saves skip it)
-- 8 animals: chickens, cows, pigs, sheep, ducks, goats, bees and horses (each horse adds 5% to order coins)
+- Animals: chickens, cows, sheep, ducks, geese, goats, rabbits, alpacas, bees and horses (each horse adds 5% to order coins)
 - Workshop for candles and feather pillows, goat cheese at the dairy
 
 ## Run locally
