@@ -37,6 +37,12 @@ export function windify<T extends THREE.Material>(m: T, height: number, amount =
 }
 `);
   };
+  // grass is lit like the lawn from both sides, so back faces must not flip their normal
+  const vs = m.onBeforeCompile;
+  m.onBeforeCompile = (sh, r) => {
+    vs(sh, r);
+    sh.fragmentShader = sh.fragmentShader.replace('#include <normal_fragment_begin>', '#include <normal_fragment_begin>\nnormal = normalize(vNormal);');
+  };
   m.customProgramCacheKey = () => `wind${height}|${amount}`;
   return m;
 }
