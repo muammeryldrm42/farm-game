@@ -92,7 +92,128 @@ function fruit(body: [string, string], crown?: string, stemCol = '#5a3a1f'): Pai
   };
 }
 
+// a bowl heaped with colored bits (salads, roasts)
+function bowl(base: string, bits: string[]): Painter {
+  return (c) => {
+    c.beginPath(); c.ellipse(64, 70, 50, 18, 0, 0, Math.PI * 2); c.fillStyle = base; c.fill();
+    bits.forEach((col, i) => { const a = i * 2.4, r = 10 + (i % 3) * 12; c.beginPath(); c.ellipse(64 + Math.cos(a) * r * 1.4, 64 + Math.sin(a) * r * 0.45, 10, 7, a, 0, Math.PI * 2); c.fillStyle = col; c.fill(); outline(c, 2); });
+    c.beginPath(); c.moveTo(14, 70); c.quadraticCurveTo(64, 128, 114, 70); c.closePath();
+    c.fillStyle = lin(c, 0, 70, 0, 116, [[0, '#ffffff'], [1, '#c8d8e6']]); c.fill(); outline(c);
+  };
+}
+
+// a pie or quiche in a fluted dish
+function pie(fill: [string, string], dots: string): Painter {
+  return (c) => {
+    c.beginPath(); c.ellipse(64, 76, 54, 26, 0, 0, Math.PI * 2); c.fillStyle = '#c98a45'; c.fill(); outline(c);
+    for (let i = 0; i < 18; i++) { const a = (i / 18) * Math.PI * 2; circle(c, 64 + Math.cos(a) * 50, 76 + Math.sin(a) * 23, 6, '#e0a860'); }
+    c.beginPath(); c.ellipse(64, 72, 42, 18, 0, 0, Math.PI * 2); c.fillStyle = rad(c, 64, 72, 42, [[0, fill[0]], [1, fill[1]]]); c.fill();
+    c.fillStyle = dots; for (const [x, y] of [[50, 68], [72, 64], [80, 78], [56, 80], [66, 72]]) { c.beginPath(); c.arc(x, y, 4, 0, Math.PI * 2); c.fill(); }
+  };
+}
+
+// a ball of yarn or a folded woolly blanket
+function yarn(col: [string, string]): Painter {
+  return (c) => {
+    circle(c, 64, 68, 44, rad(c, 64, 68, 44, [[0, col[0]], [1, col[1]]]));
+    c.beginPath(); c.arc(64, 68, 44, 0, Math.PI * 2); outline(c);
+    c.strokeStyle = 'rgba(0,0,0,0.2)'; c.lineWidth = 3;
+    for (let i = 0; i < 7; i++) { c.beginPath(); c.ellipse(64, 68, 44 - i * 2, 12 + i * 5, 0.6 + i * 0.35, 0, Math.PI * 2); c.stroke(); }
+    c.strokeStyle = col[1]; c.lineWidth = 4; c.beginPath(); c.moveTo(100, 94); c.quadraticCurveTo(118, 110, 104, 122); c.stroke();
+  };
+}
+
+// a wedge of cheese with holes
+function wedge(col: [string, string]): Painter {
+  return (c) => {
+    c.beginPath(); c.moveTo(16, 92); c.lineTo(108, 92); c.lineTo(108, 52); c.lineTo(16, 70); c.closePath();
+    c.fillStyle = lin(c, 0, 52, 0, 92, [[0, col[0]], [1, col[1]]]); c.fill(); outline(c);
+    c.beginPath(); c.moveTo(16, 70); c.lineTo(108, 52); c.lineTo(92, 38); c.closePath(); c.fillStyle = col[0]; c.fill(); outline(c);
+    c.fillStyle = 'rgba(160,120,40,0.35)'; for (const [x, y, r] of [[40, 80, 6], [70, 76, 8], [94, 66, 5], [58, 62, 4]]) { c.beginPath(); c.arc(x, y, r, 0, Math.PI * 2); c.fill(); }
+  };
+}
+
 const PAINTERS: Record<string, Painter> = {
+  apricot: fruit(['#ffc070', '#e0782a']),
+  lime: fruit(['#b8e050', '#3f8a1e'], undefined, '#4f6a2a'),
+  fig: (c) => {
+    c.beginPath(); c.moveTo(64, 20); c.bezierCurveTo(78, 40, 110, 60, 104, 90); c.bezierCurveTo(98, 116, 30, 116, 24, 90); c.bezierCurveTo(18, 60, 50, 40, 64, 20);
+    c.fillStyle = rad(c, 64, 80, 50, [[0, '#9a5a8a'], [1, '#3e1640']]); c.fill(); outline(c);
+    shine(c, 46, 70, 6, 12); c.strokeStyle = '#5a3a1f'; c.lineWidth = 5; c.beginPath(); c.moveTo(64, 22); c.lineTo(66, 10); c.stroke();
+  },
+  walnut: (c) => {
+    c.beginPath(); c.ellipse(64, 66, 40, 46, 0, 0, Math.PI * 2); c.fillStyle = rad(c, 64, 66, 46, [[0, '#d8a86a'], [1, '#8a5a2a']]); c.fill(); outline(c);
+    c.strokeStyle = 'rgba(80,45,20,0.6)'; c.lineWidth = 3; c.beginPath(); c.moveTo(64, 22); c.lineTo(64, 110); c.stroke();
+    for (let i = 0; i < 6; i++) { c.beginPath(); c.moveTo(64, 30 + i * 13); c.quadraticCurveTo(44 - (i % 2) * 6, 36 + i * 13, 32, 30 + i * 14); c.moveTo(64, 30 + i * 13); c.quadraticCurveTo(84 + (i % 2) * 6, 36 + i * 13, 96, 30 + i * 14); c.stroke(); }
+  },
+  spinach: (c) => {
+    for (const [a, col] of [[-0.6, '#2f7a24'], [0.6, '#3f8a2e'], [0, '#4f9a36']] as const) {
+      c.save(); c.translate(64, 112); c.rotate(a);
+      c.beginPath(); c.moveTo(0, 0); c.bezierCurveTo(-30, -40, -24, -88, 0, -96); c.bezierCurveTo(24, -88, 30, -40, 0, 0);
+      c.fillStyle = col; c.fill(); outline(c, 3);
+      c.strokeStyle = 'rgba(220,255,200,0.6)'; c.lineWidth = 2.5; c.beginPath(); c.moveTo(0, 0); c.lineTo(0, -86); c.stroke();
+      c.restore();
+    }
+  },
+  beet: (c) => {
+    c.fillStyle = '#4f8a3a'; for (const a of [-0.5, 0.1, 0.6]) { c.save(); c.translate(64, 48); c.rotate(a); c.beginPath(); c.ellipse(0, -18, 11, 22, 0, 0, Math.PI * 2); c.fill(); outline(c, 2); c.strokeStyle = '#a8204a'; c.lineWidth = 3; c.beginPath(); c.moveTo(0, 4); c.lineTo(0, -34); c.stroke(); c.restore(); }
+    circle(c, 64, 80, 34, rad(c, 64, 80, 34, [[0, '#c0305a'], [1, '#5a0a28']]));
+    c.beginPath(); c.arc(64, 80, 34, 0, Math.PI * 2); outline(c);
+    c.strokeStyle = '#5a0a28'; c.lineWidth = 3; c.beginPath(); c.moveTo(64, 112); c.quadraticCurveTo(62, 122, 70, 126); c.stroke();
+  },
+  pea: (c) => {
+    c.save(); c.translate(64, 64); c.rotate(-0.5);
+    c.beginPath(); c.moveTo(-54, 0); c.bezierCurveTo(-30, -30, 30, -30, 54, 0); c.bezierCurveTo(30, 18, -30, 18, -54, 0);
+    c.fillStyle = lin(c, 0, -24, 0, 16, [[0, '#9ad860'], [1, '#4f9a2a']]); c.fill(); outline(c);
+    for (let i = -2; i <= 2; i++) circle(c, i * 18, -4, 9, rad(c, i * 18, -4, 9, [[0, '#c8f090'], [1, '#5aaa2a']]));
+    c.restore();
+  },
+  zucchini: (c) => {
+    c.save(); c.translate(64, 64); c.rotate(-0.6);
+    c.beginPath(); c.ellipse(0, 0, 56, 18, 0, 0, Math.PI * 2); c.fillStyle = lin(c, 0, -18, 0, 18, [[0, '#6aa84a'], [1, '#1f4a14']]); c.fill(); outline(c);
+    c.strokeStyle = 'rgba(200,230,150,0.5)'; c.lineWidth = 2; for (const y of [-8, 0, 8]) { c.beginPath(); c.moveTo(-50, y); c.lineTo(50, y); c.stroke(); }
+    c.fillStyle = '#8a7a3a'; c.fillRect(52, -6, 12, 12);
+    c.restore();
+  },
+  quail_egg: (c) => {
+    for (const [x, y, r] of [[44, 74, 0.2], [80, 70, -0.3], [62, 52, 0.1]] as const) {
+      c.save(); c.translate(x, y); c.rotate(r);
+      c.beginPath(); c.ellipse(0, 0, 20, 26, 0, 0, Math.PI * 2); c.fillStyle = '#efe4cc'; c.fill(); outline(c, 3);
+      c.fillStyle = '#5a3a24'; for (let i = 0; i < 10; i++) { c.beginPath(); c.ellipse(Math.sin(i * 2.3) * 13, Math.cos(i * 1.7) * 17, 3 + (i % 3), 2 + (i % 2), i, 0, Math.PI * 2); c.fill(); }
+      c.restore();
+    }
+  },
+  yak_wool: yarn(['#8a6a4a', '#3a2818']),
+  yak_blanket: (c) => {
+    rrect(c, 18, 36, 92, 64, 10); c.fillStyle = '#8a3a2a'; c.fill(); outline(c);
+    for (let i = 0; i < 4; i++) { c.fillStyle = i % 2 ? '#e8c43a' : '#3a5a8a'; c.fillRect(18, 44 + i * 13, 92, 6); }
+    c.fillStyle = '#6a2a1a'; for (let x = 20; x < 108; x += 7) c.fillRect(x, 100, 3, 10);
+  },
+  camel_milk: bottle('#fffaf0', '#c0602a', '#e8d2a8'),
+  camel_cheese: wedge(['#fff6d8', '#e8d49a']),
+  olive_oil: (c) => {
+    c.beginPath(); c.moveTo(52, 24); c.lineTo(76, 24); c.lineTo(78, 46); c.bezierCurveTo(98, 58, 98, 76, 98, 88); c.lineTo(98, 114); c.lineTo(30, 114); c.lineTo(30, 88); c.bezierCurveTo(30, 76, 30, 58, 50, 46); c.closePath();
+    c.fillStyle = lin(c, 30, 0, 98, 0, [[0, '#8a9a1a'], [0.5, '#d8d040'], [1, '#7a8a14']]); c.fill(); outline(c);
+    rrect(c, 50, 12, 28, 14, 4); c.fillStyle = '#3a4a1a'; c.fill(); outline(c, 3);
+    c.beginPath(); c.ellipse(64, 88, 20, 14, 0, 0, Math.PI * 2); c.fillStyle = '#fff6df'; c.fill(); outline(c, 2);
+    circle(c, 60, 88, 6, '#4a6a2a'); circle(c, 70, 86, 6, '#2a3a1a');
+    shine(c, 40, 78, 4, 16);
+  },
+  pesto: jar(['#5aa83a', '#2f6a1f'], '#3f8a2e'),
+  apricot_jam: jar(['#ffb050', '#e07a1a'], '#ffc070'),
+  fig_jam: jar(['#8a3a6a', '#4a1440'], '#9a5a8a'),
+  limeade: drink(['#e6f7b0', '#a8d850'], '#6ab82a', '#d8f09a'),
+  walnut_cookie: (c) => {
+    for (const [x, y] of [[44, 78], [84, 74], [64, 50]]) {
+      circle(c, x, y, 26, rad(c, x, y, 26, [[0, '#e8b870'], [1, '#a8702a']]));
+      c.beginPath(); c.arc(x, y, 26, 0, Math.PI * 2); outline(c, 3);
+      c.fillStyle = '#7a4a1f'; for (let i = 0; i < 4; i++) { c.beginPath(); c.ellipse(x + Math.cos(i * 1.8) * 12, y + Math.sin(i * 1.8) * 10, 5, 3.5, i, 0, Math.PI * 2); c.fill(); }
+    }
+  },
+  greek_salad: bowl('#dff0c8', ['#e0301e', '#f7f3e6', '#2a2a2a', '#6ab83a', '#e0301e', '#f7f3e6', '#6a2a6a']),
+  roast_veggies: bowl('#e8c890', ['#c0603a', '#7a1238', '#3f7a24', '#e0a040', '#7a1238', '#c0603a']),
+  quail_quiche: pie(['#fff0a8', '#e8c860'], '#3f8a2e'),
+
   plum: fruit(['#9a5ac8', '#3e1650'], undefined, '#6b5a2a'),
   pomegranate: fruit(['#f05a5a', '#8a1020'], '#8a1020'),
   radish: (c) => {

@@ -424,11 +424,11 @@ function dropDown(src: THREE.Object3D, delay = 0) {
 const HIT_MAT = new THREE.MeshBasicMaterial({ visible: false });
 // middle of the starting farm
 const FARM_C = { x: 13.5 + MAP_OFF, y: 11.5 + MAP_OFF };
-const FRUIT_COLOR: Record<string, string> = { apple: '#e53935', cherry: '#b0102a', orange: '#ff9800', peach: '#ffa274', lemon: '#ffe03a', coconut: '#7a4a26', pear: '#c8c040', plum: '#5a2070', mango: '#f0902a', avocado: '#2f4a1a', pomegranate: '#c0282a', banana: '#f2d23a' };
-const TREE_LEAF: Record<string, string> = { apple_tree: '#4f9e36', cherry_tree: '#3f8a3a', orange_tree: '#2f7d32', peach_tree: '#5aa53a', lemon_tree: '#3b8f3c', coconut_palm: '#4c9a38', pear_tree: '#58a03a', plum_tree: '#3f7f3a', banana_tree: '#5aa844', mango_tree: '#2f7a32', avocado_tree: '#2a6a2e', pomegranate_tree: '#4a8a36' };
-const GRASSY_PEN = new Set(['pasture', 'sheepfold', 'beehive', 'rabbit_hutch', 'alpaca_ranch', 'goose_pen', 'peacock_garden', 'donkey_paddock']);
+const FRUIT_COLOR: Record<string, string> = { apple: '#e53935', cherry: '#b0102a', orange: '#ff9800', peach: '#ffa274', lemon: '#ffe03a', coconut: '#7a4a26', pear: '#c8c040', plum: '#5a2070', mango: '#f0902a', avocado: '#2f4a1a', pomegranate: '#c0282a', banana: '#f2d23a', apricot: '#f6a23a', lime: '#6ab82a', fig: '#5a2a4a', olive: '#5a6a1a', walnut: '#5a8a2a' };
+const TREE_LEAF: Record<string, string> = { apple_tree: '#4f9e36', cherry_tree: '#3f8a3a', orange_tree: '#2f7d32', peach_tree: '#5aa53a', lemon_tree: '#3b8f3c', coconut_palm: '#4c9a38', pear_tree: '#58a03a', plum_tree: '#3f7f3a', banana_tree: '#5aa844', mango_tree: '#2f7a32', avocado_tree: '#2a6a2e', pomegranate_tree: '#4a8a36', apricot_tree: '#5aa03a', lime_tree: '#2f7f32', fig_tree: '#4a9a3a', olive_tree: '#8a9a7a', walnut_tree: '#3f7a2e' };
+const GRASSY_PEN = new Set(['pasture', 'sheepfold', 'beehive', 'rabbit_hutch', 'alpaca_ranch', 'goose_pen', 'peacock_garden', 'donkey_paddock', 'yak_pasture']);
 const PEN_GROUND: Record<string, string> = {
-  rabbit_hutch: '#86c24f', alpaca_ranch: '#8fc45a', goose_pen: '#86c24f', gobbler_run: '#c9a46a', buffalo_wallow: '#8a6a44', ostrich_ranch: '#d8c38e',
+  rabbit_hutch: '#86c24f', alpaca_ranch: '#8fc45a', goose_pen: '#86c24f', gobbler_run: '#c9a46a', quail_coop: '#d9c08a', camel_corral: '#e2cf98', buffalo_wallow: '#8a6a44', ostrich_ranch: '#d8c38e',
   coop: '#d9c08a', pasture: '#86c24f', sheepfold: '#9ccc5a',
   duck_pond: '#8fc45a', goat_yard: '#b8a46c', beehive: '#7fbf4f', stable: '#c9b27a',
 };
@@ -1891,6 +1891,7 @@ function realEyes(head: THREE.Object3D, spec: [number, number, number, number, n
 const LID: Record<string, string> = {
   cow: '#e9e3d8', sheep: '#1f1b19', goat: '#e3dccd', horse: '#6a3e22', chicken: '#c9642c',
   duck: '#1a4a2e', rabbit: '#8a7058', alpaca: '#c9b08c', goose: '#e8a33a', dog: '#7a4b26',
+  quail: '#6a4a2a', yak: '#2a1e16', camel: '#a8845a',
   gobbler: '#9ab8d8', donkey: '#6a655f', buffalo: '#2a2a2c', peacock: '#1f4fb8', ostrich: '#9a7a70',
 };
 
@@ -1911,7 +1912,17 @@ function animalBody(kind: string) {
         head.add(horn);
       }
       break;
-    case 'chicken': case 'goose': case 'gobbler': case 'peacock': case 'ostrich': g.userData.peck = true; break;
+    case 'chicken': case 'goose': case 'gobbler': case 'peacock': case 'ostrich': case 'quail': g.userData.peck = true; break;
+    case 'yak':
+      // long horns curving up and out
+      for (const sx of [-1, 1]) {
+        const horn = new THREE.Mesh(new THREE.TorusGeometry(0.07, 0.014, 8, 16, Math.PI * 0.6), M('#e8e0cc'));
+        horn.position.set(sx * 0.07, 0.06, -0.02);
+        horn.rotation.set(0, sx > 0 ? 0 : Math.PI, 0.9);
+        horn.castShadow = true;
+        head.add(horn);
+      }
+      break;
     case 'buffalo':
       // wide crescent horns sweeping back from the top of the head
       for (const sx of [-1, 1]) {
@@ -2191,6 +2202,19 @@ function buildHouse(e: Entry, d: BuildingDef) {
       mk(cup, new THREE.TorusGeometry(0.05, 0.015, 8, 14), M('#ffffff'), 1, 1, 1, 0.13, 0.1, 0).rotation.y = 0;
       break;
     }
+    case 'oil_press': {
+      // a stone basin with an upright millstone and a stack of olive baskets
+      const ox = rx + 0.05, oz = cz + 0.1;
+      mk(g, cylGeo(0.2, 0.22, 20), surfaceMat('stone', '#bdb6a6', 6), 1, 0.12, 1, ox, 0.06, oz);
+      const wheel = mk(g, cylGeo(0.13, 0.13, 20), surfaceMat('stone', '#cfc8b8', 6), 1, 0.06, 1, ox, 0.24, oz);
+      wheel.rotation.z = Math.PI / 2;
+      cyl(g, 0.012, 0.012, 0.3, '#6b4226', ox, 0.12, oz, 6);
+      for (let i = 0; i < 2; i++) {
+        cyl(g, 0.07, 0.06, 0.08, '#b98048', cx - ww / 2 + 0.12 + i * 0.16, y0, fz + 0.12, 10);
+        for (let k = 0; k < 4; k++) ball(g, 0.018, k % 2 ? '#5a6a1a' : '#3a2a3a', cx - ww / 2 + 0.1 + i * 0.16 + (k % 2) * 0.03, y0 + 0.09, fz + 0.1 + Math.floor(k / 2) * 0.03, 1, 1, 1, false);
+      }
+      break;
+    }
     case 'salad_bar': {
       // crates of fresh produce by the door
       const veg = ['#e8432e', '#8ad05a', '#f0862a', '#ffd23a'];
@@ -2349,6 +2373,20 @@ function buildPen(e: Entry, d: BuildingDef) {
       e.top = 1.0;
       break;
     }
+    case 'quail_coop':
+      // a low A-frame hutch with a wire run
+      bxT(g, 0.7, 0.28, 0.5, 'boards', '#e8d8b0', 0.55, 0.04, 0.45, 2);
+      roofT(g, 0.84, 0.22, 0.62, '#6b8a3a', surfaceMat('boards', '#e8d8b0', 2), 0.55, 0.32, 0.45, 0.07);
+      bx(g, 0.12, 0.12, 0.02, '#4a3020', 0.55, 0.04, 0.705);
+      e.top = 0.7;
+      break;
+    case 'camel_corral':
+      // a desert style shade of striped cloth on poles and a date palm
+      for (const [x, z] of [[0.3, 0.3], [1.3, 0.3], [0.3, 1.1], [1.3, 1.1]]) mk(g, cylGeo(0.035, 0.04, 8), surfaceMat('bark', '#8a5a33', 4), 1, 0.85, 1, x, 0.46, z);
+      for (let i = 0; i < 6; i++) bx(g, 1.14 / 6, 0.02, 0.95, i % 2 ? '#f2e6c8' : '#c0602a', 0.3 + (i + 0.5) * (1.0 / 6), 0.88, 0.7);
+      { const p = palmTree(g, '#4c9a38'); p.crown.position.set(0.45, 0, 2.5); p.crown.scale.setScalar(0.8); }
+      e.top = 1.3;
+      break;
     case 'buffalo_wallow':
       // a muddy wallow pool beside the shelter
       cyl(g, 0.62, 0.66, 0.02, '#5a4028', 2.0, 0.03, 1.95, 20, false);
@@ -2566,7 +2604,7 @@ function buildFruitTree(e: Entry, d: BuildingDef) {
   const leaf = TREE_LEAF[d.id] ?? '#4f9e36';
   if (d.id === 'coconut_palm') return buildPalm(e, d, leaf);
   if (d.id === 'banana_tree') return buildBanana(e, leaf);
-  const { crown } = leafyTree(g, 0.5, 0.5, leaf, 1, d.id.length);
+  const { crown } = leafyTree(g, 0.5, 0.5, leaf, d.id === 'walnut_tree' ? 1.2 : 1, d.id.length);
   const fc = FRUIT_COLOR[d.fruit ?? 'apple'] ?? '#e53935';
   // realistic fruit: dimpled apples, paired cherries, pitted oranges, blushing peaches, lemons
   const pg = produceGeo(d.fruit ?? 'apple');
@@ -2591,7 +2629,7 @@ function buildFruitTree(e: Entry, d: BuildingDef) {
     start = st; wasReady = ti.ready;
     const n = ti.ready ? fruit.length : Math.floor(ti.p * fruit.length);
     const sc = ti.ready ? 1 : 0.5 + ti.p * 0.4;
-    const base = d.fruit === 'cherry' ? 0.075 : d.fruit === 'lemon' || d.fruit === 'plum' ? 0.07 : 0.085;
+    const base = d.fruit === 'cherry' || d.fruit === 'olive' ? 0.075 : d.fruit === 'lemon' || d.fruit === 'plum' || d.fruit === 'apricot' || d.fruit === 'lime' ? 0.07 : 0.085;
     fruit.forEach((f, i) => {
       // new fruit swells in instead of popping into existence
       shown[i] = i < n ? Math.min(1, shown[i] + 0.04) : 0;

@@ -403,7 +403,69 @@ function ostrich(): CreatureParts {
   return { eye: [0.024, 0.016, 0.012, 0.009, 1.0], body, head, headAt: [0, 0.95, 0.17], leg: leg(0.44, 0.045, (y: number) => (y > -0.12 ? '#d8b4aa' : '#b8968c'), '#8a7064', 0.03), legs: [[-0.05, 0], [0.05, 0]], legLen: 0.44, tail: null, tailAt: [0, 0, 0] };
 }
 
-const makers: Record<string, () => CreatureParts> = { gobbler, donkey, buffalo, peacock, ostrich, cow, sheep, goat, horse, chicken, duck, rabbit, alpaca, goose, dog: dogParts };
+function quail(): CreatureParts {
+  // plump little brown quail with scaly speckles and a curled head plume
+  const speck = (x: number, y: number, z: number) => (noise3(x * 90, y * 90, z * 90) > 0.62 ? '#e8d8b8' : noise3(x * 30, y * 30, z * 30) > 0.55 ? '#5a3e26' : '#8a6a44');
+  const body = new Sculpt()
+    .add(ellipsoid(0, 0.075, 0, 0.055, 0.05, 0.07), speck)
+    .add(ellipsoid(0, 0.085, 0.045, 0.04, 0.04, 0.035), (_x, y) => (y < 0.08 ? '#c8a878' : '#8a6a44'), 0.02)
+    .add(ellipsoid(0, 0.09, -0.06, 0.03, 0.02, 0.03), '#5a3e26', 0.02)
+    .build([-0.07, 0.01, -0.1], [0.07, 0.14, 0.09], 0.0035);
+  const head = new Sculpt()
+    .add(sphere(0, 0.01, 0, 0.026), (_x, y, z) => (z > 0.012 && y < 0.005 ? '#2a1e14' : Math.abs(y - 0.012) < 0.004 ? '#f2ead8' : '#6a4a2a'))
+    .add(capsule(0, 0.005, 0.02, 0, 0.0, 0.036, 0.007, 0.002), '#3a3a3a', 0.003)
+    .add(capsule(0, 0.03, 0.005, 0, 0.05, 0.02, 0.004, 0.007), '#2a1e14', 0.003)
+    .build([-0.04, -0.03, -0.03], [0.04, 0.07, 0.05], 0.0025);
+  return { eye: [0.017, 0.014, 0.012, 0.005, 1.0], body, head, headAt: [0, 0.12, 0.05], leg: leg(0.035, 0.01, '#c8a080', '#a88060', 0.006), legs: [[-0.018, 0], [0.018, 0]], legLen: 0.035, tail: null, tailAt: [0, 0, 0] };
+}
+
+function yak(): CreatureParts {
+  // shaggy dark yak: long hair skirt hanging to the knees, a hump over the shoulders
+  const hair = (x: number, y: number, z: number) => (noise3(x * 30, y * 10, z * 30) > 0.6 ? '#3a2a1e' : '#241a12');
+  const shag = (x: number, y: number, z: number) => (y < 0.34 ? Math.pow(noise3(x * 60, y * 12, z * 60), 1.4) * 0.03 * Math.min(1, (0.34 - y) / 0.06) : noise3(x * 50, y * 50, z * 50) * 0.008);
+  const body = new Sculpt()
+    .add(ellipsoid(0, 0.36, 0, 0.13, 0.13, 0.22), hair)
+    .add(sphere(0, 0.44, 0.1, 0.11), hair, 0.07)
+    .add(sphere(0, 0.36, -0.13, 0.11), hair, 0.07)
+    .add(ellipsoid(0, 0.26, 0, 0.14, 0.07, 0.2), hair, 0.06)
+    .add(capsule(0, 0.38, 0.17, 0, 0.36, 0.25, 0.085, 0.07), hair, 0.06)
+    .displace(shag)
+    .build([-0.19, 0.15, -0.28], [0.19, 0.58, 0.33], C);
+  const head = new Sculpt()
+    .add(sphere(0, 0.02, 0, 0.065), '#2a1e16')
+    .add(capsule(0, 0.0, 0.03, 0, -0.045, 0.11, 0.06, 0.05), '#2a1e16', 0.04)
+    .add(ellipsoid(0, -0.055, 0.13, 0.052, 0.04, 0.035), '#d8cfc0', 0.03)
+    .carve(ellipsoid(0.02, -0.05, 0.165, 0.009, 0.012, 0.01))
+    .carve(ellipsoid(-0.02, -0.05, 0.165, 0.009, 0.012, 0.01))
+    .add(ellipsoid(0.075, 0.015, -0.01, 0.035, 0.014, 0.022), '#2a1e16', 0.012)
+    .add(ellipsoid(-0.075, 0.015, -0.01, 0.035, 0.014, 0.022), '#2a1e16', 0.012)
+    .displace((x, y, z) => (y > 0.03 ? noise3(x * 60, y * 60, z * 60) * 0.012 : 0))
+    .build([-0.11, -0.11, -0.08], [0.11, 0.12, 0.19], C * 0.6);
+  const tail = new Sculpt().add(capsule(0, 0, 0, 0, -0.18, 0.02, 0.02, 0.03), '#241a12').displace((x, y, z) => noise3(x * 80, y * 30, z * 80) * 0.012).build([-0.06, -0.24, -0.05], [0.06, 0.03, 0.07], C * 0.6);
+  return { eye: [0.055, 0.03, 0.035, 0.012, 0.95], body, head, headAt: [0, 0.37, 0.28], leg: leg(0.18, 0.058, '#241a12', '#141008', 0.03), legs: [[-0.08, 0.14], [0.08, 0.14], [-0.08, -0.14], [0.08, -0.14]], legLen: 0.18, tail, tailAt: [0, 0.44, -0.24] };
+}
+
+function camel(): CreatureParts {
+  // one humped dromedary: sandy coat, long curved neck and knobbly long legs
+  const c = (x: number, y: number, z: number) => (noise3(x * 18, y * 18, z * 18) > 0.66 ? '#b89060' : '#c9a270');
+  const body = new Sculpt()
+    .add(ellipsoid(0, 0.55, 0, 0.1, 0.1, 0.2), c)
+    .add(ellipsoid(0, 0.67, -0.01, 0.075, 0.09, 0.1), c, 0.06)
+    .add(sphere(0, 0.54, 0.13, 0.09), c, 0.05)
+    .add(capsule(0, 0.56, 0.17, 0, 0.5, 0.28, 0.06, 0.05), c, 0.05)
+    .add(capsule(0, 0.5, 0.28, 0, 0.72, 0.34, 0.05, 0.042), c, 0.04)
+    .build([-0.13, 0.38, -0.25], [0.13, 0.8, 0.4], C);
+  const head = new Sculpt()
+    .add(capsule(0, 0.0, 0, 0, -0.02, 0.1, 0.045, 0.036), c)
+    .add(ellipsoid(0, -0.03, 0.105, 0.035, 0.028, 0.03), '#a88050', 0.02)
+    .add(ellipsoid(0.04, 0.03, -0.01, 0.012, 0.018, 0.01), c, 0.008)
+    .add(ellipsoid(-0.04, 0.03, -0.01, 0.012, 0.018, 0.01), c, 0.008)
+    .build([-0.07, -0.07, -0.05], [0.07, 0.07, 0.15], C * 0.55);
+  const tail = new Sculpt().add(capsule(0, 0, 0, 0, -0.15, -0.01, 0.01, 0.006), c).add(ellipsoid(0, -0.16, -0.01, 0.014, 0.025, 0.014), '#5a3e26', 0.01).build([-0.03, -0.2, -0.04], [0.03, 0.02, 0.03], C * 0.5);
+  return { eye: [0.036, 0.018, 0.035, 0.01, 0.9], body, head, headAt: [0, 0.74, 0.35], leg: leg(0.46, 0.04, '#c9a270', '#6a5038', 0.03), legs: [[-0.06, 0.14], [0.06, 0.14], [-0.06, -0.14], [0.06, -0.14]], legLen: 0.46, tail, tailAt: [0, 0.6, -0.2] };
+}
+
+const makers: Record<string, () => CreatureParts> = { quail, yak, camel, gobbler, donkey, buffalo, peacock, ostrich, cow, sheep, goat, horse, chicken, duck, rabbit, alpaca, goose, dog: dogParts };
 const cache = new Map<string, CreatureParts>();
 
 export function creature(kind: string) {

@@ -311,7 +311,77 @@ function floret() {
   return mergeGeometries(parts) as THREE.BufferGeometry;
 }
 
+function apricot() {
+  // small velvety fruit with a seam, orange with a rosy cheek
+  return lathe([[0, -0.8], [0.6, -0.72], [0.95, -0.2], [0.95, 0.25], [0.6, 0.72], [0.12, 0.82], [0, 0.78]], 22, (x, y, z) => mix('#f6a23a', '#e0582a', 0.2 + x * 0.35 + y * 0.2 + (noise3(x * 4, y * 4, z * 4) - 0.5) * 0.5), (x, _y, z) => -Math.exp(-Math.pow(Math.atan2(z, x) / 0.16, 2)) * 0.06);
+}
+
+function lime() {
+  const g = lathe(round(18).map(([r, y]) => [r, y * 0.95]), 24, (x, y, z) => mix('#3f8a1e', '#8ac83a', 0.45 + (noise3(x * 5, y * 5, z * 5) - 0.5) * 0.8), (x, y, z) => (noise3(x * 40, y * 40, z * 40) - 0.5) * 0.03);
+  return g;
+}
+
+function fig() {
+  // teardrop with a purple skin going green at the neck
+  return lathe([[0, -0.85], [0.6, -0.78], [0.95, -0.3], [0.85, 0.2], [0.45, 0.62], [0.16, 0.92], [0.08, 1.05], [0, 1.05]], 22, (x, y, z) => mix('#3e1640', '#8a5a4a', Math.max(0, y) * 0.9 + (noise3(x * 6, y * 6, z * 6) - 0.5) * 0.3));
+}
+
+function olive() {
+  // a little sprig: three oval olives, green to purple black
+  const parts: THREE.BufferGeometry[] = [];
+  const cols = ['#5a6a1a', '#3a2a3a', '#7a8a2a'];
+  [[-0.35, 0, 0], [0.3, 0.1, 0.1], [0, -0.35, -0.2]].forEach(([x, y, z], i) => {
+    const g = lathe(round(12).map(([r, yy]) => [r * 0.62, yy]), 14, () => C.set(cols[i]).clone());
+    g.translate(x, y, z);
+    parts.push(g);
+  });
+  parts.push(solid(leafGeo, '#8a9a7a', new THREE.Matrix4().makeTranslation(0.1, 0.55, 0).multiply(new THREE.Matrix4().makeRotationZ(-0.6)).multiply(new THREE.Matrix4().makeScale(0.5, 0.06, 0.14))));
+  return mergeGeometries(parts) as THREE.BufferGeometry;
+}
+
+function walnut() {
+  // still in its green husk, a few pale lenticel dots
+  return lathe(round(16).map(([r, y]) => [r, y * 1.08]), 20, (x, y, z) => (noise3(x * 30, y * 30, z * 30) > 0.8 ? C.set('#c8d8a0').clone() : mix('#4a7a2a', '#6a9a3a', noise3(x * 5, y * 5, z * 5))));
+}
+
+function garlic() {
+  // papery bulb made of plump cloves, with a pointed neck
+  return lathe([[0, -0.7], [0.6, -0.65], [0.95, -0.2], [0.9, 0.2], [0.5, 0.55], [0.15, 0.8], [0.06, 1.1], [0, 1.1]], 24, (x, y, z) => C.setScalar(0.9 + noise3(x * 8, y * 8, z * 8) * 0.12).clone(), (x, _y, z) => Math.pow(Math.abs(Math.cos(Math.atan2(z, x) * 4)), 2) * 0.1 - 0.05);
+}
+
+function beet() {
+  return lathe([[0, -1.2], [0.1, -0.9], [0.5, -0.5], [0.95, -0.05], [0.9, 0.35], [0.5, 0.7], [0, 0.78]], 20, (x, y, z) => C.setScalar(0.85 + noise3(x * 5, y * 5, z * 5) * 0.2).clone());
+}
+
+function peaPod() {
+  // a curved pod swollen over the peas inside
+  const parts: THREE.BufferGeometry[] = [];
+  for (let i = 0; i < 6; i++) {
+    const t = i / 5;
+    const sp = new THREE.SphereGeometry(0.2 - Math.abs(t - 0.5) * 0.12, 10, 7);
+    sp.scale(1, 1, 0.75);
+    sp.translate(0, -t * 1.4 + 0.7, Math.sin(t * Math.PI) * 0.15);
+    sp.deleteAttribute('uv');
+    parts.push(paint(sp.toNonIndexed(), () => C.setScalar(0.9 + (i % 2) * 0.08).clone()));
+  }
+  return mergeGeometries(parts) as THREE.BufferGeometry;
+}
+
+function zucchini() {
+  const g = lathe([[0, -1.8], [0.3, -1.7], [0.4, -1.1], [0.42, 1.0], [0.3, 1.6], [0, 1.7]], 16, (x, y, z) => C.setScalar(noise3(x * 30, y * 4, z * 30) > 0.6 ? 1.3 : 0.9).clone());
+  g.rotateZ(Math.PI / 2);
+  return g;
+}
+
+function sweetPotato() {
+  // long lumpy tuber with a rosy skin
+  const g = lathe([[0, -1.5], [0.25, -1.3], [0.5, -0.7], [0.55, 0.1], [0.45, 0.9], [0.2, 1.4], [0, 1.5]], 16, (x, y, z) => C.setScalar(0.85 + noise3(x * 6, y * 6, z * 6) * 0.2).clone(), (x, y, z) => (noise3(x * 5, y * 3, z * 5) - 0.5) * 0.25);
+  g.rotateZ(Math.PI / 2);
+  return g;
+}
+
 const makers: Record<string, () => THREE.BufferGeometry> = {
+  apricot, lime, fig, olive, walnut, garlic, beet, pea: peaPod, zucchini, sweet_potato: sweetPotato,
   apple, cherry, orange, peach, lemon, coconut, tomato, strawberry, chili,
   pear, plum, mango, avocado, pomegranate, banana,
   bell_pepper: bellPepper, eggplant, raspberry, cucumber, grape: grapes, pineapple, onion, radish, cabbage, broccoli: floret,
