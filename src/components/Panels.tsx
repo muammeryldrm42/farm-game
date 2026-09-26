@@ -30,6 +30,7 @@ import {
   upgradeCost,
   type FarmObject,
 } from '@/game/state';
+import { getQuality, setQuality, type Quality } from '@/game/quality';
 import { Coin } from './Hud';
 import { useStore, useVersion } from './ctx';
 
@@ -1006,6 +1007,23 @@ function Toggle({ label, on, onChange }: { label: string; on: boolean; onChange:
   );
 }
 
+function QualityPicker() {
+  const [q, setQ] = useState<Quality>(getQuality);
+  const pick = (v: Quality) => { setQuality(v); setQ(v); };
+  return (
+    <div className="card flex w-full items-center justify-between gap-2 p-3">
+      <span className="font-bold">Graphics quality</span>
+      <span className="flex gap-1">
+        {(['high', 'low'] as const).map((v) => (
+          <button key={v} className={`btn px-3 py-1 text-sm ${q === v ? 'btn-green' : 'btn-wood'}`} onClick={() => pick(v)}>
+            {v === 'high' ? 'High' : 'Low'}
+          </button>
+        ))}
+      </span>
+    </div>
+  );
+}
+
 function SettingsModal() {
   const store = useStore();
   const st = store.s.settings;
@@ -1026,6 +1044,7 @@ function SettingsModal() {
         <Toggle label="Music" on={st.music} onChange={(v) => set('music', v)} />
         <Toggle label="Weather and seasons" on={st.weather} onChange={(v) => set('weather', v)} />
         <Toggle label="Soft shadows (turn off on slow phones)" on={st.shadows} onChange={(v) => set('shadows', v)} />
+        <QualityPicker />
       </div>
 
       <h3 className="mb-2 mt-4 font-bold">Save data</h3>

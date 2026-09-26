@@ -1,6 +1,14 @@
 // Talons Farm - real time 3D renderer built on three.js.
-// Every model is built from low poly primitives, no asset files needed.
+// Every model, texture and shader is generated in code, no asset files needed.
 import * as THREE from 'three';
+import { mergeVertices } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
+import { getQuality, onQuality, type Quality } from './quality';
+import { U } from './gfx/shared';
+import { Sky } from './gfx/sky';
+import { makeWater } from './gfx/water';
+import { Foliage, type Spot } from './gfx/foliage';
+import { Post } from './gfx/post';
+import { meterBox, meterRoof, surface, surfaceMat, type SurfaceKind } from './gfx/textures';
 import { ANIMAL, BUILDING, CROP, ITEMS, type BuildingDef, type CropDef } from './data';
 import {
   CHUNK, GRID, NCH, boatState, canFulfill, chunkState, penInfo, plotProgress, prodInfo, treeInfo,
@@ -53,7 +61,7 @@ export function weatherAt(now: number, season: Season) {
 
 const G = {
   box: new THREE.BoxGeometry(1, 1, 1),
-  ball: new THREE.IcosahedronGeometry(1, 1),
+  ball: new THREE.SphereGeometry(1, 20, 14),
   smooth: new THREE.SphereGeometry(1, 14, 10),
   dome: new THREE.SphereGeometry(1, 14, 7, 0, Math.PI * 2, 0, Math.PI / 2),
   rock: new THREE.DodecahedronGeometry(1, 0),
@@ -92,23 +100,87 @@ function sailGeo() {
   return tri;
 }
 
+// Pine silhouette: a lathe with three soft tiers, centered like a unit cone (height 1, base radius 1).
+let pine: THREE.BufferGeometry | null = null;
+function pineGeo() {
+  if (pine) return pine;
+  const pts: THREE.Vector2[] = [new THREE.Vector2(0, -0.5)];
+  const tiers = 3;
+  for (let i = 0; i < tiers; i++) {
+    const y0 = -0.5 + (i / tiers) * 0.95, r0 = 1 - i * 0.27;
+    pts.push(new THREE.Vector2(r0, y0), new THREE.Vector2(r0 * 0.93, y0 + 0.05), new THREE.Vector2(r0 * 0.5, y0 + 0.3));
+  }
+  pts.push(new THREE.Vector2(0.08, 0.47), new THREE.Vector2(0, 0.5));
+  pine = new THREE.LatheGeometry(pts, 14);
+  return pine;
+}
+
+// Lumpy foliage ball: a sphere pushed in and out by smooth noise, shaded smoothly.
+const blobCache = new Map<number, THREE.BufferGeometry>();
+function blobGeo(seed: number) {
+  let g = blobCache.get(seed);
+  if (g) return g;
+  const base = new THREE.SphereGeometry(1, 28, 20);
+  base.deleteAttribute('uv');
+  base.deleteAttribute('normal');
+  g = mergeVertices(base);
+  const pos = g.getAttribute('position') as THREE.BufferAttribute;
+  const v = new THREE.Vector3();
+  const dirs = [...Array(7)].map((_, i) => new THREE.Vector3(hash(i, seed, 1) - 0.5, hash(i, seed, 2) - 0.5, hash(i, seed, 3) - 0.5).normalize());
+  for (let i = 0; i < pos.count; i++) {
+    v.fromBufferAttribute(pos, i).normalize();
+    let d = 0;
+    // bumps where the vertex faces one of a few random directions, like clustered leaf puffs
+    for (const k of dirs) d += Math.pow(Math.max(0, v.dot(k)), 6) * 0.22;
+    d += Math.sin(v.x * 7 + seed) * Math.sin(v.y * 6) * Math.sin(v.z * 7 - seed) * 0.05;
+    v.multiplyScalar(0.9 + d);
+    pos.setXYZ(i, v.x, v.y, v.z);
+  }
+  g.computeVertexNormals();
+  blobCache.set(seed, g);
+  return g;
+}
+
 const matCache = new Map<string, THREE.Material>();
-function M(color: string): THREE.MeshLambertMaterial {
-  let m = matCache.get(color) as THREE.MeshLambertMaterial | undefined;
-  if (!m) { m = new THREE.MeshLambertMaterial({ color, flatShading: true }); matCache.set(color, m); }
+function M(color: string): THREE.MeshStandardMaterial {
+  let m = matCache.get(color) as THREE.MeshStandardMaterial | undefined;
+  if (!m) { m = new THREE.MeshStandardMaterial({ color, roughness: 0.78, metalness: 0 }); matCache.set(color, m); }
   return m;
 }
-function MT(color: string, opacity: number): THREE.MeshLambertMaterial {
+// faceted look for rocks and crystals
+function MF(color: string): THREE.MeshStandardMaterial {
+  const k = `${color}#flat`;
+  let m = matCache.get(k) as THREE.MeshStandardMaterial | undefined;
+  if (!m) { m = new THREE.MeshStandardMaterial({ color, roughness: 0.9, flatShading: true }); matCache.set(k, m); }
+  return m;
+}
+function MT(color: string, opacity: number): THREE.MeshStandardMaterial {
   const k = `${color}@${opacity}`;
-  let m = matCache.get(k) as THREE.MeshLambertMaterial | undefined;
-  if (!m) { m = new THREE.MeshLambertMaterial({ color, transparent: true, opacity, flatShading: true, depthWrite: false }); matCache.set(k, m); }
+  let m = matCache.get(k) as THREE.MeshStandardMaterial | undefined;
+  if (!m) { m = new THREE.MeshStandardMaterial({ color, transparent: true, opacity, roughness: 0.8, depthWrite: false }); matCache.set(k, m); }
   return m;
 }
 
 // glowing materials, their emissive strength follows the night
-const WIN = new THREE.MeshLambertMaterial({ color: '#a9dcf5', emissive: '#ffc766', emissiveIntensity: 0 });
-const LAMP = new THREE.MeshLambertMaterial({ color: '#fff3c4', emissive: '#ffcf6b', emissiveIntensity: 0.2 });
-const WATER = new THREE.MeshPhongMaterial({ color: '#3f9fd8', shininess: 90, specular: '#ffffff', flatShading: true });
+const WIN = new THREE.MeshStandardMaterial({ color: '#a9dcf5', roughness: 0.15, metalness: 0.1, emissive: '#ffc766', emissiveIntensity: 0 });
+const LAMP = new THREE.MeshStandardMaterial({ color: '#fff3c4', emissive: '#ffcf6b', emissiveIntensity: 0.2 });
+const WATER = makeWater({ shallow: '#6fd6cf', deep: '#2f8fcf', scale: 1.6 });
+// additive pool of light under lamps, only visible at night
+let glowTex: THREE.Texture | null = null;
+const GLOW = new THREE.MeshBasicMaterial({ color: '#ffc870', transparent: true, opacity: 0, depthWrite: false, blending: THREE.AdditiveBlending });
+function glowMat() {
+  if (!glowTex) {
+    glowTex = canvasTex('glow', 128, 128, (c) => {
+      const g = c.createRadialGradient(64, 64, 0, 64, 64, 64);
+      g.addColorStop(0, 'rgba(255,255,255,1)');
+      g.addColorStop(0.4, 'rgba(255,255,255,0.45)');
+      g.addColorStop(1, 'rgba(255,255,255,0)');
+      c.fillStyle = g; c.fillRect(0, 0, 128, 128);
+    });
+    GLOW.map = glowTex;
+  }
+  return GLOW;
+}
 
 const texCache = new Map<string, THREE.Texture>();
 const EF = '"Apple Color Emoji","Segoe UI Emoji","Noto Color Emoji",sans-serif';
@@ -197,6 +269,24 @@ const roof = (p: P, w: number, h: number, d: number, color: string, x: number, y
   m.rotation.y = rotY;
   return m;
 };
+// textured box with UVs in meters; `sc` is texture repeats per meter
+function bxT(p: P, w: number, h: number, d: number, kind: SurfaceKind, color: string, x: number, y: number, z: number, sc = 1, shadow = true) {
+  const m = new THREE.Mesh(meterBox(w, h, d), surfaceMat(kind, color, sc));
+  m.position.set(x, y + h / 2, z);
+  m.castShadow = shadow;
+  m.receiveShadow = true;
+  p.add(m);
+  return m;
+}
+// tiled gable roof; the gable ends take the wall material
+function roofT(p: P, w: number, h: number, d: number, color: string, gable: THREE.Material, x: number, y: number, z: number, inset = 0) {
+  const m = new THREE.Mesh(meterRoof(w, h, d, inset), [surfaceMat('roof', color, 1.7, 0.7), gable]);
+  m.position.set(x, y, z);
+  m.castShadow = true;
+  m.receiveShadow = true;
+  p.add(m);
+  return m;
+}
 function badge(p: P, icon: string, size: number, x: number, y: number, z: number, rotY = 0) {
   const m = new THREE.Mesh(G.plane, new THREE.MeshBasicMaterial({ map: emojiTex(icon, true), transparent: true }));
   m.scale.set(size, size, 1);
@@ -252,8 +342,8 @@ export class Renderer {
   private el = 0.86;
   private ray = new THREE.Raycaster();
   private ground = new THREE.Plane(new THREE.Vector3(0, 1, 0), 0);
-  private sun = new THREE.DirectionalLight('#fff4e0', 2.4);
-  private hemi = new THREE.HemisphereLight('#d6efff', '#5a7a3a', 1.25);
+  private sun = new THREE.DirectionalLight('#fff4e0', 3.2);
+  private hemi = new THREE.HemisphereLight('#d6efff', '#5a7a3a', 0.55);
   private world = new THREE.Group();
   private land = new THREE.Group();
   private fxLayer = new THREE.Group();
@@ -262,7 +352,13 @@ export class Renderer {
   private landKey = '';
   private tiles!: THREE.InstancedMesh;
   private sea!: THREE.Mesh;
-  private shimmer!: THREE.Mesh;
+  private sky = new Sky();
+  private foliage = new Foliage();
+  private foliageKey = '';
+  private post: Post | null = null;
+  private quality: Quality = getQuality();
+  private offQuality: () => void;
+  private size = { w: 1, h: 1, dpr: 1 };
   private clouds: THREE.Group[] = [];
   private bursts: Burst[] = [];
   private floats: Float[] = [];
@@ -280,19 +376,24 @@ export class Renderer {
     this.gl = new THREE.WebGLRenderer({ canvas, antialias: true, powerPreference: 'high-performance' });
     this.gl.shadowMap.enabled = true;
     this.gl.shadowMap.type = THREE.PCFShadowMap;
+    this.gl.toneMapping = THREE.ACESFilmicToneMapping;
+    this.gl.toneMappingExposure = 0.95;
     this.scene.fog = new THREE.Fog('#8fd3f5', 60, 140);
     this.scene.background = this.bg;
+    this.scene.add(this.sky.mesh);
+    this.buildEnvironment();
 
     this.sun.position.set(14 + 14, 26, 14 + 8);
     this.sun.target.position.set(14, 0, 14);
     this.sun.castShadow = true;
     const sc = this.sun.shadow.camera;
     sc.left = -24; sc.right = 24; sc.top = 24; sc.bottom = -24; sc.near = 1; sc.far = 90;
-    const small = typeof window !== 'undefined' && window.innerWidth < 700;
-    this.sun.shadow.mapSize.set(small ? 1024 : 2048, small ? 1024 : 2048);
-    this.sun.shadow.bias = -0.0006;
-    this.sun.shadow.normalBias = 0.02;
-    this.scene.add(this.sun, this.sun.target, this.hemi, this.world, this.land, this.fxLayer);
+    this.sun.shadow.bias = -0.0005;
+    this.sun.shadow.normalBias = 0.025;
+    this.sun.shadow.radius = 3;
+    // layer 2 holds shadow only casters (cloud shadows): the sun sees them, the camera does not
+    this.sun.shadow.camera.layers.enable(2);
+    this.scene.add(this.sun, this.sun.target, this.hemi, this.world, this.land, this.foliage.group, this.fxLayer);
 
     this.buildSea();
     this.buildClouds();
@@ -300,19 +401,55 @@ export class Renderer {
     this.farmer = { x: 12.5, y: 11.2, tx: 12.5, ty: 11.2, wait: 2, heading: 0, moving: false, g: buildFarmer(), phase: 0 };
     this.dog = { x: 13.2, y: 11.6, tx: 13.2, ty: 11.6, wait: 0, heading: 0, moving: false, g: buildDog(), phase: 0 };
     this.world.add(this.farmer.g, this.dog.g);
+    this.applyQuality(this.quality);
+    this.offQuality = onQuality((q) => this.applyQuality(q));
     this.updateCamera();
   }
 
   dispose() {
+    this.offQuality();
+    this.post?.dispose();
     this.gl.dispose();
+  }
+
+  // sky light for image based lighting: a blurred copy of a daytime sky with a grassy lower half
+  private buildEnvironment() {
+    const envSky = new Sky();
+    envSky.set(new THREE.Color('#5aa2e6'), new THREE.Color('#d4eefc'), new THREE.Color('#7da35a'),
+      new THREE.Vector3(0.5, 0.75, 0.3), new THREE.Color('#fff1d0'), 0);
+    const envScene = new THREE.Scene();
+    envScene.add(envSky.mesh);
+    const pm = new THREE.PMREMGenerator(this.gl);
+    this.scene.environment = pm.fromScene(envScene, 0.04).texture;
+    this.scene.environmentIntensity = 0.7;
+    pm.dispose();
+  }
+
+  private applyQuality(q: Quality) {
+    this.quality = q;
+    const high = q === 'high';
+    const ms = high ? 2048 : 1024;
+    if (this.sun.shadow.mapSize.x !== ms) {
+      this.sun.shadow.mapSize.set(ms, ms);
+      this.sun.shadow.map?.dispose();
+      this.sun.shadow.map = null as unknown as THREE.WebGLRenderTarget;
+    }
+    this.sun.shadow.radius = high ? 3 : 1.5;
+    if (high && !this.post) this.post = new Post(this.gl, this.scene, this.camera, [this.sky.mesh, this.fxLayer]);
+    if (!high && this.post) { this.post.dispose(); this.post = null; }
+    this.foliageKey = '';
+    this.resize(this.size.w, this.size.h, this.size.dpr);
   }
 
   // ------------------------------------------------ camera
 
   resize(w: number, h: number, dpr: number) {
+    this.size = { w, h, dpr };
     this.W = w; this.H = h;
-    this.gl.setPixelRatio(dpr);
+    const px = this.quality === 'high' ? dpr : Math.min(dpr, 1.25);
+    this.gl.setPixelRatio(px);
     this.gl.setSize(w, h, false);
+    this.post?.setSize(w, h, px);
     this.camera.aspect = w / Math.max(1, h);
     this.camera.updateProjectionMatrix();
   }
@@ -421,38 +558,43 @@ export class Renderer {
   // ------------------------------------------------ static world
 
   private buildSea() {
-    this.sea = new THREE.Mesh(new THREE.PlaneGeometry(600, 600, 1, 1), WATER);
+    // island rectangle including the beach, used for shallow water and surf
+    this.sea = new THREE.Mesh(new THREE.PlaneGeometry(600, 600, 1, 1), makeWater({ sea: true, rect: [-0.75, -0.75, GRID + 0.75, GRID + 0.75], shallow: '#62d9d2', deep: '#1f78c2' }));
     this.sea.rotation.x = -Math.PI / 2;
     this.sea.position.set(14, -0.55, 14);
     this.sea.receiveShadow = true;
     this.scene.add(this.sea);
-    const tex = canvasTex('shimmer', 256, 256, (c) => {
-      c.strokeStyle = 'rgba(255,255,255,0.55)';
-      c.lineCap = 'round';
-      for (let i = 0; i < 26; i++) {
-        const x = hash(i, 1) * 256, y = hash(i, 2) * 256, l = 10 + hash(i, 3) * 26;
-        c.lineWidth = 2 + hash(i, 4) * 2;
-        c.beginPath(); c.moveTo(x, y); c.quadraticCurveTo(x + l / 2, y - 4, x + l, y); c.stroke();
-      }
-    });
-    tex.wrapS = tex.wrapT = THREE.RepeatWrapping;
-    tex.repeat.set(60, 60);
-    this.shimmer = new THREE.Mesh(new THREE.PlaneGeometry(600, 600), new THREE.MeshBasicMaterial({ map: tex, transparent: true, opacity: 0.35, depthWrite: false }));
-    this.shimmer.rotation.x = -Math.PI / 2;
-    this.shimmer.position.set(14, -0.53, 14);
-    this.scene.add(this.shimmer);
 
     // island body: grass top is made of tiles, then soil, then a sandy beach
     const isl = this.land;
-    bx(isl, GRID + 0.1, 1.2, GRID + 0.1, '#7a4b26', GRID / 2, -1.4, GRID / 2, false);
-    bx(isl, GRID + 1.4, 0.34, GRID + 1.4, '#e8d08e', GRID / 2, -0.72, GRID / 2, false);
-    bx(isl, GRID + 0.9, 0.2, GRID + 0.9, '#d9bd78', GRID / 2, -0.4, GRID / 2, false);
-    const foam = new THREE.Mesh(G.box, MT('#ffffff', 0.35));
-    foam.scale.set(GRID + 2.2, 0.02, GRID + 2.2);
-    foam.position.set(GRID / 2, -0.54, GRID / 2);
-    this.land.add(foam);
+    const soil = new THREE.Mesh(meterBox(GRID + 0.1, 1.2, GRID + 0.1), surfaceMat('soil', '#8a5a33', 1));
+    soil.position.set(GRID / 2, -1.4 + 0.6, GRID / 2);
+    soil.receiveShadow = true;
+    isl.add(soil);
+    const sand = surfaceMat('sand', '#ecd49a', 1.5, 0.95);
+    for (const [w, h, y] of [[GRID + 1.4, 0.34, -0.72], [GRID + 0.9, 0.2, -0.4]] as const) {
+      const m = new THREE.Mesh(meterBox(w, h, w), sand);
+      m.position.set(GRID / 2, y + h / 2, GRID / 2);
+      m.receiveShadow = true;
+      isl.add(m);
+    }
 
-    this.tiles = new THREE.InstancedMesh(G.box, new THREE.MeshLambertMaterial({ color: '#ffffff' }), GRID * GRID);
+    const grass = new THREE.MeshStandardMaterial({ color: '#ffffff', roughness: 0.95, ...surface('grass') });
+    grass.normalScale.set(0.8, 0.8);
+    // sample the lawn texture in world space so it flows across tiles without repeating per tile
+    grass.onBeforeCompile = (sh) => {
+      sh.vertexShader = sh.vertexShader.replace('#include <uv_vertex>', `#include <uv_vertex>
+      {
+        vec4 tw = vec4(position, 1.0);
+        #ifdef USE_INSTANCING
+        tw = instanceMatrix * tw;
+        #endif
+        tw = modelMatrix * tw;
+        vMapUv = tw.xz * 0.42;
+        vNormalMapUv = tw.xz * 0.42;
+      }`);
+    };
+    this.tiles = new THREE.InstancedMesh(G.box, grass, GRID * GRID);
     this.tiles.receiveShadow = true;
     const m = new THREE.Matrix4();
     for (let y = 0; y < GRID; y++) for (let x = 0; x < GRID; x++) {
@@ -462,6 +604,30 @@ export class Renderer {
       this.tiles.setColorAt(y * GRID + x, new THREE.Color('#7cc450'));
     }
     this.land.add(this.tiles);
+  }
+
+  // tiles free of buildings get instanced grass tufts and wild flowers
+  private rebuildFoliage() {
+    const s = this.store.s;
+    const dens = this.quality === 'high' ? 9 : 0;
+    const key = `${dens}|${this.landKey}|${this.store.objVersion}|${s.objects.length}`;
+    if (key === this.foliageKey) return;
+    this.foliageKey = key;
+    const used = new Uint8Array(GRID * GRID);
+    for (const o of s.objects) {
+      const d = BUILDING[o.type];
+      for (let j = 0; j < d.h; j++) for (let i = 0; i < d.w; i++) {
+        const x = o.x + i, y = o.y + j;
+        if (x >= 0 && y >= 0 && x < GRID && y < GRID) used[y * GRID + x] = 1;
+      }
+    }
+    const spots: Spot[] = [];
+    for (let y = 0; y < GRID; y++) for (let x = 0; x < GRID; x++) {
+      if (used[y * GRID + x]) continue;
+      const cs = chunkState(s, Math.floor(x / CHUNK), Math.floor(y / CHUNK));
+      spots.push({ x, z: y, open: cs === 'open' });
+    }
+    this.foliage.rebuild(spots, dens);
   }
 
   private dynLand = new THREE.Group();
@@ -475,9 +641,9 @@ export class Renderer {
     for (let y = 0; y < GRID; y++) for (let x = 0; x < GRID; x++) {
       const cs = chunkState(s, Math.floor(x / CHUNK), Math.floor(y / CHUNK));
       const h = hash(x, y, 3);
-      if (cs === 'open') col.set((x + y) % 2 ? '#7fc653' : '#76be4b').offsetHSL(0, 0, (h - 0.5) * 0.04);
-      else if (cs === 'buyable') col.set('#5f9a3c').offsetHSL(0, 0, (h - 0.5) * 0.05);
-      else col.set('#4b7f35').offsetHSL(0, 0, (h - 0.5) * 0.05);
+      if (cs === 'open') col.set((x + y) % 2 ? '#6fc23a' : '#6abd36').offsetHSL((h - 0.5) * 0.02, 0, (h - 0.5) * 0.04);
+      else if (cs === 'buyable') col.set('#58a032').offsetHSL(0, 0, (h - 0.5) * 0.05);
+      else col.set('#468a2c').offsetHSL(0, 0, (h - 0.5) * 0.05);
       this.tiles.setColorAt(y * GRID + x, col);
     }
     if (this.tiles.instanceColor) this.tiles.instanceColor.needsUpdate = true;
@@ -503,10 +669,10 @@ export class Renderer {
       }
     }
     const mtx = new THREE.Matrix4(), q = new THREE.Quaternion(), sv = new THREE.Vector3(), pv = new THREE.Vector3();
-    const trunks = new THREE.InstancedMesh(cylGeo(0.06, 0.09, 6), M('#6b3f1f'), pines.length + rounds.length);
-    const pineA = new THREE.InstancedMesh(cylGeo(0, 1, 7), new THREE.MeshLambertMaterial({ color: '#ffffff', flatShading: true }), pines.length);
-    const pineB = new THREE.InstancedMesh(cylGeo(0, 1, 7), new THREE.MeshLambertMaterial({ color: '#ffffff', flatShading: true }), pines.length);
-    const crown = new THREE.InstancedMesh(G.ball, new THREE.MeshLambertMaterial({ color: '#ffffff', flatShading: true }), rounds.length);
+    const trunks = new THREE.InstancedMesh(cylGeo(0.06, 0.09, 8), surfaceMat('bark', '#7a4a26', 4), pines.length + rounds.length);
+    const pineA = new THREE.InstancedMesh(pineGeo(), new THREE.MeshStandardMaterial({ color: '#ffffff', roughness: 0.85 }), pines.length);
+    const pineB = new THREE.InstancedMesh(pineGeo(), new THREE.MeshStandardMaterial({ color: '#ffffff', roughness: 0.85 }), pines.length);
+    const crown = new THREE.InstancedMesh(blobGeo(1), new THREE.MeshStandardMaterial({ color: '#ffffff', roughness: 0.85 }), rounds.length);
     let ti = 0;
     pines.forEach(([x, z, sc], i) => {
       mtx.compose(pv.set(x, 0.2 * sc, z), q, sv.set(1, 0.4 * sc, 1)); trunks.setMatrixAt(ti++, mtx);
@@ -597,8 +763,10 @@ export class Renderer {
     const ui = this.store.ui;
     const now = Date.now();
 
+    U.time.value = t / 1000;
     this.rebuildLand();
     this.sync();
+    this.rebuildFoliage();
 
     // smooth camera rotation
     if (Math.abs(this.azGoal - this.az) > 0.0005) this.az += (this.azGoal - this.az) * Math.min(1, dt * 8);
@@ -623,26 +791,45 @@ export class Renderer {
     const wk = this.updateWeather(dt, now);
     this.updateLight(now, t, wk);
 
-    this.gl.render(this.scene, this.camera);
+    this.sky.mesh.position.copy(this.camera.position);
+    if (this.post) this.post.render();
+    else this.gl.render(this.scene, this.camera);
   }
 
-  private updateLight(now: number, t: number, rainK: number) {
+  private tmpC = new THREE.Color();
+  private skyTop = new THREE.Color();
+  private skyHor = new THREE.Color();
+  private skyLow = new THREE.Color();
+  private sunDir = new THREE.Vector3(14, 26, 8).normalize();
+
+  private updateLight(now: number, _t: number, rainK: number) {
     const s = this.store.s;
     const nf = s.settings.dayNight ? nightFactor(now) : { night: 0, dusk: 0 };
     const n = nf.night, dk = nf.dusk;
+    const c = this.tmpC;
     this.sun.castShadow = s.settings.shadows;
-    this.sun.intensity = lerp(2.5, 0.5, n) * (1 - 0.4 * rainK);
-    this.sun.color.set('#fff4e0').lerp(new THREE.Color('#ff9a5a'), dk * 0.7).lerp(new THREE.Color('#8fa3ff'), n);
-    this.hemi.intensity = lerp(1.3, 0.62, n) * (1 - 0.15 * rainK);
-    this.hemi.color.set('#d6efff').lerp(new THREE.Color('#6b7cc4'), n);
-    this.bg.set('#9ad8f7').lerp(new THREE.Color('#f5a36e'), dk * 0.55).lerp(new THREE.Color('#0f1a3d'), n).lerp(new THREE.Color('#6d7f92'), rainK * 0.5 * (1 - n));
-    (this.scene.fog as THREE.Fog).color.copy(this.bg);
-    WATER.color.set('#3f9fd8').lerp(new THREE.Color('#12305a'), n * 0.8);
-    WIN.emissiveIntensity = n > 0.2 ? n * 1.1 : 0;
-    LAMP.emissiveIntensity = 0.2 + n * 1.4;
-    const tex = (this.shimmer.material as THREE.MeshBasicMaterial).map;
-    if (tex) { tex.offset.x = (t / 90000) % 1; tex.offset.y = Math.sin(t / 4000) * 0.01; }
-    (this.shimmer.material as THREE.MeshBasicMaterial).opacity = 0.35 * (1 - n * 0.6);
+    this.sun.intensity = lerp(3.2, 0.45, n) * (1 - 0.45 * rainK);
+    this.sun.color.set('#fff2dc').lerp(c.set('#ff9a5a'), dk * 0.7).lerp(c.set('#8fa3ff'), n);
+    this.hemi.intensity = lerp(0.55, 0.35, n) * (1 - 0.15 * rainK);
+    this.hemi.color.set('#d6efff').lerp(c.set('#6b7cc4'), n);
+    this.scene.environmentIntensity = lerp(0.75, 0.16, n) * (1 - 0.2 * rainK);
+
+    // gradient sky: blue by day, warm at dusk, deep navy with stars at night, grey when raining
+    const grey = rainK * 0.55 * (1 - n);
+    this.skyTop.set('#3f8fe0').lerp(c.set('#6a78c0'), dk * 0.5).lerp(c.set('#050b24'), n).lerp(c.set('#6d7f92'), grey);
+    this.skyHor.set('#bfe6fb').lerp(c.set('#ffb27a'), dk * 0.75).lerp(c.set('#1a2a55'), n).lerp(c.set('#9aa8b5'), grey);
+    this.skyLow.set('#7cc4ea').lerp(c.set('#e59a70'), dk * 0.5).lerp(c.set('#0d1838'), n).lerp(c.set('#7a8b9c'), grey);
+    this.sky.set(this.skyTop, this.skyHor, this.skyLow, this.sunDir, this.sun.color, n * (1 - rainK));
+    this.bg.copy(this.skyHor);
+    (this.scene.fog as THREE.Fog).color.copy(this.skyHor);
+
+    WIN.emissiveIntensity = n > 0.15 ? n * 2.6 : 0;
+    LAMP.emissiveIntensity = 0.3 + n * 4.5;
+    GLOW.opacity = n * 0.55;
+    if (this.post) {
+      this.post.bloom.strength = 0.12 + n * 0.75;
+      this.post.bloom.threshold = lerp(1.0, 0.75, n);
+    }
   }
 
   // ------------------------------------------------ placing ghost and selection
@@ -838,7 +1025,7 @@ export class Renderer {
   // ------------------------------------------------ clouds
 
   private buildClouds() {
-    const mat = new THREE.MeshBasicMaterial({ colorWrite: false, depthWrite: false });
+    const mat = new THREE.MeshBasicMaterial();
     for (let i = 0; i < 7; i++) {
       const g = new THREE.Group();
       const n = 3 + Math.floor(hash(i, 2) * 3);
@@ -848,6 +1035,7 @@ export class Renderer {
         m.scale.set(r * 1.3, r * 0.8, r);
         m.position.set((k - n / 2) * 1.2, hash(i, k, 5) * 0.4, (hash(i, k, 6) - 0.5) * 1.2);
         m.castShadow = true;
+        m.layers.set(2);
         g.add(m);
       }
       g.position.set(-20 + hash(i, 7) * 70, 14 + hash(i, 8) * 4, -6 + hash(i, 9) * 40);
@@ -1276,8 +1464,12 @@ function buildObject(e: Entry, o: FarmObject, d: BuildingDef, store: GameStore) 
 
 function buildPlot(e: Entry) {
   const g = e.root;
-  bx(g, 0.92, 0.1, 0.92, '#8a5a34', 0.5, 0, 0.5, false);
-  for (let k = 0; k < 3; k++) bx(g, 0.8, 0.02, 0.06, '#6e4424', 0.5, 0.1, 0.27 + k * 0.23, false);
+  bxT(g, 0.92, 0.1, 0.92, 'soil', '#8a5a34', 0.5, 0, 0.5, 2, false);
+  for (let k = 0; k < 4; k++) {
+    const r = mk(g, cylGeo(0.07, 0.07, 10), surfaceMat('soil', '#7a4c2a', 3), 1, 0.8, 1, 0.5, 0.1, 0.2 + k * 0.2, false);
+    r.rotation.z = Math.PI / 2;
+    r.scale.set(1, 0.8, 0.45);
+  }
   const crop = group(g);
   let cur: string | null = null;
   let plants: { g: THREE.Group; fruit: THREE.Mesh[]; ripe: number }[] = [];
@@ -1340,11 +1532,19 @@ function buildHouse(e: Entry, d: BuildingDef) {
   const g = e.root;
   const w = d.w, h = d.h, H = d.height * ZU;
   const cx = w / 2, cz = h / 2, ww = w - 0.5, dd = h - 0.5, y0 = 0.08;
-  bx(g, w - 0.14, y0, h - 0.14, '#b3ad9c', cx, 0, cz);
-  bx(g, ww, H, dd, d.wall, cx, y0, cz);
+  const wallKind: SurfaceKind = d.kind === 'house' ? 'siding' : 'boards';
+  const wallMat = surfaceMat(wallKind, d.wall, d.kind === 'house' ? 1 : 1.3);
+  bxT(g, w - 0.14, y0, h - 0.14, 'stone', '#b9b3a4', cx, 0, cz, 2.2);
+  const walls = new THREE.Mesh(meterBox(ww, H, dd), wallMat);
+  walls.position.set(cx, y0 + H / 2, cz);
+  walls.castShadow = true; walls.receiveShadow = true;
+  g.add(walls);
   const rh = 0.45 + Math.min(ww, dd) * 0.3;
-  roof(g, ww + 0.34, rh, dd + 0.34, d.roof, cx, y0 + H, cz);
-  bx(g, ww + 0.4, 0.06, 0.09, shade(d.roof, -0.12), cx, y0 + H + rh - 0.05, cz);
+  roofT(g, ww + 0.34, rh, dd + 0.34, d.roof, wallMat, cx, y0 + H, cz, 0.17);
+  mk(g, cylGeo(0.06, 0.06, 10), M(shade(d.roof, -0.14)), 1, ww + 0.42, 1, cx, y0 + H + rh - 0.01, cz).rotation.z = Math.PI / 2;
+  // white trim along the eaves and corners
+  for (const sz of [-1, 1]) bx(g, ww + 0.36, 0.05, 0.05, '#f4efe6', cx, y0 + H - 0.02, cz + sz * (dd / 2 + 0.17));
+  for (const [ex, ez] of [[-1, -1], [1, -1], [-1, 1], [1, 1]]) bx(g, 0.07, H, 0.07, barnTrim(d), cx + ex * ww / 2, y0, cz + ez * dd / 2);
   const fz = cz + dd / 2, rx = cx + ww / 2;
   const barn = d.kind === 'barn';
   // door on the front face
@@ -1354,8 +1554,6 @@ function buildHouse(e: Entry, d: BuildingDef) {
   if (barn) {
     for (const r of [0.85, -0.85]) { const m = bx(g, 0.035, dh * 1.15, 0.02, '#fbeee0', doorX, y0 + dh / 2 - dh * 0.575, fz + 0.04); m.rotation.z = r; m.position.y = y0 + dh / 2; }
     bx(g, 0.3, 0.26, 0.03, '#fbeee0', cx, y0 + H * 0.74, fz + 0.01);
-    for (const x of [cx - ww / 2, cx + ww / 2]) bx(g, 0.06, H, 0.06, '#fbeee0', x, y0, fz);
-    for (const z of [cz - dd / 2, cz + dd / 2]) bx(g, 0.06, H, 0.06, '#fbeee0', rx, y0, z);
     bx(g, ww, 0.06, 0.05, '#fbeee0', cx, y0 + H - 0.06, fz);
   } else {
     ball(g, 0.02, '#e9c46a', doorX + 0.09, y0 + dh * 0.5, fz + 0.04);
@@ -1377,7 +1575,8 @@ function buildHouse(e: Entry, d: BuildingDef) {
   let puff: ((on: boolean, t: number) => void) | null = null;
   if (!barn) {
     const chx = cx + ww * 0.25, chz = cz - dd * 0.1;
-    bx(g, 0.16, 0.55 + rh * 0.3, 0.16, '#8c4a3a', chx, y0 + H + rh * 0.2, chz);
+    bxT(g, 0.18, 0.55 + rh * 0.3, 0.18, 'stone', '#b0624a', chx, y0 + H + rh * 0.2, chz, 5);
+    bx(g, 0.22, 0.05, 0.22, '#7d4536', chx, y0 + H + rh * 0.5 + 0.55, chz);
     puff = smoke(g, chx, y0 + H + rh * 0.5 + 0.6, chz);
   }
   if (d.kind === 'production') badge(g, d.icon, 0.34, cx, y0 + dh + 0.24, fz + 0.035);
@@ -1387,11 +1586,16 @@ function buildHouse(e: Entry, d: BuildingDef) {
   };
 }
 
+function barnTrim(d: BuildingDef) {
+  return d.kind === 'house' ? '#f4efe6' : '#fbeee0';
+}
+
 function buildSilo(e: Entry) {
   const g = e.root;
-  cyl(g, 0.4, 0.42, 2.0, '#d7dbe0', 0.5, 0, 0.5, 14);
-  for (const y of [0.5, 1.0, 1.5]) cyl(g, 0.43, 0.43, 0.05, '#aab0b8', 0.5, y, 0.5, 14);
-  mk(g, G.dome, M('#c0392b'), 0.41, 0.36, 0.41, 0.5, 2.0, 0.5);
+  mk(g, cylGeo(0.4, 0.42, 24), surfaceMat('metal', '#d7dbe0', 3, 0.45, 1, 1.5), 1, 2.0, 1, 0.5, 1.0, 0.5);
+  cyl(g, 0.46, 0.46, 0.1, '#a9a396', 0.5, 0, 0.5, 20);
+  for (const y of [0.5, 1.0, 1.5]) cyl(g, 0.43, 0.43, 0.05, '#aab0b8', 0.5, y, 0.5, 24);
+  mk(g, G.dome, new THREE.MeshStandardMaterial({ color: '#c0392b', roughness: 0.35, metalness: 0.2 }), 0.41, 0.36, 0.41, 0.5, 2.0, 0.5);
   bx(g, 0.03, 1.9, 0.03, '#7d838b', 0.93, 0, 0.44);
   bx(g, 0.03, 1.9, 0.03, '#7d838b', 0.93, 0, 0.58);
   for (let i = 1; i < 10; i++) bx(g, 0.02, 0.02, 0.15, '#7d838b', 0.93, i * 0.19, 0.51);
@@ -1400,56 +1604,61 @@ function buildSilo(e: Entry) {
 
 function buildBoard(e: Entry) {
   const g = e.root;
-  cyl(g, 0.04, 0.04, 1.0, '#6b4226', 0.18, 0, 0.5, 6);
-  cyl(g, 0.04, 0.04, 1.0, '#6b4226', 0.82, 0, 0.5, 6);
-  bx(g, 0.8, 0.52, 0.07, '#a0692f', 0.5, 0.4, 0.5);
+  cyl(g, 0.04, 0.04, 1.0, '#6b4226', 0.18, 0, 0.5, 8);
+  cyl(g, 0.04, 0.04, 1.0, '#6b4226', 0.82, 0, 0.5, 8);
+  bxT(g, 0.8, 0.52, 0.07, 'planks', '#b07a3c', 0.5, 0.4, 0.5, 1.4);
   for (let i = 0; i < 3; i++) bx(g, 0.18, 0.22, 0.012, ['#fff8e6', '#e6f4ff', '#fff0f0'][i], 0.26 + i * 0.24, 0.55 + (i % 2) * 0.05, 0.54);
-  roof(g, 0.98, 0.16, 0.26, '#6b4226', 0.5, 0.95, 0.5);
+  roofT(g, 0.98, 0.16, 0.26, '#8a4a2a', M('#6b4226'), 0.5, 0.95, 0.5);
   e.top = 1.2;
 }
 
 function fence(g: THREE.Group, w: number, h: number) {
-  const c = '#9c6a35';
+  const c = '#b07a42';
   const pts: [number, number][] = [];
   for (let x = 0.05; x <= w - 0.04; x += 0.5) { pts.push([x, 0.05], [x, h - 0.05]); }
   for (let z = 0.55; z <= h - 0.5; z += 0.5) { pts.push([0.05, z], [w - 0.05, z]); }
   pts.push([w - 0.05, 0.05], [w - 0.05, h - 0.05]);
-  for (const [x, z] of pts) bx(g, 0.06, 0.34, 0.06, c, x, 0, z);
+  const post = surfaceMat('boards', c, 4);
+  for (const [x, z] of pts) {
+    mk(g, cylGeo(0.035, 0.04, 8), post, 1, 0.34, 1, x, 0.17, z);
+    mk(g, G.dome, M(shade(c, -0.05)), 0.035, 0.03, 0.035, x, 0.34, z);
+  }
   for (const y of [0.13, 0.26]) {
-    bx(g, w - 0.1, 0.035, 0.03, c, w / 2, y, 0.05);
-    bx(g, w - 0.1, 0.035, 0.03, c, w / 2, y, h - 0.05);
-    bx(g, 0.03, 0.035, h - 0.1, c, 0.05, y, h / 2);
-    bx(g, 0.03, 0.035, h - 0.1, c, w - 0.05, y, h / 2);
+    bxT(g, w - 0.1, 0.04, 0.03, 'planks', c, w / 2, y, 0.05, 3);
+    bxT(g, w - 0.1, 0.04, 0.03, 'planks', c, w / 2, y, h - 0.05, 3);
+    bxT(g, 0.03, 0.04, h - 0.1, 'planks', c, 0.05, y, h / 2, 3);
+    bxT(g, 0.03, 0.04, h - 0.1, 'planks', c, w - 0.05, y, h / 2, 3);
   }
 }
 
 function buildPen(e: Entry, d: BuildingDef) {
   const g = e.root;
   const w = d.w, h = d.h;
-  bx(g, w - 0.1, 0.04, h - 0.1, PEN_GROUND[d.id] ?? d.wall, w / 2, 0, h / 2, false);
+  const dirt = d.id === 'coop' || d.id === 'pigpen' || d.id === 'goat_yard' || d.id === 'stable';
+  bxT(g, w - 0.1, 0.04, h - 0.1, dirt ? 'soil' : 'grass', PEN_GROUND[d.id] ?? d.wall, w / 2, 0, h / 2, dirt ? 1.5 : 0.8, false);
   if (d.id !== 'beehive') fence(g, w, h);
   e.top = 0.9;
   switch (d.id) {
     case 'coop':
-      bx(g, 0.72, 0.45, 0.6, '#e3cf94', 0.55, 0.04, 0.5);
-      roof(g, 0.88, 0.32, 0.76, '#b5452c', 0.55, 0.49, 0.5);
+      bxT(g, 0.72, 0.45, 0.6, 'boards', '#e3cf94', 0.55, 0.04, 0.5, 2);
+      roofT(g, 0.88, 0.32, 0.76, '#b5452c', surfaceMat('boards', '#e3cf94', 2), 0.55, 0.49, 0.5, 0.08);
       bx(g, 0.16, 0.2, 0.02, '#5a3517', 0.55, 0.1, 0.81);
       bx(g, 0.2, 0.03, 0.3, '#a8733f', 0.55, 0.04, 0.95).rotation.x = -0.4;
       break;
     case 'pigpen':
       cyl(g, 0.5, 0.55, 0.02, '#6d4f30', 1.8, 0.04, 1.7, 12, false);
-      bx(g, 0.9, 0.5, 0.7, '#a88058', 0.65, 0.04, 0.55);
-      roof(g, 1.05, 0.3, 0.85, '#8e44ad', 0.65, 0.54, 0.55);
+      bxT(g, 0.9, 0.5, 0.7, 'boards', '#a88058', 0.65, 0.04, 0.55, 2);
+      roofT(g, 1.05, 0.3, 0.85, '#8e44ad', surfaceMat('boards', '#a88058', 2), 0.65, 0.54, 0.55, 0.075);
       break;
     case 'duck_pond':
       cyl(g, 0.95, 1.0, 0.04, '#d8c38e', 1.7, 0.02, 1.7, 16, false);
       mk(g, cylGeo(0.85, 0.85, 16), WATER, 1, 0.04, 1, 1.7, 0.06, 1.7, false);
-      bx(g, 0.5, 0.35, 0.45, '#f3e6c8', 0.45, 0.04, 0.45);
-      roof(g, 0.62, 0.22, 0.58, '#2e6da4', 0.45, 0.39, 0.45);
+      bxT(g, 0.5, 0.35, 0.45, 'boards', '#f3e6c8', 0.45, 0.04, 0.45, 2);
+      roofT(g, 0.62, 0.22, 0.58, '#2e6da4', surfaceMat('boards', '#f3e6c8', 2), 0.45, 0.39, 0.45, 0.06);
       break;
     case 'stable':
-      bx(g, 1.5, 0.75, 0.75, '#a85a3a', 1.1, 0.04, 0.5);
-      roof(g, 1.66, 0.38, 0.9, '#8e2c20', 1.1, 0.79, 0.5);
+      bxT(g, 1.5, 0.75, 0.75, 'boards', '#a85a3a', 1.1, 0.04, 0.5, 1.6);
+      roofT(g, 1.66, 0.38, 0.9, '#8e2c20', surfaceMat('boards', '#a85a3a', 1.6), 1.1, 0.79, 0.5, 0.08);
       for (const x of [0.65, 1.1, 1.55]) bx(g, 0.28, 0.42, 0.03, '#6b3a22', x, 0.04, 0.88);
       e.top = 1.3;
       break;
@@ -1463,10 +1672,10 @@ function buildPen(e: Entry, d: BuildingDef) {
       break;
     default: {
       // open shelter for cows, sheep and goats
-      for (const [x, z] of [[0.25, 0.25], [1.15, 0.25], [0.25, 0.95], [1.15, 0.95]]) bx(g, 0.07, 0.6, 0.07, '#7a4b26', x, 0.04, z);
-      const r = bx(g, 1.1, 0.06, 0.9, d.roof, 0.7, 0.62, 0.6);
+      for (const [x, z] of [[0.25, 0.25], [1.15, 0.25], [0.25, 0.95], [1.15, 0.95]]) mk(g, cylGeo(0.04, 0.045, 8), surfaceMat('bark', '#8a5a33', 4), 1, 0.6, 1, x, 0.34, z);
+      const r = bxT(g, 1.1, 0.06, 0.9, 'planks', d.roof, 0.7, 0.62, 0.6, 2.5);
       r.rotation.x = 0.18;
-      bx(g, 0.5, 0.25, 0.35, '#e2c15a', 0.55, 0.04, 0.5);
+      bxT(g, 0.5, 0.25, 0.35, 'thatch', '#e2c15a', 0.55, 0.04, 0.5, 3);
     }
   }
   if (d.id !== 'beehive' && d.id !== 'duck_pond') {
@@ -1515,7 +1724,7 @@ function buildPen(e: Entry, d: BuildingDef) {
 function buildFruitTree(e: Entry, d: BuildingDef) {
   const g = e.root;
   const leaf = TREE_LEAF[d.id] ?? '#4f9e36';
-  cyl(g, 0.06, 0.09, 0.5, '#7a4b26', 0.5, 0, 0.5, 6);
+  mk(g, cylGeo(0.06, 0.09, 10), surfaceMat('bark', '#7a4b26', 3), 1, 0.5, 1, 0.5, 0.25, 0.5);
   const crown = group(g, 0.5, 0, 0.5);
   ball(crown, 0.33, leaf, 0, 0.78, 0, 1, 0.85, 1);
   ball(crown, 0.22, shade(leaf, -0.05), -0.2, 0.66, 0.08);
@@ -1538,8 +1747,8 @@ function buildStall(e: Entry, d: BuildingDef, store: GameStore) {
   const g = e.root;
   bx(g, 1.8, 0.03, 1.8, '#c9a46a', 1, 0, 1, false);
   for (const [x, z] of [[0.3, 0.3], [1.7, 0.3], [0.3, 1.7], [1.7, 1.7]]) cyl(g, 0.04, 0.04, 1.3, '#7a4b26', x, 0, z, 6);
-  bx(g, 1.3, 0.45, 0.45, '#c98a45', 1, 0, 1.3);
-  bx(g, 1.4, 0.05, 0.55, '#e3b075', 1, 0.45, 1.3);
+  bxT(g, 1.3, 0.45, 0.45, 'boards', '#c98a45', 1, 0, 1.3, 2);
+  bxT(g, 1.4, 0.05, 0.55, 'planks', '#e3b075', 1, 0.45, 1.3, 2);
   for (let i = 0; i < 3; i++) bx(g, 0.3, 0.2, 0.22, '#a8733f', 0.55 + i * 0.45, 0.03, 1.72);
   for (let i = 0; i < 7; i++) {
     const s = bx(g, 1.62 / 7, 0.04, 1.75, i % 2 ? '#fff6df' : d.roof, 0.19 + (i + 0.5) * (1.62 / 7), 1.28, 1);
@@ -1564,13 +1773,13 @@ function buildStall(e: Entry, d: BuildingDef, store: GameStore) {
 }
 
 function waterBasin(g: THREE.Group, w: number, h: number) {
-  bx(g, w - 0.04, 0.03, h - 0.04, '#d8c38e', w / 2, 0, h / 2, false);
+  bxT(g, w - 0.04, 0.03, h - 0.04, 'sand', '#e2cf98', w / 2, 0, h / 2, 1.5, false);
   mk(g, G.box, WATER, w - 0.3, 0.04, h - 0.3, w / 2, 0.035, h / 2, false);
 }
 
 function planks(g: THREE.Group, x: number, z: number, w: number, d: number) {
-  bx(g, w, 0.07, d, '#b98a52', x, 0.1, z);
-  for (let i = 0; i < Math.round(d * 5); i++) bx(g, w + 0.01, 0.005, 0.02, '#8a5a34', x, 0.17, z - d / 2 + (i + 0.5) * (d / Math.round(d * 5)), false);
+  const deck = bxT(g, d, 0.07, w, 'planks', '#c49660', x, 0.1, z, 1.2);
+  deck.rotation.y = Math.PI / 2;
   for (const [px, pz] of [[x - w / 2 + 0.04, z + d / 2 - 0.04], [x + w / 2 - 0.04, z + d / 2 - 0.04], [x - w / 2 + 0.04, z], [x + w / 2 - 0.04, z]]) cyl(g, 0.035, 0.035, 0.22, '#6b4226', px, -0.05, pz, 6);
 }
 
@@ -1578,8 +1787,8 @@ function buildPier(e: Entry, d: BuildingDef) {
   const g = e.root;
   waterBasin(g, 2, 2);
   planks(g, 0.45, 1, 0.55, 1.8);
-  bx(g, 0.5, 0.5, 0.45, d.wall, 0.45, 0.17, 0.35);
-  roof(g, 0.64, 0.24, 0.6, d.roof, 0.45, 0.67, 0.35);
+  bxT(g, 0.5, 0.5, 0.45, 'boards', d.wall, 0.45, 0.17, 0.35, 2);
+  roofT(g, 0.64, 0.24, 0.6, d.roof, surfaceMat('boards', d.wall, 2), 0.45, 0.67, 0.35, 0.07);
   badge(g, d.icon, 0.26, 0.45, 0.45, 0.585);
   const rod = mk(g, cylGeo(0.01, 0.015, 5), M('#6b4226'), 1, 0.9, 1, 0.9, 0.55, 1.45);
   rod.rotation.z = -0.9;
@@ -1644,8 +1853,8 @@ function buildObstacle(e: Entry, o: FarmObject) {
     ball(g, 0.2, '#56a845', 0.5, 1.12, 0.5);
     e.top = 1.3;
   } else if (o.type === 'rock_obs') {
-    mk(g, G.rock, M('#9a9ea3'), 0.34, 0.24, 0.3, 0.48, 0.18, 0.5).rotation.y = 0.6;
-    mk(g, G.rock, M('#83878c'), 0.16, 0.12, 0.15, 0.78, 0.08, 0.7);
+    mk(g, G.rock, MF('#9a9ea3'), 0.34, 0.24, 0.3, 0.48, 0.18, 0.5).rotation.y = 0.6;
+    mk(g, G.rock, MF('#83878c'), 0.16, 0.12, 0.15, 0.78, 0.08, 0.7);
     ball(g, 0.06, '#6aa84f', 0.25, 0.04, 0.72, 1, 0.5, 1);
     e.top = 0.5;
   } else {
