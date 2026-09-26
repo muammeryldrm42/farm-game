@@ -425,13 +425,14 @@ function dropDown(src: THREE.Object3D, delay = 0) {
 const HIT_MAT = new THREE.MeshBasicMaterial({ visible: false });
 // middle of the starting farm
 const FARM_C = { x: 13.5 + MAP_OFF, y: 11.5 + MAP_OFF };
-const FRUIT_COLOR: Record<string, string> = { apple: '#e53935', cherry: '#b0102a', orange: '#ff9800', peach: '#ffa274', lemon: '#ffe03a', coconut: '#7a4a26', pear: '#c8c040', plum: '#5a2070', mango: '#f0902a', avocado: '#2f4a1a', pomegranate: '#c0282a', banana: '#f2d23a', apricot: '#f6a23a', lime: '#6ab82a', fig: '#5a2a4a', olive: '#5a6a1a', walnut: '#5a8a2a' };
-const TREE_LEAF: Record<string, string> = { apple_tree: '#4f9e36', cherry_tree: '#3f8a3a', orange_tree: '#2f7d32', peach_tree: '#5aa53a', lemon_tree: '#3b8f3c', coconut_palm: '#4c9a38', pear_tree: '#58a03a', plum_tree: '#3f7f3a', banana_tree: '#5aa844', mango_tree: '#2f7a32', avocado_tree: '#2a6a2e', pomegranate_tree: '#4a8a36', apricot_tree: '#5aa03a', lime_tree: '#2f7f32', fig_tree: '#4a9a3a', olive_tree: '#8a9a7a', walnut_tree: '#3f7a2e' };
-const GRASSY_PEN = new Set(['pasture', 'sheepfold', 'beehive', 'rabbit_hutch', 'alpaca_ranch', 'goose_pen', 'peacock_garden', 'donkey_paddock', 'yak_pasture']);
+const FRUIT_COLOR: Record<string, string> = { apple: '#e53935', cherry: '#b0102a', orange: '#ff9800', peach: '#ffa274', lemon: '#ffe03a', coconut: '#7a4a26', pear: '#c8c040', plum: '#5a2070', mango: '#f0902a', avocado: '#2f4a1a', pomegranate: '#c0282a', banana: '#f2d23a', apricot: '#f6a23a', lime: '#6ab82a', fig: '#5a2a4a', olive: '#5a6a1a', walnut: '#5a8a2a', quince: '#e8c83a', almond: '#9ab880', mulberry: '#3a0a2a', grapefruit: '#f2b04a', persimmon: '#f07a1a', date: '#7a3a14', lychee: '#d83a3a', hazelnut: '#8a5a2a', starfruit: '#e8c21a', maple_syrup: '#b8321a', cocoa_pod: '#c0601a', sakura: '#f4b0c8', golden_apple: '#f2c230' };
+const TREE_LEAF: Record<string, string> = { apple_tree: '#4f9e36', cherry_tree: '#3f8a3a', orange_tree: '#2f7d32', peach_tree: '#5aa53a', lemon_tree: '#3b8f3c', coconut_palm: '#4c9a38', pear_tree: '#58a03a', plum_tree: '#3f7f3a', banana_tree: '#5aa844', mango_tree: '#2f7a32', avocado_tree: '#2a6a2e', pomegranate_tree: '#4a8a36', apricot_tree: '#5aa03a', lime_tree: '#2f7f32', fig_tree: '#4a9a3a', olive_tree: '#8a9a7a', walnut_tree: '#3f7a2e', quince_tree: '#5a9a3a', almond_tree: '#6aa84a', mulberry_tree: '#3f8a34', grapefruit_tree: '#3a8a3a', persimmon_tree: '#6a9a2a', date_palm: '#5a8a3a', lychee_tree: '#2f7a32', hazelnut_tree: '#5a9a34', starfruit_tree: '#3f8f3c', maple_tree: '#d8542a', cocoa_tree: '#2f6a2e', sakura_tree: '#f2a6c4', golden_apple_tree: '#7ab84a' };
+const GRASSY_PEN = new Set(['highland_pasture', 'pheasant_run', 'unicorn_meadow', 'llama_ranch', 'pasture', 'sheepfold', 'beehive', 'rabbit_hutch', 'alpaca_ranch', 'goose_pen', 'peacock_garden', 'donkey_paddock', 'yak_pasture']);
 const PEN_GROUND: Record<string, string> = {
   rabbit_hutch: '#86c24f', alpaca_ranch: '#8fc45a', goose_pen: '#86c24f', gobbler_run: '#c9a46a', quail_coop: '#d9c08a', camel_corral: '#e2cf98', buffalo_wallow: '#8a6a44', ostrich_ranch: '#d8c38e',
   coop: '#d9c08a', pasture: '#86c24f', sheepfold: '#9ccc5a',
   duck_pond: '#8fc45a', goat_yard: '#b8a46c', beehive: '#7fbf4f', stable: '#c9b27a',
+  guinea_run: '#d9c08a', swan_lake: '#8fc45a', emu_ranch: '#d8c38e', reindeer_lodge: '#eef3f6', bison_range: '#b8a46c', flamingo_lagoon: '#e8d8a8', golden_nest: '#e8d49a',
 };
 
 // ------------------------------------------------------------------ renderer
@@ -2158,13 +2159,17 @@ const LID: Record<string, string> = {
   gobbler: '#9ab8d8', donkey: '#6a655f', buffalo: '#2a2a2c', peacock: '#1f4fb8', ostrich: '#9a7a70',
 };
 
+const TALL = new Set(['camel', 'ostrich', 'emu', 'flamingo', 'reindeer', 'unicorn', 'llama']);
+// birds that float on their pond instead of walking
+const SWIMMERS = new Set(['duck', 'swan']);
+
 function animalBody(kind: string) {
   const g = assemble(kind);
   const head = g.userData.head as THREE.Group | undefined;
   if (!head) return g;
   const cp = creature(kind);
   // cartoon animals read bigger against their pens, like in classic farm games
-  if (cp?.toon) g.scale.setScalar(kind === 'camel' || kind === 'ostrich' ? 1.15 : 1.35);
+  if (cp?.toon) g.scale.setScalar(TALL.has(kind) ? 1.15 : 1.35);
   if (cp?.eye && cp.toon) toonEyes(head, cp.eye, '#3a2e28');
   else if (cp?.eye) realEyes(head, cp.eye, LID[kind] ?? '#3a2a20');
   if (cp?.bell) {
@@ -2192,7 +2197,8 @@ function animalBody(kind: string) {
         head.add(horn);
       }
       break;
-    case 'chicken': case 'goose': case 'gobbler': case 'peacock': case 'ostrich': case 'quail': g.userData.peck = true; break;
+    case 'chicken': case 'goose': case 'gobbler': case 'peacock': case 'ostrich': case 'quail':
+    case 'guinea_fowl': case 'pheasant': case 'emu': case 'flamingo': case 'golden_goose': g.userData.peck = true; break;
     case 'yak':
       if (cp?.toon) break;
       // long horns curving up and out
@@ -2675,7 +2681,7 @@ function buildPen(e: Entry, d: BuildingDef) {
   const w = d.w, h = d.h;
   // grassy pens keep the lawn (and its swaying grass), the others get a dirt yard
   if (!GRASSY_PEN.has(d.id)) {
-    const dirt = d.id !== 'duck_pond';
+    const dirt = d.id !== 'duck_pond' && d.id !== 'swan_lake' && d.id !== 'reindeer_lodge';
     bxT(g, w - 0.1, 0.04, h - 0.1, dirt ? 'soil' : 'grass', PEN_GROUND[d.id] ?? d.wall, w / 2, 0, h / 2, dirt ? 1.5 : 0.8, false);
   }
   if (d.id !== 'beehive') fence(g, w, h, WHITE_FENCE.has(d.id));
@@ -2687,6 +2693,55 @@ function buildPen(e: Entry, d: BuildingDef) {
       bx(g, 0.16, 0.2, 0.02, '#5a3517', 0.55, 0.1, 0.81);
       bx(g, 0.2, 0.03, 0.3, '#a8733f', 0.55, 0.04, 0.95).rotation.x = -0.4;
       break;
+    case 'swan_lake':
+      // a lily pond with a little white pavilion
+      cyl(g, 0.95, 1.0, 0.04, '#d8c38e', 1.7, 0.02, 1.7, 16, false);
+      mk(g, cylGeo(0.85, 0.85, 16), WATER, 1, 0.04, 1, 1.7, 0.06, 1.7, false);
+      for (let i = 0; i < 5; i++) {
+        const a = i * 1.3;
+        mk(g, cylGeo(0.07, 0.07, 10), M('#4a9a3a'), 1, 0.01, 1, 1.7 + Math.cos(a) * 0.6, 0.085, 1.7 + Math.sin(a) * 0.55, false);
+        if (i % 2 === 0) ball(g, 0.025, '#f7c6da', 1.7 + Math.cos(a) * 0.6, 0.1, 1.7 + Math.sin(a) * 0.55, 1, 0.7, 1, false);
+      }
+      for (const [x, z] of [[0.25, 0.25], [0.65, 0.25], [0.25, 0.65], [0.65, 0.65]]) cyl(g, 0.025, 0.025, 0.42, '#f4efe6', x, 0.04, z, 8);
+      mk(g, G.dome, M('#f4efe6'), 0.34, 0.2, 0.34, 0.45, 0.46, 0.45);
+      break;
+    case 'flamingo_lagoon':
+      // a shallow sandy lagoon, with a palm leaning over it
+      cyl(g, 1.1, 1.15, 0.03, '#f2dfa8', 1.5, 0.02, 1.6, 18, false);
+      mk(g, cylGeo(1.0, 1.0, 18), WATER, 1, 0.03, 1, 1.5, 0.05, 1.6, false);
+      { const p = palmTree(g, '#4c9a38'); p.crown.position.set(0.35, 0, 0.35); p.crown.scale.setScalar(0.7); }
+      break;
+    case 'reindeer_lodge':
+      // a snowy log lodge with a white roof and a sled
+      bxT(g, 1.0, 0.5, 0.7, 'bark', '#8a5a34', 0.7, 0.04, 0.5, 2);
+      roofT(g, 1.16, 0.34, 0.86, '#f4f8fa', surfaceMat('bark', '#8a5a34', 2), 0.7, 0.54, 0.5, 0.06);
+      bx(g, 0.2, 0.3, 0.03, '#5a3a22', 0.7, 0.04, 0.86);
+      for (let i = 0; i < 6; i++) mk(g, G.ball, M('#ffffff'), 0.14 + hash(i, 2) * 0.1, 0.05, 0.12, 0.3 + hash(i, 3) * 2.3, 0.04, 1.2 + hash(i, 4) * 1.5, false);
+      { const sled = group(g, 2.4, 0.04, 0.5); bx(sled, 0.42, 0.12, 0.24, '#b5452c', 0, 0.05, 0); for (const sz of [-1, 1]) bx(sled, 0.5, 0.02, 0.02, '#e8c060', 0, 0, sz * 0.12); }
+      e.top = 1.1;
+      break;
+    case 'unicorn_meadow': {
+      // a rainbow arching over a flowery meadow, with sparkling stars
+      const cols = ['#ff5a6a', '#ffa23a', '#ffe04a', '#6ad86a', '#4ab0ff', '#b07aff'];
+      cols.forEach((col, i) => {
+        const r = mk(g, new THREE.TorusGeometry(1.2 - i * 0.07, 0.035, 8, 32, Math.PI), new THREE.MeshStandardMaterial({ color: col, emissive: col, emissiveIntensity: 0.35, roughness: 0.5 }), 1, 1, 1, 1.5, 0.02, 0.4);
+        r.castShadow = false;
+      });
+      for (let i = 0; i < 8; i++) {
+        const kinds: FlowerKind[] = ['daisy', 'tulip', 'rose'];
+        mk(g, flowerKit(kinds[i % 3], ['#ff8fb0', '#b58cff', '#ffffff', '#ffd23a'][i % 4], 0.14), FLOWER_KIT_MAT, 1, 1, 1, 0.3 + hash(i, 5) * 2.4, 0.02, 0.9 + hash(i, 6) * 1.8, false);
+      }
+      e.top = 1.4;
+      break;
+    }
+    case 'golden_nest': {
+      // a big woven nest lined with straw, a golden egg glinting in it
+      const nest = mk(g, new THREE.TorusGeometry(0.42, 0.14, 10, 24), surfaceMat('thatch', '#c8a050', 4), 1, 1, 1, 1, 0.1, 1);
+      nest.rotation.x = Math.PI / 2;
+      mk(g, cylGeo(0.42, 0.42, 20), surfaceMat('thatch', '#e8c865', 4), 1, 0.06, 1, 1, 0.04, 1, false);
+      mk(g, G.ball, new THREE.MeshStandardMaterial({ color: '#ffd23a', metalness: 0.35, roughness: 0.25, emissive: '#7a5200', emissiveIntensity: 0.5 }), 0.09, 0.12, 0.09, 1.15, 0.16, 0.9);
+      break;
+    }
     case 'duck_pond':
       cyl(g, 0.95, 1.0, 0.04, '#d8c38e', 1.7, 0.02, 1.7, 16, false);
       mk(g, cylGeo(0.85, 0.85, 16), WATER, 1, 0.04, 1, 1.7, 0.06, 1.7, false);
@@ -2777,7 +2832,7 @@ function buildPen(e: Entry, d: BuildingDef) {
       bxT(g, 0.5, 0.25, 0.35, 'thatch', '#e2c15a', 0.55, 0.04, 0.5, 3);
     }
   }
-  if (d.id !== 'beehive' && d.id !== 'duck_pond' && d.id !== 'goose_pen' && d.id !== 'peacock_garden') {
+  if (!['beehive', 'duck_pond', 'goose_pen', 'peacock_garden', 'swan_lake', 'flamingo_lagoon', 'golden_nest', 'unicorn_meadow'].includes(d.id)) {
     bx(g, 0.55, 0.12, 0.18, '#8a5a2b', w - 0.55, 0.04, h - 0.35);
     bx(g, 0.47, 0.03, 0.12, '#e2c15a', w - 0.55, 0.14, h - 0.35, false);
   }
@@ -2829,7 +2884,7 @@ function buildPen(e: Entry, d: BuildingDef) {
       }
       const head = m.userData.head as THREE.Object3D | undefined;
       const tail = m.userData.tail as THREE.Object3D | undefined;
-      if (an?.id === 'duck') {
+      if (an && SWIMMERS.has(an.id)) {
         const u = hash(id, 1, 3);
         const ang = t / (4200 + u * 2000) + id * 1.7;
         const r = 0.3 + u * 0.35;
@@ -2981,7 +3036,7 @@ function palmTree(g: P, leaf: string) {
 function buildFruitTree(e: Entry, d: BuildingDef) {
   const g = e.root;
   const leaf = TREE_LEAF[d.id] ?? '#4f9e36';
-  if (d.id === 'coconut_palm') return buildPalm(e, d, leaf);
+  if (d.id === 'coconut_palm' || d.id === 'date_palm') return buildPalm(e, d, leaf);
   if (d.id === 'banana_tree') return buildBanana(e, leaf);
   const { crown } = leafyTree(g, 0.5, 0.5, leaf, d.id === 'walnut_tree' ? 1.2 : 1, d.id.length);
   const fc = FRUIT_COLOR[d.fruit ?? 'apple'] ?? '#e53935';
@@ -3008,7 +3063,7 @@ function buildFruitTree(e: Entry, d: BuildingDef) {
     start = st; wasReady = ti.ready;
     const n = ti.ready ? fruit.length : Math.floor(ti.p * fruit.length);
     const sc = ti.ready ? 1 : 0.5 + ti.p * 0.4;
-    const base = d.fruit === 'cherry' || d.fruit === 'olive' ? 0.075 : d.fruit === 'lemon' || d.fruit === 'plum' || d.fruit === 'apricot' || d.fruit === 'lime' ? 0.07 : 0.085;
+    const base = d.fruit === 'cherry' || d.fruit === 'olive' || d.fruit === 'mulberry' || d.fruit === 'lychee' || d.fruit === 'hazelnut' || d.fruit === 'almond' ? 0.075 : d.fruit === 'lemon' || d.fruit === 'plum' || d.fruit === 'apricot' || d.fruit === 'lime' ? 0.07 : 0.085;
     fruit.forEach((f, i) => {
       // new fruit swells in instead of popping into existence
       shown[i] = i < n ? Math.min(1, shown[i] + 0.04) : 0;
@@ -3071,7 +3126,7 @@ function buildPalm(e: Entry, d: BuildingDef, leaf: string) {
   const nut = PRODUCE_MAT;
   const fruit = [0, 1, 2, 3, 4].map((i) => {
     const a = (i / 5) * Math.PI * 2;
-    return mk(top, produceGeo('coconut') ?? G.ball, nut, 0.06, 0.055, 0.06, Math.cos(a) * 0.07, -0.04, Math.sin(a) * 0.07);
+    return mk(top, produceGeo(d.fruit ?? 'coconut') ?? G.ball, nut, 0.06, 0.055, 0.06, Math.cos(a) * 0.07, -0.04, Math.sin(a) * 0.07);
   });
   e.top = 1.7;
   let start = -1, wasReady = false, shake = -1e9;

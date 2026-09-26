@@ -687,7 +687,7 @@ function FishingModal() {
         {fi.state === 'locked' && (
           <>
             <p className="font-bold">Open a fishing spot off the south shore.</p>
-            <p className="text-sm text-[#8a6a44]">Cast a line, wait a little and reel in fish. Salmon bite from level 10, lobsters from 12 and crabs from 14.</p>
+            <p className="text-sm text-[#8a6a44]">Cast a line, wait a little and reel in fish. New catches bite as you level up: salmon, lobster and crab early on, then trout, tuna, shrimp, squid, octopus, swordfish, eel, pufferfish, stingray, marlin, pearl oysters and, at level 195, the golden fish.</p>
             {s.level < FISHING.level ? (
               <Lock level={FISHING.level} />
             ) : (

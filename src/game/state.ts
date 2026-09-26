@@ -206,6 +206,20 @@ export function fishingInfo(s: GameState, now: number) {
   return { state: 'waiting' as const, remaining: f.catchAt - now, p: (now - f.castAt) / total };
 }
 
+// Everything that can bite at the fishing spot: [item, level, weight]. Rarer, later catches
+// carry smaller weights, so a golden fish stays a thrill even at level 200.
+export const CATCHES: [string, number, number][] = [
+  ['fish', 1, 40], ['salmon', 10, 20], ['lobster', 12, 14], ['crab', 14, 12], ['trout', 22, 12], ['tuna', 31, 10],
+  ['shrimp', 40, 10], ['squid', 52, 8], ['octopus', 64, 7], ['swordfish', 78, 6], ['eel', 92, 6], ['pufferfish', 108, 5],
+  ['stingray', 125, 4], ['marlin', 145, 3.5], ['pearl', 170, 3], ['golden_fish', 195, 1.5],
+];
+export function pickCatch(level: number, roll: number) {
+  const open = CATCHES.filter(([, lv]) => level >= lv);
+  let r = roll * open.reduce((a, [, , w]) => a + w, 0);
+  for (const [id, , w] of open) { r -= w; if (r <= 0) return id; }
+  return 'fish';
+}
+
 export const NAP_MS = 20000;
 export const restBonus = (level: number) => 40 + level * 10;
 
@@ -249,6 +263,25 @@ export const QUESTS: Quest[] = [
   { id: 'q23', text: 'Catch 15 fish', target: 15, coins: 700, gems: 3, xp: 50, progress: (s) => st(s, 'make:fish') },
   { id: 'q19', text: 'Reach level 20', target: 20, coins: 3000, gems: 10, xp: 0, progress: (s) => s.level },
   { id: 'q24', text: 'Make 10 sushi', target: 10, coins: 2500, gems: 6, xp: 120, progress: (s) => st(s, 'make:sushi') },
+  // the long road to level 200
+  { id: 'q25', text: 'Reach level 30', target: 30, coins: 5000, gems: 12, xp: 0, progress: (s) => s.level },
+  { id: 'q26', text: 'Collect 20 speckled eggs', target: 20, coins: 4000, gems: 6, xp: 200, progress: (s) => st(s, 'collect:speckled_egg') },
+  { id: 'q27', text: 'Pick 20 quinces', target: 20, coins: 4500, gems: 6, xp: 220, progress: (s) => st(s, 'harvest:quince') },
+  { id: 'q28', text: 'Reach level 50', target: 50, coins: 12000, gems: 20, xp: 0, progress: (s) => s.level },
+  { id: 'q29', text: 'Collect 25 fresh cream', target: 25, coins: 9000, gems: 10, xp: 400, progress: (s) => st(s, 'collect:fresh_cream') },
+  { id: 'q30', text: 'Build a swan lake', target: 1, coins: 8000, gems: 10, xp: 300, progress: (s) => cnt(s, 'swan_lake') },
+  { id: 'q31', text: 'Reach level 75', target: 75, coins: 25000, gems: 30, xp: 0, progress: (s) => s.level },
+  { id: 'q32', text: 'Collect 30 reindeer milk', target: 30, coins: 20000, gems: 15, xp: 800, progress: (s) => st(s, 'collect:reindeer_milk') },
+  { id: 'q33', text: 'Reach level 100', target: 100, coins: 60000, gems: 50, xp: 0, progress: (s) => s.level },
+  { id: 'q34', text: 'Build a flamingo lagoon', target: 1, coins: 30000, gems: 20, xp: 1500, progress: (s) => cnt(s, 'flamingo_lagoon') },
+  { id: 'q35', text: 'Reach level 125', target: 125, coins: 90000, gems: 60, xp: 0, progress: (s) => s.level },
+  { id: 'q36', text: 'Build a unicorn meadow', target: 1, coins: 80000, gems: 50, xp: 3000, progress: (s) => cnt(s, 'unicorn_meadow') },
+  { id: 'q37', text: 'Reach level 150', target: 150, coins: 150000, gems: 80, xp: 0, progress: (s) => s.level },
+  { id: 'q38', text: 'Collect 20 rainbow manes', target: 20, coins: 120000, gems: 60, xp: 5000, progress: (s) => st(s, 'collect:rainbow_mane') },
+  { id: 'q39', text: 'Reach level 175', target: 175, coins: 250000, gems: 100, xp: 0, progress: (s) => s.level },
+  { id: 'q40', text: 'Plant a golden apple tree', target: 1, coins: 200000, gems: 100, xp: 8000, progress: (s) => cnt(s, 'golden_apple_tree') },
+  { id: 'q41', text: 'Reach level 200', target: 200, coins: 500000, gems: 200, xp: 0, progress: (s) => s.level },
+  { id: 'q42', text: 'Build the golden nest', target: 1, coins: 500000, gems: 250, xp: 0, progress: (s) => cnt(s, 'golden_nest') },
 ];
 
 // ---------------------------------------------------------------- achievements
@@ -702,9 +735,8 @@ export class GameStore {
     const f = this.s.fishing;
     const now = Date.now();
     if (!f || fishingInfo(this.s, now).state !== 'ready') return;
-    // what bites depends on luck and level: fish most often, then salmon, lobster and crab
-    const roll = Math.random(), lv = this.s.level;
-    const id = lv >= 14 && roll < 0.14 ? 'crab' : lv >= 12 && roll < 0.3 ? 'lobster' : lv >= 10 && roll < 0.5 ? 'salmon' : 'fish';
+    // what bites depends on luck and level: plain fish most often, rarer catches as you grow
+    const id = pickCatch(this.s.level, Math.random());
     const lobster = id !== 'fish';
     const qty = lobster ? 1 : 1 + (Math.random() < 0.4 ? 1 : 0);
     if (!this.canStore(id, qty)) { this.fullToast(id); return; }
@@ -712,7 +744,7 @@ export class GameStore {
     f.castAt = null;
     f.catchAt = null;
     this.stat('fish', qty);
-    this.addXp(lobster ? 6 : 3);
+    this.addXp(lobster ? 4 + Math.floor(ITEMS[id].sell / 40) : 3);
     this.sound('collect');
     if (this.flyers.length < 40) this.flyers.push({ icon: ITEMS[id].icon, gx: FISH_SPOT.x, gy: FISH_SPOT.y, z: 20, target: 'storage' });
     this.fx.push({ kind: 'float', gx: FISH_SPOT.x, gy: FISH_SPOT.y, text: `+${qty} ${ITEMS[id].icon}`, color: '#ffffff', z: 40 });

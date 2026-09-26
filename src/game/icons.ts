@@ -149,7 +149,217 @@ function sheaf(head: string, awns: boolean): Painter {
   };
 }
 
+
+// ---- late game helpers
+
+// an egg with optional speckles; gold eggs get a bright glint and sparkles
+function egg(base: [string, string], spot?: string, sparkle = false): Painter {
+  return (c) => {
+    c.beginPath(); c.ellipse(64, 70, 36, 46, 0, 0, Math.PI * 2);
+    c.fillStyle = rad(c, 64, 70, 50, [[0, base[0]], [1, base[1]]]); c.fill(); outline(c);
+    if (spot) { c.fillStyle = spot; for (let i = 0; i < 16; i++) { c.beginPath(); c.ellipse(64 + Math.sin(i * 2.3) * 24, 70 + Math.cos(i * 1.7) * 32, 3 + (i % 3), 2 + (i % 2), i, 0, Math.PI * 2); c.fill(); } }
+    shine(c, 50, 46, 8, 14);
+    if (sparkle) {
+      c.fillStyle = '#fffbe0';
+      for (const [x, y, r] of [[100, 26, 9], [22, 40, 6], [104, 96, 6]]) { c.beginPath(); c.moveTo(x, y - r); c.lineTo(x + r * 0.3, y - r * 0.3); c.lineTo(x + r, y); c.lineTo(x + r * 0.3, y + r * 0.3); c.lineTo(x, y + r); c.lineTo(x - r * 0.3, y + r * 0.3); c.lineTo(x - r, y); c.lineTo(x - r * 0.3, y - r * 0.3); c.closePath(); c.fill(); }
+    }
+  };
+}
+
+// a side view fish: back and belly colors, a fin color and optional stripes, spots or a bill
+function fishy(back: string, belly: string, fin: string, o: { stripes?: string; spots?: string; bill?: boolean; long?: boolean; glow?: boolean } = {}): Painter {
+  return (c) => {
+    const L = o.long ? 50 : 42, H = o.long ? 14 : 22;
+    c.beginPath(); c.moveTo(106 - (o.long ? 0 : 6), 64); c.lineTo(124, 44); c.lineTo(120, 64); c.lineTo(124, 84); c.closePath(); c.fillStyle = fin; c.fill(); outline(c, 3);
+    c.beginPath(); c.moveTo(58, 64 - H); c.quadraticCurveTo(70, 64 - H - 16, 84, 64 - H + 2); c.lineTo(76, 64 - H + 6); c.closePath(); c.fillStyle = fin; c.fill(); outline(c, 2);
+    c.beginPath(); c.ellipse(62, 64, L, H, 0, 0, Math.PI * 2);
+    c.fillStyle = lin(c, 0, 64 - H, 0, 64 + H, [[0, back], [0.55, belly], [1, '#f6f2e8']]); c.fill(); outline(c);
+    if (o.stripes) { c.strokeStyle = o.stripes; c.lineWidth = 4; for (let i = 0; i < 4; i++) { c.beginPath(); c.moveTo(44 + i * 14, 64 - H + 4); c.lineTo(40 + i * 14, 64 + H - 6); c.stroke(); } }
+    if (o.spots) { c.fillStyle = o.spots; for (let i = 0; i < 12; i++) { c.beginPath(); c.arc(38 + (i * 17) % 56, 56 + (i * 7) % 16, 2.2, 0, Math.PI * 2); c.fill(); } }
+    if (o.bill) { c.beginPath(); c.moveTo(22, 60); c.lineTo(0, 62); c.lineTo(22, 66); c.closePath(); c.fillStyle = back; c.fill(); outline(c, 2); }
+    circle(c, 34 - (o.long ? 8 : 0), 58, 5.5, '#1a1a1a'); circle(c, 35 - (o.long ? 8 : 0), 57, 1.8, '#ffffff');
+    if (o.glow) shine(c, 60, 52, 14, 5);
+  };
+}
+
+// a skein of soft wool with a curl of fibre
+function skein(col: [string, string]): Painter {
+  return (c) => {
+    for (const [x, y, r] of [[44, 74, 28], [84, 70, 30], [64, 50, 28], [64, 88, 26]]) {
+      circle(c, x, y, r, rad(c, x, y, r, [[0, col[0]], [1, col[1]]]));
+      c.beginPath(); c.arc(x, y, r, 0, Math.PI * 2); outline(c, 2.5);
+    }
+    c.strokeStyle = 'rgba(0,0,0,0.18)'; c.lineWidth = 2;
+    for (let i = 0; i < 14; i++) { const a = i * 1.9; c.beginPath(); c.arc(64 + Math.cos(a) * 14, 70 + Math.sin(a) * 12, 12, a, a + 1.3); c.stroke(); }
+  };
+}
+
+// a round portrait badge for an animal: a colored disc and a head drawn by `face`
+function portrait(bg: string, face: Painter): Painter {
+  return (c) => {
+    circle(c, 64, 64, 58, rad(c, 64, 64, 60, [[0, '#ffffff'], [1, bg]]));
+    c.beginPath(); c.arc(64, 64, 58, 0, Math.PI * 2); outline(c, 4);
+    face(c);
+  };
+}
+const eyePair = (c: CanvasRenderingContext2D, x: number, y: number, gap: number, r: number) => {
+  for (const sx of [-1, 1]) { circle(c, x + sx * gap, y, r, '#ffffff'); c.beginPath(); c.arc(x + sx * gap, y, r, 0, Math.PI * 2); outline(c, 2); circle(c, x + sx * gap + 1, y + 1, r * 0.55, '#1a120c'); circle(c, x + sx * gap + 2, y - 1, r * 0.2, '#ffffff'); }
+};
+// a cartoon bird head in profile: head, beak and extras
+function birdFace(head: string, beak: string, extra?: (c: CanvasRenderingContext2D) => void): Painter {
+  return (c) => {
+    circle(c, 60, 66, 30, rad(c, 60, 66, 32, [[0, '#ffffff'], [0.25, head], [1, head]]));
+    c.beginPath(); c.arc(60, 66, 30, 0, Math.PI * 2); outline(c, 3);
+    c.beginPath(); c.moveTo(86, 60); c.lineTo(112, 70); c.lineTo(86, 78); c.closePath(); c.fillStyle = beak; c.fill(); outline(c, 3);
+    if (extra) extra(c);
+    circle(c, 70, 60, 8, '#ffffff'); c.beginPath(); c.arc(70, 60, 8, 0, Math.PI * 2); outline(c, 2); circle(c, 72, 61, 4.5, '#1a120c'); circle(c, 73, 59, 1.5, '#ffffff');
+  };
+}
+
 const PAINTERS: Record<string, Painter> = {
+  // ---- late game goods
+  speckled_egg: egg(['#fbf6ec', '#d8cbb0'], '#6a5a4a'),
+  pheasant_feather: feather(['#e0a060', '#6a3a1a']),
+  fresh_cream: (c) => {
+    c.beginPath(); c.moveTo(34, 50); c.lineTo(94, 50); c.lineTo(88, 114); c.lineTo(40, 114); c.closePath();
+    c.fillStyle = lin(c, 34, 0, 94, 0, [[0, '#d8d0c0'], [0.5, '#ffffff'], [1, '#d0c8b8']]); c.fill(); outline(c);
+    c.beginPath(); c.moveTo(30, 52); c.bezierCurveTo(30, 20, 60, 34, 64, 16); c.bezierCurveTo(70, 34, 100, 22, 98, 52); c.closePath();
+    c.fillStyle = rad(c, 64, 40, 40, [[0, '#ffffff'], [1, '#f2ead8']]); c.fill(); outline(c, 3);
+    rrect(c, 44, 74, 40, 22, 5); c.fillStyle = '#8ab0d8'; c.fill(); outline(c, 2);
+  },
+  swan_down: (c) => {
+    for (const [x, y, r] of [[48, 74, 24], [80, 70, 26], [64, 52, 24], [64, 88, 20]]) {
+      circle(c, x, y, r, rad(c, x, y, r, [[0, '#ffffff'], [0.7, '#f4f4f8'], [1, '#d8dce6']]));
+      c.strokeStyle = 'rgba(150,160,180,0.5)'; c.lineWidth = 1.5;
+      for (let i = 0; i < 10; i++) { const a = (i / 10) * Math.PI * 2; c.beginPath(); c.moveTo(x + Math.cos(a) * r * 0.5, y + Math.sin(a) * r * 0.5); c.lineTo(x + Math.cos(a) * (r + 4), y + Math.sin(a) * (r + 4)); c.stroke(); }
+    }
+  },
+  emu_egg: egg(['#4a8a6a', '#1f4a3a']),
+  reindeer_milk: bottle('#fffdf6', '#b5452c', '#e8f0f4'),
+  bison_wool: skein(['#8a6a4a', '#4a2e1c']),
+  pink_feather: feather(['#ffb0cc', '#e0507a']),
+  llama_wool: skein(['#f2e6cc', '#c8a878']),
+  rainbow_mane: (c) => {
+    const cols = ['#ff5a6a', '#ffa23a', '#ffe04a', '#6ad86a', '#4ab0ff', '#b07aff'];
+    cols.forEach((col, i) => { c.strokeStyle = col; c.lineWidth = 11; c.lineCap = 'round'; c.beginPath(); c.moveTo(30 + i * 8, 24 + i * 4); c.bezierCurveTo(90, 30 + i * 8, 20, 80 + i * 4, 84 + i * 6, 108); c.stroke(); });
+    c.fillStyle = '#fffbe0'; for (const [x, y] of [[104, 30], [24, 96]]) { c.beginPath(); c.arc(x, y, 5, 0, Math.PI * 2); c.fill(); }
+  },
+  golden_egg: egg(['#fff2a0', '#c8900a'], undefined, true),
+  trout: fishy('#6a8a5a', '#e8b0a0', '#6a8a5a', { spots: '#2a3a2a' }),
+  tuna: fishy('#1f3a6a', '#a8b8c8', '#e8c43a'),
+  swordfish: fishy('#2a4a7a', '#b8c8d8', '#2a4a7a', { bill: true, long: true }),
+  eel: (c) => {
+    c.strokeStyle = '#3a4a2a'; c.lineWidth = 20; c.lineCap = 'round';
+    c.beginPath(); c.moveTo(24, 40); c.bezierCurveTo(60, 10, 70, 70, 100, 50); c.bezierCurveTo(120, 40, 110, 100, 80, 104); c.stroke();
+    c.strokeStyle = '#6a7a4a'; c.lineWidth = 8;
+    c.beginPath(); c.moveTo(24, 40); c.bezierCurveTo(60, 10, 70, 70, 100, 50); c.bezierCurveTo(120, 40, 110, 100, 80, 104); c.stroke();
+    circle(c, 22, 38, 4, '#1a1a1a'); circle(c, 23, 37, 1.3, '#ffffff');
+  },
+  stingray: (c) => {
+    c.beginPath(); c.moveTo(64, 22); c.bezierCurveTo(110, 40, 120, 64, 64, 90); c.bezierCurveTo(8, 64, 18, 40, 64, 22);
+    c.fillStyle = rad(c, 64, 56, 50, [[0, '#9aa8b8'], [1, '#4a5a6a']]); c.fill(); outline(c);
+    c.strokeStyle = '#4a5a6a'; c.lineWidth = 4; c.lineCap = 'round'; c.beginPath(); c.moveTo(64, 88); c.quadraticCurveTo(70, 108, 58, 122); c.stroke();
+    eyePair(c, 64, 46, 12, 5);
+  },
+  marlin: fishy('#1a3a8a', '#b8c8e8', '#2a5ab8', { bill: true, long: true, stripes: 'rgba(120,170,255,0.6)' }),
+  pearl: (c) => {
+    c.beginPath(); c.moveTo(18, 74); c.bezierCurveTo(22, 112, 106, 112, 110, 74); c.closePath();
+    c.fillStyle = lin(c, 0, 74, 0, 110, [[0, '#c8b8a8'], [1, '#8a7a6a']]); c.fill(); outline(c);
+    c.beginPath(); c.moveTo(18, 70); c.bezierCurveTo(24, 20, 104, 20, 110, 70); c.closePath();
+    c.fillStyle = lin(c, 0, 20, 0, 70, [[0, '#d8ccc0'], [1, '#a89888']]); c.fill(); outline(c);
+    c.strokeStyle = 'rgba(90,70,50,0.4)'; c.lineWidth = 2; for (let i = 1; i < 6; i++) { c.beginPath(); c.moveTo(64, 68); c.lineTo(18 + i * 16, 28 + Math.abs(3 - i) * 8); c.stroke(); }
+    circle(c, 64, 80, 16, rad(c, 64, 80, 18, [[0, '#ffffff'], [0.6, '#f2eef8'], [1, '#c8c0d8']]));
+    c.beginPath(); c.arc(64, 80, 16, 0, Math.PI * 2); outline(c, 2);
+  },
+  golden_fish: fishy('#e8a010', '#ffe070', '#ffb020', { glow: true }),
+  quince: fruit(['#f8e070', '#c8a018']),
+  almond: (c) => {
+    for (const [x, y, r] of [[48, 70, -0.4], [80, 66, 0.3]] as const) {
+      c.save(); c.translate(x, y); c.rotate(r);
+      c.beginPath(); c.moveTo(0, -40); c.bezierCurveTo(26, -20, 22, 30, 0, 40); c.bezierCurveTo(-22, 30, -26, -20, 0, -40);
+      c.fillStyle = rad(c, 0, 0, 40, [[0, '#d8a060'], [1, '#8a5a2a']]); c.fill(); outline(c, 3);
+      c.strokeStyle = 'rgba(90,50,20,0.4)'; c.lineWidth = 2; for (let i = -2; i <= 2; i++) { c.beginPath(); c.moveTo(i * 5, -30); c.quadraticCurveTo(i * 8, 0, i * 5, 30); c.stroke(); }
+      c.restore();
+    }
+  },
+  mulberry: (c) => {
+    for (let i = 0; i < 22; i++) { const y = 32 + i * 3.6, w = Math.sin((i / 22) * Math.PI) * 26; circle(c, 64 + ((i % 3) - 1) * w * 0.6, y, 10, rad(c, 64, y, 12, [[0, '#8a3a6a'], [1, '#2a0a2a']])); }
+    c.strokeStyle = '#6a8a3a'; c.lineWidth = 5; c.beginPath(); c.moveTo(64, 30); c.lineTo(70, 12); c.stroke();
+  },
+  grapefruit: fruit(['#ffd070', '#f07a4a']),
+  persimmon: (c) => {
+    c.beginPath(); c.ellipse(64, 74, 46, 38, 0, 0, Math.PI * 2); c.fillStyle = rad(c, 64, 74, 46, [[0, '#ffb04a'], [1, '#d8500a']]); c.fill(); outline(c);
+    c.fillStyle = '#4a7a2a'; for (let i = 0; i < 4; i++) { c.save(); c.translate(64, 38); c.rotate((i / 4) * Math.PI * 2 + 0.4); c.beginPath(); c.ellipse(14, 0, 16, 7, 0, 0, Math.PI * 2); c.fill(); outline(c, 2); c.restore(); }
+    shine(c, 46, 60, 10, 6);
+  },
+  date: (c) => {
+    for (const [x, y, r] of [[40, 70, 0.5], [64, 60, 0], [88, 72, -0.5], [56, 90, 0.3], [78, 92, -0.2]] as const) {
+      c.save(); c.translate(x, y); c.rotate(r); c.beginPath(); c.ellipse(0, 0, 14, 24, 0, 0, Math.PI * 2);
+      c.fillStyle = rad(c, 0, 0, 24, [[0, '#b8602a'], [1, '#4a1a0a']]); c.fill(); outline(c, 3); c.restore();
+    }
+  },
+  lychee: (c) => {
+    for (const [x, y] of [[48, 74], [82, 66]]) {
+      circle(c, x, y, 26, rad(c, x, y, 28, [[0, '#ff7a7a'], [1, '#a8182a']]));
+      c.beginPath(); c.arc(x, y, 26, 0, Math.PI * 2); outline(c, 3);
+      c.fillStyle = 'rgba(90,10,20,0.35)'; for (let i = 0; i < 14; i++) { c.beginPath(); c.arc(x + Math.cos(i * 2.4) * (i % 3) * 8, y + Math.sin(i * 2.4) * (i % 3) * 8, 2.5, 0, Math.PI * 2); c.fill(); }
+    }
+    c.strokeStyle = '#6a5a2a'; c.lineWidth = 4; c.beginPath(); c.moveTo(48, 48); c.quadraticCurveTo(64, 20, 82, 40); c.stroke();
+  },
+  hazelnut: (c) => {
+    c.fillStyle = '#7aa84a'; for (let i = 0; i < 6; i++) { c.save(); c.translate(64, 50); c.rotate((i / 6) * Math.PI * 2); c.beginPath(); c.ellipse(0, -20, 12, 22, 0, 0, Math.PI * 2); c.fill(); outline(c, 2); c.restore(); }
+    circle(c, 64, 76, 34, rad(c, 64, 76, 36, [[0, '#d0905a'], [1, '#6a3a1a']])); c.beginPath(); c.arc(64, 76, 34, 0, Math.PI * 2); outline(c);
+    shine(c, 50, 64, 8, 5);
+  },
+  starfruit: (c) => {
+    c.beginPath(); for (let i = 0; i < 10; i++) { const a = (i / 10) * Math.PI * 2 - Math.PI / 2, r = i % 2 ? 22 : 50; c.lineTo(64 + Math.cos(a) * r, 66 + Math.sin(a) * r); } c.closePath();
+    c.fillStyle = rad(c, 64, 66, 50, [[0, '#fff27a'], [1, '#d8a818']]); c.fill(); outline(c);
+    circle(c, 64, 66, 8, '#f2e6a0');
+  },
+  maple_syrup: (c) => {
+    c.beginPath(); c.moveTo(50, 26); c.lineTo(78, 26); c.lineTo(80, 44); c.bezierCurveTo(100, 54, 100, 74, 100, 84); c.lineTo(100, 114); c.lineTo(28, 114); c.lineTo(28, 84); c.bezierCurveTo(28, 74, 28, 54, 48, 44); c.closePath();
+    c.fillStyle = lin(c, 28, 0, 100, 0, [[0, '#8a3a0a'], [0.5, '#e0902a'], [1, '#7a2a08']]); c.fill(); outline(c);
+    rrect(c, 48, 12, 32, 16, 4); c.fillStyle = '#c0392b'; c.fill(); outline(c, 3);
+    c.fillStyle = '#d8322a'; c.beginPath(); for (let i = 0; i < 10; i++) { const a = (i / 10) * Math.PI * 2 - Math.PI / 2, r = i % 2 ? 7 : 16; c.lineTo(64 + Math.cos(a) * r, 86 + Math.sin(a) * r); } c.closePath(); c.fill();
+    shine(c, 40, 80, 4, 14);
+  },
+  cocoa_pod: (c) => {
+    c.save(); c.translate(64, 66); c.rotate(-0.5);
+    c.beginPath(); c.ellipse(0, 0, 30, 52, 0, 0, Math.PI * 2); c.fillStyle = rad(c, 0, 0, 52, [[0, '#f0a040'], [1, '#8a2a0a']]); c.fill(); outline(c);
+    c.strokeStyle = 'rgba(90,30,10,0.5)'; c.lineWidth = 2.5; for (let i = -2; i <= 2; i++) { c.beginPath(); c.moveTo(i * 10, -48); c.quadraticCurveTo(i * 16, 0, i * 10, 48); c.stroke(); }
+    c.restore();
+  },
+  sakura: (c) => {
+    for (const [x, y, s] of [[44, 56, 1], [84, 64, 0.85], [60, 90, 0.9]] as const) {
+      for (let i = 0; i < 5; i++) { c.save(); c.translate(x, y); c.rotate((i / 5) * Math.PI * 2); c.beginPath(); c.ellipse(0, -14 * s, 10 * s, 15 * s, 0, 0, Math.PI * 2); c.fillStyle = rad(c, 0, -14 * s, 16 * s, [[0, '#ffe8f0'], [1, '#f08ab0']]); c.fill(); outline(c, 2); c.restore(); }
+      circle(c, x, y, 5 * s, '#f2c23a');
+    }
+  },
+  golden_apple: (c) => {
+    fruit(['#fff2a0', '#c8900a'])(c);
+    c.fillStyle = '#fffbe0'; for (const [x, y, r] of [[102, 30, 7], [24, 44, 5]]) { c.beginPath(); c.moveTo(x, y - r); c.lineTo(x + r * 0.3, y); c.lineTo(x, y + r); c.lineTo(x - r * 0.3, y); c.closePath(); c.fill(); c.beginPath(); c.moveTo(x - r, y); c.lineTo(x, y + r * 0.3); c.lineTo(x + r, y); c.lineTo(x, y - r * 0.3); c.closePath(); c.fill(); }
+  },
+  // ---- late game animal portraits
+  guinea_fowl: portrait('#b8c8e0', birdFace('#4a4e5a', '#e8c080', (c) => { c.fillStyle = '#d8322a'; c.beginPath(); c.ellipse(80, 90, 6, 10, 0, 0, Math.PI * 2); c.fill(); c.fillStyle = '#f4f2ee'; for (let i = 0; i < 10; i++) { c.beginPath(); c.arc(44 + (i * 13) % 30, 70 + (i * 7) % 20, 2.5, 0, Math.PI * 2); c.fill(); } })),
+  pheasant: portrait('#e8c8a0', birdFace('#1f6a5a', '#e8d0a0', (c) => { c.fillStyle = '#d8322a'; c.beginPath(); c.ellipse(72, 60, 14, 12, 0, 0, Math.PI * 2); c.fill(); c.strokeStyle = '#ffffff'; c.lineWidth = 5; c.beginPath(); c.arc(60, 66, 30, 1.2, 2.2); c.stroke(); })),
+  highland_cow: portrait('#f2d0a8', (c) => {
+    c.strokeStyle = '#efe4cc'; c.lineWidth = 9; c.lineCap = 'round';
+    c.beginPath(); c.moveTo(40, 44); c.quadraticCurveTo(14, 44, 12, 18); c.moveTo(88, 44); c.quadraticCurveTo(114, 44, 116, 18); c.stroke();
+    circle(c, 64, 68, 34, rad(c, 64, 68, 36, [[0, '#e8884a'], [1, '#b0501a']])); c.beginPath(); c.arc(64, 68, 34, 0, Math.PI * 2); outline(c, 3);
+    c.beginPath(); c.ellipse(64, 90, 22, 14, 0, 0, Math.PI * 2); c.fillStyle = '#3a2418'; c.fill();
+    c.fillStyle = '#d8783a'; for (let i = 0; i < 7; i++) { c.beginPath(); c.ellipse(40 + i * 8, 52, 7, 16, (i - 3) * 0.12, 0, Math.PI * 2); c.fill(); }
+  }),
+  emu: portrait('#d8d0c0', birdFace('#6a7a8a', '#2a2a2a', (c) => { c.fillStyle = '#5a4a3a'; for (let i = 0; i < 6; i++) { c.beginPath(); c.ellipse(36 + i * 5, 40 + i * 3, 5, 12, -0.5, 0, Math.PI * 2); c.fill(); } })),
+  llama: portrait('#b8e0f0', (c) => {
+    for (const sx of [-1, 1]) { c.beginPath(); c.ellipse(64 + sx * 22, 26, 8, 20, sx * 0.2, 0, Math.PI * 2); c.fillStyle = '#9a5a2a'; c.fill(); outline(c, 2); circle(c, 64 + sx * 26, 14, 6, sx < 0 ? '#e8305a' : '#2ab0c8'); }
+    c.beginPath(); c.ellipse(64, 70, 30, 40, 0, 0, Math.PI * 2); c.fillStyle = rad(c, 64, 66, 40, [[0, '#ffffff'], [1, '#e8dcc0']]); c.fill(); outline(c, 3);
+    eyePair(c, 64, 60, 13, 7);
+    c.beginPath(); c.ellipse(64, 92, 10, 6, 0, 0, Math.PI * 2); c.fillStyle = '#3a2a20'; c.fill();
+  }),
+  golden_goose: portrait('#fff2c0', birdFace('#f2cc40', '#f39024', (c) => {
+    c.fillStyle = '#ffe070'; c.beginPath(); c.moveTo(44, 40); c.lineTo(48, 24); c.lineTo(56, 34); c.lineTo(62, 20); c.lineTo(68, 34); c.lineTo(76, 24); c.lineTo(78, 40); c.closePath(); c.fill(); outline(c, 2);
+    circle(c, 62, 32, 3, '#d8322a');
+  })),
   oat: sheaf('#e6d9a0', false),
   barley: sheaf('#e0c870', true),
   soybean: (c) => {

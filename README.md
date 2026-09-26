@@ -43,6 +43,7 @@ By Talons Protocol.
 - Animals: chickens, cows, sheep, ducks, geese, gobblers, quails, goats, rabbits, alpacas, donkeys, water buffalo, peacocks, ostriches, yaks, camels, bees and horses (each horse adds 5% to order coins)
 - Workshop for candles and feather pillows, goat cheese at the dairy
 - Tap the farmhouse (or the manor once built) to send the farmer to bed and keep farming meanwhile; a nap of 20 seconds or more gives a once a day rested bonus
+- Content all the way to level 200: 11 late game animals (guinea fowl, pheasant, highland cow, swan, emu, reindeer, bison, flamingo, llama, unicorn and the golden goose at 200), 13 new orchard trees (quince to golden apple), 12 new catches at the fishing spot (trout to the golden fish) and goals up to level 200
 - Two animal art styles, picked in Settings: Cartoon (chunky friendly sculpts with big eyes, the default) and Realistic
 - Cartoon farmer, puffy cartoon trees and round garden bushes; a calico farm cat roams between the house and the farmer and curls up by the door at night
 - Dirt paths that join up with their neighbors (new farms start with one), a porch, dormers and mailbox on the farmhouse, a cupola and weathervane on the barn, and meadow scatter of lupines, wild flowers and pebbles

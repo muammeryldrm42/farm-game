@@ -188,6 +188,44 @@ item('strawberry_juice', 'Berry Juice', '🧃', 'barn', 110, 9);
 item('scarf', 'Scarf', '🧣', 'barn', 85, 10);
 item('sweater', 'Sweater', '🧥', 'barn', 170, 10);
 item('fish', 'Fish', '🐟', 'barn', 40, 7);
+// ---- late game: animals, fish and orchard fruit all the way to level 200
+item('speckled_egg', 'Speckled Egg', '@speckled_egg', 'barn', 70, 22);
+item('pheasant_feather', 'Pheasant Feather', '@pheasant_feather', 'barn', 95, 30);
+item('fresh_cream', 'Fresh Cream', '@fresh_cream', 'barn', 120, 38);
+item('swan_down', 'Swan Down', '@swan_down', 'barn', 150, 47);
+item('emu_egg', 'Emu Egg', '@emu_egg', 'barn', 180, 56);
+item('reindeer_milk', 'Reindeer Milk', '@reindeer_milk', 'barn', 220, 68);
+item('bison_wool', 'Bison Wool', '@bison_wool', 'barn', 270, 82);
+item('pink_feather', 'Pink Feather', '@pink_feather', 'barn', 320, 96);
+item('llama_wool', 'Llama Wool', '@llama_wool', 'barn', 390, 118);
+item('rainbow_mane', 'Rainbow Mane', '@rainbow_mane', 'barn', 520, 150);
+item('golden_egg', 'Golden Egg', '@golden_egg', 'barn', 800, 200);
+item('trout', 'Trout', '@trout', 'barn', 90, 22);
+item('tuna', 'Tuna', '@tuna', 'barn', 120, 31);
+item('shrimp', 'Shrimp', '🦐', 'barn', 140, 40);
+item('squid', 'Squid', '🦑', 'barn', 170, 52);
+item('octopus', 'Octopus', '🐙', 'barn', 210, 64);
+item('swordfish', 'Swordfish', '@swordfish', 'barn', 250, 78);
+item('eel', 'Eel', '@eel', 'barn', 290, 92);
+item('pufferfish', 'Pufferfish', '🐡', 'barn', 330, 108);
+item('stingray', 'Stingray', '@stingray', 'barn', 380, 125);
+item('marlin', 'Marlin', '@marlin', 'barn', 440, 145);
+item('pearl', 'Pearl Oyster', '@pearl', 'barn', 520, 170);
+item('golden_fish', 'Golden Fish', '@golden_fish', 'barn', 700, 195);
+item('quince', 'Quince', '@quince', 'silo', 48, 23);
+item('almond', 'Almond', '@almond', 'silo', 55, 27);
+item('mulberry', 'Mulberry', '@mulberry', 'silo', 62, 34);
+item('grapefruit', 'Grapefruit', '@grapefruit', 'silo', 72, 41);
+item('persimmon', 'Persimmon', '@persimmon', 'silo', 85, 50);
+item('date', 'Dates', '@date', 'silo', 98, 60);
+item('lychee', 'Lychee', '@lychee', 'silo', 115, 72);
+item('hazelnut', 'Hazelnut', '@hazelnut', 'silo', 130, 84);
+item('starfruit', 'Starfruit', '@starfruit', 'silo', 150, 98);
+item('maple_syrup', 'Maple Syrup', '@maple_syrup', 'silo', 175, 112);
+item('cocoa_pod', 'Cocoa Pod', '@cocoa_pod', 'silo', 205, 132);
+item('sakura', 'Cherry Blossom', '@sakura', 'silo', 250, 165);
+item('golden_apple', 'Golden Apple', '@golden_apple', 'silo', 330, 195);
+
 item('lobster', 'Lobster', '🦞', 'barn', 90, 12);
 item('apple_pie', 'Apple Pie', '🥮', 'barn', 130, 7);
 item('apple_juice', 'Apple Juice', '🧋', 'barn', 85, 9);
@@ -420,6 +458,17 @@ export const ANIMALS: AnimalDef[] = [
   { id: 'yak', name: 'Yak', icon: '🐂', house: 'yak_pasture', feed: 'cow_feed', product: 'yak_wool', time: 380, xp: 9, cost: 450, level: 18 },
   { id: 'camel', name: 'Camel', icon: '🐪', house: 'camel_corral', feed: 'wheat', product: 'camel_milk', time: 440, xp: 11, cost: 520, level: 20 },
   { id: 'horse', name: 'Horse', icon: '🐎', house: 'stable', feed: 'carrot', product: 'horseshoe', time: 360, xp: 8, cost: 400, level: 15 },
+  { id: 'guinea_fowl', name: 'Guinea Fowl', icon: '@guinea_fowl', house: 'guinea_run', feed: 'chicken_feed', product: 'speckled_egg', time: 240, xp: 7, cost: 300, level: 22 },
+  { id: 'pheasant', name: 'Pheasant', icon: '@pheasant', house: 'pheasant_run', feed: 'corn', product: 'pheasant_feather', time: 300, xp: 9, cost: 520, level: 30 },
+  { id: 'highland_cow', name: 'Highland Cow', icon: '@highland_cow', house: 'highland_pasture', feed: 'cow_feed', product: 'fresh_cream', time: 400, xp: 12, cost: 700, level: 38 },
+  { id: 'swan', name: 'Swan', icon: '🦢', house: 'swan_lake', feed: 'duck_feed', product: 'swan_down', time: 450, xp: 14, cost: 900, level: 47 },
+  { id: 'emu', name: 'Emu', icon: '@emu', house: 'emu_ranch', feed: 'wheat', product: 'emu_egg', time: 500, xp: 16, cost: 1100, level: 56 },
+  { id: 'reindeer', name: 'Reindeer', icon: '🦌', house: 'reindeer_lodge', feed: 'carrot', product: 'reindeer_milk', time: 560, xp: 19, cost: 1400, level: 68 },
+  { id: 'bison', name: 'Bison', icon: '🦬', house: 'bison_range', feed: 'cow_feed', product: 'bison_wool', time: 620, xp: 22, cost: 1800, level: 82 },
+  { id: 'flamingo', name: 'Flamingo', icon: '🦩', house: 'flamingo_lagoon', feed: 'duck_feed', product: 'pink_feather', time: 680, xp: 25, cost: 2200, level: 96 },
+  { id: 'llama', name: 'Llama', icon: '@llama', house: 'llama_ranch', feed: 'wheat', product: 'llama_wool', time: 760, xp: 29, cost: 2800, level: 118 },
+  { id: 'unicorn', name: 'Unicorn', icon: '🦄', house: 'unicorn_meadow', feed: 'carrot', product: 'rainbow_mane', time: 900, xp: 36, cost: 4000, level: 150 },
+  { id: 'golden_goose', name: 'Golden Goose', icon: '@golden_goose', house: 'golden_nest', feed: 'corn', product: 'golden_egg', time: 1200, xp: 50, cost: 6000, level: 200 },
 ];
 export const ANIMAL: Record<string, AnimalDef> = Object.fromEntries(ANIMALS.map((a) => [a.id, a]));
 
@@ -474,8 +523,32 @@ export const BUILDINGS: BuildingDef[] = [
   b({ id: 'fig_tree', name: 'Fig Tree', icon: '@fig', kind: 'tree', cost: 680, level: 16, max: 10, xp: 14, height: 66, sellable: true, fruit: 'fig', growTime: 640, desc: 'Gives 2 figs again and again.' }),
   b({ id: 'olive_tree', name: 'Olive Tree', icon: '🫒', kind: 'tree', cost: 740, level: 17, max: 10, xp: 15, height: 66, sellable: true, fruit: 'olive', growTime: 680, desc: 'A silvery old tree that gives 2 olives again and again.' }),
   b({ id: 'walnut_tree', name: 'Walnut Tree', icon: '@walnut', kind: 'tree', cost: 980, level: 20, max: 10, xp: 18, height: 78, sellable: true, fruit: 'walnut', growTime: 900, desc: 'A tall tree that gives 2 walnuts again and again.' }),
+  b({ id: 'quince_tree', name: 'Quince Tree', icon: '@quince', kind: 'tree', cost: 1100, level: 23, max: 8, xp: 19, height: 70, sellable: true, fruit: 'quince', growTime: 960, desc: 'Gives 2 fragrant golden quinces again and again.' }),
+  b({ id: 'almond_tree', name: 'Almond Tree', icon: '@almond', kind: 'tree', cost: 1300, level: 27, max: 8, xp: 21, height: 70, sellable: true, fruit: 'almond', growTime: 1000, desc: 'Gives 2 almonds again and again.' }),
+  b({ id: 'mulberry_tree', name: 'Mulberry Tree', icon: '@mulberry', kind: 'tree', cost: 1600, level: 34, max: 8, xp: 24, height: 70, sellable: true, fruit: 'mulberry', growTime: 1080, desc: 'Gives 2 handfuls of mulberries again and again.' }),
+  b({ id: 'grapefruit_tree', name: 'Grapefruit Tree', icon: '@grapefruit', kind: 'tree', cost: 1900, level: 41, max: 8, xp: 27, height: 70, sellable: true, fruit: 'grapefruit', growTime: 1150, desc: 'Gives 2 big grapefruits again and again.' }),
+  b({ id: 'persimmon_tree', name: 'Persimmon Tree', icon: '@persimmon', kind: 'tree', cost: 2400, level: 50, max: 8, xp: 31, height: 70, sellable: true, fruit: 'persimmon', growTime: 1240, desc: 'Gives 2 sweet persimmons again and again.' }),
+  b({ id: 'date_palm', name: 'Date Palm', icon: '@date', kind: 'tree', cost: 3000, level: 60, max: 8, xp: 35, height: 80, sellable: true, fruit: 'date', growTime: 1320, desc: 'A desert palm heavy with sticky dates.' }),
+  b({ id: 'lychee_tree', name: 'Lychee Tree', icon: '@lychee', kind: 'tree', cost: 3800, level: 72, max: 8, xp: 40, height: 70, sellable: true, fruit: 'lychee', growTime: 1420, desc: 'Gives 2 bunches of lychees again and again.' }),
+  b({ id: 'hazelnut_tree', name: 'Hazelnut Tree', icon: '@hazelnut', kind: 'tree', cost: 4700, level: 84, max: 8, xp: 45, height: 70, sellable: true, fruit: 'hazelnut', growTime: 1520, desc: 'Gives 2 hazelnuts again and again.' }),
+  b({ id: 'starfruit_tree', name: 'Starfruit Tree', icon: '@starfruit', kind: 'tree', cost: 5800, level: 98, max: 8, xp: 51, height: 70, sellable: true, fruit: 'starfruit', growTime: 1640, desc: 'Gives 2 star shaped fruits again and again.' }),
+  b({ id: 'maple_tree', name: 'Maple Tree', icon: '@maple_syrup', kind: 'tree', cost: 7200, level: 112, max: 8, xp: 57, height: 70, sellable: true, fruit: 'maple_syrup', growTime: 1760, desc: 'A blazing red maple. Tap it for sweet syrup.' }),
+  b({ id: 'cocoa_tree', name: 'Cocoa Tree', icon: '@cocoa_pod', kind: 'tree', cost: 9500, level: 132, max: 8, xp: 65, height: 70, sellable: true, fruit: 'cocoa_pod', growTime: 1900, desc: 'Ribbed cocoa pods grow right on the trunk.' }),
+  b({ id: 'sakura_tree', name: 'Cherry Blossom Tree', icon: '@sakura', kind: 'tree', cost: 13000, level: 165, max: 8, xp: 78, height: 70, sellable: true, fruit: 'sakura', growTime: 2100, desc: 'A dream in pink. Gives 2 blossom sprays again and again.' }),
+  b({ id: 'golden_apple_tree', name: 'Golden Apple Tree', icon: '@golden_apple', kind: 'tree', cost: 20000, level: 195, max: 8, xp: 95, height: 70, sellable: true, fruit: 'golden_apple', growTime: 2400, desc: 'A legendary tree that grows apples of pure gold.' }),
   b({ id: 'orange_tree', name: 'Orange Tree', icon: '🍊', kind: 'tree', cost: 450, level: 11, max: 12, xp: 10, height: 64, sellable: true, fruit: 'orange', growTime: 480, desc: 'Gives 2 oranges again and again.' }),
 
+  b({ id: 'guinea_run', name: 'Guinea Fowl Run', icon: '@guinea_fowl', kind: 'pen', w: 2, h: 2, cost: 2800, level: 22, xp: 70, height: 26, wall: '#c9a46a', roof: '#6b8a3a', animal: 'guinea_fowl', capacity: 6, desc: 'Busy spotted birds that lay speckled eggs.' }),
+  b({ id: 'pheasant_run', name: 'Pheasant Run', icon: '@pheasant', kind: 'pen', w: 3, h: 3, cost: 4200, level: 30, xp: 90, height: 26, wall: '#8fc45a', roof: '#8a3a2a', animal: 'pheasant', capacity: 5, desc: 'Handsome pheasants with long copper tail feathers.' }),
+  b({ id: 'highland_pasture', name: 'Highland Pasture', icon: '@highland_cow', kind: 'pen', w: 3, h: 3, cost: 5500, level: 38, xp: 110, height: 26, wall: '#86c24f', roof: '#5a3a24', animal: 'highland_cow', capacity: 5, desc: 'Shaggy ginger cattle that give rich fresh cream.' }),
+  b({ id: 'swan_lake', name: 'Swan Lake', icon: '🦢', kind: 'pen', w: 3, h: 3, cost: 7000, level: 47, xp: 130, height: 26, wall: '#8fc45a', roof: '#f4efe6', animal: 'swan', capacity: 4, desc: 'Graceful swans glide on the lake and shed soft down.' }),
+  b({ id: 'emu_ranch', name: 'Emu Ranch', icon: '@emu', kind: 'pen', w: 3, h: 3, cost: 8500, level: 56, xp: 150, height: 26, wall: '#d8c38e', roof: '#7a5a3a', animal: 'emu', capacity: 4, desc: 'Curious emus lay deep green eggs.' }),
+  b({ id: 'reindeer_lodge', name: 'Reindeer Lodge', icon: '🦌', kind: 'pen', w: 3, h: 3, cost: 11000, level: 68, xp: 180, height: 26, wall: '#e8f0f4', roof: '#8a2a2a', animal: 'reindeer', capacity: 4, desc: 'A snowy lodge for reindeer. They love carrots.' }),
+  b({ id: 'bison_range', name: 'Bison Range', icon: '🦬', kind: 'pen', w: 3, h: 3, cost: 14000, level: 82, xp: 210, height: 26, wall: '#b8a46c', roof: '#4a3424', animal: 'bison', capacity: 4, desc: 'Mighty bison grow thick warm wool.' }),
+  b({ id: 'flamingo_lagoon', name: 'Flamingo Lagoon', icon: '🦩', kind: 'pen', w: 3, h: 3, cost: 18000, level: 96, xp: 240, height: 26, wall: '#8fc45a', roof: '#f28ab0', animal: 'flamingo', capacity: 4, desc: 'Pink flamingos wade in a warm lagoon.' }),
+  b({ id: 'llama_ranch', name: 'Llama Ranch', icon: '@llama', kind: 'pen', w: 3, h: 3, cost: 23000, level: 118, xp: 280, height: 26, wall: '#8fc45a', roof: '#c0392b', animal: 'llama', capacity: 4, desc: 'Proud llamas in bright tassels grow fine wool.' }),
+  b({ id: 'unicorn_meadow', name: 'Unicorn Meadow', icon: '🦄', kind: 'pen', w: 3, h: 3, cost: 32000, level: 150, xp: 350, height: 26, wall: '#9ad86a', roof: '#b58cff', animal: 'unicorn', capacity: 3, desc: 'A magical meadow under a rainbow. Unicorns shed rainbow manes.' }),
+  b({ id: 'golden_nest', name: 'Golden Nest', icon: '@golden_goose', kind: 'pen', w: 2, h: 2, cost: 50000, level: 200, xp: 500, height: 26, wall: '#e8c865', roof: '#d4a020', animal: 'golden_goose', capacity: 2, desc: 'The legend itself: a goose that lays golden eggs.' }),
   b({ id: 'coop', name: 'Chicken Coop', icon: '🐔', kind: 'pen', w: 2, h: 2, cost: 150, level: 2, xp: 10, height: 26, wall: '#e3cf94', roof: '#b5452c', animal: 'chicken', capacity: 6, desc: 'Home for up to 6 chickens.' }),
   b({ id: 'pasture', name: 'Cow Pasture', icon: '🐄', kind: 'pen', w: 3, h: 3, cost: 400, level: 5, xp: 20, height: 26, wall: '#9ccc5a', roof: '#6b4226', animal: 'cow', capacity: 5, desc: 'Home for up to 5 cows.' }),
   b({ id: 'sheepfold', name: 'Sheep Fold', icon: '🐑', kind: 'pen', w: 3, h: 3, cost: 1800, level: 10, xp: 50, height: 26, wall: '#b7d77a', roof: '#2e6da4', animal: 'sheep', capacity: 5, desc: 'Home for up to 5 sheep.' }),
