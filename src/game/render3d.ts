@@ -11,6 +11,7 @@ import { Foliage, windify, type Spot } from './gfx/foliage';
 import { Post } from './gfx/post';
 import { PLANT_MAT, cropGeo } from './gfx/crops';
 import { PRODUCE_MAT, produceGeo } from './gfx/produce';
+import { ruffledLeaf } from './gfx/kit';
 import { creature, personParts } from './gfx/creatures';
 import { SCULPT_MAT, WOOL_MAT } from './gfx/sdf';
 import { leafShell, leafTexture, meterBox, meterHip, meterRoof, surface, surfaceMat, type SurfaceKind } from './gfx/textures';
@@ -423,11 +424,11 @@ function dropDown(src: THREE.Object3D, delay = 0) {
 const HIT_MAT = new THREE.MeshBasicMaterial({ visible: false });
 // middle of the starting farm
 const FARM_C = { x: 13.5 + MAP_OFF, y: 11.5 + MAP_OFF };
-const FRUIT_COLOR: Record<string, string> = { apple: '#e53935', cherry: '#b0102a', orange: '#ff9800', peach: '#ffa274', lemon: '#ffe03a', coconut: '#7a4a26' };
-const TREE_LEAF: Record<string, string> = { apple_tree: '#4f9e36', cherry_tree: '#3f8a3a', orange_tree: '#2f7d32', peach_tree: '#5aa53a', lemon_tree: '#3b8f3c', coconut_palm: '#4c9a38' };
-const GRASSY_PEN = new Set(['pasture', 'sheepfold', 'beehive', 'rabbit_hutch', 'alpaca_ranch', 'goose_pen']);
+const FRUIT_COLOR: Record<string, string> = { apple: '#e53935', cherry: '#b0102a', orange: '#ff9800', peach: '#ffa274', lemon: '#ffe03a', coconut: '#7a4a26', pear: '#c8c040', plum: '#5a2070', mango: '#f0902a', avocado: '#2f4a1a', pomegranate: '#c0282a', banana: '#f2d23a' };
+const TREE_LEAF: Record<string, string> = { apple_tree: '#4f9e36', cherry_tree: '#3f8a3a', orange_tree: '#2f7d32', peach_tree: '#5aa53a', lemon_tree: '#3b8f3c', coconut_palm: '#4c9a38', pear_tree: '#58a03a', plum_tree: '#3f7f3a', banana_tree: '#5aa844', mango_tree: '#2f7a32', avocado_tree: '#2a6a2e', pomegranate_tree: '#4a8a36' };
+const GRASSY_PEN = new Set(['pasture', 'sheepfold', 'beehive', 'rabbit_hutch', 'alpaca_ranch', 'goose_pen', 'peacock_garden', 'donkey_paddock']);
 const PEN_GROUND: Record<string, string> = {
-  rabbit_hutch: '#86c24f', alpaca_ranch: '#8fc45a', goose_pen: '#86c24f',
+  rabbit_hutch: '#86c24f', alpaca_ranch: '#8fc45a', goose_pen: '#86c24f', turkey_run: '#c9a46a', buffalo_wallow: '#8a6a44', ostrich_ranch: '#d8c38e',
   coop: '#d9c08a', pasture: '#86c24f', sheepfold: '#9ccc5a',
   duck_pond: '#8fc45a', goat_yard: '#b8a46c', beehive: '#7fbf4f', stable: '#c9b27a',
 };
@@ -1890,6 +1891,7 @@ function realEyes(head: THREE.Object3D, spec: [number, number, number, number, n
 const LID: Record<string, string> = {
   cow: '#e9e3d8', sheep: '#1f1b19', goat: '#e3dccd', horse: '#6a3e22', chicken: '#c9642c',
   duck: '#1a4a2e', rabbit: '#8a7058', alpaca: '#c9b08c', goose: '#e8a33a', dog: '#7a4b26',
+  turkey: '#9ab8d8', donkey: '#6a655f', buffalo: '#2a2a2c', peacock: '#1f4fb8', ostrich: '#9a7a70',
 };
 
 function animalBody(kind: string) {
@@ -1909,7 +1911,17 @@ function animalBody(kind: string) {
         head.add(horn);
       }
       break;
-    case 'chicken': case 'goose': g.userData.peck = true; break;
+    case 'chicken': case 'goose': case 'turkey': case 'peacock': case 'ostrich': g.userData.peck = true; break;
+    case 'buffalo':
+      // wide crescent horns sweeping back from the top of the head
+      for (const sx of [-1, 1]) {
+        const horn = new THREE.Mesh(new THREE.TorusGeometry(0.1, 0.018, 8, 20, Math.PI * 0.75), M('#5a5048'));
+        horn.position.set(sx * 0.05, 0.06, -0.04);
+        horn.rotation.set(0, sx > 0 ? 0 : Math.PI, -0.2);
+        horn.castShadow = true;
+        head.add(horn);
+      }
+      break;
     case 'rabbit': g.userData.hop = true; break;
   }
   return g;
@@ -2337,6 +2349,23 @@ function buildPen(e: Entry, d: BuildingDef) {
       e.top = 1.0;
       break;
     }
+    case 'buffalo_wallow':
+      // a muddy wallow pool beside the shelter
+      cyl(g, 0.62, 0.66, 0.02, '#5a4028', 2.0, 0.03, 1.95, 20, false);
+      mk(g, cylGeo(0.55, 0.55, 20), new THREE.MeshStandardMaterial({ color: '#6a5034', roughness: 0.25 }), 1, 0.02, 1, 2.0, 0.05, 1.95, false);
+      for (const [x, z] of [[0.25, 0.25], [1.15, 0.25], [0.25, 0.95], [1.15, 0.95]]) mk(g, cylGeo(0.04, 0.045, 8), surfaceMat('bark', '#8a5a33', 4), 1, 0.6, 1, x, 0.34, z);
+      bxT(g, 1.1, 0.06, 0.9, 'thatch', '#c9a85a', 0.7, 0.62, 0.6, 2.5).rotation.x = 0.18;
+      e.top = 0.9;
+      break;
+    case 'peacock_garden':
+      // a white garden arbor with climbing roses and a small fountain bowl
+      for (const x of [0.3, 1.1]) for (const z of [0.3, 0.7]) cyl(g, 0.025, 0.025, 0.7, '#f4efe6', x, 0.04, z, 8);
+      for (let i = 0; i < 5; i++) { const a = mk(g, cylGeo(0.015, 0.015, 6), M('#f4efe6'), 1, 0.44, 1, 0.3 + i * 0.2, 0.74, 0.5); a.rotation.x = Math.PI / 2; }
+      for (let i = 0; i < 16; i++) ball(g, 0.035, i % 3 ? '#4f9e36' : '#e8436a', 0.3 + (i % 8) * 0.11, 0.7 + (i % 3) * 0.04, 0.3 + Math.floor(i / 8) * 0.4, 1, 1, 1, false);
+      cyl(g, 0.2, 0.16, 0.14, '#d9d3c4', 1.5, 0.04, 1.5, 16);
+      mk(g, cylGeo(0.17, 0.17, 16), WATER, 1, 0.02, 1, 1.5, 0.18, 1.5, false);
+      e.top = 1.0;
+      break;
     case 'goose_pen':
       // a little pond in one corner and an A-frame goose house
       cyl(g, 0.42, 0.45, 0.03, '#d8c38e', 1.45, 0.02, 1.45, 20, false);
@@ -2362,7 +2391,7 @@ function buildPen(e: Entry, d: BuildingDef) {
       bxT(g, 0.5, 0.25, 0.35, 'thatch', '#e2c15a', 0.55, 0.04, 0.5, 3);
     }
   }
-  if (d.id !== 'beehive' && d.id !== 'duck_pond' && d.id !== 'goose_pen') {
+  if (d.id !== 'beehive' && d.id !== 'duck_pond' && d.id !== 'goose_pen' && d.id !== 'peacock_garden') {
     bx(g, 0.55, 0.12, 0.18, '#8a5a2b', w - 0.55, 0.04, h - 0.35);
     bx(g, 0.47, 0.03, 0.12, '#e2c15a', w - 0.55, 0.14, h - 0.35, false);
   }
@@ -2536,6 +2565,7 @@ function buildFruitTree(e: Entry, d: BuildingDef) {
   const g = e.root;
   const leaf = TREE_LEAF[d.id] ?? '#4f9e36';
   if (d.id === 'coconut_palm') return buildPalm(e, d, leaf);
+  if (d.id === 'banana_tree') return buildBanana(e, leaf);
   const { crown } = leafyTree(g, 0.5, 0.5, leaf, 1, d.id.length);
   const fc = FRUIT_COLOR[d.fruit ?? 'apple'] ?? '#e53935';
   // realistic fruit: dimpled apples, paired cherries, pitted oranges, blushing peaches, lemons
@@ -2561,7 +2591,7 @@ function buildFruitTree(e: Entry, d: BuildingDef) {
     start = st; wasReady = ti.ready;
     const n = ti.ready ? fruit.length : Math.floor(ti.p * fruit.length);
     const sc = ti.ready ? 1 : 0.5 + ti.p * 0.4;
-    const base = d.fruit === 'cherry' ? 0.075 : d.fruit === 'lemon' ? 0.07 : 0.085;
+    const base = d.fruit === 'cherry' ? 0.075 : d.fruit === 'lemon' || d.fruit === 'plum' ? 0.07 : 0.085;
     fruit.forEach((f, i) => {
       // new fruit swells in instead of popping into existence
       shown[i] = i < n ? Math.min(1, shown[i] + 0.04) : 0;
@@ -2573,6 +2603,48 @@ function buildFruitTree(e: Entry, d: BuildingDef) {
     const wobble = u >= 0 && u < 1 ? Math.sin(u * Math.PI * 7) * (1 - u) * 0.1 : 0;
     crown.rotation.z = Math.sin(t / 1100 + o.id) * 0.02 + wobble;
     crown.rotation.x = Math.sin(t / 1400 + o.id * 2) * 0.012 + wobble * 0.5;
+  };
+}
+
+// Banana plant: a thick fibrous pseudostem, huge ragged paddle leaves and a hanging bunch
+// with its purple flower bud.
+function buildBanana(e: Entry, leaf: string) {
+  const g = e.root;
+  const crown = group(g, 0.5, 0, 0.5);
+  const stemM = surfaceMat('bark', '#8a8a4a', 3);
+  mk(crown, cylGeo(0.07, 0.1, 12), stemM, 1, 0.95, 1, 0, 0.475, 0);
+  const leafM = windify(new THREE.MeshStandardMaterial({ color: leaf, vertexColors: true, side: THREE.DoubleSide, roughness: 0.7 }), 1, 0.3);
+  const leaves: THREE.Object3D[] = [];
+  for (let i = 0; i < 8; i++) {
+    const a = (i / 8) * Math.PI * 2 + (i % 2) * 0.3;
+    const pv = group(crown, 0, 0.9, 0);
+    pv.rotation.y = Math.PI / 2 - a;
+    const lf = new THREE.Mesh(ruffledLeaf(200 + i), leafM);
+    lf.scale.set(0.32, 0.85, 0.3);
+    lf.rotation.x = 0.8 + (i % 3) * 0.15;
+    lf.castShadow = true;
+    pv.add(lf);
+    leaves.push(pv);
+  }
+  const bunch = produceGeo('banana') as THREE.BufferGeometry;
+  const fruit = [0, 1].map((k) => {
+    const b = mk(crown, bunch, PRODUCE_MAT, 0.3, 0.3, 0.3, k ? -0.12 : 0.12, 0.72, k ? 0.05 : -0.05);
+    b.rotation.set(0, k * 2, k ? -0.35 : 0.35);
+    return b;
+  });
+  ball(crown, 0.045, '#6a2a4a', 0.16, 0.55, -0.06, 0.8, 1.4, 0.8);
+  e.top = 1.8;
+  let start = -1, wasReady = false, shake = -1e9;
+  e.update = (o, now, t) => {
+    const ti = treeInfo(o, now);
+    const st = o.tree?.startAt ?? 0;
+    if (start >= 0 && st !== start && wasReady) { fruit.forEach((f) => { if (f.visible) popOut(f, 0, 0.6); }); shake = t; bump(e); }
+    start = st; wasReady = ti.ready;
+    fruit.forEach((f, i) => { f.visible = ti.ready || ti.p > (i + 1) * 0.4; f.scale.setScalar(0.3 * (ti.ready ? 1 : 0.55 + ti.p * 0.45)); });
+    const u = (t - shake) / 900;
+    const wobble = u >= 0 && u < 1 ? Math.sin(u * Math.PI * 7) * (1 - u) * 0.07 : 0;
+    crown.rotation.z = Math.sin(t / 1600 + o.id) * 0.02 + wobble;
+    leaves.forEach((l, i) => { l.rotation.z = Math.sin(t / 900 + i * 1.3 + o.id) * 0.05; });
   };
 }
 

@@ -82,6 +82,25 @@ function build(cd: CropDef): CropGeo {
     case 'bush': {
       const cotton = cd.id === 'cotton', straw = cd.id === 'strawberry', chili = cd.id === 'chili';
       const berry = cd.id === 'blueberry', coffee = cd.id === 'coffee_bean';
+      const hang = cd.id === 'bell_pepper' || cd.id === 'eggplant' || cd.id === 'raspberry';
+      if (hang) {
+        // a leafy plant with its produce hanging under the leaves on short stems
+        const n = cd.id === 'raspberry' ? 9 : 4;
+        for (let i = 0; i < 6; i++) {
+          const a = (i / 6) * Math.PI * 2;
+          plant.add(lump(110 + i, 0.25, 12), shade(L, (r(i, 5) - 0.5) * 0.12), [Math.cos(a) * 0.06, 0.15 + r(i, 6) * 0.07, Math.sin(a) * 0.06], [0, a, 0], [0.07, 0.07, 0.07]);
+        }
+        plant.add(cylinder(0.008, 0.012, 6), shade(L, -0.15), [0, 0, 0], [0, 0, 0], [1, 0.16, 1]);
+        for (let i = 0; i < n; i++) {
+          const a = (i / n) * Math.PI * 2 + 0.4;
+          const d = cd.id === 'raspberry' ? 0.1 : 0.085;
+          const y = cd.id === 'eggplant' ? 0.07 : cd.id === 'raspberry' ? 0.1 + r(i, 7) * 0.12 : 0.09 + r(i, 7) * 0.05;
+          const size = cd.id === 'eggplant' ? 0.05 : cd.id === 'raspberry' ? 0.016 : 0.036;
+          fruit.add(produceGeo(cd.id) as THREE.BufferGeometry, W, [Math.cos(a) * d, y, Math.sin(a) * d], [0.25, a, 0], size);
+          plant.add(P.sphere, '#3a6a2a', [Math.cos(a) * d, y + size * (cd.id === 'eggplant' ? 1.0 : 0.75), Math.sin(a) * d], [0, 0, 0], [size * 0.55, size * 0.25, size * 0.55]);
+        }
+        break;
+      }
       if (berry || coffee) {
         // a leafy shrub hung with clusters of small berries or coffee cherries
         for (let i = 0; i < 6; i++) {
@@ -132,6 +151,14 @@ function build(cd: CropDef): CropGeo {
         const a = i * 0.6;
         plant.add(P.sphere, dark, [Math.cos(a) * (0.05 + i * 0.01), 0.02, Math.sin(a) * (0.05 + i * 0.01)], [0, 0, 0], 0.008);
       }
+      if (cd.id === 'cucumber') {
+        for (let i = 0; i < 3; i++) {
+          const a = i * 2.1 + 0.5;
+          fruit.add((produceGeo('cucumber') as THREE.BufferGeometry), W, [Math.cos(a) * 0.07, 0.035, Math.sin(a) * 0.07], [0, -a, 0.1], 0.05);
+        }
+        for (let i = 0; i < 5; i++) plant.add(P.sphere, '#f2d23a', [Math.cos(i * 1.3) * 0.12, 0.05, Math.sin(i * 1.3) * 0.12], [0, 0, 0], 0.012);
+        break;
+      }
       if (cd.id === 'watermelon') fruit.add(P.sphereHi, W, [0, 0.07, 0], [0, 0.6, 0], [0.1, 0.085, 0.13]);
       else fruit.add(ribs(8), W, [0, 0.07, 0], [0, 0, 0], [0.1, 0.1, 0.1]);
       plant.add(cylinder(0.006, 0.01, 6), '#6b8a2a', [0, 0.13, 0], [0.3, 0, 0.2], [1, 0.05, 1]);
@@ -171,6 +198,66 @@ function build(cd: CropDef): CropGeo {
         }
       });
       fruit.add(lump(95, 0.12, 14), W, [0, 0.055, 0], [0, 0, 0], [0.035, 0.04, 0.035]);
+      break;
+    }
+    case 'head': {
+      // cabbage: a tight head cupped by big open outer leaves; broccoli: florets on a thick stalk
+      if (cd.id === 'broccoli') {
+        plant.add(cylinder(0.02, 0.028, 8), '#8ab86a', [0, 0, 0], [0, 0, 0], [1, 0.14, 1]);
+        for (let i = 0; i < 6; i++) {
+          const a = (i / 6) * Math.PI * 2;
+          const m = new THREE.Matrix4().makeTranslation(0, 0.02, 0).multiply(new THREE.Matrix4().makeRotationY(Math.PI / 2 - a)).multiply(new THREE.Matrix4().makeRotationX(0.9)).multiply(new THREE.Matrix4().makeScale(0.1, 0.16, 0.08));
+          plant.addMatrix(ruffledLeaf(60 + i), shade(L, (i % 2) * 0.06), m);
+        }
+        fruit.add((produceGeo('broccoli') as THREE.BufferGeometry), W, [0, 0.1, 0], [0, 0, 0], 0.1);
+        break;
+      }
+      for (let i = 0; i < 7; i++) {
+        const a = (i / 7) * Math.PI * 2;
+        const m = new THREE.Matrix4().makeTranslation(Math.cos(a) * 0.02, 0.01, Math.sin(a) * 0.02).multiply(new THREE.Matrix4().makeRotationY(Math.PI / 2 - a)).multiply(new THREE.Matrix4().makeRotationX(1.15)).multiply(new THREE.Matrix4().makeScale(0.13, 0.16, 0.1));
+        plant.addMatrix(ruffledLeaf(70 + i), shade(L, -0.05 + (i % 2) * 0.05), m);
+      }
+      fruit.add((produceGeo('cabbage') as THREE.BufferGeometry), W, [0, 0.075, 0], [0, 0, 0], 0.075);
+      break;
+    }
+    case 'bulb': {
+      // onion: hollow tube leaves over a papery bulb; radish: a leafy rosette over a round red root
+      if (cd.id === 'onion') {
+        for (let i = 0; i < 7; i++) plant.add(cylinder(0.004, 0.009, 6), shade(L, (r(i, 3) - 0.5) * 0.1), [0, 0.05, 0], [(r(i, 1) - 0.5) * 0.5, i, (r(i, 2) - 0.5) * 0.5], [1, 0.22 + r(i, 4) * 0.08, 1]);
+        fruit.add((produceGeo('onion') as THREE.BufferGeometry), W, [0, 0.03, 0], [0, 0, 0], 0.05);
+        break;
+      }
+      for (let i = 0; i < 7; i++) {
+        const a = (i / 7) * Math.PI * 2;
+        const m = new THREE.Matrix4().makeTranslation(0, 0.03, 0).multiply(new THREE.Matrix4().makeRotationY(Math.PI / 2 - a)).multiply(new THREE.Matrix4().makeRotationX(0.55)).multiply(new THREE.Matrix4().makeScale(0.08, 0.18, 0.06));
+        plant.addMatrix(ruffledLeaf(90 + i), shade(L, (i % 2) * 0.05), m);
+      }
+      fruit.add((produceGeo('radish') as THREE.BufferGeometry), W, [0, 0.03, 0], [0, 0, 0], 0.05);
+      plant.add(cylinder(0.001, 0.008, 6), '#f4eee6', [0, -0.01, 0], [Math.PI, 0, 0], [1, 0.04, 1]);
+      break;
+    }
+    case 'trellis': {
+      // grape vine trained on a little wooden trellis with bunches hanging below the leaves
+      for (const x of [-0.13, 0.13]) plant.add(cylinder(0.008, 0.01, 6), '#8a5a33', [x, 0, 0], [0, 0, 0], [1, 0.42, 1]);
+      plant.add(cylinder(0.006, 0.006, 6), '#8a5a33', [-0.14, 0.38, 0], [0, 0, -Math.PI / 2], [1, 0.28, 1]);
+      plant.add(cylinder(0.006, 0.006, 6), '#8a5a33', [-0.14, 0.22, 0], [0, 0, -Math.PI / 2], [1, 0.28, 1]);
+      plant.add(cylinder(0.01, 0.014, 6), '#6b4426', [0, 0, 0], [0, 0, 0.1], [1, 0.4, 1]);
+      for (let i = 0; i < 9; i++) {
+        const x = -0.12 + (i % 5) * 0.06, y = 0.3 + Math.floor(i / 5) * 0.1 + r(i, 3) * 0.04;
+        const m = new THREE.Matrix4().makeTranslation(x, y, 0.01).multiply(new THREE.Matrix4().makeRotationY(r(i, 4) * 0.6 - 0.3)).multiply(new THREE.Matrix4().makeRotationX(1.3)).multiply(new THREE.Matrix4().makeScale(0.07, 0.08, 0.05));
+        plant.addMatrix(ruffledLeaf(100 + i), shade(L, (r(i, 5) - 0.5) * 0.12), m);
+      }
+      for (const x of [-0.07, 0.07]) fruit.add((produceGeo('grape') as THREE.BufferGeometry), W, [x, 0.2, 0.03], [0, 0, 0], 0.09);
+      break;
+    }
+    case 'rosette': {
+      // pineapple: spiky sword leaves around a fruit topped with its own crown
+      for (let i = 0; i < 12; i++) {
+        const a = (i / 12) * Math.PI * 2;
+        plant.add(blade(0.3 + r(i, 1) * 0.06, 0.045, 0.35), shade(L, (r(i, 2) - 0.5) * 0.1), [0, 0.01, 0], [0.8 + r(i, 3) * 0.3, a, 0]);
+      }
+      fruit.add((produceGeo('pineapple') as THREE.BufferGeometry), W, [0, 0.13, 0], [0, 0, 0], 0.075);
+      for (let i = 0; i < 10; i++) plant.add(blade(0.1, 0.025, 0.2), shade(L, 0.05), [0, 0.2, 0], [0.35, (i / 10) * Math.PI * 2, 0]);
       break;
     }
     case 'cane': {

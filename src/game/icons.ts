@@ -56,7 +56,117 @@ function drink(liquid: [string, string], slice: string, sliceIn: string): Painte
   };
 }
 
+// a milk bottle with a colored cap and label
+function bottle(milk: string, cap: string, label: string): Painter {
+  return (c) => {
+    c.beginPath(); c.moveTo(46, 30); c.lineTo(82, 30); c.lineTo(84, 46); c.bezierCurveTo(100, 56, 100, 70, 100, 80); c.lineTo(100, 114); c.lineTo(28, 114); c.lineTo(28, 80); c.bezierCurveTo(28, 70, 28, 56, 44, 46); c.closePath();
+    c.fillStyle = lin(c, 28, 0, 100, 0, [[0, '#e3e3e3'], [0.45, milk], [1, '#d6d6d6']]); c.fill(); outline(c);
+    rrect(c, 42, 16, 44, 16, 5); c.fillStyle = cap; c.fill(); outline(c, 3);
+    rrect(c, 36, 74, 56, 26, 6); c.fillStyle = label; c.fill(); outline(c, 2);
+    shine(c, 40, 84, 4, 16);
+  };
+}
+
+// a single feather: quill, vane and an optional eye spot
+function feather(vane: [string, string], eye?: [string, string, string]): Painter {
+  return (c) => {
+    c.save(); c.translate(64, 64); c.rotate(-0.6);
+    c.beginPath(); c.moveTo(0, -56); c.bezierCurveTo(26, -30, 22, 30, 0, 44); c.bezierCurveTo(-22, 30, -26, -30, 0, -56);
+    c.fillStyle = lin(c, 0, -56, 0, 44, [[0, vane[0]], [1, vane[1]]]); c.fill(); outline(c, 3);
+    c.strokeStyle = 'rgba(0,0,0,0.25)'; c.lineWidth = 1.5;
+    for (let i = -44; i < 36; i += 8) { c.beginPath(); c.moveTo(0, i); c.lineTo(16, i - 10); c.moveTo(0, i); c.lineTo(-16, i - 10); c.stroke(); }
+    if (eye) { circle(c, 0, -22, 13, eye[0]); circle(c, 0, -22, 8, eye[1]); circle(c, 0, -22, 4, eye[2]); }
+    c.strokeStyle = '#f2ead8'; c.lineWidth = 4; c.beginPath(); c.moveTo(0, -50); c.lineTo(0, 62); c.stroke();
+    c.restore();
+  };
+}
+
+// a round fruit with a highlight, optional crown and stem
+function fruit(body: [string, string], crown?: string, stemCol = '#5a3a1f'): Painter {
+  return (c) => {
+    circle(c, 64, 70, 44, rad(c, 64, 70, 44, [[0, body[0]], [1, body[1]]]));
+    c.beginPath(); c.arc(64, 70, 44, 0, Math.PI * 2); outline(c);
+    shine(c, 46, 50, 10, 6);
+    if (crown) { c.fillStyle = crown; for (let i = -2; i <= 2; i++) { c.beginPath(); c.moveTo(64 + i * 7, 30); c.lineTo(60 + i * 7, 16); c.lineTo(68 + i * 7, 30); c.fill(); } }
+    else { c.strokeStyle = stemCol; c.lineWidth = 5; c.beginPath(); c.moveTo(64, 28); c.quadraticCurveTo(66, 16, 74, 12); c.stroke(); }
+  };
+}
+
 const PAINTERS: Record<string, Painter> = {
+  plum: fruit(['#9a5ac8', '#3e1650'], undefined, '#6b5a2a'),
+  pomegranate: fruit(['#f05a5a', '#8a1020'], '#8a1020'),
+  radish: (c) => {
+    c.fillStyle = '#4f9e36'; for (const a of [-0.5, 0, 0.5]) { c.save(); c.translate(64, 50); c.rotate(a); c.beginPath(); c.ellipse(0, -22, 10, 24, 0, 0, Math.PI * 2); c.fill(); outline(c, 2); c.restore(); }
+    c.beginPath(); c.moveTo(34, 64); c.bezierCurveTo(34, 40, 94, 40, 94, 64); c.bezierCurveTo(94, 88, 70, 100, 64, 120); c.bezierCurveTo(58, 100, 34, 88, 34, 64);
+    c.fillStyle = lin(c, 0, 44, 0, 120, [[0, '#e8385a'], [0.7, '#c01840'], [0.85, '#ffffff'], [1, '#ffffff']]); c.fill(); outline(c);
+    shine(c, 48, 60, 6, 10);
+  },
+  cabbage: (c) => {
+    circle(c, 64, 70, 48, rad(c, 64, 70, 48, [[0, '#dff5c0'], [1, '#6cae44']]));
+    c.beginPath(); c.arc(64, 70, 48, 0, Math.PI * 2); outline(c);
+    c.strokeStyle = 'rgba(255,255,255,0.7)'; c.lineWidth = 3;
+    for (const a of [-2.4, -1.6, -0.8, 0, 0.8]) { c.beginPath(); c.moveTo(64, 70); c.quadraticCurveTo(64 + Math.cos(a) * 30, 70 + Math.sin(a) * 20, 64 + Math.cos(a) * 44, 70 + Math.sin(a) * 44); c.stroke(); }
+    c.beginPath(); c.arc(64, 58, 22, Math.PI, 0); c.fillStyle = '#c8eba0'; c.fill(); outline(c, 2);
+  },
+  raspberry: (c) => {
+    for (let r = 0; r < 4; r++) for (let i = 0; i < 5 - Math.abs(r - 1.5); i++) {
+      const x = 64 + (i - (4 - Math.abs(r - 1.5)) / 2) * 16, y = 50 + r * 16;
+      circle(c, x, y, 10, rad(c, x, y, 10, [[0, '#ff6a8a'], [1, '#a0103a']]));
+    }
+    c.fillStyle = '#4f9e36'; for (const a of [-0.8, 0, 0.8]) { c.save(); c.translate(64, 36); c.rotate(a); c.beginPath(); c.ellipse(0, -8, 5, 12, 0, 0, Math.PI * 2); c.fill(); c.restore(); }
+  },
+  turkey_feather: feather(['#e9d7b0', '#6b3f22']),
+  peacock_feather: feather(['#3fae6a', '#1f6a5a'], ['#e8c43a', '#2a8a8a', '#1a2f8a']),
+  donkey_milk: bottle('#ffffff', '#9aa3ab', '#d8c9b0'),
+  buffalo_milk: bottle('#fffdf2', '#3a4a5a', '#8ab0d8'),
+  ostrich_egg: (c) => {
+    c.beginPath(); c.ellipse(64, 68, 38, 50, 0, 0, Math.PI * 2);
+    c.fillStyle = rad(c, 64, 68, 52, [[0, '#fffaf0'], [1, '#d9ccb0']]); c.fill(); outline(c);
+    c.fillStyle = 'rgba(160,140,110,0.35)'; for (let i = 0; i < 14; i++) { c.beginPath(); c.arc(40 + (i * 37) % 50, 30 + (i * 23) % 70, 2, 0, Math.PI * 2); c.fill(); }
+    shine(c, 50, 44, 8, 14);
+  },
+  mozzarella: (c) => {
+    circle(c, 64, 70, 40, rad(c, 64, 70, 40, [[0, '#ffffff'], [1, '#e8e2d2']]));
+    c.beginPath(); c.arc(64, 70, 40, 0, Math.PI * 2); outline(c);
+    c.fillStyle = '#4f9e36'; c.beginPath(); c.ellipse(86, 38, 16, 8, -0.6, 0, Math.PI * 2); c.fill(); outline(c, 2);
+    c.beginPath(); c.ellipse(70, 30, 14, 7, 0.4, 0, Math.PI * 2); c.fill(); outline(c, 2);
+    shine(c, 50, 54, 10, 6);
+  },
+  feather_fan: (c) => {
+    for (let i = 0; i < 7; i++) {
+      const a = -1.2 + i * 0.4;
+      c.save(); c.translate(64, 108); c.rotate(a);
+      c.beginPath(); c.ellipse(0, -52, 14, 46, 0, 0, Math.PI * 2);
+      c.fillStyle = lin(c, 0, -98, 0, -6, [[0, '#2fb07a'], [1, '#1f5a6a']]); c.fill(); outline(c, 2);
+      circle(c, 0, -80, 8, '#e8c43a'); circle(c, 0, -80, 5, '#1a2f8a');
+      c.restore();
+    }
+    rrect(c, 54, 98, 20, 22, 6); c.fillStyle = '#8a5a2b'; c.fill(); outline(c, 3);
+  },
+  big_omelette: (c) => {
+    c.beginPath(); c.ellipse(64, 76, 52, 26, 0, 0, Math.PI * 2); c.fillStyle = '#3a3a3a'; c.fill(); outline(c);
+    c.beginPath(); c.ellipse(64, 72, 46, 21, 0, 0, Math.PI * 2); c.fillStyle = rad(c, 64, 72, 46, [[0, '#ffe98a'], [1, '#f2c23a']]); c.fill();
+    for (const [x, y, col] of [[48, 70, '#e0301e'], [70, 64, '#4f9e36'], [80, 78, '#e0301e'], [58, 82, '#c98a4a']] as const) { c.fillStyle = col; c.fillRect(x, y, 9, 6); }
+    c.fillStyle = '#5a3a1f'; c.fillRect(108, 70, 18, 8);
+  },
+  grape_juice: drink(['#9a4ad0', '#4a1a6a'], '#7a3aa0', '#c79ae8'),
+  pineapple_juice: drink(['#fff0a0', '#f2c23a'], '#f2c23a', '#fff4b0'),
+  plum_jam: jar(['#8a3aa8', '#4a1860'], '#9a5ac8'),
+  pickles: jar(['#8ab04a', '#4f7a2a'], '#6a9a3a'),
+  banana_bread: (c) => {
+    rrect(c, 18, 50, 92, 52, 14); c.fillStyle = lin(c, 0, 50, 0, 102, [[0, '#b0602a'], [1, '#7a3a18']]); c.fill(); outline(c);
+    c.beginPath(); c.ellipse(64, 52, 46, 16, 0, Math.PI, 0); c.fillStyle = '#c8783a'; c.fill(); outline(c, 3);
+    c.fillStyle = '#f0d890'; c.beginPath(); c.moveTo(40, 40); c.quadraticCurveTo(64, 24, 90, 40); c.quadraticCurveTo(64, 32, 40, 40); c.fill(); outline(c, 2);
+    c.fillStyle = 'rgba(255,230,180,0.6)'; for (const [x, y] of [[36, 76], [60, 84], [86, 72], [48, 64], [76, 90]]) { c.beginPath(); c.arc(x, y, 3, 0, Math.PI * 2); c.fill(); }
+  },
+  guacamole: (c) => {
+    c.beginPath(); c.moveTo(16, 64); c.quadraticCurveTo(64, 128, 112, 64); c.closePath();
+    c.fillStyle = lin(c, 0, 64, 0, 110, [[0, '#e8b04a'], [1, '#b0702a']]); c.fill(); outline(c);
+    c.beginPath(); c.ellipse(64, 62, 46, 16, 0, 0, Math.PI * 2); c.fillStyle = rad(c, 64, 60, 46, [[0, '#b8e070'], [1, '#6a9a2a']]); c.fill(); outline(c, 3);
+    for (const [x, y] of [[48, 58, 0], [76, 64, 0], [62, 54, 0]]) { c.fillStyle = '#e0301e'; c.fillRect(x, y, 7, 5); }
+    c.fillStyle = '#f2d16b'; c.beginPath(); c.moveTo(90, 50); c.lineTo(118, 34); c.lineTo(104, 62); c.closePath(); c.fill(); outline(c, 2);
+  },
+
   peach_jam: jar(['#ffb06a', '#e8793a'], '#ff9a5c'),
   peach_juice: drink(['#ffc48a', '#ff8f4a'], '#ffa274', '#ffd8b0'),
   lemonade: drink(['#fff6b0', '#ffe066'], '#ffd23a', '#fff4a8'),

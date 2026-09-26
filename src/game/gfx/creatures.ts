@@ -283,7 +283,127 @@ function goose(): CreatureParts {
   return { eye: [0.026, 0.02, 0.012, 0.008, 1.0], body, head, headAt: [0, 0.31, 0.11], leg: leg(0.1, 0.022, '#f08a24', '#f08a24', 0.012), legs: [[-0.035, 0], [0.035, 0]], legLen: 0.1, tail: null, tailAt: [0, 0, 0] };
 }
 
-const makers: Record<string, () => CreatureParts> = { cow, sheep, goat, horse, chicken, duck, rabbit, alpaca, goose, dog: dogParts };
+function turkey(): CreatureParts {
+  // bronze turkey: iridescent dark body, barred wings and a fanned, white tipped tail
+  const bronze = (x: number, y: number, z: number) => (noise3(x * 40, y * 40, z * 40) > 0.62 ? '#6a4a2a' : '#3e2a1c');
+  const fan = (x: number, y: number, z: number) => {
+    const d = Math.hypot(x, y - 0.17, z + 0.1);
+    if (d > 0.27) return '#f0e6d2';
+    return Math.sin(d * 90) > 0.6 ? '#2a1a10' : '#8a5a32';
+  };
+  const b = new Sculpt()
+    .add(ellipsoid(0, 0.17, 0, 0.1, 0.1, 0.13), bronze)
+    .add(ellipsoid(0.085, 0.18, -0.01, 0.028, 0.06, 0.1), (_x, y) => (Math.sin(y * 120) > 0.3 ? '#e8dcc0' : '#4a3222'), 0.012)
+    .add(ellipsoid(-0.085, 0.18, -0.01, 0.028, 0.06, 0.1), (_x, y) => (Math.sin(y * 120) > 0.3 ? '#e8dcc0' : '#4a3222'), 0.012)
+    .add(capsule(0, 0.2, 0.08, 0, 0.3, 0.1, 0.035, 0.022), bronze, 0.03);
+  for (let i = 0; i < 9; i++) {
+    const a = -1.2 + (i / 8) * 2.4;
+    b.add(ellipsoid(Math.sin(a) * 0.15, 0.2 + Math.cos(a) * 0.16, -0.14, 0.035, 0.13, 0.012), fan, 0.01);
+  }
+  const body = b.build([-0.3, 0.05, -0.2], [0.3, 0.46, 0.16], C * 0.7);
+  const head = new Sculpt()
+    .add(sphere(0, 0.012, 0, 0.03), '#9ab8d8')
+    .add(capsule(0, 0.008, 0.025, 0, 0.0, 0.055, 0.01, 0.004), '#d8c8a8', 0.004)
+    .add(capsule(0.005, 0.02, 0.035, 0.012, -0.03, 0.06, 0.006, 0.004), '#c8202a', 0.004)
+    .add(ellipsoid(0, -0.03, 0.01, 0.018, 0.028, 0.016), '#c8202a', 0.012)
+    .build([-0.05, -0.07, -0.04], [0.05, 0.05, 0.08], C * 0.4);
+  return { eye: [0.022, 0.018, 0.012, 0.006, 1.0], body, head, headAt: [0, 0.31, 0.105], leg: leg(0.08, 0.02, '#b89a8a', '#9a7a6a', 0.01), legs: [[-0.035, 0], [0.035, 0]], legLen: 0.08, tail: null, tailAt: [0, 0, 0] };
+}
+
+function donkey(): CreatureParts {
+  // grey donkey: pale belly and muzzle, a dark stripe down the back and across the shoulders
+  const c = '#8f8a84';
+  const coat = (x: number, y: number, z: number) => (y < 0.3 ? '#d9d4cc' : Math.abs(x) < 0.015 && y > 0.4 ? '#3a342e' : Math.abs(z - 0.1) < 0.015 && y > 0.38 ? '#4a443e' : c);
+  const body = new Sculpt()
+    .add(ellipsoid(0, 0.35, 0, 0.09, 0.1, 0.19), coat)
+    .add(sphere(0, 0.36, 0.11, 0.09), coat, 0.06)
+    .add(sphere(0, 0.37, -0.11, 0.092), coat, 0.06)
+    .add(capsule(0, 0.38, 0.13, 0, 0.5, 0.21, 0.058, 0.045), coat, 0.05)
+    .add(capsule(0, 0.44, 0.12, 0, 0.55, 0.19, 0.016, 0.014), '#3a342e', 0.012)
+    .build([-0.12, 0.22, -0.23], [0.12, 0.6, 0.28], C);
+  const head = new Sculpt()
+    .add(capsule(0, 0.0, 0, 0, -0.05, 0.12, 0.052, 0.045), c)
+    .add(sphere(0, -0.058, 0.125, 0.046), '#e3ded6', 0.03)
+    .carve(sphere(0.02, -0.055, 0.168, 0.009))
+    .carve(sphere(-0.02, -0.055, 0.168, 0.009))
+    .add(ellipsoid(0.035, 0.08, -0.01, 0.016, 0.07, 0.012), (_x, y) => (y > 0.13 ? '#2a2420' : c), 0.012)
+    .add(ellipsoid(-0.035, 0.08, -0.01, 0.016, 0.07, 0.012), (_x, y) => (y > 0.13 ? '#2a2420' : c), 0.012)
+    .build([-0.07, -0.11, -0.06], [0.07, 0.17, 0.19], C * 0.6);
+  const tail = new Sculpt()
+    .add(capsule(0, 0, 0, 0, -0.15, -0.02, 0.012, 0.008), c)
+    .add(ellipsoid(0, -0.17, -0.02, 0.018, 0.035, 0.018), '#2a2420', 0.012)
+    .build([-0.04, -0.22, -0.05], [0.04, 0.02, 0.03], C * 0.55);
+  return { eye: [0.042, 0.012, 0.03, 0.011, 0.9], body, head, headAt: [0, 0.51, 0.22], leg: leg(0.25, 0.046, (y: number) => (y < -0.2 ? '#d9d4cc' : c), '#2a2420', 0.035), legs: [[-0.055, 0.13], [0.055, 0.13], [-0.055, -0.13], [0.055, -0.13]], legLen: 0.25, tail, tailAt: [0, 0.4, -0.2] };
+}
+
+function buffalo(): CreatureParts {
+  // water buffalo: massive slate grey body, a heavy low head and sparse coarse hair
+  const c = (x: number, y: number, z: number) => (noise3(x * 24, y * 24, z * 24) > 0.7 ? '#4a4a4c' : '#343436');
+  const body = new Sculpt()
+    .add(ellipsoid(0, 0.35, 0, 0.14, 0.14, 0.24), c)
+    .add(sphere(0, 0.39, 0.12, 0.13), c, 0.07)
+    .add(sphere(0, 0.36, -0.14, 0.12), c, 0.07)
+    .add(capsule(0, 0.36, 0.18, 0, 0.35, 0.27, 0.09, 0.075), c, 0.06)
+    .build([-0.18, 0.15, -0.3], [0.18, 0.56, 0.35], C);
+  const head = new Sculpt()
+    .add(sphere(0, 0.02, 0, 0.07), c)
+    .add(capsule(0, 0.0, 0.03, 0, -0.05, 0.12, 0.065, 0.055), c, 0.04)
+    .add(ellipsoid(0, -0.06, 0.14, 0.058, 0.045, 0.04), '#2a2a2c', 0.03)
+    .carve(ellipsoid(0.024, -0.055, 0.178, 0.011, 0.013, 0.012))
+    .carve(ellipsoid(-0.024, -0.055, 0.178, 0.011, 0.013, 0.012))
+    .add(ellipsoid(0.085, 0.01, -0.01, 0.045, 0.016, 0.028), '#3a3a3c', 0.012)
+    .add(ellipsoid(-0.085, 0.01, -0.01, 0.045, 0.016, 0.028), '#3a3a3c', 0.012)
+    .build([-0.12, -0.12, -0.08], [0.12, 0.11, 0.2], C * 0.6);
+  const tail = new Sculpt().add(capsule(0, 0, 0, 0, -0.2, 0.01, 0.011, 0.008), '#343436').add(ellipsoid(0, -0.21, 0.01, 0.018, 0.03, 0.018), '#1a1a1a', 0.012).build([-0.04, -0.26, -0.04], [0.04, 0.02, 0.05], C * 0.55);
+  return { eye: [0.06, 0.03, 0.04, 0.013, 0.95], body, head, headAt: [0, 0.37, 0.3], leg: leg(0.2, 0.065, '#303032', '#1a1a1a', 0.035), legs: [[-0.085, 0.16], [0.085, 0.16], [-0.085, -0.16], [0.085, -0.16]], legLen: 0.2, tail, tailAt: [0, 0.44, -0.26] };
+}
+
+function peacock(): CreatureParts {
+  // blue peacock with a long green train covered in eye spots
+  const blue = '#1f4fb8';
+  const train = (x: number, y: number, z: number) => {
+    const u = x * 22, v = z * 14;
+    const fx = u - Math.round(u), fz = v - Math.round(v);
+    const d = Math.hypot(fx, fz);
+    return d < 0.14 ? '#1a2f8a' : d < 0.24 ? '#2a9a9a' : d < 0.32 ? '#e8c43a' : noise3(x * 30, y * 30, z * 30) > 0.5 ? '#2f7a3a' : '#3f8a3a';
+  };
+  const body = new Sculpt()
+    .add(ellipsoid(0, 0.17, 0, 0.065, 0.07, 0.1), (_x, _y, z) => (z < -0.05 ? '#8a7a5a' : blue))
+    .add(capsule(0, 0.2, 0.06, 0, 0.33, 0.085, 0.03, 0.02), blue, 0.03)
+    .add(ellipsoid(0, 0.12, -0.3, 0.09, 0.025, 0.24), train, 0.04)
+    .build([-0.12, 0.06, -0.56], [0.12, 0.38, 0.13], C * 0.7);
+  const head = new Sculpt()
+    .add(sphere(0, 0.012, 0, 0.026), (_x, y, z) => (Math.abs(y - 0.015) < 0.006 && z > 0.005 ? '#ffffff' : blue))
+    .add(capsule(0, 0.01, 0.02, 0, 0.005, 0.045, 0.008, 0.003), '#8a8a8a', 0.004)
+    .add(capsule(0, 0.03, -0.005, 0, 0.065, -0.01, 0.003, 0.002), '#2a4a9a', 0.003)
+    .add(sphere(0, 0.068, -0.01, 0.007), '#2a9a9a', 0.004)
+    .add(capsule(0.012, 0.03, -0.005, 0.02, 0.062, -0.015, 0.003, 0.002), '#2a4a9a', 0.003)
+    .add(sphere(0.02, 0.064, -0.015, 0.006), '#2a9a9a', 0.004)
+    .add(capsule(-0.012, 0.03, -0.005, -0.02, 0.062, -0.015, 0.003, 0.002), '#2a4a9a', 0.003)
+    .add(sphere(-0.02, 0.064, -0.015, 0.006), '#2a9a9a', 0.004)
+    .build([-0.04, -0.03, -0.04], [0.04, 0.09, 0.06], C * 0.35);
+  return { eye: [0.018, 0.016, 0.008, 0.005, 1.0], body, head, headAt: [0, 0.34, 0.09], leg: leg(0.12, 0.018, '#8a8a8a', '#6a6a6a', 0.01), legs: [[-0.028, 0], [0.028, 0]], legLen: 0.12, tail: null, tailAt: [0, 0, 0] };
+}
+
+function ostrich(): CreatureParts {
+  // big fluffy black body with white wing and tail plumes, bare pinkish neck and thighs
+  const plume = (x: number, y: number, z: number) => (z < -0.1 || (Math.abs(x) > 0.1 && y < 0.5) ? '#f2eee6' : '#1c1a18');
+  const body = new Sculpt()
+    .add(ellipsoid(0, 0.52, 0, 0.13, 0.11, 0.17), plume)
+    .add(ellipsoid(0, 0.55, -0.15, 0.09, 0.07, 0.07), '#f2eee6', 0.05)
+    .add(ellipsoid(0.11, 0.5, -0.02, 0.04, 0.07, 0.12), '#f2eee6', 0.03)
+    .add(ellipsoid(-0.11, 0.5, -0.02, 0.04, 0.07, 0.12), '#f2eee6', 0.03)
+    .add(capsule(0, 0.58, 0.12, 0, 0.93, 0.17, 0.035, 0.022), '#c9a8a0', 0.04)
+    .displace((x, y, z) => (y < 0.62 && z < 0.14 ? Math.pow(noise3(x * 50, y * 50, z * 50), 1.5) * 0.02 : 0))
+    .build([-0.18, 0.36, -0.26], [0.18, 0.98, 0.22], C);
+  const head = new Sculpt()
+    .add(sphere(0, 0.01, 0, 0.032), '#b89a92')
+    .add(ellipsoid(0, 0.0, 0.035, 0.018, 0.009, 0.03), '#8a7a6a', 0.008)
+    .build([-0.05, -0.04, -0.04], [0.05, 0.05, 0.08], C * 0.4);
+  return { eye: [0.024, 0.016, 0.012, 0.009, 1.0], body, head, headAt: [0, 0.95, 0.17], leg: leg(0.44, 0.045, (y: number) => (y > -0.12 ? '#d8b4aa' : '#b8968c'), '#8a7064', 0.03), legs: [[-0.05, 0], [0.05, 0]], legLen: 0.44, tail: null, tailAt: [0, 0, 0] };
+}
+
+const makers: Record<string, () => CreatureParts> = { turkey, donkey, buffalo, peacock, ostrich, cow, sheep, goat, horse, chicken, duck, rabbit, alpaca, goose, dog: dogParts };
 const cache = new Map<string, CreatureParts>();
 
 export function creature(kind: string) {
