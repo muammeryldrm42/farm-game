@@ -116,6 +116,8 @@ item('feather', 'Feather', '🪶', 'barn', 28, 6);
 item('goat_milk', 'Goat Milk', '🍼', 'barn', 70, 12);
 item('honey', 'Honey', '🍯', 'barn', 80, 13);
 item('horseshoe', 'Lucky Horseshoe', '🧲', 'barn', 95, 15);
+item('angora', 'Angora Fur', '🤍', 'barn', 65, 9);
+item('alpaca_wool', 'Alpaca Wool', '🦙', 'barn', 110, 14);
 item('goat_cheese', 'Goat Cheese', '🫕', 'barn', 180, 12);
 item('candle', 'Candle', '🕯️', 'barn', 190, 16);
 item('feather_pillow', 'Feather Pillow', '🛏️', 'barn', 230, 16);
@@ -150,6 +152,8 @@ item('sushi', 'Sushi', '🍣', 'barn', 230, 13);
 item('lobster_roll', 'Lobster Roll', '🥪', 'barn', 260, 14);
 item('cotton_shirt', 'Cotton Shirt', '👕', 'barn', 150, 14);
 item('hot_chili', 'Hot Chili', '🍲', 'barn', 240, 15);
+item('angora_hat', 'Angora Hat', '👒', 'barn', 170, 10);
+item('poncho', 'Poncho', '🧥', 'barn', 290, 14);
 
 export const ITEMS: Record<string, ItemDef> = Object.fromEntries(ITEM_LIST.map((i) => [i.id, i]));
 
@@ -209,6 +213,8 @@ recipe('strawberry_juice', 'juice_press', { strawberry: 3 }, 200, 10, 9);
 recipe('scarf', 'loom', { wool: 1 }, 180, 8, 10);
 recipe('sweater', 'loom', { wool: 2 }, 300, 13, 10);
 recipe('cotton_shirt', 'loom', { cotton: 3 }, 300, 14, 14);
+recipe('angora_hat', 'loom', { angora: 2 }, 240, 11, 10);
+recipe('poncho', 'loom', { alpaca_wool: 2, cotton: 1 }, 360, 17, 14);
 
 recipe('apple_pie', 'bakery', { apple: 3, wheat: 2, egg: 1 }, 240, 12, 7);
 recipe('apple_juice', 'juice_press', { apple: 3 }, 150, 8, 9);
@@ -240,6 +246,8 @@ export const ANIMALS: AnimalDef[] = [
   { id: 'duck', name: 'Duck', icon: '🦆', house: 'duck_pond', feed: 'duck_feed', product: 'feather', time: 120, xp: 3, cost: 60, level: 6 },
   { id: 'goat', name: 'Goat', icon: '🐐', house: 'goat_yard', feed: 'goat_feed', product: 'goat_milk', time: 200, xp: 5, cost: 180, level: 12 },
   { id: 'bee', name: 'Bee Colony', icon: '🐝', house: 'beehive', feed: 'sunflower', product: 'honey', time: 240, xp: 6, cost: 250, level: 13 },
+  { id: 'rabbit', name: 'Rabbit', icon: '🐇', house: 'rabbit_hutch', feed: 'carrot', product: 'angora', time: 180, xp: 4, cost: 120, level: 9 },
+  { id: 'alpaca', name: 'Alpaca', icon: '🦙', house: 'alpaca_ranch', feed: 'wheat', product: 'alpaca_wool', time: 320, xp: 8, cost: 320, level: 14 },
   { id: 'horse', name: 'Horse', icon: '🐎', house: 'stable', feed: 'carrot', product: 'horseshoe', time: 360, xp: 8, cost: 400, level: 15 },
 ];
 export const ANIMAL: Record<string, AnimalDef> = Object.fromEntries(ANIMALS.map((a) => [a.id, a]));
@@ -291,6 +299,8 @@ export const BUILDINGS: BuildingDef[] = [
   b({ id: 'duck_pond', name: 'Duck Pond', icon: '🦆', kind: 'pen', w: 3, h: 3, cost: 300, level: 6, xp: 15, height: 26, wall: '#8fc45a', roof: '#2e6da4', animal: 'duck', capacity: 5, desc: 'Home for up to 5 ducks.' }),
   b({ id: 'goat_yard', name: 'Goat Yard', icon: '🐐', kind: 'pen', w: 3, h: 3, cost: 1500, level: 12, xp: 45, height: 26, wall: '#b5a36a', roof: '#7a4b26', animal: 'goat', capacity: 5, desc: 'Home for up to 5 goats.' }),
   b({ id: 'beehive', name: 'Bee Garden', icon: '🐝', kind: 'pen', w: 2, h: 2, cost: 1600, level: 13, xp: 45, height: 26, wall: '#9ccc5a', roof: '#f5b92b', animal: 'bee', capacity: 4, desc: 'Up to 4 hives. Bees love sunflowers.' }),
+  b({ id: 'rabbit_hutch', name: 'Rabbit Hutch', icon: '🐇', kind: 'pen', w: 2, h: 2, cost: 900, level: 9, xp: 35, height: 26, wall: '#d9b98a', roof: '#c0392b', animal: 'rabbit', capacity: 5, desc: 'Fluffy rabbits give soft angora fur. They love carrots.' }),
+  b({ id: 'alpaca_ranch', name: 'Alpaca Ranch', icon: '🦙', kind: 'pen', w: 3, h: 3, cost: 2200, level: 14, xp: 55, height: 26, wall: '#a8cf6a', roof: '#7d5ba6', animal: 'alpaca', capacity: 5, desc: 'Alpacas grow warm wool. Feed them wheat.' }),
   b({ id: 'stable', name: 'Stable', icon: '🐎', kind: 'pen', w: 3, h: 3, cost: 2500, level: 15, xp: 60, height: 26, wall: '#c2a36b', roof: '#8e2c20', animal: 'horse', capacity: 5, desc: 'Up to 5 horses. Each horse adds 5% to order coins.' }),
   b({ id: 'workshop', name: 'Workshop', icon: '🛠️', kind: 'production', w: 2, h: 2, cost: 3000, level: 16, xp: 70, height: 58, wall: '#e8d3a8', roof: '#4a6a8a', desc: 'Crafts candles and pillows.' }),
 

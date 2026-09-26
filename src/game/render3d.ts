@@ -420,8 +420,9 @@ const HIT_MAT = new THREE.MeshBasicMaterial({ visible: false });
 const FARM_C = { x: 13.5 + MAP_OFF, y: 11.5 + MAP_OFF };
 const FRUIT_COLOR: Record<string, string> = { apple: '#e53935', cherry: '#b0102a', orange: '#ff9800' };
 const TREE_LEAF: Record<string, string> = { apple_tree: '#4f9e36', cherry_tree: '#3f8a3a', orange_tree: '#2f7d32' };
-const GRASSY_PEN = new Set(['pasture', 'sheepfold', 'beehive']);
+const GRASSY_PEN = new Set(['pasture', 'sheepfold', 'beehive', 'rabbit_hutch', 'alpaca_ranch']);
 const PEN_GROUND: Record<string, string> = {
+  rabbit_hutch: '#86c24f', alpaca_ranch: '#8fc45a',
   coop: '#d9c08a', pasture: '#86c24f', pigpen: '#94704a', sheepfold: '#9ccc5a',
   duck_pond: '#8fc45a', goat_yard: '#b8a46c', beehive: '#7fbf4f', stable: '#c9b27a',
 };
@@ -666,11 +667,17 @@ export class Renderer {
 
   private buildSea() {
     // island rectangle including the beach, used for shallow water and surf
-    this.sea = new THREE.Mesh(new THREE.PlaneGeometry(600, 600, 1, 1), makeWater({ sea: true, rect: [-0.75, -0.75, GRID + 0.75, GRID + 0.75], shallow: '#62d9d2', deep: '#1f78c2' }));
+    const seaMat = makeWater({ sea: true, rect: [-0.75, -0.75, GRID + 0.75, GRID + 0.75], shallow: '#62d9d2', deep: '#1f78c2' });
+    // finely divided near the island so the swell can move the surface, flat far away
+    this.sea = new THREE.Mesh(new THREE.PlaneGeometry(GRID + 60, GRID + 60, 180, 180), seaMat);
     this.sea.rotation.x = -Math.PI / 2;
     this.sea.position.set(GRID / 2, -0.55, GRID / 2);
     this.sea.receiveShadow = true;
     this.scene.add(this.sea);
+    const far = new THREE.Mesh(new THREE.PlaneGeometry(700, 700, 1, 1), seaMat);
+    far.rotation.x = -Math.PI / 2;
+    far.position.set(GRID / 2, -0.58, GRID / 2);
+    this.scene.add(far);
 
     // island body: grass top is made of tiles, then soil, then a sandy beach
     const isl = this.land;
@@ -1877,22 +1884,44 @@ function animalBody(kind: string) {
     case 'horse': eyes(head, 0.046, 0.015, 0.035, 0.014); break;
     case 'chicken': eyes(head, 0.035, 0.03, 0.058, 0.012, false); g.userData.peck = true; break;
     case 'duck': eyes(head, 0.035, 0.02, 0.037, 0.011, false); break;
+    case 'rabbit': eyes(head, 0.03, 0.012, 0.052, 0.013); g.userData.hop = true; break;
+    case 'alpaca': eyes(head, 0.032, 0.008, 0.066, 0.014); break;
   }
   return g;
 }
 
+// beehive skep: stacked straw coils rising to a rounded top
+let skep: THREE.BufferGeometry | null = null;
+function skepGeo() {
+  if (skep) return skep;
+  const pts: THREE.Vector2[] = [new THREE.Vector2(0, 0)];
+  const rings = 7;
+  for (let i = 0; i <= rings * 4; i++) {
+    const t = i / (rings * 4);
+    const base = 0.16 * Math.sqrt(Math.max(0, 1 - Math.pow(t, 2.2))) + 0.01;
+    const coil = Math.abs(Math.sin(t * rings * Math.PI)) * 0.012;
+    pts.push(new THREE.Vector2(base + coil, t * 0.27));
+  }
+  pts.push(new THREE.Vector2(0, 0.275));
+  skep = new THREE.LatheGeometry(pts, 24);
+  return skep;
+}
+
 function buildHive() {
   const g = new THREE.Group();
-  bx(g, 0.3, 0.06, 0.3, '#a8733f', 0, 0, 0);
-  bx(g, 0.26, 0.14, 0.26, '#fff1c4', 0, 0.06, 0);
-  bx(g, 0.26, 0.14, 0.26, '#f5d67a', 0, 0.2, 0);
-  bx(g, 0.32, 0.04, 0.32, '#d9a93f', 0, 0.34, 0);
-  bx(g, 0.08, 0.02, 0.01, '#3a2616', 0, 0.09, 0.131);
+  // a round straw skep on a little wooden stand
+  for (const [x, z] of [[-0.1, -0.1], [0.1, -0.1], [-0.1, 0.1], [0.1, 0.1]]) cyl(g, 0.015, 0.015, 0.08, '#8a5a33', x, 0, z, 6);
+  bxT(g, 0.34, 0.03, 0.34, 'planks', '#b98048', 0, 0.08, 0, 4);
+  mk(g, skepGeo(), surfaceMat('thatch', '#e8c160', 3, 0.9), 1, 1, 1, 0, 0.11, 0);
+  mk(g, G.ball, M('#3a2616'), 0.035, 0.028, 0.01, 0, 0.14, 0.14, false);
+  ball(g, 0.02, '#c9983a', 0, 0.39, 0, 1, 0.6, 1);
   const bees = group(g);
-  for (let i = 0; i < 3; i++) {
+  for (let i = 0; i < 4; i++) {
     const b = group(bees);
-    ball(b, 0.022, '#f5c518', 0, 0, 0, 1.2, 1, 1, false);
-    ball(b, 0.014, '#ffffff', 0, 0.02, 0, 1.4, 0.4, 0.8, false);
+    ball(b, 0.018, '#f5c518', 0, 0, 0, 0.9, 0.9, 1.3, false);
+    ball(b, 0.019, '#2a1a10', 0, 0, -0.008, 0.85, 0.85, 0.35, false);
+    ball(b, 0.014, '#e8f4ff', 0.012, 0.016, 0, 1.2, 0.35, 0.8, false);
+    ball(b, 0.014, '#e8f4ff', -0.012, 0.016, 0, 1.2, 0.35, 0.8, false);
   }
   g.userData.bees = bees;
   return g;
@@ -2221,6 +2250,28 @@ function buildPen(e: Entry, d: BuildingDef) {
       for (const x of [0.65, 1.1, 1.55]) bx(g, 0.28, 0.42, 0.03, '#6b3a22', x, 0.04, 0.88);
       e.top = 1.3;
       break;
+    case 'rabbit_hutch': {
+      // raised hutch with a wire front, a sloped roof and a ramp down to the grass
+      const hx = 0.62, hz = 0.5;
+      for (const [x, z] of [[-0.38, -0.2], [0.38, -0.2], [-0.38, 0.2], [0.38, 0.2]]) bx(g, 0.05, 0.3, 0.05, '#7a4a28', hx + x, 0, hz + z);
+      bxT(g, 0.86, 0.34, 0.5, 'boards', '#d9b98a', hx, 0.3, hz, 3);
+      const mesh = new THREE.MeshStandardMaterial({ color: '#9aa3ab', metalness: 0.5, roughness: 0.4 });
+      for (let i = 0; i < 9; i++) mk(g, G.box, mesh, 0.008, 0.26, 0.008, hx - 0.32 + i * 0.08, 0.47, hz + 0.255, false);
+      for (let i = 0; i < 4; i++) mk(g, G.box, mesh, 0.66, 0.008, 0.008, hx, 0.36 + i * 0.075, hz + 0.255, false);
+      bx(g, 0.72, 0.03, 0.03, '#7a4a28', hx, 0.33, hz + 0.26);
+      bx(g, 0.72, 0.03, 0.03, '#7a4a28', hx, 0.6, hz + 0.26);
+      const roofP = bxT(g, 1.0, 0.04, 0.66, 'planks', '#c0392b', hx, 0.66, hz, 3);
+      roofP.rotation.x = -0.18;
+      const ramp = bxT(g, 0.16, 0.02, 0.5, 'planks', '#b98048', hx + 0.5, 0.0, hz + 0.18, 4);
+      ramp.rotation.x = -0.62;
+      ramp.position.set(hx + 0.28, 0.14, hz + 0.42);
+      for (let i = 0; i < 4; i++) {
+        const c = mk(g, cylGeo(0.012, 0.004, 6), M('#f0862a'), 1, 0.08, 1, 1.45 + i * 0.05, 0.02, 1.62 - i * 0.03);
+        c.rotation.z = Math.PI / 2 - 0.2 + i * 0.1;
+      }
+      e.top = 1.0;
+      break;
+    }
     case 'beehive':
       for (let i = 0; i < 14; i++) {
         const x = 0.2 + hash(i, 4, 1) * 1.6, z = 0.2 + hash(i, 5, 1) * 1.6;
@@ -2281,6 +2332,9 @@ function buildPen(e: Entry, d: BuildingDef) {
           const ang = t / (400 + k * 90) + k * 2 + id;
           b.position.set(Math.cos(ang) * (0.25 + k * 0.05), 0.35 + Math.sin(t / 300 + k) * 0.08, Math.sin(ang) * (0.25 + k * 0.05));
           b.rotation.y = -ang;
+          const flap = Math.sin(t / 18 + k) * 0.6;
+          b.children[2].rotation.z = flap;
+          b.children[3].rotation.z = -flap;
         });
         return;
       }
@@ -2303,6 +2357,13 @@ function buildPen(e: Entry, d: BuildingDef) {
       m.position.set(sp.x, 0.04 + jump + Math.abs(Math.sin(t / 110 + id)) * 0.008, sp.z);
       m.rotation.y = sp.heading;
       animateLegs(m, Math.sin(t / 110 + id) * 0.28);
+      if (m.userData.hop) {
+        // rabbits bound along in little hops, then sit and twitch their ears
+        const hopping = Math.max(0, Math.sin(t / 2400 + id * 1.3));
+        m.position.y += Math.abs(Math.sin(t / 150 + id)) * 0.07 * hopping;
+        m.rotation.x = -Math.cos(t / 150 + id) * 0.25 * hopping * Math.sign(Math.sin(t / 150 + id));
+        if (head) head.rotation.z = Math.sin(t / 260 + id) * 0.12 * (1 - hopping);
+      }
       if (head) {
         const phase = Math.sin(t / 2600 + id * 1.7);
         if (m.userData.peck) head.rotation.x = Math.sin(t / 1500 + id) > 0.3 ? Math.pow(Math.max(0, Math.sin(t / 110 + id)), 4) * 0.9 : 0;
@@ -2587,7 +2648,7 @@ function buildDeco(e: Entry, d: BuildingDef) {
       break;
     case 'fountain': {
       mk(g, cylGeo(0.85, 0.9, 32), surfaceMat('stone', '#c2bcac', 8, 0.9, 1, 0.5), 1, 0.22, 1, 1, 0.11, 1);
-      mk(g, cylGeo(0.75, 0.75, 16), WATER, 1, 0.04, 1, 1, 0.2, 1, false);
+      mk(g, cylGeo(0.75, 0.75, 24), WATER, 1, 0.04, 1, 1, 0.215, 1, false);
       cyl(g, 0.1, 0.14, 0.6, '#bfb9a8', 1, 0.2, 1, 8);
       cyl(g, 0.34, 0.28, 0.08, '#cfcabb', 1, 0.75, 1, 12);
       mk(g, cylGeo(0.3, 0.3, 12), WATER, 1, 0.02, 1, 1, 0.83, 1, false);

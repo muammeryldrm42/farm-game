@@ -7,6 +7,8 @@ import { GTAOPass } from 'three/examples/jsm/postprocessing/GTAOPass.js';
 import { UnrealBloomPass } from 'three/examples/jsm/postprocessing/UnrealBloomPass.js';
 import { OutputPass } from 'three/examples/jsm/postprocessing/OutputPass.js';
 import { ShaderPass } from 'three/examples/jsm/postprocessing/ShaderPass.js';
+import { HorizontalTiltShiftShader } from 'three/examples/jsm/shaders/HorizontalTiltShiftShader.js';
+import { VerticalTiltShiftShader } from 'three/examples/jsm/shaders/VerticalTiltShiftShader.js';
 
 // Final color grade in display space: a little extra saturation and warmth, lifted shadows
 // and a soft vignette, for the bright storybook look of mobile farm games.
@@ -31,6 +33,9 @@ export class Post {
   composer: EffectComposer;
   ao: GTAOPass;
   bloom: UnrealBloomPass;
+  // a gentle tilt shift blur toward the top and bottom of the screen, for a miniature diorama look
+  private tiltH: ShaderPass;
+  private tiltV: ShaderPass;
 
   // `hide` lists objects that must not write into the AO depth and normal buffers (sky, sprites)
   constructor(gl: THREE.WebGLRenderer, scene: THREE.Scene, camera: THREE.PerspectiveCamera, hide: THREE.Object3D[]) {
@@ -59,12 +64,22 @@ export class Post {
     this.bloom = new UnrealBloomPass(new THREE.Vector2(size.x, size.y), 0.25, 0.55, 1.0);
     this.composer.addPass(this.bloom);
     this.composer.addPass(new OutputPass());
+    this.tiltH = new ShaderPass(HorizontalTiltShiftShader);
+    this.tiltV = new ShaderPass(VerticalTiltShiftShader);
+    for (const p of [this.tiltH, this.tiltV]) { p.uniforms.r.value = 0.52; this.composer.addPass(p); }
     this.composer.addPass(new ShaderPass(Grade));
+    this.setTilt(size.x, size.y);
+  }
+
+  private setTilt(w: number, h: number) {
+    this.tiltH.uniforms.h.value = 1.1 / Math.max(1, w);
+    this.tiltV.uniforms.v.value = 1.1 / Math.max(1, h);
   }
 
   setSize(w: number, h: number, dpr: number) {
     this.composer.setPixelRatio(dpr);
     this.composer.setSize(w, h);
+    this.setTilt(w * dpr, h * dpr);
   }
 
   render() {
