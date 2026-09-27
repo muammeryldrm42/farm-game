@@ -2172,7 +2172,41 @@ function mergeStatic(root: THREE.Object3D) {
 
 // Puts a sculpted creature together on pivots: legs swing from the hips, the head nods from
 // the neck and the tail swishes from its root.
+// Blender animals (tools/blender/animals.py): a body plus `head`, `leg0..3` and `tail` parts
+// already sitting on their pivots. Until a kind's model has loaded (or if it cannot load) the
+// sculpt stands in; pens rebuild their herd when a model arrives.
+const ANIMAL_MODELS = new Set(['cow', 'sheep', 'horse', 'chicken']);
+const animalSrc = new Map<string, THREE.Object3D>();
+let animalVer = 0;
+function animalModel(kind: string) {
+  if (!ANIMAL_MODELS.has(kind) || artStyle() !== 'toon') return null;
+  const src = animalSrc.get(kind);
+  if (!src && !modelCache.has(`animal_${kind}`)) {
+    loadModel(`animal_${kind}`).then((m) => { animalSrc.set(kind, m); animalVer++; }).catch(() => {});
+  }
+  return src ?? null;
+}
+function assembleModel(src: THREE.Object3D) {
+  const g = new THREE.Group();
+  const legs: THREE.Object3D[] = [];
+  for (const c of [...src.clone().children]) {
+    if (c.name === 'head') g.userData.head = c;
+    else if (c.name === 'tail') g.userData.tail = c;
+    else if (/^leg\d$/.test(c.name)) legs[+c.name.slice(3)] = c;
+    else if ((c as THREE.Mesh).isMesh) {
+      const bb = new THREE.Box3().setFromObject(c);
+      g.userData.shadow = contactShadow(g, (bb.max.x - bb.min.x) * 1.5, (bb.max.z - bb.min.z) * 1.25);
+    }
+    g.add(c);
+  }
+  g.userData.legs = legs;
+  g.userData.signs = legs.length === 4 ? [1, -1, -1, 1] : [1, -1];
+  return g;
+}
+
 function assemble(kind: string) {
+  const src = animalModel(kind);
+  if (src) return assembleModel(src);
   const g = new THREE.Group();
   const cp = creature(kind);
   if (!cp) return g;
@@ -3163,7 +3197,7 @@ function buildPen(e: Entry, d: BuildingDef) {
   // everything built so far is scenery: bake it before the (animated) herd joins the pen
   mergeStatic(g);
   const herd = keep(group(g));
-  let count = -1;
+  let count = -1, ver = animalVer;
   const an = ANIMAL[d.animal ?? ''];
   const fed = new Map<number, number | null>();
   const hop = new Map<number, number>();
@@ -3175,7 +3209,8 @@ function buildPen(e: Entry, d: BuildingDef) {
       if (sculptBudget <= 0) return;
       sculptBudget--;
     }
-    if (list.length !== count) {
+    if (list.length !== count || ver !== animalVer) {
+      ver = animalVer;
       const grew = count >= 0 && list.length > count;
       herd.clear();
       count = list.length;
