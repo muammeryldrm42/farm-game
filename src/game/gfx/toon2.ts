@@ -13,7 +13,7 @@ interface Cattle {
   tail?: string; tailTip?: string; extraHead?: (h: Sculpt, k: number) => void;
 }
 
-function cattle(o: Cattle): CreatureParts {
+export function cattle(o: Cattle): CreatureParts {
   const L = o.legLen ?? 0.17, dy = L - 0.17, sl = o.slim ?? 1, k = o.head ?? 1;
   const b = new Sculpt()
     .add(ellipsoid(0, 0.3 + dy, -0.01, 0.15 * sl, 0.135 * sl, 0.2), o.coat)
@@ -112,7 +112,7 @@ interface Small {
   locks?: string; skirt?: Paint; tuft?: string;
 }
 
-function smallRuminant(o: Small): CreatureParts {
+export function smallRuminant(o: Small): CreatureParts {
   const sheep = !!o.wool;
   const b = new Sculpt();
   if (sheep) {
@@ -163,7 +163,7 @@ function smallRuminant(o: Small): CreatureParts {
   };
 }
 
-const curlHorn = (x: number, color: string, r0 = 0.02) => ({
+export const curlHorn = (x: number, color: string, r0 = 0.02) => ({
   pts: [[x, 0.05, -0.01], [x + 0.04, 0.08, -0.04], [x + 0.07, 0.05, -0.05], [x + 0.08, 0.0, -0.02], [x + 0.06, -0.03, 0.02]] as Box[], r0, r1: 0.008, color,
 });
 
@@ -208,7 +208,7 @@ interface Walker {
   wing?: Paint; legLen: number; legColor: string; legTh?: number; tail?: Paint; extraHead?: (h: Sculpt) => void; extraBody?: (b: Sculpt) => void; fluffy?: boolean;
 }
 
-function walker(o: Walker): CreatureParts {
+export function walker(o: Walker): CreatureParts {
   const s = o.size ?? 1, nl = o.neckLen ?? 0.1, L = o.legLen, by = L + 0.07 * s;
   const b = new Sculpt()
     .add(ellipsoid(0, by, -0.01, 0.075 * s, 0.068 * s, 0.1 * s), o.body)

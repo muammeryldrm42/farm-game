@@ -1,5 +1,5 @@
 // Talons Farm - game state, persistence and all player actions
-import { ANIMAL, BUILDING, BUILDINGS, CROP, ITEMS, ITEM_LIST, RECIPE, type BuildingDef } from './data';
+import { ANIMAL, BUILDING, BUILDINGS, CATCHES, CROP, ITEMS, ITEM_LIST, RECIPE, type BuildingDef } from './data';
 import { isRaining } from './weather';
 
 export const GRID = 44;
@@ -252,11 +252,7 @@ export function fishingInfo(s: GameState, now: number) {
 
 // Everything that can bite at the fishing spot: [item, level, weight]. Rarer, later catches
 // carry smaller weights, so a golden fish stays a thrill even at level 200.
-export const CATCHES: [string, number, number][] = [
-  ['fish', 1, 40], ['salmon', 10, 20], ['lobster', 12, 14], ['crab', 14, 12], ['trout', 22, 12], ['tuna', 31, 10],
-  ['shrimp', 40, 10], ['squid', 52, 8], ['octopus', 64, 7], ['swordfish', 78, 6], ['eel', 92, 6], ['pufferfish', 108, 5],
-  ['stingray', 125, 4], ['marlin', 145, 3.5], ['pearl', 170, 3], ['golden_fish', 195, 1.5],
-];
+export { CATCHES };
 export function pickCatch(level: number, roll: number) {
   const open = CATCHES.filter(([, lv]) => level >= lv);
   let r = roll * open.reduce((a, [, , w]) => a + w, 0);
