@@ -828,10 +828,22 @@ export class Renderer {
       rocks.push(m.clone());
       cols.push(new THREE.Color('#9da3a8').offsetHSL(0, 0, (hash(i, 7, 21) - 0.5) * 0.18));
     }
-    const im = new THREE.InstancedMesh(G.rock, MF('#ffffff'), rocks.length);
+    const im = new THREE.InstancedMesh<THREE.BufferGeometry, THREE.Material | THREE.Material[]>(G.rock, MF('#ffffff'), rocks.length);
     rocks.forEach((mm, i) => { im.setMatrixAt(i, mm); im.setColorAt(i, cols[i]); });
     im.castShadow = true; im.receiveShadow = true;
     this.land.add(im);
+    if (artStyle() === 'toon') {
+      // the Blender boulder (tools/blender/world.py) takes over the shoreline rocks once loaded;
+      // its stone is painted already, so the tints only nudge each copy lighter or darker
+      loadModel('shore_rock').then((mdl) => {
+        const src = firstMesh(mdl);
+        if (!src) return;
+        im.geometry = src.geometry;
+        im.material = src.material;
+        cols.forEach((c, i) => im.setColorAt(i, c.setRGB(1, 1, 1).offsetHSL(0, 0, (hash(i, 7, 21) - 0.5) * 0.16)));
+        if (im.instanceColor) im.instanceColor.needsUpdate = true;
+      }).catch(() => {});
+    }
     const star = new THREE.Shape();
     for (let i = 0; i < 10; i++) {
       const a = (i / 10) * Math.PI * 2, r = i % 2 ? 0.4 : 1;
@@ -3718,6 +3730,14 @@ function buildDock(e: Entry, store: GameStore) {
   boat.add(sail);
   bx(boat, 0.01, 0.1, 0.16, '#e74c3c', 0, 1.42, 0.13);
   const crates = group(boat);
+  if (artStyle() === 'toon') {
+    // the Blender cargo boat (tools/blender/world.py) takes over the hull, mast and sail
+    const hull = boat.children.filter((c) => c !== crates);
+    loadModel('cargo_boat').then((m) => {
+      for (const c of hull) boat.remove(c);
+      boat.add(m.clone());
+    }).catch(() => {});
+  }
   const buoy = keep(ball(g, 0.07, '#e74c3c', 1.4, 0.1, 1.1));
   let key = '';
   e.top = 1.5;
@@ -4138,6 +4158,7 @@ function buildFishingSpot() {
   const root = new THREE.Group();
   const X = FISH_SPOT.x, Z0 = GRID + 0.25, Z1 = FISH_SPOT.y - 0.2;
   // jetty deck on posts
+  const n0 = root.children.length;
   const deck = new THREE.Mesh(meterBox(Z1 - Z0, 0.07, 0.7), surfaceMat('planks', '#c49660', 1.2));
   deck.rotation.y = Math.PI / 2;
   deck.position.set(X, -0.12, (Z0 + Z1) / 2);
@@ -4155,6 +4176,16 @@ function buildFishingSpot() {
   board.position.set(0, 0.72, 0);
   board.castShadow = true;
   sign.add(board);
+  // the Blender jetty (tools/blender/world.py) replaces the deck, piles and sign once loaded
+  const jettyStandIn = root.children.slice(n0);
+  if (artStyle() === 'toon') {
+    loadModel('fishing_jetty').then((m) => {
+      for (const c of jettyStandIn) root.remove(c);
+      const j = m.clone();
+      j.position.set(X, 0, Z0);
+      root.add(j);
+    }).catch(() => {});
+  }
   const lock = badge(root, '🔒', 0.3, X, 0.35, Z0 + 0.3);
   lock.rotation.x = -0.3;
   // chain rope across the jetty while locked
@@ -4179,6 +4210,7 @@ function buildFishingSpot() {
   mk(boat, new THREE.TorusGeometry(1, 0.06, 6, 24), M('#7a4a28'), 0.26, 0.55, 0.4, 0, 0.3, 0).rotation.x = Math.PI / 2;
   mk(boat, G.ball, M('#f4efe6'), 0.27, 0.05, 0.56, 0, 0.16, 0);
   bx(boat, 0.44, 0.03, 0.1, '#7a4a28', 0, 0.22, -0.12);
+  const hullStandIn = [...boat.children];
   const fisher = buildFarmer('#f2b134', '#3a5a40', '#3a5a40');
   fisher.position.set(0, 0.0, -0.12);
   fisher.scale.setScalar(0.9);
@@ -4187,6 +4219,21 @@ function buildFishingSpot() {
   const arms = fisher.userData.arms as THREE.Object3D[];
   arms.forEach((a) => { a.rotation.x = -1.1; });
   boat.add(fisher);
+  if (artStyle() === 'toon') {
+    // Blender rowboat and fisher, seated and holding the rod like the stand ins
+    loadModel('rowboat').then((m) => {
+      for (const c of hullStandIn) boat.remove(c);
+      boat.add(m.clone());
+    }).catch(() => {});
+    loadModel('fisher').then((m) => {
+      const fresh = farmerFromModel(m);
+      fisher.clear();
+      for (const c of [...fresh.children]) fisher.add(c);
+      Object.assign(fisher.userData, fresh.userData);
+      (fisher.userData.legs as THREE.Object3D[]).forEach((l) => { l.rotation.x = -1.4; });
+      (fisher.userData.arms as THREE.Object3D[]).forEach((a) => { a.rotation.x = -1.1; });
+    }).catch(() => {});
+  }
   const rod = group(boat, 0.08, 0.4, 0.1);
   mk(rod, cylGeo(0.006, 0.012, 5), M('#5a3a1a'), 1, 0.9, 1, 0, 0.45, 0);
   rod.rotation.x = 0.9;

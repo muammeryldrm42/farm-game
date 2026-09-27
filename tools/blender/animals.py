@@ -311,7 +311,7 @@ def chicken():
 
 # ---------------------------------------------------------------- the farmer
 
-def farmer():
+def farmer(fisher=False):
     """The farmer in a red plaid shirt, blue overalls, jeans, boots and a big straw hat. Parts:
     `leg0/1` at the hips, `body` (torso), `arm0/1` at the shoulders and `head` at the neck,
     on the pivots the game's walk cycle uses."""
@@ -321,9 +321,16 @@ def farmer():
     red, red_d, red_l = pm('plaid', '#d64541'), pm('plaid_d', '#8a2622'), pm('plaid_l', '#e8726c')
     denim = pm('denim', '#3b6fa8', '#4a7eb8', scale=60)
     jeans = pm('jeans', '#2f5d8a', '#3a6a98', scale=60)
+    if fisher:
+        # the fisher: a yellow raincoat over green waders
+        coat = pm('raincoat', '#f2b134', '#f6c04a', scale=40)
+        red = red_d = red_l = coat
+        denim = jeans = pm('waders', '#3a5a40', '#46684c', scale=60)
     boot, brass = pm('boot', '#6a3e1c', '#7a4a24', scale=30), pm('button', '#f2d16b', rough=0.3, metal=0.6)
     straw = pm('straw_hat', '#efc95e', '#f6d676', scale=50, kind='wave', stretch=(1, 1, 5))
     band = pm('hat_band', '#c0392b')
+    if fisher:
+        straw = band = pm('sou_wester', '#f2b134', '#f6c04a', scale=40)
 
     def plaid(x, y, z):
         a, b = _m.sin(x * 160) > 0.55, _m.sin(y * 160) > 0.55
@@ -396,7 +403,7 @@ def farmer():
             cyl(uid('hat'), r, h, B(hc[0] + c[0], hc[1] + c[1], hc[2] + c[2]), mat_, verts=32, r2=r2, rot=(tilt, 0, 0))
         c = rot((0, 0.1, -0.01))
         ball(uid('crown'), 0.14, B(hc[0] + c[0], hc[1] + c[1], hc[2] + c[2]), straw, scale=(1, 1, 0.85), segs=18)
-    finish('farmer', tex=512, vivid=1.1, ao_min=0.82, ao_dist=0.05)
+    finish('fisher' if fisher else 'farmer', tex=512, vivid=1.1, ao_min=0.82, ao_dist=0.05)
 
 
 # ---------------------------------------------------------------- the rest, from the game's sculpts
@@ -480,7 +487,8 @@ def from_sculpt(kind):
     finish(f'animal_{kind}', tex=512, vivid=1.08, ao_min=0.62, ao_dist=0.1)
 
 
-MODELS = {'animal_cow': cow, 'animal_sheep': sheep, 'animal_horse': horse, 'animal_chicken': chicken, 'farmer': farmer}
+MODELS = {'animal_cow': cow, 'animal_sheep': sheep, 'animal_horse': horse, 'animal_chicken': chicken, 'farmer': farmer,
+          'fisher': lambda: farmer(fisher=True)}
 if os.path.isdir(SCULPTS):
     for f in sorted(os.listdir(SCULPTS)):
         k = f[:-5]
