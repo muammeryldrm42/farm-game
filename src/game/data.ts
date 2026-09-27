@@ -153,7 +153,7 @@ item('wool', 'Wool', '🧶', 'barn', 60, 10);
 item('feather', 'Feather', '🪶', 'barn', 28, 6);
 item('goat_milk', 'Goat Milk', '🍼', 'barn', 70, 12);
 item('honey', 'Honey', '🍯', 'barn', 80, 13);
-item('horseshoe', 'Lucky Horseshoe', '🧲', 'barn', 95, 15);
+item('horseshoe', 'Mare Milk', '🥛', 'barn', 95, 15);
 item('goose_egg', 'Goose Egg', '🪺', 'barn', 55, 11);
 item('gobbler_feather', 'Gobbler Feather', '@gobbler_feather', 'barn', 45, 10);
 item('donkey_milk', 'Donkey Milk', '@donkey_milk', 'barn', 60, 13);
@@ -201,7 +201,7 @@ item('llama_wool', 'Llama Wool', '@llama_wool', 'barn', 390, 118);
 item('golden_egg', 'Golden Egg', '@golden_egg', 'barn', 800, 200);
 // ---- more farm animals, spread between levels 21 and 182
 item('silkie_egg', 'Silkie Egg', '@silkie_egg', 'barn', 116, 21);
-item('rosette', 'Show Rosette', '🏵️', 'barn', 125, 24);
+item('rosette', 'Pony Milk', '🥛', 'barn', 125, 24);
 item('black_wool', 'Black Wool', '@black_wool', 'barn', 130, 26);
 item('jersey_milk', 'Jersey Milk', '@jersey_milk', 'barn', 136, 28);
 item('muscovy_egg', 'Muscovy Egg', '@muscovy_egg', 'barn', 142, 30);
@@ -562,7 +562,7 @@ item('grouper', 'Grouper', '@grouper', 'barn', 418, 150);
 item('sapodilla', 'Sapodilla', '🟤', 'silo', 196, 151);
 item('sapodilla_tart', 'Sapodilla Tart', '🥧', 'barn', 592, 152);
 item('habanero', 'Habanero', '🌶️', 'silo', 355, 153);
-item('show_ribbon', 'Show Ribbon', '🎀', 'barn', 359, 154);
+item('show_ribbon', 'Appaloosa Milk', '🥛', 'barn', 359, 154);
 item('clownfish', 'Clownfish', '@clownfish', 'barn', 431, 155);
 item('soursop', 'Soursop', '🟢', 'silo', 202, 156);
 item('soursop_juice', 'Soursop Juice', '🧃', 'barn', 629, 157);
@@ -588,7 +588,7 @@ item('lionfish', 'Lionfish', '@lionfish', 'barn', 493, 179);
 item('mamey', 'Mamey', '🟤', 'silo', 228, 180);
 item('mamey_sorbet', 'Mamey Sorbet', '🍨', 'barn', 734, 182);
 item('gerbera', 'Gerbera', '🌼', 'silo', 421, 183);
-item('draft_rosette', 'Draft Rosette', '🏵️', 'barn', 425, 184);
+item('draft_rosette', 'Clydesdale Milk', '🥛', 'barn', 425, 184);
 item('sturgeon', 'Sturgeon', '@sturgeon', 'barn', 509, 185);
 item('salak', 'Snake Fruit', '🟤', 'silo', 235, 186);
 item('snake_fruit_tart', 'Snake Fruit Tart', '🥧', 'barn', 705, 187);
@@ -650,7 +650,7 @@ item('karakul_wool', 'Karakul Wool', '🧶', 'barn', 359, 154);
 item('cobia', 'Cobia', '@cobia', 'barn', 434, 156);
 item('ackee', 'Ackee', '🔴', 'silo', 205, 159);
 item('triggerfish', 'Triggerfish', '@triggerfish', 'barn', 447, 161);
-item('golden_ribbon', 'Golden Ribbon', '🎗️', 'barn', 381, 164);
+item('golden_ribbon', 'Palomino Milk', '🥛', 'barn', 381, 164);
 item('salsify', 'Salsify', '🥕', 'silo', 384, 166);
 item('butterflyfish', 'Butterflyfish', '@butterflyfish', 'barn', 473, 171);
 item('chocolate_egg', 'Chocolate Egg', '🥚', 'barn', 401, 173);
@@ -661,7 +661,7 @@ item('dexter_butter', 'Dexter Butter', '🧈', 'barn', 427, 185);
 item('boxfish', 'Boxfish', '@boxfish', 'barn', 514, 187);
 item('ugli_fruit', 'Ugli Fruit', '🍊', 'silo', 239, 190);
 item('lupin', 'Lupin', '🪻', 'silo', 441, 192);
-item('black_plume', 'Black Plume', '🪶', 'barn', 453, 197);
+item('black_plume', 'Friesian Milk', '🥛', 'barn', 453, 197);
 item('sailfish', 'Sailfish', '@sailfish', 'barn', 545, 199);
 item('chili_pepper_latte', 'Chili Pepper Latte', '☕', 'barn', 170, 21);
 item('chili_pepper_chai', 'Chili Pepper Chai', '☕', 'barn', 147, 25);
@@ -1587,7 +1587,7 @@ export const BUILDINGS: BuildingDef[] = [
   b({ id: 'flamingo_lagoon', name: 'Flamingo Lagoon', icon: '🦩', kind: 'pen', w: 3, h: 2, cost: 18000, level: 96, xp: 240, height: 26, wall: '#8fc45a', roof: '#f28ab0', animal: 'flamingo', capacity: 4, desc: 'Pink flamingos wade in a warm lagoon.' }),
   b({ id: 'llama_ranch', name: 'Llama Ranch', icon: '@llama', kind: 'pen', w: 3, h: 2, cost: 23000, level: 118, xp: 280, height: 26, wall: '#8fc45a', roof: '#c0392b', animal: 'llama', capacity: 4, desc: 'Proud llamas in bright tassels grow fine wool.' }),
   b({ id: 'silkie_coop', name: 'Silkie Coop', icon: '@silkie_chicken', kind: 'pen', w: 2, h: 2, cost: 6700, level: 21, xp: 98, height: 26, wall: '#e3cf94', roof: '#e88aa8', animal: 'silkie_chicken', capacity: 6, desc: 'Fluffy silkie hens lay small cream eggs.' }),
-  b({ id: 'pony_paddock', name: 'Pony Paddock', icon: '🐴', kind: 'pen', w: 3, h: 2, cost: 7300, level: 24, xp: 103, height: 26, wall: '#9ccc5a', roof: '#c0392b', animal: 'pony', capacity: 4, desc: 'Shetland ponies win show rosettes. They love carrots.' }),
+  b({ id: 'pony_paddock', name: 'Pony Paddock', icon: '🐴', kind: 'pen', w: 3, h: 2, cost: 7300, level: 24, xp: 103, height: 26, wall: '#9ccc5a', roof: '#c0392b', animal: 'pony', capacity: 4, desc: 'Shetland ponies give creamy milk. They love carrots.' }),
   b({ id: 'black_sheepfold', name: 'Black Sheep Fold', icon: '@black_sheep', kind: 'pen', w: 3, h: 2, cost: 7700, level: 26, xp: 107, height: 26, wall: '#9ccc5a', roof: '#34495e', animal: 'black_sheep', capacity: 5, desc: 'Every flock needs one. Gives soft black wool.' }),
   b({ id: 'jersey_pasture', name: 'Jersey Pasture', icon: '🐮', kind: 'pen', w: 3, h: 2, cost: 8100, level: 28, xp: 110, height: 26, wall: '#86c24f', roof: '#8a5a34', animal: 'jersey_cow', capacity: 5, desc: 'Gentle fawn cows with big eyes and rich milk.' }),
   b({ id: 'muscovy_pond', name: 'Muscovy Pond', icon: '@muscovy_duck', kind: 'pen', w: 3, h: 2, cost: 8500, level: 30, xp: 114, height: 26, wall: '#8fc45a', roof: '#2e6da4', animal: 'muscovy_duck', capacity: 5, desc: 'Hardy ducks with red faces. They lay big eggs.' }),

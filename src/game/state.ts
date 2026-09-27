@@ -156,7 +156,8 @@ export function animalReady(a: { fedAt: number | null }, time: number, now: numb
 // ---------------------------------------------------------------- grazing
 // A trip out of the pen: a walk to the pasture, a meal, and a walk home. Times are fixed so the
 // rules stay a pure function of time (offline too); the renderer paces the walks to fit.
-export const GRAZE = { walkMs: 12e3, eatMs: 45e3, beeEatMs: 35e3 };
+// grazing is slow and free; the feed trough is quick and costs feed
+export const GRAZE = { walkMs: 12e3, eatMs: 450e3, beeEatMs: 350e3 };
 
 export function grazePhase(a: Animal, now: number, bee = false) {
   const g = a.graze;
@@ -746,8 +747,9 @@ export class GameStore {
         return;
       case 'pen': {
         const pi = penInfo(o, now);
+        // collect when ready; feeding is the player's choice (the Feed button), so animals that
+        // came home hungry from grazing are not fed behind their back
         if (pi.ready) this.collectPen(o);
-        else if (pi.hungry && (this.s.inv[pi.animal.feed] ?? 0) > 0) this.feedPen(o);
         this.select(o.id);
         return;
       }
@@ -1459,14 +1461,16 @@ export class GameStore {
     for (const o of this.s.objects) {
       if (!o.pen) continue;
       const bee = BUILDING[o.type].animal === 'bee';
-      let fedN = 0;
+      let fedN = 0, hungryN = 0;
       for (const a of o.pen.animals) {
         if (!a.graze) continue;
         const gp = grazePhase(a, now, bee);
-        if (gp.phase === 'home') { delete a.graze; changed = true; }
+        // called back before the meal was over: home, but still hungry
+        if (gp.phase === 'home') { delete a.graze; hungryN++; changed = true; }
         else if (gp.phase === 'full') { a.fedAt = gp.doneAt; delete a.graze; fedN++; changed = true; }
       }
       if (fedN) this.float(o, bee ? `🍯 ${fedN} bees full of nectar` : `😋 ${fedN} full and home`, '#ffffff', 40);
+      if (hungryN) this.float(o, `🍽️ ${hungryN} home, still hungry`, '#ffffff', 40);
     }
     return changed;
   }

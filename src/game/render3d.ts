@@ -588,7 +588,7 @@ export class Renderer {
     GRAZE_NAV = {
       path: (sx, sy, tx, ty) => { this.rebuildNav(); return this.findPath(sx, sy, tx, ty); },
       nearest: (x, y) => { this.rebuildNav(); return this.nearestFree(x, y); },
-      grass: (x, y) => { this.rebuildNav(); return this.free(x, y) && !pathTiles.has(y * GRID + x); },
+      grass: (x, y) => { this.rebuildNav(); return this.free(x, y) && !pathTiles.has(y * GRID + x) && !fieldTiles.has(y * GRID + x); },
       flowers: () => this.flowerSpots(),
     };
     // the farmer and pets start as sculpts and take on their Blender models once loaded
@@ -1692,11 +1692,13 @@ export class Renderer {
     this.nav.fill(0);
     for (let y = 0; y < GRID; y++) for (let x = 0; x < GRID; x++) if (!this.store.isUnlocked(x, y)) this.nav[y * GRID + x] = 1;
     pathTiles.clear();
+    fieldTiles.clear();
     for (const o of s.objects) {
       const d = BUILDING[o.type];
       // paths are for walking on
       if (WALKABLE.has(o.type)) {
         if (o.type === 'dirt_path') pathTiles.add(o.y * GRID + o.x);
+        if (o.type === 'plot') fieldTiles.add(o.y * GRID + o.x);
         continue;
       }
       for (let j = 0; j < d.h; j++) for (let i = 0; i < d.w; i++) {
@@ -1732,15 +1734,18 @@ export class Renderer {
     if (start === goal) return [];
     const gs = new Float32Array(N).fill(Infinity), from = new Int32Array(N).fill(-1), closed = new Uint8Array(N);
     const open: number[] = [start];
+    const inOpen = new Uint8Array(N);
+    inOpen[start] = 1;
     const fs = new Float32Array(N).fill(Infinity);
     const hh = (i: number) => { const dx = Math.abs((i % GRID) - tx), dy = Math.abs(Math.floor(i / GRID) - ty); return Math.max(dx, dy) + 0.41 * Math.min(dx, dy); };
     gs[start] = 0; fs[start] = hh(start);
     let guard = 0;
-    while (open.length && guard++ < 6000) {
+    while (open.length && guard++ < 20000) {
       let bi = 0;
       for (let i = 1; i < open.length; i++) if (fs[open[i]] < fs[open[bi]]) bi = i;
       const cur = open[bi];
       open.splice(bi, 1);
+      inOpen[cur] = 0;
       if (cur === goal) break;
       closed[cur] = 1;
       const cx = cur % GRID, cy = Math.floor(cur / GRID);
@@ -1754,7 +1759,7 @@ export class Renderer {
         const ng = gs[cur] + (dx && dy ? 1.414 : 1);
         if (ng < gs[ni]) {
           gs[ni] = ng; fs[ni] = ng + hh(ni); from[ni] = cur;
-          if (!open.includes(ni)) open.push(ni);
+          if (!inOpen[ni]) { open.push(ni); inOpen[ni] = 1; }
         }
       }
     }
@@ -1782,15 +1787,35 @@ export class Renderer {
   }
 
   // called when the player taps free farmland
+  // Send the farmer (and the dog) to a tile. When the tile itself is taken or cannot be reached
+  // they go as close as they can, trying the nearest free tiles first.
   walkTo(tx: number, ty: number) {
     this.rebuildNav();
     const f = this.farmer, g = this.dog;
     f.inside = false;
     g.sleeping = false;
-    if (!this.send(f, tx, ty)) return;
-    const ds = this.dogSpot(tx, ty);
+    const goal = this.send(f, tx, ty) ? { x: tx, y: ty } : this.sendNear(f, tx, ty);
+    if (!goal) return;
+    const ds = this.dogSpot(goal.x, goal.y);
     if (ds) this.send(g, ds.x, ds.y);
-    this.showMarker(tx + 0.5, ty + 0.5);
+    this.showMarker(goal.x + 0.5, goal.y + 0.5);
+  }
+
+  // walk up to a building: to the free tile nearest the middle of its front
+  walkToObject(o: FarmObject) {
+    const d = BUILDING[o.type];
+    this.walkTo(o.x + Math.floor(d.w / 2), o.y + d.h);
+  }
+
+  private sendNear(a: Actor, tx: number, ty: number) {
+    const cands: { x: number; y: number; d: number }[] = [];
+    for (let r = 1; r <= 8; r++) for (let dy = -r; dy <= r; dy++) for (let dx = -r; dx <= r; dx++) {
+      if (Math.max(Math.abs(dx), Math.abs(dy)) !== r || !this.free(tx + dx, ty + dy)) continue;
+      cands.push({ x: tx + dx, y: ty + dy, d: dx * dx + dy * dy });
+    }
+    cands.sort((p, q) => p.d - q.d);
+    for (const c of cands.slice(0, 24)) if (this.send(a, c.x, c.y)) return { x: c.x, y: c.y };
+    return null;
   }
 
   private showMarker(x: number, z: number) {
@@ -4157,7 +4182,10 @@ function groundGlow(g: P, x: number, z: number, size: number) {
 
 // Path tiles, refreshed with the walk grid. Paths never block the farmer.
 const pathTiles = new Set<number>();
-const WALKABLE = new Set(['dirt_path', 'stone_path']);
+// tiles people can walk over: paths, and fields (the farmer and the dog step between the rows)
+const WALKABLE = new Set(['dirt_path', 'stone_path', 'plot']);
+// fields are walkable but no place to graze
+const fieldTiles = new Set<number>();
 // One material per neighbor mask (north 1, east 2, south 4, west 8): a round center plus arms
 // running to each connected side, drawn soft so tiles blend into one winding path.
 const pathMats = new Map<number, THREE.Material>();
