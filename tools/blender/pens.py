@@ -9,7 +9,7 @@ import random
 import sys
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-from kit import (Face, ball, bark_mat, box, capture, clump, crate, cyl, door, finish, hay_bale, leaf_mats, main, oak,  # noqa: E402
+from kit import (Face, anim_group, ball, bark_mat, box, capture, clump, crate, cyl, door, finish, hay_bale, leaf_mats, main, oak,  # noqa: E402
                  palm, pine, place, pm, profile_roof, rock, roof_plane, shingles, snow, std, torus, uid, walls, window)
 from common import obox  # noqa: E402
 
@@ -120,18 +120,21 @@ def fence(m, style):
 
 
 def gate(m, y, w, mat):
-    """A closed two leaf gate with a diagonal brace in each leaf."""
+    """A two leaf gate with a diagonal brace in each leaf. Each leaf is its own node (`gate0`,
+    `gate1`) hinged at its post, so the game can swing it open when the animals go out."""
     for sx in (-1, 1):
         cx = sx * w / 4
-        for z in (0.12, 0.34):
-            box(uid('gr'), (w / 2 - 0.04, 0.03, 0.045), (cx, y, z), mat, bev=0.008)
-        for u in (-1, 1):
-            box(uid('gs'), (0.04, 0.03, 0.3), (cx + u * (w / 4 - 0.04), y, 0.23), mat, bev=0.006)
-        a = math.atan2(0.22, w / 2 - 0.1)
-        ln = math.hypot(0.22, w / 2 - 0.1)
-        obox(uid('gb'), (cx, y, 0.23), ((math.cos(a) * sx, 0, math.sin(a)), (0, 1, 0), (-math.sin(a) * sx, 0, math.cos(a))),
-             (ln, 0.025, 0.035), mat, bev=0.006)
-    box(uid('latch'), (0.05, 0.035, 0.03), (0, y - 0.02, 0.28), m['iron'], bev=0)
+        with anim_group(f'gate{0 if sx < 0 else 1}', (sx * w / 2, y, 0)):
+            for z in (0.12, 0.34):
+                box(uid('gr'), (w / 2 - 0.04, 0.03, 0.045), (cx, y, z), mat, bev=0.008)
+            for u in (-1, 1):
+                box(uid('gs'), (0.04, 0.03, 0.3), (cx + u * (w / 4 - 0.04), y, 0.23), mat, bev=0.006)
+            a = math.atan2(0.22, w / 2 - 0.1)
+            ln = math.hypot(0.22, w / 2 - 0.1)
+            obox(uid('gb'), (cx, y, 0.23), ((math.cos(a) * sx, 0, math.sin(a)), (0, 1, 0), (-math.sin(a) * sx, 0, math.cos(a))),
+                 (ln, 0.025, 0.035), mat, bev=0.006)
+            if sx > 0:
+                box(uid('latch'), (0.05, 0.035, 0.03), (0.02, y - 0.02, 0.28), m['iron'], bev=0)
 
 
 # ---------------------------------------------------------------- shelters and props

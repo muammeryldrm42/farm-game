@@ -21,7 +21,7 @@ import { SCULPT_MAT, TOON_MAT, TOON_WOOL, WOOL_MAT } from './gfx/sdf';
 import { leafShell, leafTexture, meterBox, meterHip, meterRoof, surface, surfaceMat, type SurfaceKind } from './gfx/textures';
 import { ANIMAL, BUILDING, CROP, ITEMS, type BuildingDef, type CropDef } from './data';
 import {
-  CHUNK, FISH_SPOT, GRID, MAP_OFF, NCH, animalReady, fishingInfo, boatState, canFulfill, chunkState, grazePhase, penInfo, plotProgress, prodInfo, treeInfo,
+  CHUNK, FISH_SPOT, GRAZE, GRID, MAP_OFF, NCH, animalReady, fishingInfo, boatState, canFulfill, chunkState, grazePhase, penInfo, plotProgress, prodInfo, treeInfo,
   type Animal, type FarmObject, type GameStore,
 } from './state';
 
@@ -2846,12 +2846,15 @@ function useModel(e: Entry, o: FarmObject, d: BuildingDef) {
     }
     const puffs: ((on: boolean, t: number) => void)[] = [];
     const movers: { o: THREE.Object3D; spin: boolean; axis: 'x' | 'y' | 'z'; base: number }[] = [];
+    // pen gates: two leaves hinged at their posts that swing out while animals go through
+    const gates: { o: THREE.Object3D; side: number; base: number }[] = [];
     for (const c of m.children) {
       const x = cx + c.position.x, y = c.position.y, z = cz + c.position.z;
       const mv = /^(spin|sway)([XYZ])/.exec(c.name);
       if (c.name.startsWith('smoke')) puffs.push(smoke(g, x, y, z));
       else if (c.name.startsWith('glow')) groundGlow(g, x, z, 1.1 * c.scale.x);
       else if (c.name === 'badge') badge(g, d.icon, spec.badge ?? 0.3, x, y, z, c.rotation.y).translateZ(0.01);
+      else if (c.name === 'gate0' || c.name === 'gate1') gates.push({ o: c, side: c.name === 'gate0' ? -1 : 1, base: c.rotation.y });
       else if (mv) {
         const axis = mv[2].toLowerCase() as 'x' | 'y' | 'z';
         movers.push({ o: c, spin: mv[1] === 'spin', axis, base: c.rotation[axis] });
@@ -2868,6 +2871,10 @@ function useModel(e: Entry, o: FarmObject, d: BuildingDef) {
       const busy = d.kind === 'production' && !!prodInfo(o, now).current;
       const on = mode === 'always' || busy;
       puffs.forEach((p, i) => p(on, t + i * 700));
+      if (gates.length) {
+        const g = gateOpen(o, now), s = g * g * (3 - 2 * g);
+        for (const gl of gates) gl.o.rotation.y = gl.base + gl.side * s * 1.45;
+      }
       for (const v of movers) {
         if (v.spin) { if (mode === 'always' || busy) v.o.rotation[v.axis] += dt * 2.4; }
         else v.o.rotation[v.axis] = v.base + Math.sin(t / 2300 + e.id) * 0.6 + Math.sin(t / 830) * 0.08;
@@ -3208,6 +3215,10 @@ function tripFor(o: FarmObject, d: BuildingDef, a: Animal): Trip | null {
   if (!tr) {
     const sp = animalSpot(d, a.id, a.graze.at);
     const home = { x: o.x + sp.x, y: o.y + sp.z };
+    // it walks back in to where its usual wander has got to by the time it arrives, so it carries
+    // on from there without a jump
+    const sp2 = animalSpot(d, a.id, a.graze.at + 2 * GRAZE.walkMs + GRAZE.eatMs);
+    const home2 = { x: o.x + sp2.x, y: o.y + sp2.z };
     const gateIn = { x: o.x + d.w / 2, y: o.y + d.h - 0.3 };
     const gateOut = { x: o.x + d.w / 2, y: o.y + d.h + 0.45 };
     const g0 = GRAZE_NAV.nearest(Math.floor(gateOut.x), Math.floor(gateOut.y)) ?? tileOf(gateOut);
@@ -3217,7 +3228,7 @@ function tripFor(o: FarmObject, d: BuildingDef, a: Animal): Trip | null {
       let best: P2 | null = null;
       for (let tries = 0; tries < 14 && !best; tries++) {
         const ang = hash(a.id, a.graze.at % 100000, k * 17 + tries) * Math.PI * 2;
-        const r = 2 + hash(a.id, k, tries + 5) * 4;
+        const r = 1.5 + hash(a.id, k, tries + 5) * 2.5;
         const tx = Math.floor(g0.x + Math.cos(ang) * r), ty = Math.floor(g0.y + Math.abs(Math.sin(ang)) * r * 0.9 + 0.5);
         if (GRAZE_NAV.grass(tx, ty)) best = { x: tx + 0.3 + hash(a.id, tx, ty) * 0.4, y: ty + 0.3 + hash(a.id, ty, tx) * 0.4 };
       }
@@ -3225,7 +3236,7 @@ function tripFor(o: FarmObject, d: BuildingDef, a: Animal): Trip | null {
     }
     const out = [home, gateIn, gateOut, ...walk(gateOut, spots[0]).slice(1)];
     const eat = [walk(spots[0], spots[1]), walk(spots[1], spots[2])];
-    const back = [...walk(spots[2], gateOut), gateIn, home];
+    const back = [...walk(spots[2], gateOut), gateIn, home2];
     tr = { out, eat, back };
     if (trips.size > 400) trips.clear();
     trips.set(key, tr);
@@ -3233,33 +3244,55 @@ function tripFor(o: FarmObject, d: BuildingDef, a: Animal): Trip | null {
   return tr;
 }
 
+// Animals walk at a steady pace; a leg of the trip that fits its time budget early leaves the
+// animal standing (grazing) for the rest, and only a leg too long for its budget is walked faster.
+const WALK_SPEED = 0.55 / 1000; // tiles per ms
+function walkLeg(pts: P2[], t: number, budget: number, late = false) {
+  const need = polyLen(pts) / WALK_SPEED, dur = Math.min(need, budget);
+  const t0 = late ? budget - dur : 0;
+  const u = dur > 0 ? (t - t0) / dur : 1;
+  return { pt: along(pts, u), moving: u > 0 && u < 1 };
+}
+
 // where a grazing animal is at time `now`: world x, y, heading, walking or eating
 function grazePose(o: FarmObject, d: BuildingDef, a: Animal, now: number): { x: number; y: number; heading: number; moving: boolean } | null {
   const tr = tripFor(o, d, a);
   if (!tr) return null;
   const gp = grazePhase(a, now);
-  let pt: { x: number; y: number; dx: number; dy: number }, moving = true;
-  if (gp.phase === 'leaving') pt = along(tr.out, gp.k);
+  const { walkMs, eatMs } = GRAZE;
+  let leg: { pt: { x: number; y: number; dx: number; dy: number }; moving: boolean };
+  if (gp.phase === 'leaving') leg = walkLeg(tr.out, gp.k * walkMs, walkMs);
   else if (gp.phase === 'eating') {
-    // stand and eat, stroll to the next patch, eat, stroll, eat
-    const k = gp.k;
-    if (k < 0.3) { pt = along(tr.eat[0], 0); moving = false; }
-    else if (k < 0.4) pt = along(tr.eat[0], (k - 0.3) / 0.1);
-    else if (k < 0.65) { pt = along(tr.eat[1], 0); moving = false; }
-    else if (k < 0.75) pt = along(tr.eat[1], (k - 0.65) / 0.1);
-    else { pt = along(tr.eat[1], 1); moving = false; }
+    // eat, stroll to the next patch, eat, stroll, eat
+    const te = gp.k * eatMs;
+    if (te < 0.3 * eatMs) leg = { pt: along(tr.eat[0], 0), moving: false };
+    else if (te < 0.65 * eatMs) leg = walkLeg(tr.eat[0], te - 0.3 * eatMs, 0.35 * eatMs);
+    else leg = walkLeg(tr.eat[1], te - 0.65 * eatMs, 0.35 * eatMs);
   } else if (gp.phase === 'returning' && a.graze?.back !== undefined) {
     // called home early: from wherever it was, the shortest way back through the gate
     if (!tr.recall || tr.recall.at !== a.graze.back) {
       const from = grazePose(o, d, { ...a, graze: { at: a.graze.at } }, a.graze.back) ?? { x: o.x, y: o.y };
-      const sp = animalSpot(d, a.id, a.graze.at);
+      const sp = animalSpot(d, a.id, a.graze.back + walkMs);
       const gateOut = { x: o.x + d.w / 2, y: o.y + d.h + 0.45 };
       tr.recall = { at: a.graze.back, path: [...walk({ x: from.x, y: from.y }, gateOut), { x: o.x + d.w / 2, y: o.y + d.h - 0.3 }, { x: o.x + sp.x, y: o.y + sp.z }] };
     }
-    pt = along(tr.recall.path, gp.k);
-  } else if (gp.phase === 'returning') pt = along(tr.back, gp.k);
+    leg = walkLeg(tr.recall.path, gp.k * walkMs, walkMs, true);
+  } else if (gp.phase === 'returning') leg = walkLeg(tr.back, gp.k * walkMs, walkMs, true);
   else return null;
-  return { x: pt.x, y: pt.y, heading: Math.atan2(pt.dx, pt.dy), moving };
+  return { x: leg.pt.x, y: leg.pt.y, heading: Math.atan2(leg.pt.dx, leg.pt.dy), moving: leg.moving };
+}
+
+// how far a pen's gate stands open (0 to 1): it swings open as the first animal sets off and
+// shuts once the last one is back inside. A pure function of time, like the walks.
+function gateOpen(o: FarmObject, now: number) {
+  let open = 0;
+  const { walkMs, eatMs } = GRAZE;
+  for (const a of o.pen?.animals ?? []) {
+    if (!a.graze) continue;
+    const end = a.graze.back !== undefined ? a.graze.back + walkMs : a.graze.at + 2 * walkMs + eatMs;
+    open = Math.max(open, Math.min(1, (now - a.graze.at) / 900, (end - now) / 900));
+  }
+  return Math.max(0, open);
 }
 
 // the bees of a hive fly (straight, they can) to flowers near the pen and back
