@@ -9,6 +9,7 @@ import { fillRich, isDrawn, paintIcon } from './icons';
 import { U } from './gfx/shared';
 import { Sky } from './gfx/sky';
 import { makeWater } from './gfx/water';
+import { seasonOf, weatherAt, type Season } from './weather';
 import { FLOWER_KIT_MAT, Foliage, flowerKit, windify, type FlowerKind, type Spot } from './gfx/foliage';
 import { Post } from './gfx/post';
 import { PLANT_MAT, cropGeo } from './gfx/crops';
@@ -43,27 +44,6 @@ export function nightFactor(now: number) {
   const night = clamp((-c - 0.3) / 0.5, 0, 1);
   const dusk = clamp(1 - Math.abs(c + 0.15) / 0.3, 0, 1);
   return { night, dusk };
-}
-
-type Season = 'spring' | 'summer' | 'autumn' | 'winter';
-export function seasonOf(d = new Date()): Season {
-  const m = d.getMonth();
-  if (m === 11 || m <= 1) return 'winter';
-  if (m <= 4) return 'spring';
-  if (m <= 7) return 'summer';
-  return 'autumn';
-}
-
-// Weather is cosmetic: short showers (or snow in winter) come and go on a schedule.
-export function weatherAt(now: number, season: Season) {
-  const CYCLE = 9 * 60 * 1000;
-  const idx = Math.floor(now / CYCLE);
-  const into = (now % CYCLE) / 1000;
-  const chance = season === 'winter' ? 0.6 : season === 'summer' ? 0.25 : 0.4;
-  const len = season === 'winter' ? 180 : 110;
-  if (hash(idx, 3, 5) >= chance || into > len) return { kind: 'clear' as const, k: 0 };
-  const k = clamp(Math.min(into / 8, (len - into) / 8), 0, 1);
-  return { kind: season === 'winter' ? ('snow' as const) : ('rain' as const), k };
 }
 
 // ------------------------------------------------------------------ shared geometry, materials, textures
@@ -2614,6 +2594,8 @@ function buildObject(e: Entry, o: FarmObject, d: BuildingDef, store: GameStore) 
   useModel(e, o, d);
 }
 
+const WET_MAT = new THREE.MeshStandardMaterial({ color: '#241206', transparent: true, opacity: 0.45, roughness: 0.15, depthWrite: false });
+const DROP_MAT = new THREE.MeshStandardMaterial({ color: '#9fdcff', roughness: 0.05, metalness: 0.1, transparent: true, opacity: 0.85 });
 function buildPlot(e: Entry) {
   const g = e.root;
   bxT(g, 0.92, 0.1, 0.92, 'soil', '#8a5a34', 0.5, 0, 0.5, 2, false);
@@ -2623,6 +2605,11 @@ function buildPlot(e: Entry) {
     r.scale.set(1, 0.8, 0.45);
   }
   const crop = keep(group(g));
+  // a watered field: darker, glistening soil with a few drops, until the crop is ready
+  const wet = keep(mk(g, G.box, WET_MAT, 0.9, 0.01, 0.9, 0.5, 0.118, 0.5, false));
+  const drops = keep(group(g));
+  for (let k = 0; k < 7; k++) mk(drops, G.ball, DROP_MAT, 0.018, 0.012, 0.018, 0.15 + hash(k, 3) * 0.7, 0.125, 0.15 + hash(k, 5) * 0.7, false);
+  wet.visible = drops.visible = false;
   let cur: string | null = null;
   let wasReady = false;
   let first = true;
@@ -2659,6 +2646,9 @@ function buildPlot(e: Entry) {
     }
     first = false;
     wasReady = pp.ready;
+    const isWet = !!cur && !pp.ready && !!o.plot?.watered;
+    wet.visible = drops.visible = isWet;
+    if (isWet) drops.children.forEach((d, k) => { d.scale.setScalar(0.012 + Math.max(0, Math.sin(t / 400 + k * 1.7)) * 0.01); });
     if (!cur) return;
     const cd = CROP[cur];
     const s = pp.p;
@@ -2771,6 +2761,7 @@ for (const id of ['hay_bale', 'picket_fence', 'bird_house', 'pumpkin_pile', 'bir
 for (const d of Object.values(BUILDING)) if (d.kind === 'pen') MODELS[d.id] = {};
 for (const d of Object.values(BUILDING)) if (d.kind === 'tree') MODELS[d.id] = {};
 MODELS.flowers = {};
+MODELS.sprinkler = {};
 MODELS.stone_path = {};
 MODELS.oak = {};
 MODELS.tree_obs = { variants: 2 };
@@ -4106,6 +4097,28 @@ function buildDeco(e: Entry, d: BuildingDef) {
           const ph = (t / 900 + k * 0.13) % 1;
           m.position.set(1 + Math.cos(a) * 0.45 * ph, 0.95 + Math.sin(ph * Math.PI) * 0.3 - ph * 0.7, 1 + Math.sin(a) * 0.45 * ph);
         });
+      };
+      break;
+    }
+    case 'sprinkler': {
+      // a brass riser on a stake; the Blender model adds the spinning head, the game the spray
+      cyl(g, 0.02, 0.02, 0.34, '#c8962e', 0.5, 0, 0.5, 8);
+      cyl(g, 0.07, 0.08, 0.04, '#2f8a3a', 0.5, 0, 0.5, 12);
+      const spray = keep(group(g, 0.5, 0.38, 0.5));
+      const jets = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9].map(() => ball(spray, 0.022, '#bfe8ff', 0, 0, 0, 1, 1, 1, false));
+      for (const j of jets) j.material = DROP_MAT;
+      e.top = 0.6;
+      e.update = (o, _n, t) => {
+        // two arcs of water sweeping round, reaching out over the fields nearby
+        jets.forEach((j, k) => {
+          const arm = k % 2 ? Math.PI : 0;
+          const ph = ((t / 900 + k * 0.1) % 1);
+          const a = t / 700 + arm;
+          const r = ph * 1.6;
+          j.position.set(Math.cos(a) * r, Math.sin(ph * Math.PI) * 0.35 - ph * 0.3, Math.sin(a) * r);
+          j.visible = ph < 0.95;
+        });
+        spray.rotation.y = Math.sin(o.id) * 0.3;
       };
       break;
     }

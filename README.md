@@ -18,7 +18,7 @@ By Talons Protocol.
 - Rabbits (angora fur) and alpacas (alpaca wool) with new loom goods; straw skep beehives
 - Realistic sculpted animals (jointed legs, lifelike eyes, breed colors) and painted produce: dimpled apples, cherry pairs, pitted oranges, blushing peaches, lemons, tomatoes, strawberries, chilies
 - Hand painted canvas icons for goods without a fitting emoji; leaf card tree crowns; realistic Holstein cows; ruffled lettuce
-- Sculpted signed distance field animals, rolling sea swell and a subtle tilt shift miniature look
+- Sculpted signed distance field animals, rolling sea swell, drawn at full sharpness
 - High and Low graphics quality in Settings (kept per device, outside the save)
 - Free camera: drag to pan, pinch or scroll to zoom, twist with two fingers or press Q and E to rotate
 - 9 crops (wheat to sunflower) with drag to plant and drag to harvest
@@ -33,7 +33,8 @@ By Talons Protocol.
 - Mouse, touch and pinch controls, hold anything to move it, keyboard shortcuts (Esc, Enter, + and -)
 - Sound effects and a soft generative background tune, all synthesized with WebAudio, no asset files needed
 - A farmer and his dog walking around the farm, harvested goods flying into storage
-- Weather and seasons (showers, winter snow, spring petals, autumn leaves), purely cosmetic
+- Weather and seasons (winter snow, spring petals, autumn leaves); showers come on some days only, not every day
+- Watering: tap a growing field to water it and it needs 30% less of its remaining time. The watering can (top bar) refills over time, faster with wells; rain waters every field for free and sprinklers water the fields around them. Unwatered crops grow as before
 - 3 fruit trees (apple, cherry, orange) that keep giving fruit
 - Fishing Pier, Jam Maker, Ice Cream Shop and Sushi Bar, 3 new crops (rice, cotton, chili) and 20 new goods
 - Cargo boat with crates to fill for big bonus rewards

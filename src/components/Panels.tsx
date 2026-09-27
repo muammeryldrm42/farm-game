@@ -33,6 +33,7 @@ import {
   upgradeCost,
   NAP_MS,
   restBonus,
+  waterInfo,
   type FarmObject,
 } from '@/game/state';
 import { getQuality, setQuality, type Quality } from '@/game/quality';
@@ -186,6 +187,7 @@ function PlotSheet({ o }: { o: FarmObject }) {
               <Bar p={pp.p} />
               <span className="w-20 shrink-0 text-right font-bold">{fmtTime(pp.remaining)}</span>
             </div>
+            <WaterRow o={o} />
             <div className="flex justify-center">
               <button className="btn btn-blue" onClick={() => store.speedPlot(o)} disabled={s.gems < gemCost(pp.remaining)}>
                 Finish now <Gems n={gemCost(pp.remaining)} />
@@ -777,6 +779,27 @@ function BoatModal() {
         </button>
       </div>
     </Modal>
+  );
+}
+
+// watering: a watered crop grows 30% faster; the can refills over time, faster with wells
+function WaterRow({ o }: { o: FarmObject }) {
+  const store = useStore();
+  const now = Date.now();
+  const wi = waterInfo(store.s, now);
+  if (o.plot?.watered) {
+    return <p className="text-center text-sm font-bold text-[#2f8fd0]"><span className="emoji">💧</span> Watered: growing 30% faster</p>;
+  }
+  return (
+    <div className="flex flex-col items-center gap-1">
+      <button className="btn btn-blue" onClick={() => store.waterPlot(o)} disabled={wi.n <= 0}>
+        <span className="emoji">💧</span> Water it ({wi.n}/{wi.max})
+      </button>
+      <span className="text-[11px] text-[#8a6a44]">
+        {wi.n < wi.max ? `Next refill in ${fmtTime(wi.nextIn)}` : 'The watering can is full'}
+        {wi.wells ? ` · ${wi.wells} well${wi.wells > 1 ? 's' : ''} speed it up` : ' · wells refill it faster'}
+      </span>
+    </div>
   );
 }
 

@@ -1,5 +1,6 @@
 // Talons Farm - game state, persistence and all player actions
 import { ANIMAL, BUILDING, BUILDINGS, CROP, ITEMS, ITEM_LIST, RECIPE, type BuildingDef } from './data';
+import { isRaining } from './weather';
 
 export const GRID = 44;
 // older saves were made on a 28 tile map; their farm is moved by this many tiles to the new center
@@ -12,7 +13,8 @@ export interface FishingData { open: boolean; castAt: number | null; catchAt: nu
 // the fishing spot lies in the sea just off the south shore
 export const FISH_SPOT = { x: GRID / 2, y: GRID + 2.3 };
 export const FISHING = { level: 5, cost: 800, time: 45 };
-export interface PlotData { crop: string | null; plantedAt: number }
+// `watered`: the current crop got its drink (by hand, rain or a sprinkler) and grows faster
+export interface PlotData { crop: string | null; plantedAt: number; watered?: boolean }
 export interface QueueEntry { recipe: string; startAt: number; endsAt: number }
 export interface ProdData { queue: QueueEntry[]; slots: number }
 export interface Animal { id: number; fedAt: number | null }
@@ -64,6 +66,7 @@ export interface GameState {
   mapV?: number;
   fishing?: FishingData;
   restedOn?: string; // day key of the last nap that earned the rested bonus
+  water?: { n: number; at: number }; // watering can: charges left, and when the last one refilled
 }
 
 // ---------------------------------------------------------------- helpers
@@ -98,6 +101,28 @@ export function fmtNum(n: number) {
   if (n >= 1e4) return (n / 1e3).toFixed(1).replace(/\.0$/, '') + 'K';
   return n.toLocaleString('en-US');
 }
+
+// ---------------------------------------------------------------- watering
+// Watering is a bonus, never a chore: a watered crop needs 30% less of its remaining time, an
+// unwatered one grows as before. The can holds a few charges that refill over time, faster
+// with wells on the farm; rain waters every field for free, and sprinklers water the fields
+// around them.
+export const WATER = { max: 10, refillMs: 120e3, boost: 0.3, sprinklerRange: 2 };
+
+export function waterInfo(s: GameState, now: number) {
+  const wells = Math.min(3, s.objects.filter((o) => o.type === 'well').length);
+  const every = WATER.refillMs / (1 + 0.5 * wells);
+  const w = s.water ?? { n: WATER.max, at: now };
+  const gained = Math.max(0, Math.floor((now - w.at) / every));
+  const n = Math.min(WATER.max, w.n + gained);
+  const at = n >= WATER.max ? now : w.at + gained * every;
+  return { n, max: WATER.max, at, every, wells, nextIn: n >= WATER.max ? 0 : at + every - now };
+}
+
+export const needsWater = (o: FarmObject, now: number) => {
+  const pp = plotProgress(o, now);
+  return !!pp.crop && !pp.ready && !o.plot?.watered;
+};
 
 export function plotProgress(o: FarmObject, now: number) {
   const p = o.plot;
@@ -674,6 +699,8 @@ export class GameStore {
     switch (d.kind) {
       case 'plot':
         if (!o.plot?.crop && this.ui.tool) { this.plant(o, this.ui.tool.crop); return; }
+        // a thirsty crop gets watered straight away while the can has water
+        if (needsWater(o, now) && waterInfo(this.s, now).n > 0) this.waterPlot(o);
         this.select(o.id);
         return;
       case 'production':
@@ -775,6 +802,7 @@ export class GameStore {
     else { if (!quiet) this.toast('Not enough coins for seeds.', 'bad'); else this.toast('Out of seeds.', 'bad'); this.ui.tool = null; this.emit(); return false; }
     o.plot.crop = cropId;
     o.plot.plantedAt = Date.now();
+    o.plot.watered = false;
     this.stat('plant');
     this.sound('plant');
     this.burst(o, '#8a5a34');
@@ -791,6 +819,7 @@ export class GameStore {
     this.stat('harvest', 2);
     this.stat(`harvest:${pp.crop}`, 2);
     o.plot.crop = null;
+    o.plot.watered = false;
     this.addXp(c.xp);
     this.float(o, `+2 ${ITEMS[c.id].icon}`, '#fff6c8', 30);
     this.fly(o, ITEMS[c.id].icon, 'storage');
@@ -798,6 +827,30 @@ export class GameStore {
     this.sound('harvest');
     if (!quiet) { /* reserved for future single tap feedback */ }
     this.emit();
+    return true;
+  }
+
+  // A drink for a growing crop: the rest of its growing time shrinks by 30%. `free` is rain or a
+  // sprinkler; by hand it costs one charge of the watering can.
+  waterPlot(o: FarmObject, free = false) {
+    const now = Date.now();
+    if (!o.plot || !needsWater(o, now)) return false;
+    if (!free) {
+      const wi = waterInfo(this.s, now);
+      if (wi.n <= 0) {
+        this.toast(`The watering can is empty. Next refill in ${fmtTime(wi.nextIn)}.`, 'bad');
+        return false;
+      }
+      this.s.water = { n: wi.n - 1, at: wi.n >= wi.max ? now : wi.at };
+      this.stat('water');
+      this.sound('plant');
+    }
+    const rem = plotProgress(o, now).remaining;
+    o.plot.plantedAt -= rem * WATER.boost;
+    o.plot.watered = true;
+    this.burst(o, '#6fc8ff');
+    if (!free) this.float(o, '💧', '#dff4ff', 20);
+    this.emit(false);
     return true;
   }
 
@@ -1319,8 +1372,27 @@ export class GameStore {
   }
 
   // called every second
+  private rainNoteAt = 0;
+
   tick() {
     const now = Date.now();
+    // rain and sprinklers water thirsty fields for free
+    const thirsty = this.s.objects.filter((o) => o.type === 'plot' && needsWater(o, now));
+    if (thirsty.length) {
+      const rain = this.s.settings.weather && isRaining(now);
+      const sprinklers = this.s.objects.filter((o) => o.type === 'sprinkler');
+      const r = WATER.sprinklerRange;
+      let rained = 0;
+      for (const o of thirsty) {
+        if (rain) { this.waterPlot(o, true); rained++; }
+        else if (sprinklers.some((sp) => Math.abs(sp.x - o.x) <= r && Math.abs(sp.y - o.y) <= r)) this.waterPlot(o, true);
+      }
+      // one note per shower, not one per field
+      if (rained && now - this.rainNoteAt > 5 * 60e3) {
+        this.rainNoteAt = now;
+        this.toast('Rain is watering your fields! 🌧️', 'good');
+      }
+    }
     const b = this.s.boat;
     if (b && this.countType('dock') > 0) {
       if (b.crates.length && now >= b.leavesAt) {

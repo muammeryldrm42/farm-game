@@ -600,13 +600,32 @@ def beehive_skep():
     finish('beehive_skep', tex=512)
 
 
+def sprinkler():
+    """A garden sprinkler on a stake: a brass riser and a spinning head with two nozzles (the game
+    turns the head and sprays the water)."""
+    m = std()
+    brass = pm('spr_brass', '#c8962e', '#d8a83e', scale=20, rough=0.3, metal=0.7)
+    green = pm('spr_green', '#2f8a3a')
+    box(uid('stake'), (0.05, 0.05, 0.12), (0, 0, 0.06), m['wood_dark'], bev=0.01)
+    cyl(uid('base'), 0.08, 0.04, (0, 0, 0.02), green, verts=16)
+    cyl(uid('riser'), 0.018, 0.3, (0, 0, 0.19), brass, verts=10)
+    torus(uid('hose'), 0.14, 0.018, (0.1, 0.06, 0.02), green, segs=20, rsegs=6)
+    with anim_group('spinY_head', (0, 0, 0.34)):
+        cyl(uid('hub'), 0.035, 0.05, (0, 0, 0.345), brass, verts=12)
+        for sx in (-1, 1):
+            cyl(uid('arm'), 0.01, 0.16, (sx * 0.07, 0, 0.36), brass, verts=8, rot=(0, math.radians(90), 0))
+            cyl(uid('nozzle'), 0.014, 0.03, (sx * 0.15, 0, 0.375), brass, verts=8)
+    cyl(uid('puddle'), 0.3, 0.005, (0, 0, 0.003), pm('spr_puddle', '#5a8a3a'), verts=24, bev=0)
+    finish('sprinkler', tex=256)
+
+
 MODELS = {'hay_bale': hay_bale, 'picket_fence': picket_fence, 'bird_house': bird_house, 'pumpkin_pile': pumpkin_pile,
           'birdbath': birdbath, 'topiary': topiary, 'well': well, 'flower_arch': flower_arch, 'hay_wagon': hay_wagon,
           'tractor': tractor, 'bench': bench, 'lamp': lamp, 'scarecrow': scarecrow, 'windmill': windmill, 'pond': pond,
           'mailbox': mailbox, 'gazebo': gazebo, 'fountain': fountain,
           'rock_obs0': lambda: rock_obs(0), 'rock_obs1': lambda: rock_obs(1), 'rock_obs2': lambda: rock_obs(2),
           'bush_obs0': lambda: bush_obs(0), 'bush_obs1': lambda: bush_obs(1),
-          'flowers': flowers, 'stone_path': stone_path, 'beehive_skep': beehive_skep}
+          'flowers': flowers, 'stone_path': stone_path, 'beehive_skep': beehive_skep, 'sprinkler': sprinkler}
 
 if __name__ == '__main__':
     main(MODELS)
