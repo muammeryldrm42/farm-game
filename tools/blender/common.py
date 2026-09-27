@@ -374,6 +374,8 @@ def bake_and_export(ob, path, tex_size=2048, ao_samples=96, ao_dist=0.35, ao_min
                               export_image_format='JPEG' if jpeg else 'AUTO', export_jpeg_quality=88,
                               export_draco_mesh_compression_enable=True, export_draco_mesh_compression_level=7,
                               export_draco_position_quantization=14, export_draco_normal_quantization=10, export_draco_texcoord_quantization=12)
+    # previews show the model by day; the game lights the emission mask up at night
+    m.node_tree.nodes['Principled BSDF'].inputs['Emission Strength'].default_value = 0.0
     return ob
 
 

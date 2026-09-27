@@ -48,6 +48,7 @@ By Talons Protocol.
 - Two animal art styles, picked in Settings: Cartoon (chunky friendly sculpts with big eyes, the default) and Realistic
 - Cartoon farmer, puffy cartoon trees and round garden bushes; a calico farm cat roams between the house and the farmer and curls up by the door at night
 - Dirt paths that join up with their neighbors (new farms start with one), a porch, dormers and mailbox on the farmhouse, a cupola and weathervane on the barn, and meadow scatter of lupines, wild flowers and pebbles
+- The cartoon farmhouse is a Blender model (tools/blender): individual stones, clapboards, a roof of staggered shingles, dormers, a porch and flower boxes, with painted colors and soft shadows baked into one texture; its windows glow at night and the procedural house stands in until it loads
 - Animals use a light mesh from afar and a detailed one up close, built in idle time
 - Performance: pen scenery is baked into a few meshes, cartoon eyes are single meshes, objects out of view animate rarely, the shadow map redraws every other frame, forests use light crowns, new animal kinds are sculpted one per frame, and the render scale adapts on slow devices
 

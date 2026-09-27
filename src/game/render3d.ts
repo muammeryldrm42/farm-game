@@ -1660,7 +1660,9 @@ export class Renderer {
     const d = BUILDING[home.type];
     const door = home.type === 'manor' ? { x: home.x + 1, y: home.y + d.h } : { x: home.x, y: home.y + d.h };
     const kennel = home.type === 'manor' ? { x: home.x + 2.62, y: home.y + 2.55, rot: -0.5 } : null;
-    return { door, kennel };
+    // the Blender farmhouse has its entrance in the middle of the front: a last step up to the porch
+    const step = home.type === 'house' && artStyle() === 'toon' ? { x: home.x + 1, y: home.y + d.h + 0.08 } : null;
+    return { door, kennel, step };
   }
 
   private updateActors(dt: number, t: number, now: number) {
@@ -1690,6 +1692,7 @@ export class Renderer {
       if (nightNow && h) {
         const d = this.free(h.door.x, h.door.y) ? h.door : this.nearestFree(h.door.x, h.door.y, 4);
         const walking = d ? this.send(f, d.x, d.y) : false;
+        if (walking && d === h.door && h.step && this.free(Math.floor(h.step.x), Math.floor(h.step.y))) f.path.push(h.step);
         f.goHome = true;
         // no way to the door (fenced in): step straight inside
         if (!walking) f.path = [];
