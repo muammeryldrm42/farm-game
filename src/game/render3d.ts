@@ -2452,7 +2452,7 @@ function buildStandIn(e: Entry, o: FarmObject, d: BuildingDef, store: GameStore)
 }
 function buildObject(e: Entry, o: FarmObject, d: BuildingDef, store: GameStore) {
   buildStandIn(e, o, d, store);
-  useModel(e, d);
+  useModel(e, o, d);
 }
 
 function buildPlot(e: Entry) {
@@ -2590,23 +2590,27 @@ function swapInModel(e: Entry, name: string, x: number, z: number, scale: number
 // `glow*` empties get a pool of lamp light at night, `badge` carries the product icon, and
 // `spin<Axis>*` / `sway<Axis>*` meshes turn about their origin. Stand in parts flagged
 // `userData.keep` (water, goods on display, the boat) stay when the model swaps in.
-interface ModelSpec { smoke?: 'always' | 'busy'; badge?: number }
+interface ModelSpec { smoke?: 'always' | 'busy'; badge?: number; variants?: number }
 const MODELS: Record<string, ModelSpec> = {
   barn: {}, silo: {}, board: {}, stall: {}, dock: {}, fishing_pier: { badge: 0.22 }, manor: { smoke: 'always' },
 };
+for (const id of ['hay_bale', 'picket_fence', 'bird_house', 'pumpkin_pile', 'birdbath', 'topiary', 'well', 'flower_arch',
+  'hay_wagon', 'tractor', 'bench', 'lamp', 'scarecrow', 'windmill', 'pond', 'mailbox', 'gazebo', 'fountain']) MODELS[id] = {};
+MODELS.rock_obs = { variants: 3 };
+MODELS.bush_obs = { variants: 2 };
 for (const id of ['bakery', 'feed_mill', 'dairy', 'sugar_mill', 'bbq_grill', 'juice_press', 'loom', 'jam_maker', 'ice_cream',
   'sushi_bar', 'salad_bar', 'pizzeria', 'coffee_kiosk', 'oil_press', 'florist', 'workshop']) MODELS[id] = { badge: 0.26 };
 function keep<T extends THREE.Object3D>(o: T) {
   o.userData.keep = true;
   return o;
 }
-function useModel(e: Entry, d: BuildingDef) {
+function useModel(e: Entry, o: FarmObject, d: BuildingDef) {
   const spec = MODELS[d.id];
   if (!spec || e.id < 0 || artStyle() !== 'toon') return;
   const g = e.root;
   const standIn = g.children.filter((c) => !c.userData.keep);
   const cx = d.w / 2, cz = d.h / 2;
-  loadModel(d.id).then((src) => {
+  loadModel(spec.variants ? `${d.id}${o.id % spec.variants}` : d.id).then((src) => {
     const m = src.clone();
     m.position.set(cx, 0, cz);
     for (const c of standIn) g.remove(c);
@@ -2617,7 +2621,7 @@ function useModel(e: Entry, d: BuildingDef) {
       const x = cx + c.position.x, y = c.position.y, z = cz + c.position.z;
       const mv = /^(spin|sway)([XYZ])/.exec(c.name);
       if (c.name.startsWith('smoke')) puffs.push(smoke(g, x, y, z));
-      else if (c.name.startsWith('glow')) groundGlow(g, x, z, 1.1);
+      else if (c.name.startsWith('glow')) groundGlow(g, x, z, 1.1 * c.scale.x);
       else if (c.name === 'badge') badge(g, d.icon, spec.badge ?? 0.3, x, y, z, c.rotation.y).translateZ(0.01);
       else if (mv) {
         const axis = mv[2].toLowerCase() as 'x' | 'y' | 'z';
@@ -3678,7 +3682,7 @@ function buildDeco(e: Entry, d: BuildingDef) {
       roofT(g, 0.26, 0.1, 0.24, '#c0392b', surfaceMat('boards', '#6aa0d8', 6), 0.5, 0.98, 0.5, 0.03);
       mk(g, cylGeo(0.035, 0.035, 14), M('#2a1a10'), 1, 0.01, 1, 0.5, 0.9, 0.592).rotation.x = Math.PI / 2;
       mk(g, cylGeo(0.006, 0.006, 6), M('#7a4a28'), 1, 0.06, 1, 0.5, 0.85, 0.6).rotation.x = Math.PI / 2;
-      const bird = group(g, 0.5, 0.87, 0.64);
+      const bird = keep(group(g, 0.5, 0.87, 0.64));
       ball(bird, 0.025, '#e8563a', 0, 0.02, 0, 1, 0.9, 1.3);
       ball(bird, 0.017, '#6a4a2a', 0, 0.045, 0.02);
       mk(bird, cylGeo(0, 0.006, 5), M('#f2b33a'), 1, 0.015, 1, 0, 0.045, 0.04).rotation.x = Math.PI / 2;
@@ -3708,8 +3712,8 @@ function buildDeco(e: Entry, d: BuildingDef) {
       mk(g, cylGeo(0.14, 0.18, 16), stone, 1, 0.06, 1, 0.5, 0.03, 0.5);
       mk(g, cylGeo(0.05, 0.07, 12), stone, 1, 0.45, 1, 0.5, 0.28, 0.5);
       mk(g, G.dome, stone, 0.26, 0.1, 0.26, 0.5, 0.6, 0.5).rotation.x = Math.PI;
-      mk(g, cylGeo(0.24, 0.24, 20), WATER, 1, 0.01, 1, 0.5, 0.6, 0.5, false);
-      const bird = group(g, 0.62, 0.62, 0.5);
+      keep(mk(g, cylGeo(0.24, 0.24, 20), WATER, 1, 0.01, 1, 0.5, 0.6, 0.5, false));
+      const bird = keep(group(g, 0.62, 0.62, 0.5));
       ball(bird, 0.022, '#6a8ab8', 0, 0.02, 0, 1, 0.9, 1.3);
       ball(bird, 0.015, '#4a5a7a', 0, 0.04, 0.02);
       e.top = 0.9;
@@ -3882,7 +3886,7 @@ function buildDeco(e: Entry, d: BuildingDef) {
     }
     case 'pond':
       cyl(g, 0.9, 0.95, 0.04, '#d8c38e', 1, 0, 1, 16, false);
-      mk(g, cylGeo(0.8, 0.8, 16), WATER, 1, 0.04, 1, 1, 0.04, 1, false);
+      keep(mk(g, cylGeo(0.8, 0.8, 16), WATER, 1, 0.04, 1, 1, 0.04, 1, false));
       for (const [x, z] of [[0.6, 1.2], [1.3, 0.7], [1.4, 1.3]]) cyl(g, 0.1, 0.1, 0.01, '#4caf50', x, 0.065, z, 8, false);
       ball(g, 0.04, '#ff8fb0', 1.3, 0.1, 0.7);
       for (let k = 0; k < 5; k++) cyl(g, 0.01, 0.012, 0.35, '#5a8a2a', 1.75 + (k % 2) * 0.06, 0, 0.6 + k * 0.08, 4);
@@ -3890,11 +3894,11 @@ function buildDeco(e: Entry, d: BuildingDef) {
       break;
     case 'fountain': {
       mk(g, cylGeo(0.85, 0.9, 32), surfaceMat('stone', '#c2bcac', 8, 0.9, 1, 0.5), 1, 0.22, 1, 1, 0.11, 1);
-      mk(g, cylGeo(0.75, 0.75, 24), WATER, 1, 0.04, 1, 1, 0.215, 1, false);
+      keep(mk(g, cylGeo(0.75, 0.75, 24), WATER, 1, 0.04, 1, 1, 0.215, 1, false));
       cyl(g, 0.1, 0.14, 0.6, '#bfb9a8', 1, 0.2, 1, 8);
       cyl(g, 0.34, 0.28, 0.08, '#cfcabb', 1, 0.75, 1, 12);
-      mk(g, cylGeo(0.3, 0.3, 12), WATER, 1, 0.02, 1, 1, 0.83, 1, false);
-      const drops = [...Array(10)].map(() => ball(g, 0.03, '#d2f0ff', 1, 1, 1, 1, 1, 1, false));
+      keep(mk(g, cylGeo(0.3, 0.3, 12), WATER, 1, 0.02, 1, 1, 0.83, 1, false));
+      const drops = [...Array(10)].map(() => keep(ball(g, 0.03, '#d2f0ff', 1, 1, 1, 1, 1, 1, false)));
       e.top = 1.2;
       e.update = (_o, _n, t) => {
         drops.forEach((m, k) => {

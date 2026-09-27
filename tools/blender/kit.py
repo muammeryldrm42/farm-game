@@ -541,12 +541,19 @@ def hay_bale(x, y, z, s, m, rot=0.0):
         torus(uid('twine'), s * 0.505, 0.007, (x + math.cos(rot) * k * s, y + math.sin(rot) * k * s, z + s * 0.5), m['rope'], rot=(0, math.radians(90), rot), segs=20, rsegs=5)
 
 
-def lantern(x, y, z, m, post=0.0):
+def glow(x, y, size=1.0):
+    """A warm pool of lamp light on the ground at night; the game reads the marker (its scale is
+    the size of the pool)."""
+    mk = marker(uid('glow'), (x, y, 0.0))
+    mk.scale = (size, size, size)
+    return mk
+
+
+def lantern(x, y, z, m, post=0.0, light=1.0):
     if post:
         cyl(uid('lp'), 0.02, post, (x, y, z + post / 2), m['iron'], verts=8)
         z += post
-    # warm pool of light on the ground under the lamp at night (the game reads the marker)
-    marker(uid('glow'), (x, y, 0.0))
+    glow(x, y, light)
     box(uid('lb'), (0.07, 0.07, 0.1), (x, y, z + 0.05), m['lamp'], bev=0.01)
     box(uid('lt'), (0.09, 0.09, 0.02), (x, y, z + 0.11), m['iron'], bev=0.006)
     cyl(uid('lk'), 0.02, 0.03, (x, y, z + 0.13), m['iron'], verts=8)
@@ -559,6 +566,38 @@ def potted_plant(x, y, z, m, pot, bloom=None):
         ball(uid('pl'), 0.035, (x + math.cos(a) * 0.03, y + math.sin(a) * 0.03, z + 0.11 + (i % 2) * 0.02), m['leaf'], segs=10)
     if bloom:
         ball(uid('pf'), 0.028, (x, y, z + 0.15), bloom, segs=10)
+
+
+def rock(name, r, loc, material, seed=1, squash=0.7, rough=0.22):
+    """An irregular faceted rock: an icosphere with its vertices pushed about."""
+    bpy.ops.mesh.primitive_ico_sphere_add(subdivisions=2, radius=r, location=loc)
+    o = bpy.context.active_object
+    o.name = name
+    rnd = random.Random(seed)
+    for v in o.data.vertices:
+        k = 1 + (rnd.random() - 0.5) * rough * 2
+        v.co.x *= k
+        v.co.y *= k * rnd.uniform(0.9, 1.1)
+        v.co.z *= k * squash
+        if v.co.z < -r * 0.25 * squash:
+            v.co.z = -r * 0.25 * squash
+    o.data.materials.append(material)
+    return o
+
+
+def clump(cx, cy, cz, r, mats, n=24, seed=1, leaf=0.3, squash=0.85):
+    """A leafy clump: many small overlapping balls on the surface of a sphere of radius r, so it
+    reads as foliage rather than one smooth ball."""
+    rnd = random.Random(seed)
+    ball(uid('core'), r * 0.92, (cx, cy, cz), mats[0], scale=(1, 1, squash), segs=14)
+    for i in range(n):
+        # even spread over the upper part of the sphere
+        zf = 1 - (i + 0.5) / n * 1.4
+        a = i * 2.39996 + rnd.random() * 0.3
+        rr = math.sqrt(max(0.0, 1 - zf * zf))
+        p = (cx + math.cos(a) * rr * r, cy + math.sin(a) * rr * r, cz + zf * r * squash)
+        s = r * leaf * rnd.uniform(0.8, 1.2)
+        ball(uid('lf'), s, p, mats[rnd.randrange(len(mats))], scale=(1, 1, 0.85), segs=8)
 
 
 def move_all(offset):
