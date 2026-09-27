@@ -2435,7 +2435,7 @@ function plantModel(cd: CropDef) {
 
 // ------------------------------------------------------------------ object builders
 
-function buildObject(e: Entry, o: FarmObject, d: BuildingDef, store: GameStore) {
+function buildStandIn(e: Entry, o: FarmObject, d: BuildingDef, store: GameStore) {
   switch (d.kind) {
     case 'plot': return buildPlot(e);
     case 'house': case 'barn': return d.id === 'manor' ? buildManor(e, d) : buildHouse(e, d);
@@ -2449,6 +2449,10 @@ function buildObject(e: Entry, o: FarmObject, d: BuildingDef, store: GameStore) 
     case 'obstacle': return buildObstacle(e, o);
     case 'deco': return buildDeco(e, d);
   }
+}
+function buildObject(e: Entry, o: FarmObject, d: BuildingDef, store: GameStore) {
+  buildStandIn(e, o, d, store);
+  useModel(e, d);
 }
 
 function buildPlot(e: Entry) {
@@ -2557,6 +2561,7 @@ function loadModel(name: string) {
           MODEL_GLOW.add(mat);
         }
       });
+      gl.scene.userData.top = new THREE.Box3().setFromObject(gl.scene).max.y;
       return gl.scene;
     });
     modelCache.set(name, p);
@@ -2577,6 +2582,64 @@ function swapInModel(e: Entry, name: string, x: number, z: number, scale: number
     for (const c of standIn) e.root.remove(c);
     e.root.add(m);
     onSwap?.();
+  }).catch(() => { /* keep the procedural building */ });
+}
+
+// Buildings with a Blender model, by building id. Models sit centered on the footprint, front to
+// +z. Named nodes drive the game side: `smoke*` empties puff (always, or only while producing),
+// `glow*` empties get a pool of lamp light at night, `badge` carries the product icon, and
+// `spin<Axis>*` / `sway<Axis>*` meshes turn about their origin. Stand in parts flagged
+// `userData.keep` (water, goods on display, the boat) stay when the model swaps in.
+interface ModelSpec { smoke?: 'always' | 'busy'; badge?: number }
+const MODELS: Record<string, ModelSpec> = {
+  barn: {}, silo: {}, board: {}, stall: {}, dock: {}, fishing_pier: { badge: 0.22 }, manor: { smoke: 'always' },
+};
+for (const id of ['bakery', 'feed_mill', 'dairy', 'sugar_mill', 'bbq_grill', 'juice_press', 'loom', 'jam_maker', 'ice_cream',
+  'sushi_bar', 'salad_bar', 'pizzeria', 'coffee_kiosk', 'oil_press', 'florist', 'workshop']) MODELS[id] = { badge: 0.26 };
+function keep<T extends THREE.Object3D>(o: T) {
+  o.userData.keep = true;
+  return o;
+}
+function useModel(e: Entry, d: BuildingDef) {
+  const spec = MODELS[d.id];
+  if (!spec || e.id < 0 || artStyle() !== 'toon') return;
+  const g = e.root;
+  const standIn = g.children.filter((c) => !c.userData.keep);
+  const cx = d.w / 2, cz = d.h / 2;
+  loadModel(d.id).then((src) => {
+    const m = src.clone();
+    m.position.set(cx, 0, cz);
+    for (const c of standIn) g.remove(c);
+    g.add(m);
+    const puffs: ((on: boolean, t: number) => void)[] = [];
+    const movers: { o: THREE.Object3D; spin: boolean; axis: 'x' | 'y' | 'z'; base: number }[] = [];
+    for (const c of m.children) {
+      const x = cx + c.position.x, y = c.position.y, z = cz + c.position.z;
+      const mv = /^(spin|sway)([XYZ])/.exec(c.name);
+      if (c.name.startsWith('smoke')) puffs.push(smoke(g, x, y, z));
+      else if (c.name.startsWith('glow')) groundGlow(g, x, z, 1.1);
+      else if (c.name === 'badge') badge(g, d.icon, spec.badge ?? 0.3, x, y, z, c.rotation.y).translateZ(0.01);
+      else if (mv) {
+        const axis = mv[2].toLowerCase() as 'x' | 'y' | 'z';
+        movers.push({ o: c, spin: mv[1] === 'spin', axis, base: c.rotation[axis] });
+      }
+    }
+    e.top = src.userData.top ?? e.top;
+    const hh = Math.max(0.25, e.top);
+    e.hit.scale.y = hh;
+    e.hit.position.y = hh / 2;
+    const mode = spec.smoke ?? (d.kind === 'production' ? 'busy' : 'always');
+    const prev = e.update;
+    e.update = (o, now, t, dt) => {
+      prev?.(o, now, t, dt);
+      const busy = d.kind === 'production' && !!prodInfo(o, now).current;
+      const on = mode === 'always' || busy;
+      puffs.forEach((p, i) => p(on, t + i * 700));
+      for (const v of movers) {
+        if (v.spin) { if (mode === 'always' || busy) v.o.rotation[v.axis] += dt * 2.4; }
+        else v.o.rotation[v.axis] = v.base + Math.sin(t / 2300 + e.id) * 0.6 + Math.sin(t / 830) * 0.08;
+      }
+    };
   }).catch(() => { /* keep the procedural building */ });
 }
 
@@ -3411,7 +3474,7 @@ function buildStall(e: Entry, d: BuildingDef, store: GameStore) {
     const s = bx(g, 1.62 / 7, 0.04, 1.75, i % 2 ? '#fff6df' : d.roof, 0.19 + (i + 0.5) * (1.62 / 7), 1.28, 1);
     s.rotation.x = 0.18;
   }
-  const goods = group(g);
+  const goods = keep(group(g));
   let key = '';
   e.top = 1.55;
   e.update = (_o, now) => {
@@ -3430,8 +3493,8 @@ function buildStall(e: Entry, d: BuildingDef, store: GameStore) {
 }
 
 function waterBasin(g: THREE.Group, w: number, h: number) {
-  bxT(g, w - 0.04, 0.03, h - 0.04, 'sand', '#e2cf98', w / 2, 0, h / 2, 1.5, false);
-  mk(g, G.box, WATER, w - 0.3, 0.04, h - 0.3, w / 2, 0.035, h / 2, false);
+  keep(bxT(g, w - 0.04, 0.03, h - 0.04, 'sand', '#e2cf98', w / 2, 0, h / 2, 1.5, false));
+  keep(mk(g, G.box, WATER, w - 0.3, 0.04, h - 0.3, w / 2, 0.035, h / 2, false));
 }
 
 function planks(g: THREE.Group, x: number, z: number, w: number, d: number) {
@@ -3447,11 +3510,11 @@ function buildPier(e: Entry, d: BuildingDef) {
   bxT(g, 0.5, 0.5, 0.45, 'boards', d.wall, 0.45, 0.17, 0.35, 2);
   roofT(g, 0.64, 0.24, 0.6, d.roof, surfaceMat('boards', d.wall, 2), 0.45, 0.67, 0.35, 0.07);
   badge(g, d.icon, 0.26, 0.45, 0.45, 0.585);
-  const rod = mk(g, cylGeo(0.01, 0.015, 5), M('#6b4226'), 1, 0.9, 1, 0.9, 0.55, 1.45);
+  const rod = keep(mk(g, cylGeo(0.01, 0.015, 5), M('#6b4226'), 1, 0.9, 1, 0.9, 0.55, 1.45));
   rod.rotation.z = -0.9;
-  const bob = ball(g, 0.04, '#e74c3c', 1.5, 0.08, 1.45);
+  const bob = keep(ball(g, 0.04, '#e74c3c', 1.5, 0.08, 1.45));
   const lineGeo = new THREE.BufferGeometry().setFromPoints([new THREE.Vector3(1.26, 0.86, 1.45), new THREE.Vector3(1.5, 0.1, 1.45)]);
-  const line = new THREE.Line(lineGeo, new THREE.LineBasicMaterial({ color: '#ffffff' }));
+  const line = keep(new THREE.Line(lineGeo, new THREE.LineBasicMaterial({ color: '#ffffff' })));
   g.add(line);
   e.top = 1.1;
   e.update = (o, now, t) => {
@@ -3464,7 +3527,7 @@ function buildDock(e: Entry, store: GameStore) {
   const g = e.root;
   waterBasin(g, 2, 2);
   planks(g, 0.4, 1, 0.5, 1.8);
-  const boat = group(g, 1.35, 0.06, 1);
+  const boat = keep(group(g, 1.35, 0.06, 1));
   bx(boat, 0.5, 0.2, 1.1, '#8e4a2b', 0, 0, 0);
   roof(boat, 0.5, 0.2, 0.3, '#8e4a2b', 0, 0, 0.6, Math.PI / 2).rotation.set(Math.PI / 2, 0, 0);
   bx(boat, 0.46, 0.03, 1.05, '#c98a45', 0, 0.2, 0);
@@ -3477,7 +3540,7 @@ function buildDock(e: Entry, store: GameStore) {
   boat.add(sail);
   bx(boat, 0.01, 0.1, 0.16, '#e74c3c', 0, 1.42, 0.13);
   const crates = group(boat);
-  const buoy = ball(g, 0.07, '#e74c3c', 1.4, 0.1, 1.1);
+  const buoy = keep(ball(g, 0.07, '#e74c3c', 1.4, 0.1, 1.1));
   let key = '';
   e.top = 1.5;
   e.update = (_o, now, t) => {

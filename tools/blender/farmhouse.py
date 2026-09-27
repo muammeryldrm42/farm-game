@@ -7,6 +7,9 @@ import os
 import random
 import sys
 sys.path.insert(0, os.path.dirname(__file__))
+if '--list' in sys.argv:   # build_all asks each script for its models
+    print('farmhouse')
+    sys.exit()
 from common import (reset, mat, mat_paint, box, cyl, sphere, gable_wall, join_all, shingled_roof,  # noqa: E402
                     bake_and_export, preview, debug_false_colors)
 
