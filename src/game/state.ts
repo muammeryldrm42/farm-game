@@ -17,7 +17,9 @@ export const FISHING = { level: 5, cost: 800, time: 45 };
 export interface PlotData { crop: string | null; plantedAt: number; watered?: boolean }
 export interface QueueEntry { recipe: string; startAt: number; endsAt: number }
 export interface ProdData { queue: QueueEntry[]; slots: number }
-export interface Animal { id: number; fedAt: number | null }
+// `graze`: the animal left through the open gate at `at` to eat grass (bees: nectar); `back`
+// is set when it was called home early. A full animal walks back and starts producing.
+export interface Animal { id: number; fedAt: number | null; graze?: { at: number; back?: number } }
 export interface PenData { animals: Animal[] }
 export interface TreeData { startAt: number }
 export interface StallSlot { item: string | null; qty: number; price: number; listedAt: number; soldAt: number }
@@ -146,13 +148,34 @@ export function animalReady(a: { fedAt: number | null }, time: number, now: numb
   return a.fedAt !== null && now >= a.fedAt + time * 1000;
 }
 
+// ---------------------------------------------------------------- grazing
+// A trip out of the pen: a walk to the pasture, a meal, and a walk home. Times are fixed so the
+// rules stay a pure function of time (offline too); the renderer paces the walks to fit.
+export const GRAZE = { walkMs: 12e3, eatMs: 45e3, beeEatMs: 35e3 };
+
+export function grazePhase(a: Animal, now: number, bee = false) {
+  const g = a.graze;
+  if (!g) return { phase: 'in' as const, k: 0 };
+  const { walkMs } = GRAZE, eatMs = bee ? GRAZE.beeEatMs : GRAZE.eatMs;
+  if (g.back !== undefined) {
+    const k = (now - g.back) / walkMs;
+    return k >= 1 ? { phase: 'home' as const, k: 1 } : { phase: 'returning' as const, k, from: g.back };
+  }
+  const t = now - g.at;
+  if (t < walkMs) return { phase: 'leaving' as const, k: t / walkMs };
+  if (t < walkMs + eatMs) return { phase: 'eating' as const, k: (t - walkMs) / eatMs };
+  if (t < 2 * walkMs + eatMs) return { phase: 'returning' as const, k: (t - walkMs - eatMs) / walkMs, from: g.at + walkMs + eatMs };
+  return { phase: 'full' as const, k: 1, doneAt: g.at + 2 * walkMs + eatMs };
+}
+
 export function penInfo(o: FarmObject, now: number) {
   const d = BUILDING[o.type];
   const an = ANIMAL[d.animal ?? ''];
   const list = o.pen?.animals ?? [];
-  let ready = 0, fed = 0, hungry = 0, soonest = Infinity, soonestP = 0;
+  let ready = 0, fed = 0, hungry = 0, out = 0, soonest = Infinity, soonestP = 0;
   for (const a of list) {
-    if (a.fedAt === null) hungry++;
+    if (a.graze) out++;
+    if (a.fedAt === null) { if (!a.graze) hungry++; }
     else if (animalReady(a, an.time, now)) ready++;
     else {
       fed++;
@@ -160,7 +183,7 @@ export function penInfo(o: FarmObject, now: number) {
       if (rem < soonest) { soonest = rem; soonestP = 1 - rem / (an.time * 1000); }
     }
   }
-  return { animal: an, ready, fed, hungry, total: list.length, soonest, progress: soonestP };
+  return { animal: an, ready, fed, hungry, out, total: list.length, soonest, progress: soonestP };
 }
 
 export function treeInfo(o: FarmObject, now: number) {
@@ -956,7 +979,7 @@ export class GameStore {
     if (!o.pen) return;
     let n = 0;
     for (const a of o.pen.animals) {
-      if (a.fedAt !== null) continue;
+      if (a.fedAt !== null || a.graze) continue;
       if ((this.s.inv[pi.animal.feed] ?? 0) <= 0) break;
       this.take(pi.animal.feed, 1);
       a.fedAt = Date.now();
@@ -964,6 +987,35 @@ export class GameStore {
     }
     if (n) { this.sound('plant'); this.float(o, `Fed ${n} ${pi.animal.icon}`, '#ffffff', 40); this.emit(); }
     else if (pi.hungry) this.toast(`You need ${ITEMS[pi.animal.feed].name}. ${feedHint(pi.animal.feed)}`, 'bad');
+  }
+
+  // Open the gate: every hungry animal walks out to graze (bees fly off to the flowers) and
+  // comes home by itself once full, ready to produce.
+  openGate(o: FarmObject) {
+    if (!o.pen) return;
+    const now = Date.now();
+    let n = 0;
+    for (const a of o.pen.animals) if (a.fedAt === null && !a.graze) { a.graze = { at: now }; n++; }
+    const an = penInfo(o, now).animal;
+    if (!n) { this.toast(`No hungry ${an.name.toLowerCase()}s to let out.`); return; }
+    this.sound('click');
+    this.float(o, an.id === 'bee' ? `🌼 ${n} off to the flowers` : `🌿 ${n} out to graze`, '#ffffff', 40);
+    this.stat('graze', n);
+    this.emit();
+  }
+
+  // Call them home early: they walk back and stay hungry (unless the meal was already done).
+  recallPen(o: FarmObject) {
+    if (!o.pen) return;
+    const now = Date.now();
+    let n = 0;
+    const bee = penInfo(o, now).animal.id === 'bee';
+    for (const a of o.pen.animals) {
+      if (!a.graze || a.graze.back !== undefined) continue;
+      const ph = grazePhase(a, now, bee).phase;
+      if (ph === 'leaving' || ph === 'eating') { a.graze.back = now; n++; }
+    }
+    if (n) { this.sound('click'); this.float(o, `📣 ${n} coming home`, '#ffffff', 40); this.emit(); }
   }
 
   collectPen(o: FarmObject) {
@@ -1374,8 +1426,27 @@ export class GameStore {
   // called every second
   private rainNoteAt = 0;
 
+  // grazing animals that finished their trip: home and fed (or home and still hungry if called back)
+  private settleGrazing(now: number) {
+    let changed = false;
+    for (const o of this.s.objects) {
+      if (!o.pen) continue;
+      const bee = BUILDING[o.type].animal === 'bee';
+      let fedN = 0;
+      for (const a of o.pen.animals) {
+        if (!a.graze) continue;
+        const gp = grazePhase(a, now, bee);
+        if (gp.phase === 'home') { delete a.graze; changed = true; }
+        else if (gp.phase === 'full') { a.fedAt = gp.doneAt; delete a.graze; fedN++; changed = true; }
+      }
+      if (fedN) this.float(o, bee ? `🍯 ${fedN} bees full of nectar` : `😋 ${fedN} full and home`, '#ffffff', 40);
+    }
+    return changed;
+  }
+
   tick() {
     const now = Date.now();
+    if (this.settleGrazing(now)) this.emit();
     // rain and sprinklers water thirsty fields for free
     const thirsty = this.s.objects.filter((o) => o.type === 'plot' && needsWater(o, now));
     if (thirsty.length) {

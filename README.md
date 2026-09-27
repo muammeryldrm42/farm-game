@@ -34,6 +34,7 @@ By Talons Protocol.
 - Sound effects and a soft generative background tune, all synthesized with WebAudio, no asset files needed
 - A farmer and his dog walking around the farm, harvested goods flying into storage
 - Weather and seasons (winter snow, spring petals, autumn leaves); showers come on some days only, not every day
+- Grazing: open a pen's gate and the hungry animals walk out through it to graze on the grass near the pen (bees fly off to flower beds, flowering crops and fruit trees), then walk back by themselves once full and start producing. Call them back early any time; they always walk, never teleport. Feeding works as before
 - Watering: tap a growing field to water it and it needs 30% less of its remaining time. The watering can (top bar) refills over time, faster with wells; rain waters every field for free and sprinklers water the fields around them. Unwatered crops grow as before
 - 3 fruit trees (apple, cherry, orange) that keep giving fruit
 - Fishing Pier, Jam Maker, Ice Cream Shop and Sushi Bar, 3 new crops (rice, cotton, chili) and 20 new goods

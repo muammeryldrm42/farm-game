@@ -34,6 +34,7 @@ import {
   NAP_MS,
   restBonus,
   waterInfo,
+  grazePhase,
   type FarmObject,
 } from '@/game/state';
 import { getQuality, setQuality, type Quality } from '@/game/quality';
@@ -379,7 +380,16 @@ function PenSheet({ o }: { o: FarmObject }) {
             return (
               <div key={a.id} className="card flex w-16 flex-col items-center gap-1 p-1.5">
                 <span className="emoji text-2xl"><Ico i={an.icon} /></span>
-                {ready ? (
+                {a.graze ? (
+                  <span className="text-center text-[10px] font-bold leading-3 text-[#2d7a2a]">
+                    {(() => {
+                      const ph = grazePhase(a, now, an.id === 'bee').phase;
+                      if (ph === 'leaving') return an.id === 'bee' ? 'Flying out' : 'Heading out';
+                      if (ph === 'eating') return an.id === 'bee' ? 'On flowers' : 'Grazing';
+                      return 'Coming home';
+                    })()}
+                  </span>
+                ) : ready ? (
                   <span className="emoji text-lg"><Ico i={ITEMS[an.product].icon} /></span>
                 ) : a.fedAt === null ? (
                   <span className="text-[10px] font-bold text-[#c0392b]">Hungry</span>
@@ -403,6 +413,16 @@ function PenSheet({ o }: { o: FarmObject }) {
             Feed {Math.min(pi.hungry, feedHave) || ''} <span className="emoji"><Ico i={ITEMS[an.feed].icon} /></span>
           </button>
         )}
+        {pi.hungry > 0 && (
+          <button className="btn btn-green" onClick={() => store.openGate(o)} title={an.id === 'bee' ? 'Let the bees fly to the flowers' : 'Open the gate: hungry animals walk out to graze and come back full'}>
+            <span className="emoji">{an.id === 'bee' ? '🌼' : '🚪'}</span> {an.id === 'bee' ? 'Send to flowers' : 'Open gate'}
+          </button>
+        )}
+        {(o.pen?.animals ?? []).some((a) => { const ph = grazePhase(a, now, an.id === 'bee').phase; return ph === 'leaving' || ph === 'eating'; }) && (
+          <button className="btn btn-wood" onClick={() => store.recallPen(o)}>
+            <span className="emoji">📣</span> Call back
+          </button>
+        )}
         {pi.fed > 0 && (
           <button className="btn btn-blue" onClick={() => store.speedPen(o)} disabled={s.gems < gemCost(maxRem)}>
             Finish now <Gems n={gemCost(maxRem)} />
@@ -418,7 +438,8 @@ function PenSheet({ o }: { o: FarmObject }) {
         </button>
       </div>
       <p className="mt-2 text-xs text-[#8a6a44]">
-        {ITEMS[an.feed].name} in storage: <b>{feedHave}</b>. {feedHint(an.feed)}
+        {ITEMS[an.feed].name} in storage: <b>{feedHave}</b>. {feedHint(an.feed)}{' '}
+        {an.id === 'bee' ? 'Or send the bees to the flowers: they come back full of nectar.' : 'Or open the gate: they graze on the grass and walk back full.'}
       </p>
     </Sheet>
   );

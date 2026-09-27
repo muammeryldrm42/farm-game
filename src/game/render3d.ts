@@ -21,8 +21,8 @@ import { SCULPT_MAT, TOON_MAT, TOON_WOOL, WOOL_MAT } from './gfx/sdf';
 import { leafShell, leafTexture, meterBox, meterHip, meterRoof, surface, surfaceMat, type SurfaceKind } from './gfx/textures';
 import { ANIMAL, BUILDING, CROP, ITEMS, type BuildingDef, type CropDef } from './data';
 import {
-  CHUNK, FISH_SPOT, GRID, MAP_OFF, NCH, animalReady, fishingInfo, boatState, canFulfill, chunkState, penInfo, plotProgress, prodInfo, treeInfo,
-  type FarmObject, type GameStore,
+  CHUNK, FISH_SPOT, GRID, MAP_OFF, NCH, animalReady, fishingInfo, boatState, canFulfill, chunkState, grazePhase, penInfo, plotProgress, prodInfo, treeInfo,
+  type Animal, type FarmObject, type GameStore,
 } from './state';
 
 export const ZU = 1 / 40; // converts the old pixel heights used by effects into world units
@@ -511,6 +511,13 @@ export class Renderer {
     this.farmer = actor(FARM_C.x - 0.5, FARM_C.y + 0.5, buildFarmer());
     this.dog = actor(FARM_C.x + 0.5, FARM_C.y + 0.5, buildDog());
     this.cat = actor(FARM_C.x + 1.5, FARM_C.y + 1.5, buildCat());
+    // grazing animals borrow the farmer's walk grid; bees look for blossoms
+    GRAZE_NAV = {
+      path: (sx, sy, tx, ty) => { this.rebuildNav(); return this.findPath(sx, sy, tx, ty); },
+      nearest: (x, y) => { this.rebuildNav(); return this.nearestFree(x, y); },
+      grass: (x, y) => { this.rebuildNav(); return this.free(x, y) && !pathTiles.has(y * GRID + x); },
+      flowers: () => this.flowerSpots(),
+    };
     // the farmer and pets start as sculpts and take on their Blender models once loaded
     if (artStyle() === 'toon') {
       loadModel('farmer').then((m) => {
@@ -1533,6 +1540,25 @@ export class Renderer {
   private homeZzz: THREE.Sprite | null = null;
   private nightMode = false;
   private zzz: THREE.Sprite | null = null;
+
+  // blossoms for the bees: flower beds and arches, flowering crops, fruit trees
+  private flowerKey = '';
+  private flowerList: { x: number; y: number }[] = [];
+  private flowerSpots() {
+    const s = this.store.s;
+    const key = `${this.store.objVersion}|${s.objects.length}`;
+    if (key !== this.flowerKey) {
+      this.flowerKey = key;
+      this.flowerList = [];
+      for (const o of s.objects) {
+        const d = BUILDING[o.type];
+        const bloom = o.type === 'flowers' || o.type === 'flower_arch' || d.kind === 'tree'
+          || (d.kind === 'plot' && !!o.plot?.crop && CROP[o.plot.crop]?.shape === 'flower');
+        if (bloom) this.flowerList.push({ x: o.x + d.w / 2, y: o.y + d.h / 2 });
+      }
+    }
+    return this.flowerList;
+  }
 
   private rebuildNav() {
     const s = this.store.s;
@@ -3104,6 +3130,140 @@ function fence(g: THREE.Group, w: number, h: number, white = false) {
   }
 }
 
+// ------------------------------------------------------------------ grazing trips
+// Animals let out of their pen walk (never teleport) along tile paths: out through the gate to a
+// few grassy spots near the pen, eating at each, then back in. Positions are a pure function
+// of time and the trip's start, so every frame (and a reload) agrees. The renderer lends its
+// walk grid and knows where the flowers are for the bees.
+type P2 = { x: number; y: number };
+let GRAZE_NAV: {
+  path: (sx: number, sy: number, tx: number, ty: number) => P2[] | null;
+  nearest: (x: number, y: number) => P2 | null;
+  grass: (x: number, y: number) => boolean;
+  flowers: () => P2[];
+} | null = null;
+
+interface Trip { out: P2[]; eat: P2[][]; back: P2[]; recall?: { at: number; path: P2[] } }
+const trips = new Map<string, Trip>();
+
+function polyLen(pts: P2[]) {
+  let L = 0;
+  for (let i = 1; i < pts.length; i++) L += Math.hypot(pts[i].x - pts[i - 1].x, pts[i].y - pts[i - 1].y);
+  return L;
+}
+// point at fraction k of the way along a polyline, and the walking direction there
+function along(pts: P2[], k: number) {
+  if (pts.length === 1) return { x: pts[0].x, y: pts[0].y, dx: 0, dy: 1 };
+  const L = polyLen(pts);
+  let want = Math.max(0, Math.min(1, k)) * L;
+  for (let i = 1; i < pts.length; i++) {
+    const a = pts[i - 1], b = pts[i];
+    const seg = Math.hypot(b.x - a.x, b.y - a.y);
+    if (want <= seg || i === pts.length - 1) {
+      const u = seg ? Math.min(1, want / seg) : 1;
+      return { x: a.x + (b.x - a.x) * u, y: a.y + (b.y - a.y) * u, dx: b.x - a.x, dy: b.y - a.y };
+    }
+    want -= seg;
+  }
+  const z = pts[pts.length - 1];
+  return { x: z.x, y: z.y, dx: 0, dy: 1 };
+}
+const tileOf = (p: P2) => ({ x: Math.floor(p.x), y: Math.floor(p.y) });
+function walk(from: P2, to: P2) {
+  const a = tileOf(from), b = tileOf(to);
+  const p = GRAZE_NAV?.path(a.x, a.y, b.x, b.y);
+  return p ? [from, ...p, to] : [from, to];
+}
+
+function tripFor(o: FarmObject, d: BuildingDef, a: Animal): Trip | null {
+  if (!a.graze || !GRAZE_NAV) return null;
+  const key = `${o.id}|${o.x},${o.y}|${a.id}|${a.graze.at}`;
+  let tr = trips.get(key);
+  if (!tr) {
+    const sp = animalSpot(d, a.id, a.graze.at);
+    const home = { x: o.x + sp.x, y: o.y + sp.z };
+    const gateIn = { x: o.x + d.w / 2, y: o.y + d.h - 0.3 };
+    const gateOut = { x: o.x + d.w / 2, y: o.y + d.h + 0.45 };
+    const g0 = GRAZE_NAV.nearest(Math.floor(gateOut.x), Math.floor(gateOut.y)) ?? tileOf(gateOut);
+    // three grassy spots a few tiles from the gate, picked by the animal and the trip
+    const spots: P2[] = [];
+    for (let k = 0; k < 3; k++) {
+      let best: P2 | null = null;
+      for (let tries = 0; tries < 14 && !best; tries++) {
+        const ang = hash(a.id, a.graze.at % 100000, k * 17 + tries) * Math.PI * 2;
+        const r = 2 + hash(a.id, k, tries + 5) * 4;
+        const tx = Math.floor(g0.x + Math.cos(ang) * r), ty = Math.floor(g0.y + Math.abs(Math.sin(ang)) * r * 0.9 + 0.5);
+        if (GRAZE_NAV.grass(tx, ty)) best = { x: tx + 0.3 + hash(a.id, tx, ty) * 0.4, y: ty + 0.3 + hash(a.id, ty, tx) * 0.4 };
+      }
+      spots.push(best ?? { x: g0.x + 0.5, y: g0.y + 0.5 });
+    }
+    const out = [home, gateIn, gateOut, ...walk(gateOut, spots[0]).slice(1)];
+    const eat = [walk(spots[0], spots[1]), walk(spots[1], spots[2])];
+    const back = [...walk(spots[2], gateOut), gateIn, home];
+    tr = { out, eat, back };
+    if (trips.size > 400) trips.clear();
+    trips.set(key, tr);
+  }
+  return tr;
+}
+
+// where a grazing animal is at time `now`: world x, y, heading, walking or eating
+function grazePose(o: FarmObject, d: BuildingDef, a: Animal, now: number): { x: number; y: number; heading: number; moving: boolean } | null {
+  const tr = tripFor(o, d, a);
+  if (!tr) return null;
+  const gp = grazePhase(a, now);
+  let pt: { x: number; y: number; dx: number; dy: number }, moving = true;
+  if (gp.phase === 'leaving') pt = along(tr.out, gp.k);
+  else if (gp.phase === 'eating') {
+    // stand and eat, stroll to the next patch, eat, stroll, eat
+    const k = gp.k;
+    if (k < 0.3) { pt = along(tr.eat[0], 0); moving = false; }
+    else if (k < 0.4) pt = along(tr.eat[0], (k - 0.3) / 0.1);
+    else if (k < 0.65) { pt = along(tr.eat[1], 0); moving = false; }
+    else if (k < 0.75) pt = along(tr.eat[1], (k - 0.65) / 0.1);
+    else { pt = along(tr.eat[1], 1); moving = false; }
+  } else if (gp.phase === 'returning' && a.graze?.back !== undefined) {
+    // called home early: from wherever it was, the shortest way back through the gate
+    if (!tr.recall || tr.recall.at !== a.graze.back) {
+      const from = grazePose(o, d, { ...a, graze: { at: a.graze.at } }, a.graze.back) ?? { x: o.x, y: o.y };
+      const sp = animalSpot(d, a.id, a.graze.at);
+      const gateOut = { x: o.x + d.w / 2, y: o.y + d.h + 0.45 };
+      tr.recall = { at: a.graze.back, path: [...walk({ x: from.x, y: from.y }, gateOut), { x: o.x + d.w / 2, y: o.y + d.h - 0.3 }, { x: o.x + sp.x, y: o.y + sp.z }] };
+    }
+    pt = along(tr.recall.path, gp.k);
+  } else if (gp.phase === 'returning') pt = along(tr.back, gp.k);
+  else return null;
+  return { x: pt.x, y: pt.y, heading: Math.atan2(pt.dx, pt.dy), moving };
+}
+
+// the bees of a hive fly (straight, they can) to flowers near the pen and back
+function beePose(o: FarmObject, a: Animal, k: number, now: number) {
+  const gp = grazePhase(a, now, true);
+  if (gp.phase === 'in' || gp.phase === 'home' || gp.phase === 'full') return null;
+  const fl = GRAZE_NAV?.flowers() ?? [];
+  const cx = o.x + 1, cy = o.y + 1;
+  const near = fl.filter((f) => Math.hypot(f.x - cx, f.y - cy) < 9);
+  const pick = near.length ? near[Math.floor(hash(a.id, k, 7) * near.length)]
+    : { x: cx + (hash(a.id, k, 3) - 0.5) * 6, y: o.y + 2.5 + hash(a.id, k, 4) * 3 };
+  const target = { x: pick.x + (hash(k, a.id, 9) - 0.5) * 0.5, y: pick.y + (hash(a.id, k, 11) - 0.5) * 0.5 };
+  const home = { x: cx, y: cy };
+  const lerp2 = (p: P2, q: P2, u: number) => ({ x: p.x + (q.x - p.x) * u, y: p.y + (q.y - p.y) * u });
+  let at: P2, h = 0.6, landed = false;
+  if (gp.phase === 'leaving') { at = lerp2(home, target, gp.k); h = 0.5 + Math.sin(gp.k * Math.PI) * 0.6; }
+  else if (gp.phase === 'eating') {
+    // hop from bloom to bloom around the patch, landing to sip
+    const w = now / 900 + k * 2;
+    at = { x: target.x + Math.cos(w) * 0.25, y: target.y + Math.sin(w * 1.3) * 0.25 };
+    landed = Math.sin(now / 700 + k) > 0.2;
+    h = landed ? 0.28 : 0.45;
+  } else {
+    const from = gp.from !== undefined && a.graze?.back !== undefined ? target : target;
+    at = lerp2(from, home, gp.k);
+    h = 0.5 + Math.sin(gp.k * Math.PI) * 0.6;
+  }
+  return { x: at.x, y: at.y, h, landed };
+}
+
 function buildPen(e: Entry, d: BuildingDef) {
   const g = e.root;
   const w = d.w, h = d.h;
@@ -3372,6 +3532,16 @@ function buildPen(e: Entry, d: BuildingDef) {
         m.position.set(x, 0.04 + jump * 0.3, z);
         const bees = m.userData.bees as THREE.Group;
         bees.children.forEach((b, k) => {
+          const bp = a?.graze ? beePose(o, a, k, now) : null;
+          if (bp) {
+            // out on the flowers: the hive sits at (o.x + x, o.y + z)
+            b.position.set(bp.x - o.x - x, bp.h + (bp.landed ? 0 : Math.sin(t / 150 + k) * 0.03), bp.y - o.y - z);
+            b.rotation.y = t / 300 + k;
+            const f2 = Math.sin(t / 18 + k) * (bp.landed ? 0.2 : 0.6);
+            b.children[2].rotation.z = f2;
+            b.children[3].rotation.z = -f2;
+            return;
+          }
           const ang = t / (400 + k * 90) + k * 2 + id;
           b.position.set(Math.cos(ang) * (0.25 + k * 0.05), 0.35 + Math.sin(t / 300 + k) * 0.08, Math.sin(ang) * (0.25 + k * 0.05));
           b.rotation.y = -ang;
@@ -3383,6 +3553,21 @@ function buildPen(e: Entry, d: BuildingDef) {
       }
       const head = m.userData.head as THREE.Object3D | undefined;
       const tail = m.userData.tail as THREE.Object3D | undefined;
+      const gz = a?.graze ? grazePose(o, d, a, now) : null;
+      if (gz) {
+        // out grazing: walking the path, or head down nibbling the grass
+        m.position.set(gz.x - o.x, 0.04 + (gz.moving ? Math.abs(Math.sin(t / 110 + id)) * 0.012 : 0), gz.y - o.y);
+        m.rotation.y = gz.heading;
+        m.rotation.z = 0;
+        animateLegs(m, gz.moving ? Math.sin(t / 110 + id) * 0.32 : 0);
+        if (head) head.rotation.x = gz.moving ? 0 : 0.55 + Math.max(0, Math.sin(t / 260 + id)) * 0.25;
+        if (tail) tail.rotation.z = Math.sin(t / 300 + id) * 0.4;
+        blink(m, t, id);
+        const cs = m.userData.shadow as THREE.Object3D | undefined;
+        if (cs) cs.position.y = 0.006 - (m.position.y - 0.04);
+        return;
+      }
+      if (head && !gz) head.rotation.x = Math.min(head.rotation.x, 0.5);
       if (an && SWIMMERS.has(an.id)) {
         const u = hash(id, 1, 3);
         const ang = t / (4200 + u * 2000) + id * 1.7;
