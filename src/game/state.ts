@@ -1,10 +1,14 @@
 // Talons Farm - game state, persistence and all player actions
-import { ANIMAL, BUILDING, BUILDINGS, CROP, ITEMS, ITEM_LIST, RECIPE, type BuildingDef } from './data';
+import { ANIMAL, BUILDING, BUILDINGS, CATCHES, CROP, ITEMS, ITEM_LIST, RECIPE, type BuildingDef } from './data';
 import { isRaining } from './weather';
 
-export const GRID = 44;
-// older saves were made on a 28 tile map; their farm is moved by this many tiles to the new center
+export const GRID = 60;
+// the map grew twice, from 28 to 44 tiles and then to 60; each time older farms are moved by
+// this many tiles so they stay in the middle
 export const MAP_OFF = 8;
+export const MAP_OFF2 = 8;
+// where the starting layout (written for the first 28 tile map) sits on today's map
+export const FARM_OFF = MAP_OFF + MAP_OFF2;
 export const CHUNK = 4;
 export const NCH = GRID / CHUNK;
 export const SAVE_KEY = 'talons-farm-save-v1';
@@ -68,16 +72,22 @@ export interface GameState {
   mapV?: number;
   fishing?: FishingData;
   restedOn?: string; // day key of the last nap that earned the rested bonus
-  water?: { n: number; at: number }; // watering can: charges left, and when the last one refilled
+  water?: { n: number; at: number }; // the bucket: waterings left, and when it was last filled
+  starterWell?: boolean; // the free well every farm gets has been handed out
 }
 
 // ---------------------------------------------------------------- helpers
 
 export const xpNeed = (level: number) => Math.floor(15 * Math.pow(level, 1.6)) + 5;
-export const siloCap = (s: GameState) => 50 + s.siloLevel * 25;
-export const barnCap = (s: GameState) => 50 + s.barnLevel * 25;
+// Each storage upgrade adds more room than the one before (+25, +30, +35 ...), so a well
+// upgraded silo keeps up with the hundreds of goods the later levels bring.
+export const upgradeStep = (lvl: number) => 25 + 5 * lvl;
+export const capAt = (lvl: number) => 50 + 25 * lvl + (5 * lvl * (lvl - 1)) / 2;
+export const siloCap = (s: GameState) => capAt(s.siloLevel);
+export const barnCap = (s: GameState) => capAt(s.barnLevel);
 export const storageCap = (s: GameState, k: 'silo' | 'barn') => (k === 'silo' ? siloCap(s) : barnCap(s));
-export const upgradeCost = (lvl: number) => Math.round((150 * Math.pow(1.55, lvl)) / 10) * 10;
+// the price climbs steeply at first, then steadily, so big storage stays in reach late in the game
+export const upgradeCost = (lvl: number) => Math.round((150 * Math.pow(1.5, Math.min(lvl, 12)) + Math.max(0, lvl - 12) * 30000) / 10) * 10;
 export const gemCost = (ms: number) => Math.max(1, Math.ceil(ms / 60000));
 export const slotCost = (slots: number) => 4 + (slots - 3) * 3;
 export const MAX_SLOTS = 7;
@@ -106,19 +116,14 @@ export function fmtNum(n: number) {
 
 // ---------------------------------------------------------------- watering
 // Watering is a bonus, never a chore: a watered crop needs 30% less of its remaining time, an
-// unwatered one grows as before. The can holds a few charges that refill over time, faster
-// with wells on the farm; rain waters every field for free, and sprinklers water the fields
-// around them.
-export const WATER = { max: 10, refillMs: 120e3, boost: 0.3, sprinklerRange: 2 };
+// unwatered one grows as before. Water is carried in a bucket filled at a well (every farm gets
+// one); rain waters every field for free, and sprinklers water the fields around them.
+export const WATER = { bucket: 5, boost: 0.3, sprinklerRange: 2 };
 
-export function waterInfo(s: GameState, now: number) {
-  const wells = Math.min(3, s.objects.filter((o) => o.type === 'well').length);
-  const every = WATER.refillMs / (1 + 0.5 * wells);
-  const w = s.water ?? { n: WATER.max, at: now };
-  const gained = Math.max(0, Math.floor((now - w.at) / every));
-  const n = Math.min(WATER.max, w.n + gained);
-  const at = n >= WATER.max ? now : w.at + gained * every;
-  return { n, max: WATER.max, at, every, wells, nextIn: n >= WATER.max ? 0 : at + every - now };
+export function waterInfo(s: GameState, _now?: number) {
+  const n = Math.min(WATER.bucket, Math.max(0, s.water?.n ?? WATER.bucket));
+  const wells = s.objects.filter((o) => o.type === 'well').length;
+  return { n, max: WATER.bucket, wells };
 }
 
 export const needsWater = (o: FarmObject, now: number) => {
@@ -151,7 +156,8 @@ export function animalReady(a: { fedAt: number | null }, time: number, now: numb
 // ---------------------------------------------------------------- grazing
 // A trip out of the pen: a walk to the pasture, a meal, and a walk home. Times are fixed so the
 // rules stay a pure function of time (offline too); the renderer paces the walks to fit.
-export const GRAZE = { walkMs: 12e3, eatMs: 45e3, beeEatMs: 35e3 };
+// grazing is slow and free; the feed trough is quick and costs feed
+export const GRAZE = { walkMs: 12e3, eatMs: 450e3, beeEatMs: 350e3 };
 
 export function grazePhase(a: Animal, now: number, bee = false) {
   const g = a.graze;
@@ -256,11 +262,7 @@ export function fishingInfo(s: GameState, now: number) {
 
 // Everything that can bite at the fishing spot: [item, level, weight]. Rarer, later catches
 // carry smaller weights, so a golden fish stays a thrill even at level 200.
-export const CATCHES: [string, number, number][] = [
-  ['fish', 1, 40], ['salmon', 10, 20], ['lobster', 12, 14], ['crab', 14, 12], ['trout', 22, 12], ['tuna', 31, 10],
-  ['shrimp', 40, 10], ['squid', 52, 8], ['octopus', 64, 7], ['swordfish', 78, 6], ['eel', 92, 6], ['pufferfish', 108, 5],
-  ['stingray', 125, 4], ['marlin', 145, 3.5], ['pearl', 170, 3], ['golden_fish', 195, 1.5],
-];
+export { CATCHES };
 export function pickCatch(level: number, roll: number) {
   const open = CATCHES.filter(([, lv]) => level >= lv);
   let r = roll * open.reduce((a, [, , w]) => a + w, 0);
@@ -419,6 +421,8 @@ export function newGame(): GameState {
   add('board', 11, 9);
   add('barn', 16, 8);
   add('silo', 18, 8);
+  add('well', 13, 12);
+  s.starterWell = true;
   for (let i = 0; i < 3; i++) for (let j = 0; j < 2; j++) {
     add('plot', 10 + i, 12 + j, { plot: { crop: 'wheat', plantedAt: j === 0 ? now - 3600e3 : now - 8000 } });
   }
@@ -433,7 +437,7 @@ export function newGame(): GameState {
   for (let i = 0; i < orderCount(1); i++) s.orders.push(genOrder(s, now));
   // first order is always doable with starting wheat, for the tutorial
   s.orders[0] = { ...s.orders[0], items: [{ id: 'wheat', qty: 6 }], coins: 30, xp: 5, gems: 0 };
-  shiftMap(s);
+  shiftMap(s, FARM_OFF, 3);
   return s;
 }
 
@@ -463,14 +467,14 @@ function dropRemoved(s: GameState) {
 }
 
 // Moves a farm laid out on the old 28 tile map to the middle of the current map.
-function shiftMap(s: GameState) {
-  const cs = MAP_OFF / CHUNK;
-  s.objects = s.objects.map((o) => ({ ...o, x: o.x + MAP_OFF, y: o.y + MAP_OFF }));
+function shiftMap(s: GameState, off: number, v: number) {
+  const cs = off / CHUNK;
+  s.objects = s.objects.map((o) => ({ ...o, x: o.x + off, y: o.y + off }));
   s.chunks = s.chunks.map((k) => {
     const [x, y] = k.split(',').map(Number);
     return `${x + cs},${y + cs}`;
   });
-  s.mapV = 2;
+  s.mapV = v;
 }
 
 export function loadGame(): GameState {
@@ -506,10 +510,12 @@ function migrate(d: Partial<GameState>): GameState {
   s.achievements = d.achievements ?? {};
   s.stall = Array.isArray(d.stall) && d.stall.length === STALL_SLOTS ? d.stall : Array.from({ length: STALL_SLOTS }, emptySlot);
   s.boat = d.boat ?? null;
+  s.starterWell = d.starterWell;
   // saves from before the tutorial existed skip it
   s.tutorial = typeof d.tutorial === 'number' ? d.tutorial : TUTORIAL_DONE;
   if (!Array.isArray(s.objects) || !Array.isArray(s.chunks)) return base;
-  if ((d.mapV ?? 1) < 2) shiftMap(s);
+  if ((d.mapV ?? 1) < 2) shiftMap(s, MAP_OFF, 2);
+  if ((s.mapV ?? 1) < 3) shiftMap(s, MAP_OFF2, 3);
   dropRemoved(s);
   s.objects = s.objects.filter((o) => BUILDING[o.type]);
   return s;
@@ -558,6 +564,17 @@ export class GameStore {
     this.ui = { selectedId: null, placing: null, tool: null, panel: null, storageTab: 'silo', expand: null, levelUp: null, daily: false, napping: false, napAt: 0 };
     this.ensureOrders();
     this.ui.daily = this.canDaily();
+    this.giveStarterWell();
+  }
+
+  // farms from before the bucket get their free well beside the fields, once
+  private giveStarterWell() {
+    if (this.s.starterWell) return;
+    this.s.starterWell = true;
+    if (this.s.objects.some((o) => o.type === 'well')) return;
+    const plot = this.s.objects.find((o) => o.type === 'plot') ?? this.s.objects.find((o) => o.type === 'house');
+    const spot = this.findSpot('well', plot ? plot.x + 1 : GRID / 2, plot ? plot.y + 1 : GRID / 2);
+    if (spot.ok) this.s.objects.push({ id: this.s.nextId++, type: 'well', x: spot.x, y: spot.y });
   }
 
   subscribe = (l: () => void) => { this.listeners.add(l); return () => { this.listeners.delete(l); }; };
@@ -722,8 +739,6 @@ export class GameStore {
     switch (d.kind) {
       case 'plot':
         if (!o.plot?.crop && this.ui.tool) { this.plant(o, this.ui.tool.crop); return; }
-        // a thirsty crop gets watered straight away while the can has water
-        if (needsWater(o, now) && waterInfo(this.s, now).n > 0) this.waterPlot(o);
         this.select(o.id);
         return;
       case 'production':
@@ -732,8 +747,9 @@ export class GameStore {
         return;
       case 'pen': {
         const pi = penInfo(o, now);
+        // collect when ready; feeding is the player's choice (the Feed button), so animals that
+        // came home hungry from grazing are not fed behind their back
         if (pi.ready) this.collectPen(o);
-        else if (pi.hungry && (this.s.inv[pi.animal.feed] ?? 0) > 0) this.feedPen(o);
         this.select(o.id);
         return;
       }
@@ -747,8 +763,21 @@ export class GameStore {
         return;
       case 'stall': this.openPanel('stall'); return;
       case 'dock': this.openPanel('boat'); return;
-      default: this.select(o.id);
+      default:
+        if (o.type === 'well') this.fillBucket(o);
+        this.select(o.id);
     }
+  }
+
+  // fill the bucket to the brim at a well
+  fillBucket(o: FarmObject) {
+    const wi = waterInfo(this.s);
+    if (wi.n >= wi.max) { this.toast('Your bucket is already full. Tap a growing field to water it.', 'info'); return; }
+    this.s.water = { n: wi.max, at: Date.now() };
+    this.sound('collect');
+    this.burst(o, '#6fc8ff');
+    this.float(o, `🪣 ${wi.max}/${wi.max}`, '#dff4ff', 30);
+    this.emit(false);
   }
 
   // ------------------------------------------------ fishing spot
@@ -854,17 +883,17 @@ export class GameStore {
   }
 
   // A drink for a growing crop: the rest of its growing time shrinks by 30%. `free` is rain or a
-  // sprinkler; by hand it costs one charge of the watering can.
+  // sprinkler; by hand it takes one pour from the bucket.
   waterPlot(o: FarmObject, free = false) {
     const now = Date.now();
     if (!o.plot || !needsWater(o, now)) return false;
     if (!free) {
-      const wi = waterInfo(this.s, now);
+      const wi = waterInfo(this.s);
       if (wi.n <= 0) {
-        this.toast(`The watering can is empty. Next refill in ${fmtTime(wi.nextIn)}.`, 'bad');
+        this.toast(wi.wells ? 'Your bucket is empty. Tap a well to fill it.' : 'Your bucket is empty. Build a well to fill it.', 'bad');
         return false;
       }
-      this.s.water = { n: wi.n - 1, at: wi.n >= wi.max ? now : wi.at };
+      this.s.water = { n: wi.n - 1, at: this.s.water?.at ?? Date.now() };
       this.stat('water');
       this.sound('plant');
     }
@@ -1432,14 +1461,16 @@ export class GameStore {
     for (const o of this.s.objects) {
       if (!o.pen) continue;
       const bee = BUILDING[o.type].animal === 'bee';
-      let fedN = 0;
+      let fedN = 0, hungryN = 0;
       for (const a of o.pen.animals) {
         if (!a.graze) continue;
         const gp = grazePhase(a, now, bee);
-        if (gp.phase === 'home') { delete a.graze; changed = true; }
+        // called back before the meal was over: home, but still hungry
+        if (gp.phase === 'home') { delete a.graze; hungryN++; changed = true; }
         else if (gp.phase === 'full') { a.fedAt = gp.doneAt; delete a.graze; fedN++; changed = true; }
       }
       if (fedN) this.float(o, bee ? `🍯 ${fedN} bees full of nectar` : `😋 ${fedN} full and home`, '#ffffff', 40);
+      if (hungryN) this.float(o, `🍽️ ${hungryN} home, still hungry`, '#ffffff', 40);
     }
     return changed;
   }

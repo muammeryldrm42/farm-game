@@ -9,9 +9,11 @@ import random
 import sys
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-from kit import (Face, ball, bark_mat, box, capture, clump, crate, cyl, door, finish, hay_bale, leaf_mats, main, oak,  # noqa: E402
+from kit import (Face, anim_group, ball, bark_mat, box, capture, clump, crate, cyl, door, finish, hay_bale, leaf_mats, main, oak,  # noqa: E402
                  palm, pine, place, pm, profile_roof, rock, roof_plane, shingles, snow, std, torus, uid, walls, window)
 from common import obox  # noqa: E402
+import bpy  # noqa: E402
+from mathutils import Matrix  # noqa: E402
 
 R90 = math.radians(90)
 PW, PH = 3, 3   # footprint of the pen being built, in tiles
@@ -120,18 +122,21 @@ def fence(m, style):
 
 
 def gate(m, y, w, mat):
-    """A closed two leaf gate with a diagonal brace in each leaf."""
+    """A two leaf gate with a diagonal brace in each leaf. Each leaf is its own node (`gate0`,
+    `gate1`) hinged at its post, so the game can swing it open when the animals go out."""
     for sx in (-1, 1):
         cx = sx * w / 4
-        for z in (0.12, 0.34):
-            box(uid('gr'), (w / 2 - 0.04, 0.03, 0.045), (cx, y, z), mat, bev=0.008)
-        for u in (-1, 1):
-            box(uid('gs'), (0.04, 0.03, 0.3), (cx + u * (w / 4 - 0.04), y, 0.23), mat, bev=0.006)
-        a = math.atan2(0.22, w / 2 - 0.1)
-        ln = math.hypot(0.22, w / 2 - 0.1)
-        obox(uid('gb'), (cx, y, 0.23), ((math.cos(a) * sx, 0, math.sin(a)), (0, 1, 0), (-math.sin(a) * sx, 0, math.cos(a))),
-             (ln, 0.025, 0.035), mat, bev=0.006)
-    box(uid('latch'), (0.05, 0.035, 0.03), (0, y - 0.02, 0.28), m['iron'], bev=0)
+        with anim_group(f'gate{0 if sx < 0 else 1}', (sx * w / 2, y, 0)):
+            for z in (0.12, 0.34):
+                box(uid('gr'), (w / 2 - 0.04, 0.03, 0.045), (cx, y, z), mat, bev=0.008)
+            for u in (-1, 1):
+                box(uid('gs'), (0.04, 0.03, 0.3), (cx + u * (w / 4 - 0.04), y, 0.23), mat, bev=0.006)
+            a = math.atan2(0.22, w / 2 - 0.1)
+            ln = math.hypot(0.22, w / 2 - 0.1)
+            obox(uid('gb'), (cx, y, 0.23), ((math.cos(a) * sx, 0, math.sin(a)), (0, 1, 0), (-math.sin(a) * sx, 0, math.cos(a))),
+                 (ln, 0.025, 0.035), mat, bev=0.006)
+            if sx > 0:
+                box(uid('latch'), (0.05, 0.035, 0.03), (0.02, y - 0.02, 0.28), m['iron'], bev=0)
 
 
 # ---------------------------------------------------------------- shelters and props
@@ -559,46 +564,99 @@ def tall_grass(m, n=10, seed=1):
 
 # ---------------------------------------------------------------- the pen table
 
-WHITE = {'sheepfold', 'stable', 'alpaca_ranch', 'peacock_garden', 'rabbit_hutch', 'pony_paddock', 'black_sheepfold', 'merino_fold',
-         'jacob_fold', 'silkie_coop', 'deer_park', 'chinchilla_hutch'}
-LOG = {'reindeer_lodge', 'bison_range', 'moose_woods', 'musk_ox_range', 'yak_pasture', 'beaver_pond'}
+WHITE = {'guernsey_pasture', 'palomino_stable', 'dutch_hutch', 'sheepfold', 'stable', 'alpaca_ranch', 'peacock_garden', 'rabbit_hutch', 'pony_paddock', 'black_sheepfold', 'merino_fold',
+         'jacob_fold', 'silkie_coop', 'suffolk_fold', 'saanen_yard', 'valais_fold', 'charolais_pasture', 'appaloosa_stable', 'clydesdale_stable', 'angora_hutch', 'deer_park', 'chinchilla_hutch'}
+LOG = {'shetland_fold', 'karakul_fold', 'alpine_yard', 'longhorn_ranch', 'elk_woods', 'mule_paddock', 'reindeer_lodge', 'bison_range', 'moose_woods', 'musk_ox_range', 'yak_pasture', 'beaver_pond'}
 STONE = {'highland_pasture', 'galloway_pasture'}
-BAMBOO = {'parrot_aviary', 'silk_house', 'kiwi_burrow', 'crane_marsh', 'flamingo_lagoon'}
+BAMBOO = {'parrot_aviary', 'silk_house', 'kiwi_burrow', 'crane_marsh', 'flamingo_lagoon', 'heron_marsh'}
 NO_TROUGH = {'beehive', 'duck_pond', 'goose_pen', 'peacock_garden', 'swan_lake', 'flamingo_lagoon', 'golden_nest', 'mandarin_pond',
-             'black_swan_lake', 'silk_house', 'parrot_aviary', 'owl_barn', 'kiwi_burrow', 'squirrel_grove', 'crane_marsh'}
+             'black_swan_lake', 'silk_house', 'parrot_aviary', 'owl_barn', 'kiwi_burrow', 'squirrel_grove', 'crane_marsh', 'heron_marsh', 'pekin_pond', 'toulouse_pen', 'runner_pen', 'white_peacock_garden', 'campbell_pond', 'call_duck_pond', 'emden_pen'}
 
 # id: (w, h, roof color, wall color, shelter)
 PENS = {
     'coop': (2, 2, '#b5452c', '#e3c27a', 'coop'), 'silkie_coop': (2, 2, '#e07898', '#e8cf94', 'coop'),
     'guinea_run': (2, 2, '#5a7a2a', '#d0a868', 'coop'), 'gobbler_run': (2, 2, '#8e4a2b', '#c9a46a', 'coop'),
     'quail_coop': (2, 2, '#5a7a2a', '#e0cc98', 'quail'),
-    'pasture': (3, 3, '#6b4226', None, 'open'), 'sheepfold': (3, 3, '#2e6aa8', None, 'open'), 'goat_yard': (3, 3, '#7a4b26', None, 'goat'),
-    'duck_pond': (3, 3, '#2e6aa8', '#f0e2c0', 'duck'), 'beehive': (2, 2, '#f5b92b', None, 'hives'),
+    'pasture': (3, 2, '#6b4226', None, 'open'), 'sheepfold': (3, 2, '#2e6aa8', None, 'open'), 'goat_yard': (3, 2, '#7a4b26', None, 'goat'),
+    'duck_pond': (3, 2, '#2e6aa8', '#f0e2c0', 'duck'), 'beehive': (2, 2, '#f5b92b', None, 'hives'),
     'rabbit_hutch': (2, 2, '#c0302a', '#d9b27a', 'hutch'), 'chinchilla_hutch': (2, 2, '#6a7a98', '#c8b890', 'hutch'),
-    'alpaca_ranch': (3, 3, '#7d5ba6', None, 'open'), 'goose_pen': (2, 2, '#3a78c0', '#f0e2c0', 'goose'),
-    'donkey_paddock': (3, 3, '#6b4226', None, 'open'), 'buffalo_wallow': (3, 3, '#4a6a3a', None, 'thatch'),
-    'peacock_garden': (2, 2, '#2e7d8a', None, 'arbor'), 'ostrich_ranch': (3, 3, '#b5452c', None, 'thatch_grass'),
-    'yak_pasture': (3, 3, '#5a3a2a', None, 'open'), 'camel_corral': (3, 3, '#c0602a', None, 'awning_palm'),
-    'stable': (3, 3, '#8e2c20', '#b86038', 'stable'), 'pheasant_run': (3, 3, '#8a3a2a', None, 'open_grass'),
-    'highland_pasture': (3, 3, '#5a3a24', None, 'open'), 'swan_lake': (3, 3, '#f4efe6', None, 'pavilion'),
-    'emu_ranch': (3, 3, '#7a5a3a', None, 'thatch_grass'), 'reindeer_lodge': (3, 3, '#f4f8fa', None, 'lodge'),
-    'bison_range': (3, 3, '#4a3424', None, 'open'), 'flamingo_lagoon': (3, 3, '#f28ab0', None, 'lagoon'),
-    'llama_ranch': (3, 3, '#c0392b', None, 'open'), 'pony_paddock': (3, 3, '#c0392b', '#c86a48', 'stable'),
-    'black_sheepfold': (3, 3, '#34495e', None, 'open'), 'jersey_pasture': (3, 3, '#8a5a34', None, 'open'),
-    'muscovy_pond': (3, 3, '#2e6aa8', '#f0e2c0', 'muscovy'), 'nubian_yard': (3, 3, '#8a3a2a', None, 'goat'),
-    'silk_house': (2, 2, '#b5452c', None, 'silk'), 'angora_yard': (3, 3, '#6b4226', None, 'goat'),
-    'mandarin_pond': (3, 3, '#c0392b', None, 'pavilion'), 'squirrel_grove': (2, 2, '#6b4226', None, 'squirrel'),
-    'merino_fold': (3, 3, '#5a7a9a', None, 'open'), 'parrot_aviary': (2, 2, '#2a8a5a', None, 'parrot'),
-    'galloway_pasture': (3, 3, '#34495e', None, 'open'), 'moose_woods': (3, 3, '#5a3a24', None, 'pines'),
-    'cashmere_yard': (3, 3, '#8a6a4a', None, 'goat'), 'rhea_ranch': (3, 3, '#7a5a3a', None, 'thatch_grass'),
-    'bactrian_corral': (3, 3, '#b5452c', None, 'awning'), 'beaver_pond': (3, 3, '#6b4226', None, 'beaver'),
-    'jacob_fold': (3, 3, '#6b4226', None, 'open'), 'deer_park': (3, 3, '#5a3a24', None, 'pines'),
-    'crane_marsh': (3, 3, '#f4efe6', None, 'marsh'), 'zebu_pasture': (3, 3, '#b5452c', None, 'thatch'),
-    'musk_ox_range': (3, 3, '#4a3424', None, 'open_snow'), 'black_swan_lake': (3, 3, '#34495e', None, 'pavilion'),
-    'cassowary_ranch': (3, 3, '#2a6a8a', None, 'thatch_grass'), 'watusi_ranch': (3, 3, '#8a3a2a', None, 'thatch'),
+    'alpaca_ranch': (3, 2, '#7d5ba6', None, 'open'), 'goose_pen': (2, 2, '#3a78c0', '#f0e2c0', 'goose'),
+    'donkey_paddock': (3, 2, '#6b4226', None, 'open'), 'buffalo_wallow': (3, 2, '#4a6a3a', None, 'thatch'),
+    'peacock_garden': (2, 2, '#2e7d8a', None, 'arbor'), 'ostrich_ranch': (3, 2, '#b5452c', None, 'thatch_grass'),
+    'yak_pasture': (3, 2, '#5a3a2a', None, 'open'), 'camel_corral': (3, 2, '#c0602a', None, 'awning_palm'),
+    'stable': (3, 2, '#8e2c20', '#b86038', 'stable'), 'pheasant_run': (3, 2, '#8a3a2a', None, 'open_grass'),
+    'highland_pasture': (3, 2, '#5a3a24', None, 'open'), 'swan_lake': (3, 2, '#f4efe6', None, 'pavilion'),
+    'emu_ranch': (3, 2, '#7a5a3a', None, 'thatch_grass'), 'reindeer_lodge': (3, 2, '#f4f8fa', None, 'lodge'),
+    'bison_range': (3, 2, '#4a3424', None, 'open'), 'flamingo_lagoon': (3, 2, '#f28ab0', None, 'lagoon'),
+    'llama_ranch': (3, 2, '#c0392b', None, 'open'), 'pony_paddock': (3, 2, '#c0392b', '#c86a48', 'stable'),
+    'black_sheepfold': (3, 2, '#34495e', None, 'open'), 'jersey_pasture': (3, 2, '#8a5a34', None, 'open'),
+    'muscovy_pond': (3, 2, '#2e6aa8', '#f0e2c0', 'muscovy'), 'nubian_yard': (3, 2, '#8a3a2a', None, 'goat'),
+    'silk_house': (2, 2, '#b5452c', None, 'silk'), 'angora_yard': (3, 2, '#6b4226', None, 'goat'),
+    'mandarin_pond': (3, 2, '#c0392b', None, 'pavilion'), 'squirrel_grove': (2, 2, '#6b4226', None, 'squirrel'),
+    'merino_fold': (3, 2, '#5a7a9a', None, 'open'), 'parrot_aviary': (2, 2, '#2a8a5a', None, 'parrot'),
+    'galloway_pasture': (3, 2, '#34495e', None, 'open'), 'moose_woods': (3, 2, '#5a3a24', None, 'pines'),
+    'cashmere_yard': (3, 2, '#8a6a4a', None, 'goat'), 'rhea_ranch': (3, 2, '#7a5a3a', None, 'thatch_grass'),
+    'bactrian_corral': (3, 2, '#b5452c', None, 'awning'), 'beaver_pond': (3, 2, '#6b4226', None, 'beaver'),
+    'jacob_fold': (3, 2, '#6b4226', None, 'open'), 'deer_park': (3, 2, '#5a3a24', None, 'pines'),
+    'crane_marsh': (3, 2, '#f4efe6', None, 'marsh'), 'zebu_pasture': (3, 2, '#b5452c', None, 'thatch'),
+    'musk_ox_range': (3, 2, '#4a3424', None, 'open_snow'), 'black_swan_lake': (3, 2, '#34495e', None, 'pavilion'),
+    'cassowary_ranch': (3, 2, '#2a6a8a', None, 'thatch_grass'), 'watusi_ranch': (3, 2, '#8a3a2a', None, 'thatch'),
     'owl_barn': (2, 2, '#8a5a34', None, 'owl'), 'kiwi_burrow': (2, 2, '#6b4226', None, 'kiwi'),
-    'vicuna_ranch': (3, 3, '#c0392b', None, 'open'), 'golden_nest': (2, 2, '#d4a020', None, 'nest'),
+    'vicuna_ranch': (3, 2, '#c0392b', None, 'open'), 'golden_nest': (2, 2, '#d4a020', None, 'nest'),
+    'hereford_ranch': (3, 2, '#8a3a2a', None, 'open'), 'suffolk_fold': (3, 2, '#2e4a6a', None, 'open'),
+    'turkey_run': (2, 2, '#8e4a2b', '#c9a46a', 'coop'), 'saanen_yard': (3, 2, '#6b4226', None, 'goat'),
+    'cemani_coop': (2, 2, '#2a2a34', '#d8c090', 'coop'), 'heron_marsh': (3, 2, '#5a7a8a', None, 'marsh'),
+    'pekin_pond': (3, 2, '#2e6aa8', '#f0e2c0', 'duck'),
+    'orpington_coop': (2, 2, '#b5452c', '#e8cf94', 'coop'),
+    'lop_hutch': (2, 2, '#8a5a34', '#d9b27a', 'hutch'),
+    'pygmy_yard': (3, 2, '#6a4a2a', None, 'goat'),
+    'brahma_coop': (2, 2, '#5a5a6a', '#e0cc98', 'coop'),
+    'toulouse_pen': (2, 2, '#3a78c0', '#f0e2c0', 'goose'),
+    'angus_ranch': (3, 2, '#2a2a2e', None, 'open'),
+    'polish_coop': (2, 2, '#c0392b', '#e3c27a', 'coop'),
+    'valais_fold': (3, 2, '#34495e', None, 'open'),
+    'runner_pen': (2, 2, '#6a8a3a', '#f0e2c0', 'goose'),
+    'boer_yard': (3, 2, '#8a3a1a', None, 'goat'),
+    'dorper_fold': (3, 2, '#4a4a4a', None, 'open'),
+    'charolais_pasture': (3, 2, '#b5452c', None, 'open'),
+    'angora_hutch': (2, 2, '#e07898', '#e8d8c0', 'hutch'),
+    'white_peacock_garden': (2, 2, '#f4efe6', None, 'arbor'),
+    'appaloosa_stable': (3, 2, '#5a3a24', '#b86038', 'stable'),
+    'mule_paddock': (3, 2, '#6b4226', None, 'open'),
+    'longhorn_ranch': (3, 2, '#8a3a1a', None, 'open'),
+    'clydesdale_stable': (3, 2, '#2e4a6a', '#c86a48', 'stable'),
+    'elk_woods': (3, 2, '#4a3424', None, 'pines'),
+    'leghorn_coop': (2, 2, '#c0392b', '#f0e2c0', 'coop'),
+    'campbell_pond': (3, 2, '#2e6aa8', '#f0e2c0', 'duck'),
+    'dutch_hutch': (2, 2, '#34495e', '#d9b27a', 'hutch'),
+    'rhode_coop': (2, 2, '#8a2a14', '#e3c27a', 'coop'),
+    'guernsey_pasture': (3, 2, '#c8843a', None, 'open'),
+    'shetland_fold': (3, 2, '#6b4226', None, 'open'),
+    'call_duck_pond': (3, 2, '#3a78c0', '#f0e2c0', 'duck'),
+    'alpine_yard': (3, 2, '#1e1c1c', None, 'goat'),
+    'wyandotte_coop': (2, 2, '#5a5a6a', '#e0cc98', 'coop'),
+    'swiss_pasture': (3, 2, '#6a5a4a', None, 'open'),
+    'emden_pen': (2, 2, '#3a78c0', '#f0e2c0', 'goose'),
+    'karakul_fold': (3, 2, '#2a2624', None, 'open'),
+    'palomino_stable': (3, 2, '#d8a848', '#b86038', 'stable'),
+    'marans_coop': (2, 2, '#6a3a1e', '#e8cf94', 'coop'),
+    'dexter_pasture': (3, 2, '#2a2a2e', None, 'open'),
+    'friesian_stable': (3, 2, '#1e1c1e', '#8a5a3a', 'stable'),
 }
+
+
+def squash(before, k):
+    """Scale everything built since `before` to k of its depth about the pen's centre line, so a
+    layout drawn for a 3 x 3 pen fits the 3 x 2 one (the fence is built at the real size)."""
+    S = Matrix.Diagonal((1.0, k, 1.0, 1.0))
+    for name in set(bpy.data.objects.keys()) - before:
+        ob = bpy.data.objects[name]
+        if ob.type == 'MESH':
+            ob.data.transform(ob.matrix_world)
+            ob.matrix_world = Matrix.Identity(4)
+            ob.data.transform(S)
+        else:
+            ob.location.y *= k
 
 
 def build_pen(pid):
@@ -609,6 +667,11 @@ def build_pen(pid):
     if pid != 'beehive':
         style = 'white' if pid in WHITE else 'log' if pid in LOG else 'stone' if pid in STONE else 'bamboo' if pid in BAMBOO else 'wood'
         fence(m, style)
+    # the wide pens are 3 x 2 now; their shelters and scenery are laid out as for 3 x 3 and then
+    # pressed into the shallower yard
+    design = 3 if (w, h) == (3, 2) else h
+    PH = h = design
+    before = set(bpy.data.objects.keys())
     wallm = pm(uid('pw'), wall, scale=6, kind='wave', stretch=(8, 8, 1)) if wall else None
     if kind in ('open', 'open_grass', 'goat', 'open_snow'):
         open_shed(m, roof)
@@ -682,6 +745,8 @@ def build_pen(pid):
         lagoon(m)
     if pid not in NO_TROUGH:
         trough(m, w - 0.55, h - 0.35)
+    if design != PENS[pid][1]:
+        squash(before, PENS[pid][1] / design)
     finish(pid, tex=1024)
 
 

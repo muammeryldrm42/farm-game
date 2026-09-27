@@ -33,6 +33,8 @@ a false color view that shows which part a stray speck belongs to.
 - `production.py`: the 16 workshops (one shop shell with four roof kinds, each with its own
   colors and signature piece: windmill sails, giant cone, brick oven...).
 - `deco.py`: decorations, plus rock and bush obstacles in variants (`rock_obs0..2`).
+- `deco2.py`: late game decorations (sundial to the golden farmer, levels 31 to 159).
+- `turtle.py`: loggerhead sea turtles for the turtle beach, a nesting mother and a hatchling.
 - `pens.py`: every animal pen from one table: fence style, shelter kind and scenery.
 - `trees.py`: fruit trees, palms, the oak and wild trees (`tree_obs0..1`).
 

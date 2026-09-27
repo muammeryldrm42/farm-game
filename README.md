@@ -11,7 +11,9 @@ By Talons Protocol.
 - Wind blown instanced grass and wild flowers, animated water with shallows and surf, gradient sky with stars
 - ACES tone mapping, soft shadows, ambient occlusion (GTAO) and bloom for night lights
 - Harvest, planting, production, animal and tree animations
-- A bigger 44 x 44 island (older saves are moved to the middle automatically)
+- A bigger 60 x 60 island with room for every workshop, pen and tree (older saves are moved to the middle automatically)
+- Storage upgrades that grow as you go: each silo or barn upgrade adds 5 more room than the one before
+- Compact 3 x 2 pens for the big animals
 - Fishing spot off the south shore: cast a line, wait for a bite, reel in fish and lobsters
 - Manor for the farmer; tap free land to walk the farmer and dog there, at night they go home to sleep
 - Butterflies, gulls, leaping fish and a sailboat on the horizon
@@ -47,6 +49,8 @@ By Talons Protocol.
 - Tap the farmhouse (or the manor once built) to send the farmer to bed and keep farming meanwhile; a nap of 20 seconds or more gives a once a day rested bonus
 - Content all the way to level 200: 11 late game animals (guinea fowl, pheasant, highland cow, swan, emu, reindeer, bison, flamingo, llama and the golden goose at 200), 13 new orchard trees (quince to golden apple), 12 new catches at the fishing spot (trout to the golden fish) and goals up to level 200
 - 30 more farm animals spread between levels 21 and 182: silkie chickens, ponies, black, merino and Jacob sheep, Jersey, Belted Galloway, zebu, Watusi and musk ox cattle, Nubian, angora and cashmere goats, Muscovy and Mandarin ducks, black swans, silkworms, squirrels, parrots, moose, spotted deer, rheas, cassowaries, kiwi birds, cranes, Bactrian camels, beavers, chinchillas, barn owls and vicunas, each with its own pen and product
+- Something new at every level from 1 to 200: 44 more crops (leek to lotus), 24 more fruit trees (tangerine to silver pear), 6 more animals (Hereford cattle, Suffolk sheep, bronze turkeys, Saanen goats, Ayam Cemani hens and grey herons), 36 new dishes and 20 new decorations (sundial, wind turbine, torii gate, tree house, carousel, lighthouse, clock tower, hot air balloon, the golden farmer and more)
+- A turtle beach: a wide sandy cove on the west shore where loggerhead sea turtles come ashore on their own, dig a nest, lay their eggs and head back to sea; later the hatchlings dig out and race down to the surf
 - Two animal art styles, picked in Settings: Cartoon (chunky friendly sculpts with big eyes, the default) and Realistic
 - Cartoon farmer, puffy cartoon trees and round garden bushes; a calico farm cat roams between the house and the farmer and curls up by the door at night
 - Dirt paths that join up with their neighbors (new farms start with one), a porch, dormers and mailbox on the farmhouse, a cupola and weathervane on the barn, and meadow scatter of lupines, wild flowers and pebbles

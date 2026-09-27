@@ -239,7 +239,11 @@ def mat_paint(name, a, b, scale=8.0, kind='noise', detail=4.0, stretch=(1, 1, 1)
     mapn = nt.nodes.new('ShaderNodeMapping')
     mapn.inputs['Scale'].default_value = stretch
     nt.links.new(coord.outputs['Object'], mapn.inputs['Vector'])
-    if kind == 'wave':
+    if kind == 'checker':
+        tex = nt.nodes.new('ShaderNodeTexChecker')
+        tex.inputs['Scale'].default_value = scale
+        out = tex.outputs['Fac']
+    elif kind == 'wave':
         tex = nt.nodes.new('ShaderNodeTexWave')
         tex.inputs['Scale'].default_value = scale
         tex.inputs['Distortion'].default_value = 6

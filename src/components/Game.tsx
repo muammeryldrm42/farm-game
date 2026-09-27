@@ -218,14 +218,17 @@ function FarmCanvas() {
           const d = BUILDING[store.ui.placing.type];
           const g = r.gridAt(p.x, p.y);
           store.setPlacingPos(g.x - Math.floor((d.w - 1) / 2), g.y - Math.floor((d.h - 1) / 2));
-        } else if (hitObj) store.tapObject(hitObj);
+        } else if (hitObj) {
+          // the farmer walks over to whatever you tap
+          store.wake();
+          r.walkToObject(hitObj);
+          store.tapObject(hitObj);
+        }
         else if (hitSpot) store.tapFishing();
         else {
           // tapping free farmland sends the farmer (and the dog) walking there
-          if (store.isUnlocked(hitTile.x, hitTile.y) && !store.objectAt(hitTile.x, hitTile.y)) {
-            store.wake();
-            r.walkTo(hitTile.x, hitTile.y);
-          }
+          store.wake();
+          r.walkTo(hitTile.x, hitTile.y);
           store.tapTile(hitTile.x, hitTile.y);
         }
       }

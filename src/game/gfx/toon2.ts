@@ -13,7 +13,7 @@ interface Cattle {
   tail?: string; tailTip?: string; extraHead?: (h: Sculpt, k: number) => void;
 }
 
-function cattle(o: Cattle): CreatureParts {
+export function cattle(o: Cattle): CreatureParts {
   const L = o.legLen ?? 0.17, dy = L - 0.17, sl = o.slim ?? 1, k = o.head ?? 1;
   const b = new Sculpt()
     .add(ellipsoid(0, 0.3 + dy, -0.01, 0.15 * sl, 0.135 * sl, 0.2), o.coat)
@@ -112,7 +112,7 @@ interface Small {
   locks?: string; skirt?: Paint; tuft?: string;
 }
 
-function smallRuminant(o: Small): CreatureParts {
+export function smallRuminant(o: Small): CreatureParts {
   const sheep = !!o.wool;
   const b = new Sculpt();
   if (sheep) {
@@ -163,7 +163,7 @@ function smallRuminant(o: Small): CreatureParts {
   };
 }
 
-const curlHorn = (x: number, color: string, r0 = 0.02) => ({
+export const curlHorn = (x: number, color: string, r0 = 0.02) => ({
   pts: [[x, 0.05, -0.01], [x + 0.04, 0.08, -0.04], [x + 0.07, 0.05, -0.05], [x + 0.08, 0.0, -0.02], [x + 0.06, -0.03, 0.02]] as Box[], r0, r1: 0.008, color,
 });
 
@@ -208,7 +208,7 @@ interface Walker {
   wing?: Paint; legLen: number; legColor: string; legTh?: number; tail?: Paint; extraHead?: (h: Sculpt) => void; extraBody?: (b: Sculpt) => void; fluffy?: boolean;
 }
 
-function walker(o: Walker): CreatureParts {
+export function walker(o: Walker): CreatureParts {
   const s = o.size ?? 1, nl = o.neckLen ?? 0.1, L = o.legLen, by = L + 0.07 * s;
   const b = new Sculpt()
     .add(ellipsoid(0, by, -0.01, 0.075 * s, 0.068 * s, 0.1 * s), o.body)
@@ -499,9 +499,62 @@ const vicuna = (): CreatureParts => {
   };
 };
 
+// ---------------------------------------------------------------- late unlocks
+
+const hereford = () => cattle({
+  coat: (_x, y, z) => (y < 0.22 && z > -0.05 ? '#f4efe6' : '#8a2e16'), face: '#f6f2ea', muzzle: '#e8b8a8', ear: '#8a2e16', leg: (y) => (y < -0.1 ? '#f4efe6' : '#8a2e16'),
+  tail: '#8a2e16', tailTip: '#f4efe6', dewlap: '#f4efe6',
+  horns: { pts: [[0.05, 0.09, -0.01], [0.09, 0.1, 0.0], [0.11, 0.08, 0.04]], r0: 0.016, r1: 0.007, color: '#efe2c0' },
+});
+
+const suffolkSheep = () => smallRuminant({
+  coat: '#f2ecdc', face: '#141212', muzzle: '#141212', legColor: '#141212', ear: '#141212', tuft: '#f2ecdc',
+  wool: (x, y, z) => mixHex('#e2d8c2', '#f8f2e4', smooth(0.14, 0.36, y + (noise3(x * 26, y * 26, z * 26) - 0.5) * 0.05)),
+});
+
+const saanenGoat = () => smallRuminant({
+  coat: '#f8f6f0', face: '#faf8f2', muzzle: '#eec0b8', legColor: '#f4f0e6', ear: '#f4f0e6', beard: '#f4f0e6',
+});
+
+const bronzeTurkey = () => walker({
+  body: (x, y, z) => (noise3(x * 50, y * 50, z * 50) > 0.62 ? '#3a6a4a' : '#4a2e1a'), size: 1.35, wing: (_x, y) => (y > 0.18 ? '#5a3a22' : '#e8e0d0'),
+  neck: '#6a8ab0', neckLen: 0.07, head: '#b8d0e8', beak: '#d8c8a0', beakLen: 0.022, legLen: 0.1, legColor: '#c8a890',
+  extraBody: (b) => {
+    // the fanned tail with pale tips
+    for (let i = 0; i < 9; i++) {
+      const a = (i / 8 - 0.5) * 2.2;
+      b.add(capsule(0, 0.26, -0.1, Math.sin(a) * 0.14, 0.26 + Math.cos(a) * 0.15, -0.15, 0.03, 0.022), (_x, y) => (y > 0.37 ? '#e8dcc0' : '#4a2e1a'), 0.01);
+    }
+  },
+  extraHead: (h) => {
+    h.add(capsule(0, -0.01, 0.03, 0.006, -0.06, 0.03, 0.009, 0.006), '#c81e1e', 0.005);
+    h.add(ellipsoid(0, -0.04, 0.0, 0.02, 0.03, 0.02), '#c81e1e', 0.01);
+  },
+});
+
+const ayamCemani = () => walker({
+  body: (x, y, z) => (noise3(x * 40, y * 40, z * 40) > 0.66 ? '#1a2a2a' : '#0e0e10'), neck: '#0e0e10', neckLen: 0.06, head: '#161618', beak: '#141414',
+  beakLen: 0.018, legLen: 0.08, legColor: '#1a1a1c', tail: '#101418',
+  extraHead: (h) => {
+    // a black serrated comb and wattles, black all over
+    for (let i = 0; i < 4; i++) h.add(sphere(0, 0.035 + (i % 2) * 0.006, -0.012 + i * 0.012, 0.011), '#1e1a1c', 0.006);
+    h.add(ellipsoid(0, -0.035, 0.022, 0.01, 0.016, 0.008), '#1e1a1c', 0.005);
+  },
+  extraBody: (b) => {
+    for (let i = 0; i < 4; i++) b.add(capsule(0, 0.18, -0.1, (i - 1.5) * 0.02, 0.3 - i * 0.012, -0.17 - i * 0.012, 0.012, 0.006), '#14202a', 0.008);
+  },
+});
+
+const greyHeron = () => walker({
+  body: (_x, y) => (y < 0.44 ? '#e8eaec' : '#8a94a0'), wing: '#7a8490', size: 1.05, neck: (_x, _y, z) => (z > 0.14 ? '#f0f0f2' : '#dcdee2'), neckLen: 0.26,
+  head: (_x, y) => (y > 0.012 ? '#1a1a1e' : '#f4f4f6'), beak: '#d8b830', beakLen: 0.07, legLen: 0.36, legColor: '#8a7a5a', legTh: 0.022, tail: '#6a7480',
+  extraHead: (h) => h.add(capsule(0, 0.02, -0.03, 0, 0.0, -0.1, 0.006, 0.003), '#1a1a1e', 0.004),
+});
+
 export const toonMakers2: Record<string, () => CreatureParts> = {
   silkie_chicken: silkieChicken, pony, black_sheep: blackSheep, jersey_cow: jerseyCow, muscovy_duck: muscovyDuck, nubian_goat: nubianGoat,
   silkworm, angora_goat: angoraGoat, mandarin_duck: mandarinDuck, squirrel, merino_sheep: merinoSheep, parrot, belted_galloway: beltedGalloway,
   moose, cashmere_goat: cashmereGoat, rhea, bactrian_camel: bactrianCamel, beaver, jacob_sheep: jacobSheep, spotted_deer: spottedDeer,
   crane, zebu, musk_ox: muskOx, black_swan: blackSwan, cassowary, watusi, chinchilla, barn_owl: barnOwl, kiwi_bird: kiwiBird, vicuna,
+  hereford, suffolk_sheep: suffolkSheep, saanen_goat: saanenGoat, bronze_turkey: bronzeTurkey, ayam_cemani: ayamCemani, grey_heron: greyHeron,
 };

@@ -5,6 +5,7 @@ import * as THREE from 'three';
 import { Sculpt, capsule, ellipsoid, noise3, sphere, withDetail } from './sdf';
 import { toonMakers } from './toon';
 import { toonMakers2 } from './toon2';
+import { toonMakers3 } from './toon3';
 
 export interface CreatureParts {
   body: THREE.BufferGeometry;
@@ -489,7 +490,7 @@ export function creature(kind: string, lod = 1) {
   const key = `${kind}|${lod}`;
   let c = cache.get(key);
   // kinds that only exist as cartoons (the cat) are used in both styles
-  const toon = toonMakers[kind] ?? toonMakers2[kind];
+  const toon = toonMakers[kind] ?? toonMakers2[kind] ?? toonMakers3[kind];
   const make = (artStyle() === 'toon' && toon) || makers[kind] || toon;
   if (!c && make) { c = withDetail(LOD_DETAIL[lod], make); cache.set(key, c); }
   return c ?? null;

@@ -21,7 +21,7 @@ import { SCULPT_MAT, TOON_MAT, TOON_WOOL, WOOL_MAT } from './gfx/sdf';
 import { leafShell, leafTexture, meterBox, meterHip, meterRoof, surface, surfaceMat, type SurfaceKind } from './gfx/textures';
 import { ANIMAL, BUILDING, CROP, ITEMS, type BuildingDef, type CropDef } from './data';
 import {
-  CHUNK, FISH_SPOT, GRID, MAP_OFF, NCH, animalReady, fishingInfo, boatState, canFulfill, chunkState, grazePhase, penInfo, plotProgress, prodInfo, treeInfo,
+  CHUNK, FARM_OFF, FISH_SPOT, GRAZE, GRID, MAP_OFF2, NCH, animalReady, fishingInfo, boatState, canFulfill, chunkState, grazePhase, penInfo, plotProgress, prodInfo, treeInfo,
   type Animal, type FarmObject, type GameStore,
 } from './state';
 
@@ -406,10 +406,81 @@ function dropDown(src: THREE.Object3D, delay = 0) {
 
 const HIT_MAT = new THREE.MeshBasicMaterial({ visible: false });
 // middle of the starting farm
-const FARM_C = { x: 13.5 + MAP_OFF, y: 11.5 + MAP_OFF };
-const FRUIT_COLOR: Record<string, string> = { apple: '#e53935', cherry: '#b0102a', orange: '#ff9800', peach: '#ffa274', lemon: '#ffe03a', coconut: '#7a4a26', pear: '#c8c040', plum: '#5a2070', mango: '#f0902a', avocado: '#2f4a1a', pomegranate: '#c0282a', banana: '#f2d23a', apricot: '#f6a23a', lime: '#6ab82a', fig: '#5a2a4a', olive: '#5a6a1a', walnut: '#5a8a2a', quince: '#e8c83a', almond: '#9ab880', mulberry: '#3a0a2a', grapefruit: '#f2b04a', persimmon: '#f07a1a', date: '#7a3a14', lychee: '#d83a3a', hazelnut: '#8a5a2a', starfruit: '#e8c21a', maple_syrup: '#b8321a', cocoa_pod: '#c0601a', sakura: '#f4b0c8', golden_apple: '#f2c230' };
-const TREE_LEAF: Record<string, string> = { apple_tree: '#4f9e36', cherry_tree: '#3f8a3a', orange_tree: '#2f7d32', peach_tree: '#5aa53a', lemon_tree: '#3b8f3c', coconut_palm: '#4c9a38', pear_tree: '#58a03a', plum_tree: '#3f7f3a', banana_tree: '#5aa844', mango_tree: '#2f7a32', avocado_tree: '#2a6a2e', pomegranate_tree: '#4a8a36', apricot_tree: '#5aa03a', lime_tree: '#2f7f32', fig_tree: '#4a9a3a', olive_tree: '#8a9a7a', walnut_tree: '#3f7a2e', quince_tree: '#5a9a3a', almond_tree: '#6aa84a', mulberry_tree: '#3f8a34', grapefruit_tree: '#3a8a3a', persimmon_tree: '#6a9a2a', date_palm: '#5a8a3a', lychee_tree: '#2f7a32', hazelnut_tree: '#5a9a34', starfruit_tree: '#3f8f3c', maple_tree: '#d8542a', cocoa_tree: '#2f6a2e', sakura_tree: '#f2a6c4', golden_apple_tree: '#7ab84a' };
-const GRASSY_PEN = new Set(['highland_pasture', 'pheasant_run', 'llama_ranch', 'pony_paddock', 'black_sheepfold', 'jersey_pasture', 'merino_fold', 'galloway_pasture', 'jacob_fold', 'deer_park', 'moose_woods', 'squirrel_grove', 'parrot_aviary', 'kiwi_burrow', 'owl_barn', 'silk_house', 'crane_marsh', 'muscovy_pond', 'pasture', 'sheepfold', 'beehive', 'rabbit_hutch', 'alpaca_ranch', 'goose_pen', 'peacock_garden', 'donkey_paddock', 'yak_pasture']);
+const FARM_C = { x: 13.5 + FARM_OFF, y: 11.5 + FARM_OFF };
+// the beach round the island reaches BEACH tiles out; on the west side the turtle cove bulges
+// out much further, an ellipse centred at (x, z) with half widths rx, rz
+const BEACH = 1.2;
+const COVE = { x: -0.4, z: 15 + MAP_OFF2, rx: 4.4, rz: 8 };
+// x of the cove's waterline at depth z (0 where there is no cove)
+function coveEdge(z: number) {
+  const u = (z - COVE.z) / COVE.rz;
+  return Math.abs(u) >= 1 ? -BEACH : Math.min(-BEACH, COVE.x - COVE.rx * Math.sqrt(1 - u * u));
+}
+// height of the sand in the cove: level with the beach up top, sloping gently into the sea
+function sandY(x: number, z: number) {
+  const e = Math.hypot((x - COVE.x) / COVE.rx, (z - COVE.z) / COVE.rz);
+  if (x > -BEACH + 0.1) return -0.21;
+  const top = -0.21, water = -0.52;
+  if (e < 1) return lerpN(top, water, Math.pow(Math.max(0, (e - 0.3) / 0.7), 1.4));
+  return lerpN(water, -0.8, (e - 1) * 4);
+}
+
+// where the fruit hangs on trees whose crown is not the usual round one: crown centre height and
+// radius, or a ring round the trunk (papaya, jackfruit), plus the fruit size
+const TREE_FORM: Record<string, { cy: number; r: number; h?: number; trunk?: boolean; size?: number }> = {
+  papaya_tree: { cy: 0.92, r: 0.085, h: 0.14, trunk: true, size: 0.1 },
+  jackfruit_tree: { cy: 0.5, r: 0.12, h: 0.3, trunk: true, size: 0.12 },
+  durian_tree: { cy: 0.92, r: 0.5, size: 0.095 },
+  dragon_fruit_tree: { cy: 0.66, r: 0.4, size: 0.085 },
+  passion_fruit_tree: { cy: 0.86, r: 0.38, size: 0.07 },
+  silver_pear_tree: { cy: 0.8, r: 0.46 },
+  cashew_tree: { cy: 0.72, r: 0.52, size: 0.09 },
+  pistachio_tree: { cy: 0.7, r: 0.5, size: 0.1 },
+  elderberry_tree: { cy: 0.56, r: 0.38, size: 0.1 },
+  cinnamon_tree: { cy: 0.86, r: 0.33, size: 0.09 },
+  mangosteen_tree: { cy: 0.88, r: 0.35, size: 0.075 },
+  macadamia_tree: { cy: 0.86, r: 0.33, size: 0.07 },
+  kumquat_tree: { cy: 0.6, r: 0.36, size: 0.06 },
+  guava_tree: { cy: 0.62, r: 0.38 },
+  crabapple_tree: { cy: 0.74, r: 0.42, size: 0.09 },
+  loquat_tree: { cy: 0.8, r: 0.45, size: 0.09 },
+  black_cherry_tree: { cy: 0.82, r: 0.44, size: 0.075 },
+  chestnut_tree: { cy: 0.95, r: 0.52, size: 0.08 },
+  pecan_tree: { cy: 1.0, r: 0.5, size: 0.065 },
+  sloe_tree: { cy: 0.56, r: 0.38, size: 0.09 },
+  sea_buckthorn_tree: { cy: 0.56, r: 0.38, size: 0.1 },
+  tamarind_tree: { cy: 0.72, r: 0.52, size: 0.1 },
+  sapodilla_tree: { cy: 0.86, r: 0.33 },
+  mamey_tree: { cy: 0.9, r: 0.35, size: 0.09 },
+  nutmeg_tree: { cy: 0.86, r: 0.33, size: 0.08 },
+  hickory_tree: { cy: 1.0, r: 0.5, size: 0.07 },
+  brazil_nut_tree: { cy: 1.05, r: 0.52, size: 0.1 },
+  jabuticaba_tree: { cy: 0.42, r: 0.1, h: 0.5, trunk: true, size: 0.055 },
+  hawthorn_tree: { cy: 0.6, r: 0.36, size: 0.1 },
+  feijoa_tree: { cy: 0.6, r: 0.36, size: 0.07 },
+  acerola_tree: { cy: 0.6, r: 0.36, size: 0.09 },
+  finger_lime_tree: { cy: 0.6, r: 0.36, size: 0.06 },
+  kiwifruit_tree: { cy: 0.86, r: 0.38, size: 0.09 },
+  pine_nut_tree: { cy: 1.02, r: 0.42, size: 0.08 },
+  salak_tree: { cy: 0.12, r: 0.14, h: 0.08, trunk: true, size: 0.07 },
+  pomelo_tree: { cy: 0.85, r: 0.48, size: 0.1 },
+  breadfruit_tree: { cy: 0.85, r: 0.48, size: 0.1 },
+  soursop_tree: { cy: 0.8, r: 0.45, size: 0.1 },
+  rowan_tree: { cy: 0.82, r: 0.45, size: 0.1 },
+  medlar_tree: { cy: 0.8, r: 0.44, size: 0.075 },
+  jujube_tree: { cy: 0.8, r: 0.42, size: 0.07 },
+  carob_tree: { cy: 0.82, r: 0.48, size: 0.1 },
+  longan_tree: { cy: 0.82, r: 0.46, size: 0.09 },
+  chokecherry_tree: { cy: 0.82, r: 0.44, size: 0.1 },
+  marula_tree: { cy: 0.74, r: 0.54, size: 0.07 },
+  black_sapote_tree: { cy: 0.9, r: 0.35, size: 0.085 },
+  ackee_tree: { cy: 0.82, r: 0.47, size: 0.09 },
+  star_apple_tree: { cy: 0.84, r: 0.48, size: 0.08 },
+  lucuma_tree: { cy: 0.84, r: 0.46, size: 0.08 },
+};
+const FRUIT_COLOR: Record<string, string> = { apple: '#e53935', cherry: '#b0102a', orange: '#ff9800', peach: '#ffa274', lemon: '#ffe03a', coconut: '#7a4a26', pear: '#c8c040', plum: '#5a2070', mango: '#f0902a', avocado: '#2f4a1a', pomegranate: '#c0282a', banana: '#f2d23a', apricot: '#f6a23a', lime: '#6ab82a', fig: '#5a2a4a', olive: '#5a6a1a', walnut: '#5a8a2a', quince: '#e8c83a', almond: '#9ab880', mulberry: '#3a0a2a', grapefruit: '#f2b04a', persimmon: '#f07a1a', date: '#7a3a14', lychee: '#d83a3a', hazelnut: '#8a5a2a', starfruit: '#e8c21a', maple_syrup: '#b8321a', cocoa_pod: '#c0601a', sakura: '#f4b0c8', golden_apple: '#f2c230', tangerine: '#f08a1a', nectarine: '#f0603a', chestnut: '#7a4a22', papaya: '#f0a040', kumquat: '#f8a020', guava: '#b8d060', pistachio: '#b8c860', elderberry: '#2a1a3a', dragon_fruit: '#e8307a', pecan: '#8a5a2a', blood_orange: '#c8301a', jackfruit: '#a8b040', macadamia: '#d8c8a0', yuzu: '#f0d020', passion_fruit: '#6a2a6a', cashew: '#e8b040', white_peach: '#f8d0c0', loquat: '#f0a830', crabapple: '#c02a3a', cinnamon: '#8a4a22', mangosteen: '#5a1a3a', durian: '#b8a840', black_cherry: '#4a0a1a', silver_pear: '#d8d8c8', damson: '#3a1a5a', greengage: '#9ac050', sour_cherry: '#c0102a', nashi: '#d8c060', medlar: '#8a5a2a', hawthorn: '#c01a1a', rowan: '#f0501a', sloe: '#2a2a5a', pomelo: '#d8e070', citron: '#f0d840', bergamot: '#b8d040', jujube: '#8a2a1a', feijoa: '#5a8a3a', acerola: '#e02a1a', carob: '#4a2a1a', hickory: '#8a7a4a', kiwifruit: '#8a6a3a', plantain: '#8ab040', pine_nut: '#b89060', tamarind: '#8a5a2a', pawpaw: '#b8c050', longan: '#c8a060', rambutan: '#d8201a', sea_buckthorn: '#f0901a', finger_lime: '#6a8a2a', sapodilla: '#8a6a4a', soursop: '#5a8a3a', jabuticaba: '#1a0a2a', breadfruit: '#9ab840', cherimoya: '#8ab060', mamey: '#a86a3a', salak: '#6a2a1a', brazil_nut: '#5a3a1a', nutmeg: '#e8c060', clementine: '#f07a10', mirabelle: '#f0c020', chokecherry: '#3a0a1a', star_apple: '#6a2a5a', wax_apple: '#e8305a', lucuma: '#b0a040', marula: '#e8d040', ackee: '#d8301a', black_sapote: '#3a5a2a', ugli_fruit: '#b8c040' };
+const TREE_LEAF: Record<string, string> = { apple_tree: '#4f9e36', cherry_tree: '#3f8a3a', orange_tree: '#2f7d32', peach_tree: '#5aa53a', lemon_tree: '#3b8f3c', coconut_palm: '#4c9a38', pear_tree: '#58a03a', plum_tree: '#3f7f3a', banana_tree: '#5aa844', mango_tree: '#2f7a32', avocado_tree: '#2a6a2e', pomegranate_tree: '#4a8a36', apricot_tree: '#5aa03a', lime_tree: '#2f7f32', fig_tree: '#4a9a3a', olive_tree: '#8a9a7a', walnut_tree: '#3f7a2e', quince_tree: '#5a9a3a', almond_tree: '#6aa84a', mulberry_tree: '#3f8a34', grapefruit_tree: '#3a8a3a', persimmon_tree: '#6a9a2a', date_palm: '#5a8a3a', lychee_tree: '#2f7a32', hazelnut_tree: '#5a9a34', starfruit_tree: '#3f8f3c', maple_tree: '#d8542a', cocoa_tree: '#2f6a2e', sakura_tree: '#f2a6c4', golden_apple_tree: '#7ab84a', tangerine_tree: '#2a7a2e', nectarine_tree: '#52a036', chestnut_tree: '#3a7a2c', papaya_tree: '#3a8a3a', kumquat_tree: '#2a7a30', guava_tree: '#469636', pistachio_tree: '#6a9a4a', elderberry_tree: '#3a8a36', dragon_fruit_tree: '#4a9a3a', pecan_tree: '#3a762c', blood_orange_tree: '#2a7a2e', jackfruit_tree: '#2a7a30', macadamia_tree: '#3a8a36', yuzu_tree: '#358a36', passion_fruit_tree: '#3a8a36', cashew_tree: '#469636', white_peach_tree: '#52a036', loquat_tree: '#3a7a2e', crabapple_tree: '#4a9a32', cinnamon_tree: '#2f7a32', mangosteen_tree: '#2a6a2e', durian_tree: '#3a7a2c', black_cherry_tree: '#3a7a36', silver_pear_tree: '#8aa890', damson_tree: '#3a7a36', greengage_tree: '#4a8a36', sour_cherry_tree: '#3f8a3a', nashi_tree: '#4a9a36', medlar_tree: '#4a8a30', hawthorn_tree: '#3a7a30', rowan_tree: '#4a8a36', sloe_tree: '#3a6a30', pomelo_tree: '#2a7a2e', citron_tree: '#3a8a36', bergamot_tree: '#2f7a30', jujube_tree: '#4a8a3a', feijoa_tree: '#6a8a6a', acerola_tree: '#2f7a32', carob_tree: '#2a6a2e', hickory_tree: '#4a8a30', kiwifruit_tree: '#3a8a30', plantain_tree: '#4a9a3a', pine_nut_tree: '#2a5a3a', tamarind_tree: '#4a8a30', pawpaw_tree: '#4a9a36', longan_tree: '#2a6a2e', rambutan_tree: '#2a7a30', sea_buckthorn_tree: '#8aa890', finger_lime_tree: '#2a6a2e', sapodilla_tree: '#2a6a2e', soursop_tree: '#3a7a32', jabuticaba_tree: '#3a7a36', breadfruit_tree: '#2a7a30', cherimoya_tree: '#4a8a36', mamey_tree: '#2f6a2e', salak_tree: '#3a6a2a', brazil_nut_tree: '#2a6a2e', nutmeg_tree: '#2a5a2e', clementine_tree: '#2a7a2e', mirabelle_tree: '#4a8a36', chokecherry_tree: '#3a7a32', star_apple_tree: '#2a6a2e', wax_apple_tree: '#3a8a36', lucuma_tree: '#2f6a2e', marula_tree: '#5a8a3a', ackee_tree: '#2a7a30', black_sapote_tree: '#2a6a2e', ugli_fruit_tree: '#2f7a30' };
+const GRASSY_PEN = new Set(['guernsey_pasture', 'swiss_pasture', 'dexter_pasture', 'shetland_fold', 'karakul_fold', 'dutch_hutch', 'emden_pen', 'angus_ranch', 'charolais_pasture', 'longhorn_ranch', 'valais_fold', 'dorper_fold', 'mule_paddock', 'elk_woods', 'lop_hutch', 'angora_hutch', 'white_peacock_garden', 'toulouse_pen', 'runner_pen', 'hereford_ranch', 'suffolk_fold', 'heron_marsh', 'highland_pasture', 'pheasant_run', 'llama_ranch', 'pony_paddock', 'black_sheepfold', 'jersey_pasture', 'merino_fold', 'galloway_pasture', 'jacob_fold', 'deer_park', 'moose_woods', 'squirrel_grove', 'parrot_aviary', 'kiwi_burrow', 'owl_barn', 'silk_house', 'crane_marsh', 'muscovy_pond', 'pasture', 'sheepfold', 'beehive', 'rabbit_hutch', 'alpaca_ranch', 'goose_pen', 'peacock_garden', 'donkey_paddock', 'yak_pasture']);
 const PEN_GROUND: Record<string, string> = {
   rabbit_hutch: '#86c24f', alpaca_ranch: '#8fc45a', goose_pen: '#86c24f', gobbler_run: '#c9a46a', quail_coop: '#d9c08a', camel_corral: '#e2cf98', buffalo_wallow: '#8a6a44', ostrich_ranch: '#d8c38e',
   coop: '#d9c08a', pasture: '#86c24f', sheepfold: '#9ccc5a',
@@ -445,6 +516,7 @@ export class Renderer {
   private sea!: THREE.Mesh;
   private fishing!: ReturnType<typeof buildFishingSpot>;
   private life!: Life;
+  private turtles!: TurtleBeach;
   private fishBubble: THREE.Sprite | null = null;
   private sky = new Sky();
   private foliage = new Foliage();
@@ -499,6 +571,7 @@ export class Renderer {
     this.fishing = buildFishingSpot();
     this.scene.add(this.fishing.root);
     this.life = new Life(this.scene);
+    this.turtles = new TurtleBeach(this.scene);
     this.sel = this.buildSelection();
     // start fetching the Blender models right away, so they are usually in before the farm shows
     if (artStyle() === 'toon') {
@@ -515,7 +588,7 @@ export class Renderer {
     GRAZE_NAV = {
       path: (sx, sy, tx, ty) => { this.rebuildNav(); return this.findPath(sx, sy, tx, ty); },
       nearest: (x, y) => { this.rebuildNav(); return this.nearestFree(x, y); },
-      grass: (x, y) => { this.rebuildNav(); return this.free(x, y) && !pathTiles.has(y * GRID + x); },
+      grass: (x, y) => { this.rebuildNav(); return this.free(x, y) && !pathTiles.has(y * GRID + x) && !fieldTiles.has(y * GRID + x); },
       flowers: () => this.flowerSpots(),
     };
     // the farmer and pets start as sculpts and take on their Blender models once loaded
@@ -632,8 +705,10 @@ export class Renderer {
   }
 
   clampCam() {
-    this.target.x = clamp(this.target.x, -1, GRID + 1);
-    this.target.z = clamp(this.target.z, -1, GRID + 1);
+    // a little past the shore all round, further on the west for the turtle cove and on the
+    // south for the fishing jetty
+    this.target.x = clamp(this.target.x, -COVE.rx - 1, GRID + 1);
+    this.target.z = clamp(this.target.z, -1, GRID + 3);
   }
 
   panStart(sx: number, sy: number) {
@@ -705,7 +780,7 @@ export class Renderer {
 
   private buildSea() {
     // island rectangle including the beach, used for shallow water and surf
-    const seaMat = makeWater({ sea: true, rect: [-0.75, -0.75, GRID + 0.75, GRID + 0.75], shallow: '#62d9d2', deep: '#1f78c2' });
+    const seaMat = makeWater({ sea: true, rect: [-BEACH, -BEACH, GRID + BEACH, GRID + BEACH], shallow: '#62d9d2', deep: '#1f78c2', cove: [COVE.x, COVE.z, COVE.rx, COVE.rz] });
     // finely divided near the island so the swell can move the surface, flat far away
     this.sea = new THREE.Mesh(new THREE.PlaneGeometry(GRID + 60, GRID + 60, 180, 180), seaMat);
     this.sea.rotation.x = -Math.PI / 2;
@@ -724,13 +799,14 @@ export class Renderer {
     soil.receiveShadow = true;
     isl.add(soil);
     const sand = surfaceMat('sand', '#ecd49a', 1.5, 0.95);
-    for (const [w, h, y] of [[GRID + 1.4, 0.34, -0.72], [GRID + 0.9, 0.2, -0.4]] as const) {
+    for (const [w, h, y] of [[GRID + BEACH * 2 - 0.1, 0.34, -0.72], [GRID + BEACH * 2 - 0.9, 0.2, -0.4]] as const) {
       const m = new THREE.Mesh(meterBox(w, h, w), sand);
       m.position.set(GRID / 2, y + h / 2, GRID / 2);
       m.receiveShadow = true;
       isl.add(m);
     }
 
+    this.buildCove(sand);
     this.buildShore();
 
     const grass = new THREE.MeshStandardMaterial({ color: '#ffffff', roughness: 0.95, ...surface('grass') });
@@ -783,10 +859,10 @@ export class Renderer {
     const edge = (i: number, k: number) => {
       // walk the four sides of the island
       const side = i % 4, t = hash(i, 1, 21) * (GRID + 1.2) - 0.6;
-      const out = 0.35 + hash(i, 2, 21) * k;
+      const out = BEACH - 0.4 + hash(i, 2, 21) * k;
       if (side === 0) return [t, -out];
       if (side === 1) return [t, GRID + out];
-      if (side === 2) return [-out, t];
+      if (side === 2) return [coveEdge(t) < -BEACH - 0.5 ? coveEdge(t) - 0.7 - hash(i, 2, 21) * k * 1.5 : -out, t];
       return [GRID + out, t];
     };
     for (let i = 0; i < 150; i++) {
@@ -828,6 +904,53 @@ export class Renderer {
       sm.rotation.y = hash(i, 9, 21) * 6;
       sm.receiveShadow = true;
       this.land.add(sm);
+    }
+  }
+
+  // The turtle beach: a wide sandy cove bulging out of the west shore, dry and pale up top and
+  // darker where the waves wet it. Sea turtles come up here to nest (see TurtleBeach).
+  private buildCove(sand: THREE.Material) {
+    const x0 = COVE.x - COVE.rx - 1.6, x1 = 0.2, z0 = COVE.z - COVE.rz - 1.2, z1 = COVE.z + COVE.rz + 1.2;
+    const geo = new THREE.PlaneGeometry(x1 - x0, z1 - z0, 70, 120);
+    geo.rotateX(-Math.PI / 2);
+    geo.translate((x0 + x1) / 2, 0, (z0 + z1) / 2);
+    const pos = geo.getAttribute('position') as THREE.BufferAttribute;
+    const col = new Float32Array(pos.count * 3);
+    for (let i = 0; i < pos.count; i++) {
+      const x = pos.getX(i), z = pos.getZ(i);
+      const y = sandY(x, z);
+      pos.setY(i, y);
+      // wet sand from just above the waterline down
+      const wet = THREE.MathUtils.smoothstep(-y, 0.43, 0.5);
+      const k = 1 - wet * 0.22 + (hash(Math.floor(x * 9), Math.floor(z * 9), 5) - 0.5) * 0.04;
+      col[i * 3] = k; col[i * 3 + 1] = k * (1 - wet * 0.03); col[i * 3 + 2] = k * (1 - wet * 0.06);
+    }
+    geo.setAttribute('color', new THREE.BufferAttribute(col, 3));
+    geo.computeVertexNormals();
+    const mat = (sand as THREE.MeshStandardMaterial).clone();
+    mat.vertexColors = true;
+    const m = new THREE.Mesh(geo, mat);
+    m.receiveShadow = true;
+    this.land.add(m);
+    // driftwood, shells and a few dune grass tufts up by the grass line
+    const drift = surfaceMat('bark', '#a89478', 3);
+    for (let i = 0; i < 4; i++) {
+      const z = COVE.z + (hash(i, 1, 33) - 0.5) * COVE.rz * 1.3, x = coveEdge(z) * (0.35 + hash(i, 2, 33) * 0.25);
+      const d = mk(this.land, cylGeo(0.055, 0.07, 7), drift, 1, 0.5 + hash(i, 3, 33) * 0.4, 1, x, sandY(x, z) + 0.03, z);
+      d.rotation.set(Math.PI / 2, 0, hash(i, 4, 33) * 3);
+    }
+    for (let i = 0; i < 18; i++) {
+      const z = COVE.z + (hash(i, 5, 33) - 0.5) * COVE.rz * 1.6, x = coveEdge(z) * (0.2 + hash(i, 6, 33) * 0.6);
+      mk(this.land, G.ball, M(['#f4e6d4', '#f2c6b0', '#e8d0e0'][i % 3]), 0.025, 0.012, 0.03, x, sandY(x, z) + 0.006, z, false);
+    }
+    const tuft = M('#8aa84a');
+    for (let i = 0; i < 26; i++) {
+      const z = COVE.z + (hash(i, 7, 33) - 0.5) * COVE.rz * 1.7, x = -1.1 - hash(i, 8, 33) * 1.2;
+      if (x < coveEdge(z) + 1) continue;
+      for (let k = 0; k < 4; k++) {
+        const b = mk(this.land, cylGeo(0, 0.012, 4), tuft, 1, 0.16 + hash(i, k, 34) * 0.1, 1, x + k * 0.02, sandY(x, z), z + (k % 2) * 0.02, false);
+        b.rotation.set((k - 1.5) * 0.3, 0, (k % 2 - 0.5) * 0.4);
+      }
     }
   }
 
@@ -1125,6 +1248,7 @@ export class Renderer {
     this.updateClouds(dt);
     this.updateFishing(t, now);
     this.life.update(dt, t, this.nightNow(now), this.target);
+    this.turtles.update(t);
     this.followSun();
     const wk = this.updateWeather(dt, now);
     this.updateLight(now, t, wk);
@@ -1568,11 +1692,13 @@ export class Renderer {
     this.nav.fill(0);
     for (let y = 0; y < GRID; y++) for (let x = 0; x < GRID; x++) if (!this.store.isUnlocked(x, y)) this.nav[y * GRID + x] = 1;
     pathTiles.clear();
+    fieldTiles.clear();
     for (const o of s.objects) {
       const d = BUILDING[o.type];
       // paths are for walking on
       if (WALKABLE.has(o.type)) {
         if (o.type === 'dirt_path') pathTiles.add(o.y * GRID + o.x);
+        if (o.type === 'plot') fieldTiles.add(o.y * GRID + o.x);
         continue;
       }
       for (let j = 0; j < d.h; j++) for (let i = 0; i < d.w; i++) {
@@ -1608,15 +1734,18 @@ export class Renderer {
     if (start === goal) return [];
     const gs = new Float32Array(N).fill(Infinity), from = new Int32Array(N).fill(-1), closed = new Uint8Array(N);
     const open: number[] = [start];
+    const inOpen = new Uint8Array(N);
+    inOpen[start] = 1;
     const fs = new Float32Array(N).fill(Infinity);
     const hh = (i: number) => { const dx = Math.abs((i % GRID) - tx), dy = Math.abs(Math.floor(i / GRID) - ty); return Math.max(dx, dy) + 0.41 * Math.min(dx, dy); };
     gs[start] = 0; fs[start] = hh(start);
     let guard = 0;
-    while (open.length && guard++ < 6000) {
+    while (open.length && guard++ < 20000) {
       let bi = 0;
       for (let i = 1; i < open.length; i++) if (fs[open[i]] < fs[open[bi]]) bi = i;
       const cur = open[bi];
       open.splice(bi, 1);
+      inOpen[cur] = 0;
       if (cur === goal) break;
       closed[cur] = 1;
       const cx = cur % GRID, cy = Math.floor(cur / GRID);
@@ -1630,7 +1759,7 @@ export class Renderer {
         const ng = gs[cur] + (dx && dy ? 1.414 : 1);
         if (ng < gs[ni]) {
           gs[ni] = ng; fs[ni] = ng + hh(ni); from[ni] = cur;
-          if (!open.includes(ni)) open.push(ni);
+          if (!inOpen[ni]) { open.push(ni); inOpen[ni] = 1; }
         }
       }
     }
@@ -1658,15 +1787,35 @@ export class Renderer {
   }
 
   // called when the player taps free farmland
+  // Send the farmer (and the dog) to a tile. When the tile itself is taken or cannot be reached
+  // they go as close as they can, trying the nearest free tiles first.
   walkTo(tx: number, ty: number) {
     this.rebuildNav();
     const f = this.farmer, g = this.dog;
     f.inside = false;
     g.sleeping = false;
-    if (!this.send(f, tx, ty)) return;
-    const ds = this.dogSpot(tx, ty);
+    const goal = this.send(f, tx, ty) ? { x: tx, y: ty } : this.sendNear(f, tx, ty);
+    if (!goal) return;
+    const ds = this.dogSpot(goal.x, goal.y);
     if (ds) this.send(g, ds.x, ds.y);
-    this.showMarker(tx + 0.5, ty + 0.5);
+    this.showMarker(goal.x + 0.5, goal.y + 0.5);
+  }
+
+  // walk up to a building: to the free tile nearest the middle of its front
+  walkToObject(o: FarmObject) {
+    const d = BUILDING[o.type];
+    this.walkTo(o.x + Math.floor(d.w / 2), o.y + d.h);
+  }
+
+  private sendNear(a: Actor, tx: number, ty: number) {
+    const cands: { x: number; y: number; d: number }[] = [];
+    for (let r = 1; r <= 8; r++) for (let dy = -r; dy <= r; dy++) for (let dx = -r; dx <= r; dx++) {
+      if (Math.max(Math.abs(dx), Math.abs(dy)) !== r || !this.free(tx + dx, ty + dy)) continue;
+      cands.push({ x: tx + dx, y: ty + dy, d: dx * dx + dy * dy });
+    }
+    cands.sort((p, q) => p.d - q.d);
+    for (const c of cands.slice(0, 24)) if (this.send(a, c.x, c.y)) return { x: c.x, y: c.y };
+    return null;
   }
 
   private showMarker(x: number, z: number) {
@@ -2245,6 +2394,9 @@ const ANIMAL_MODELS = new Set([
   'merino_sheep', 'moose', 'muscovy_duck', 'musk_ox', 'nubian_goat', 'ostrich', 'parrot', 'peacock',
   'pheasant', 'pony', 'quail', 'rabbit', 'reindeer', 'rhea', 'sheep', 'silkie_chicken', 'silkworm',
   'spotted_deer', 'squirrel', 'swan', 'vicuna', 'watusi', 'yak', 'zebu',
+  'hereford', 'suffolk_sheep', 'bronze_turkey', 'saanen_goat', 'ayam_cemani', 'grey_heron',
+  'pekin_duck', 'orpington', 'lop_rabbit', 'pygmy_goat', 'brahma_chicken', 'toulouse_goose', 'angus_cow', 'polish_chicken', 'valais_blacknose', 'indian_runner', 'boer_goat', 'dorper', 'charolais', 'angora_rabbit', 'white_peacock', 'appaloosa', 'mule', 'texas_longhorn', 'clydesdale', 'elk',
+  'leghorn', 'khaki_campbell', 'dutch_rabbit', 'rhode_island_red', 'guernsey', 'shetland_sheep', 'call_duck', 'alpine_goat', 'wyandotte', 'brown_swiss', 'emden_goose', 'karakul', 'palomino', 'marans', 'dexter', 'friesian',
 ]);
 const animalSrc = new Map<string, THREE.Object3D>();
 let animalVer = 0;
@@ -2407,9 +2559,9 @@ const LID: Record<string, string> = {
   gobbler: '#9ab8d8', donkey: '#6a655f', buffalo: '#2a2a2c', peacock: '#1f4fb8', ostrich: '#9a7a70',
 };
 
-const TALL = new Set(['camel', 'ostrich', 'emu', 'flamingo', 'reindeer', 'llama', 'rhea', 'cassowary', 'crane', 'bactrian_camel', 'moose', 'spotted_deer', 'vicuna']);
+const TALL = new Set(['camel', 'ostrich', 'emu', 'flamingo', 'reindeer', 'llama', 'rhea', 'cassowary', 'crane', 'bactrian_camel', 'moose', 'spotted_deer', 'vicuna', 'grey_heron', 'elk', 'clydesdale']);
 // birds that float on their pond instead of walking
-const SWIMMERS = new Set(['duck', 'swan', 'mandarin_duck', 'black_swan']);
+const SWIMMERS = new Set(['duck', 'swan', 'mandarin_duck', 'black_swan', 'pekin_duck', 'khaki_campbell', 'call_duck']);
 
 function animalBody(kind: string) {
   const g = assemble(kind);
@@ -2454,7 +2606,10 @@ function animalBody(kind: string) {
       break;
     case 'chicken': case 'goose': case 'gobbler': case 'peacock': case 'ostrich': case 'quail':
     case 'guinea_fowl': case 'pheasant': case 'emu': case 'flamingo': case 'golden_goose':
-    case 'silkie_chicken': case 'muscovy_duck': case 'crane': case 'rhea': case 'cassowary': case 'kiwi_bird': case 'parrot': g.userData.peck = true; break;
+    case 'silkie_chicken': case 'muscovy_duck': case 'crane': case 'rhea': case 'cassowary': case 'kiwi_bird': case 'parrot':
+    case 'bronze_turkey': case 'ayam_cemani': case 'grey_heron':
+    case 'orpington': case 'brahma_chicken': case 'polish_chicken': case 'indian_runner': case 'toulouse_goose': case 'white_peacock':
+    case 'leghorn': case 'rhode_island_red': case 'wyandotte': case 'marans': case 'emden_goose': g.userData.peck = true; break;
     case 'yak':
       if (cp?.toon) break;
       // long horns curving up and out
@@ -2477,7 +2632,7 @@ function animalBody(kind: string) {
         head.add(horn);
       }
       break;
-    case 'rabbit': case 'squirrel': case 'chinchilla': g.userData.hop = true; break;
+    case 'rabbit': case 'squirrel': case 'chinchilla': case 'lop_rabbit': case 'angora_rabbit': case 'dutch_rabbit': g.userData.hop = true; break;
   }
   return g;
 }
@@ -2783,7 +2938,10 @@ const MODELS: Record<string, ModelSpec> = {
   barn: {}, silo: {}, board: {}, stall: {}, dock: {}, fishing_pier: { badge: 0.22 }, manor: { smoke: 'always' },
 };
 for (const id of ['hay_bale', 'picket_fence', 'bird_house', 'pumpkin_pile', 'birdbath', 'topiary', 'well', 'flower_arch',
-  'hay_wagon', 'tractor', 'bench', 'lamp', 'scarecrow', 'windmill', 'pond', 'mailbox', 'gazebo', 'fountain']) MODELS[id] = {};
+  'hay_wagon', 'tractor', 'bench', 'lamp', 'scarecrow', 'windmill', 'pond', 'mailbox', 'gazebo', 'fountain',
+  'sundial', 'bird_feeder', 'garden_swing', 'bonfire', 'totem_pole', 'picnic_spot', 'wind_turbine', 'stone_bridge', 'pergola', 'horse_statue', 'torii_gate', 'zen_garden', 'treehouse', 'greenhouse', 'water_tower', 'carousel', 'lighthouse', 'clock_tower', 'hot_air_balloon', 'golden_farmer',
+  'garden_gnome', 'wheelbarrow', 'rain_barrel', 'flower_cart', 'compost_bin', 'mushroom_ring', 'stone_lantern', 'bamboo_grove', 'fairy_house', 'snowman', 'sandcastle', 'seesaw', 'outdoor_oven', 'telescope', 'obelisk', 'hammock', 'water_wheel', 'koi_pond', 'camping_tent', 'beach_hut', 'log_cabin', 'playground_slide', 'pagoda', 'chapel', 'observatory', 'ferris_wheel',
+  'hay_stack', 'picnic_table', 'lemonade_stand', 'insect_hotel', 'weathervane', 'rock_garden', 'veggie_stand', 'windchime', 'dovecote', 'flag_pole', 'ice_cream_cart', 'pumpkin_carriage']) MODELS[id] = {};
 for (const d of Object.values(BUILDING)) if (d.kind === 'pen') MODELS[d.id] = {};
 for (const d of Object.values(BUILDING)) if (d.kind === 'tree') MODELS[d.id] = {};
 MODELS.flowers = {};
@@ -2795,7 +2953,8 @@ MODELS.rock_obs = { variants: 3 };
 MODELS.plot = {};
 MODELS.bush_obs = { variants: 2 };
 for (const id of ['bakery', 'feed_mill', 'dairy', 'sugar_mill', 'bbq_grill', 'juice_press', 'loom', 'jam_maker', 'ice_cream',
-  'sushi_bar', 'salad_bar', 'pizzeria', 'coffee_kiosk', 'oil_press', 'florist', 'workshop']) MODELS[id] = { badge: 0.26 };
+  'sushi_bar', 'salad_bar', 'pizzeria', 'coffee_kiosk', 'oil_press', 'florist', 'workshop', 'tea_house', 'smoothie_bar', 'pasta_maker',
+  'candy_shop', 'cheese_cave', 'noodle_bar', 'smokehouse', 'spice_mill', 'perfumery', 'soap_maker', 'candle_shop', 'chocolatier']) MODELS[id] = { badge: 0.26 };
 function keep<T extends THREE.Object3D>(o: T) {
   o.userData.keep = true;
   return o;
@@ -2820,12 +2979,15 @@ function useModel(e: Entry, o: FarmObject, d: BuildingDef) {
     }
     const puffs: ((on: boolean, t: number) => void)[] = [];
     const movers: { o: THREE.Object3D; spin: boolean; axis: 'x' | 'y' | 'z'; base: number }[] = [];
+    // pen gates: two leaves hinged at their posts that swing out while animals go through
+    const gates: { o: THREE.Object3D; side: number; base: number }[] = [];
     for (const c of m.children) {
       const x = cx + c.position.x, y = c.position.y, z = cz + c.position.z;
       const mv = /^(spin|sway)([XYZ])/.exec(c.name);
       if (c.name.startsWith('smoke')) puffs.push(smoke(g, x, y, z));
       else if (c.name.startsWith('glow')) groundGlow(g, x, z, 1.1 * c.scale.x);
       else if (c.name === 'badge') badge(g, d.icon, spec.badge ?? 0.3, x, y, z, c.rotation.y).translateZ(0.01);
+      else if (c.name === 'gate0' || c.name === 'gate1') gates.push({ o: c, side: c.name === 'gate0' ? -1 : 1, base: c.rotation.y });
       else if (mv) {
         const axis = mv[2].toLowerCase() as 'x' | 'y' | 'z';
         movers.push({ o: c, spin: mv[1] === 'spin', axis, base: c.rotation[axis] });
@@ -2842,6 +3004,10 @@ function useModel(e: Entry, o: FarmObject, d: BuildingDef) {
       const busy = d.kind === 'production' && !!prodInfo(o, now).current;
       const on = mode === 'always' || busy;
       puffs.forEach((p, i) => p(on, t + i * 700));
+      if (gates.length) {
+        const g = gateOpen(o, now), s = g * g * (3 - 2 * g);
+        for (const gl of gates) gl.o.rotation.y = gl.base + gl.side * s * 1.45;
+      }
       for (const v of movers) {
         if (v.spin) { if (mode === 'always' || busy) v.o.rotation[v.axis] += dt * 2.4; }
         else v.o.rotation[v.axis] = v.base + Math.sin(t / 2300 + e.id) * 0.6 + Math.sin(t / 830) * 0.08;
@@ -3182,6 +3348,10 @@ function tripFor(o: FarmObject, d: BuildingDef, a: Animal): Trip | null {
   if (!tr) {
     const sp = animalSpot(d, a.id, a.graze.at);
     const home = { x: o.x + sp.x, y: o.y + sp.z };
+    // it walks back in to where its usual wander has got to by the time it arrives, so it carries
+    // on from there without a jump
+    const sp2 = animalSpot(d, a.id, a.graze.at + 2 * GRAZE.walkMs + GRAZE.eatMs);
+    const home2 = { x: o.x + sp2.x, y: o.y + sp2.z };
     const gateIn = { x: o.x + d.w / 2, y: o.y + d.h - 0.3 };
     const gateOut = { x: o.x + d.w / 2, y: o.y + d.h + 0.45 };
     const g0 = GRAZE_NAV.nearest(Math.floor(gateOut.x), Math.floor(gateOut.y)) ?? tileOf(gateOut);
@@ -3191,7 +3361,7 @@ function tripFor(o: FarmObject, d: BuildingDef, a: Animal): Trip | null {
       let best: P2 | null = null;
       for (let tries = 0; tries < 14 && !best; tries++) {
         const ang = hash(a.id, a.graze.at % 100000, k * 17 + tries) * Math.PI * 2;
-        const r = 2 + hash(a.id, k, tries + 5) * 4;
+        const r = 1.5 + hash(a.id, k, tries + 5) * 2.5;
         const tx = Math.floor(g0.x + Math.cos(ang) * r), ty = Math.floor(g0.y + Math.abs(Math.sin(ang)) * r * 0.9 + 0.5);
         if (GRAZE_NAV.grass(tx, ty)) best = { x: tx + 0.3 + hash(a.id, tx, ty) * 0.4, y: ty + 0.3 + hash(a.id, ty, tx) * 0.4 };
       }
@@ -3199,7 +3369,7 @@ function tripFor(o: FarmObject, d: BuildingDef, a: Animal): Trip | null {
     }
     const out = [home, gateIn, gateOut, ...walk(gateOut, spots[0]).slice(1)];
     const eat = [walk(spots[0], spots[1]), walk(spots[1], spots[2])];
-    const back = [...walk(spots[2], gateOut), gateIn, home];
+    const back = [...walk(spots[2], gateOut), gateIn, home2];
     tr = { out, eat, back };
     if (trips.size > 400) trips.clear();
     trips.set(key, tr);
@@ -3207,33 +3377,55 @@ function tripFor(o: FarmObject, d: BuildingDef, a: Animal): Trip | null {
   return tr;
 }
 
+// Animals walk at a steady pace; a leg of the trip that fits its time budget early leaves the
+// animal standing (grazing) for the rest, and only a leg too long for its budget is walked faster.
+const WALK_SPEED = 0.55 / 1000; // tiles per ms
+function walkLeg(pts: P2[], t: number, budget: number, late = false) {
+  const need = polyLen(pts) / WALK_SPEED, dur = Math.min(need, budget);
+  const t0 = late ? budget - dur : 0;
+  const u = dur > 0 ? (t - t0) / dur : 1;
+  return { pt: along(pts, u), moving: u > 0 && u < 1 };
+}
+
 // where a grazing animal is at time `now`: world x, y, heading, walking or eating
 function grazePose(o: FarmObject, d: BuildingDef, a: Animal, now: number): { x: number; y: number; heading: number; moving: boolean } | null {
   const tr = tripFor(o, d, a);
   if (!tr) return null;
   const gp = grazePhase(a, now);
-  let pt: { x: number; y: number; dx: number; dy: number }, moving = true;
-  if (gp.phase === 'leaving') pt = along(tr.out, gp.k);
+  const { walkMs, eatMs } = GRAZE;
+  let leg: { pt: { x: number; y: number; dx: number; dy: number }; moving: boolean };
+  if (gp.phase === 'leaving') leg = walkLeg(tr.out, gp.k * walkMs, walkMs);
   else if (gp.phase === 'eating') {
-    // stand and eat, stroll to the next patch, eat, stroll, eat
-    const k = gp.k;
-    if (k < 0.3) { pt = along(tr.eat[0], 0); moving = false; }
-    else if (k < 0.4) pt = along(tr.eat[0], (k - 0.3) / 0.1);
-    else if (k < 0.65) { pt = along(tr.eat[1], 0); moving = false; }
-    else if (k < 0.75) pt = along(tr.eat[1], (k - 0.65) / 0.1);
-    else { pt = along(tr.eat[1], 1); moving = false; }
+    // eat, stroll to the next patch, eat, stroll, eat
+    const te = gp.k * eatMs;
+    if (te < 0.3 * eatMs) leg = { pt: along(tr.eat[0], 0), moving: false };
+    else if (te < 0.65 * eatMs) leg = walkLeg(tr.eat[0], te - 0.3 * eatMs, 0.35 * eatMs);
+    else leg = walkLeg(tr.eat[1], te - 0.65 * eatMs, 0.35 * eatMs);
   } else if (gp.phase === 'returning' && a.graze?.back !== undefined) {
     // called home early: from wherever it was, the shortest way back through the gate
     if (!tr.recall || tr.recall.at !== a.graze.back) {
       const from = grazePose(o, d, { ...a, graze: { at: a.graze.at } }, a.graze.back) ?? { x: o.x, y: o.y };
-      const sp = animalSpot(d, a.id, a.graze.at);
+      const sp = animalSpot(d, a.id, a.graze.back + walkMs);
       const gateOut = { x: o.x + d.w / 2, y: o.y + d.h + 0.45 };
       tr.recall = { at: a.graze.back, path: [...walk({ x: from.x, y: from.y }, gateOut), { x: o.x + d.w / 2, y: o.y + d.h - 0.3 }, { x: o.x + sp.x, y: o.y + sp.z }] };
     }
-    pt = along(tr.recall.path, gp.k);
-  } else if (gp.phase === 'returning') pt = along(tr.back, gp.k);
+    leg = walkLeg(tr.recall.path, gp.k * walkMs, walkMs, true);
+  } else if (gp.phase === 'returning') leg = walkLeg(tr.back, gp.k * walkMs, walkMs, true);
   else return null;
-  return { x: pt.x, y: pt.y, heading: Math.atan2(pt.dx, pt.dy), moving };
+  return { x: leg.pt.x, y: leg.pt.y, heading: Math.atan2(leg.pt.dx, leg.pt.dy), moving: leg.moving };
+}
+
+// how far a pen's gate stands open (0 to 1): it swings open as the first animal sets off and
+// shuts once the last one is back inside. A pure function of time, like the walks.
+function gateOpen(o: FarmObject, now: number) {
+  let open = 0;
+  const { walkMs, eatMs } = GRAZE;
+  for (const a of o.pen?.animals ?? []) {
+    if (!a.graze) continue;
+    const end = a.graze.back !== undefined ? a.graze.back + walkMs : a.graze.at + 2 * walkMs + eatMs;
+    open = Math.max(open, Math.min(1, (now - a.graze.at) / 900, (end - now) / 900));
+  }
+  return Math.max(0, open);
 }
 
 // the bees of a hive fly (straight, they can) to flowers near the pen and back
@@ -3269,13 +3461,14 @@ function buildPen(e: Entry, d: BuildingDef) {
   const w = d.w, h = d.h;
   // grassy pens keep the lawn (and its swaying grass), the others get a dirt yard
   if (!GRASSY_PEN.has(d.id)) {
-    const dirt = !['duck_pond', 'swan_lake', 'reindeer_lodge', 'musk_ox_range', 'beaver_pond', 'mandarin_pond', 'black_swan_lake'].includes(d.id);
+    const dirt = !['duck_pond', 'pekin_pond', 'campbell_pond', 'call_duck_pond', 'swan_lake', 'reindeer_lodge', 'musk_ox_range', 'beaver_pond', 'mandarin_pond', 'black_swan_lake'].includes(d.id);
     keep(bxT(g, w - 0.1, 0.04, h - 0.1, dirt ? 'soil' : 'grass', PEN_GROUND[d.id] ?? d.wall, w / 2, 0, h / 2, dirt ? 1.5 : 0.8, false));
   }
   if (d.id !== 'beehive') fence(g, w, h, WHITE_FENCE.has(d.id));
+  const firstScenery = g.children.length;
   e.top = 0.9;
   switch (d.id) {
-    case 'coop':
+    case 'coop': case 'orpington_coop': case 'brahma_coop': case 'polish_coop': case 'leghorn_coop': case 'rhode_coop': case 'wyandotte_coop': case 'marans_coop':
       bxT(g, 0.72, 0.45, 0.6, 'boards', '#e3cf94', 0.55, 0.04, 0.5, 2);
       roofT(g, 0.88, 0.32, 0.76, '#b5452c', surfaceMat('boards', '#e3cf94', 2), 0.55, 0.49, 0.5, 0.08);
       bx(g, 0.16, 0.2, 0.02, '#5a3517', 0.55, 0.1, 0.81);
@@ -3327,7 +3520,7 @@ function buildPen(e: Entry, d: BuildingDef) {
       mk(g, G.dome, surfaceMat('bark', '#6a4a2a', 3), 0.36, 0.28, 0.32, 1.65, 0.02, 1.2);
       break;
     }
-    case 'crane_marsh':
+    case 'crane_marsh': case 'heron_marsh':
       // shallow pools edged with reeds and cattails
       for (const [x, z, r] of [[1.0, 1.1, 0.5], [2.1, 2.0, 0.55]] as const) {
         mk(g, cylGeo(r, r, 14), WATER, 1, 0.03, 1, x, 0.05, z, false);
@@ -3390,19 +3583,19 @@ function buildPen(e: Entry, d: BuildingDef) {
       keep(mk(g, G.ball, new THREE.MeshStandardMaterial({ color: '#ffd23a', metalness: 0.35, roughness: 0.25, emissive: '#7a5200', emissiveIntensity: 0.5 }), 0.09, 0.12, 0.09, 1.15, 0.16, 0.9));
       break;
     }
-    case 'duck_pond':
+    case 'duck_pond': case 'pekin_pond': case 'campbell_pond': case 'call_duck_pond':
       cyl(g, 0.95, 1.0, 0.04, '#d8c38e', 1.7, 0.02, 1.7, 16, false);
       mk(g, cylGeo(0.85, 0.85, 16), WATER, 1, 0.04, 1, 1.7, 0.06, 1.7, false);
       bxT(g, 0.5, 0.35, 0.45, 'boards', '#f3e6c8', 0.45, 0.04, 0.45, 2);
       roofT(g, 0.62, 0.22, 0.58, '#2e6da4', surfaceMat('boards', '#f3e6c8', 2), 0.45, 0.39, 0.45, 0.06);
       break;
-    case 'stable':
+    case 'stable': case 'appaloosa_stable': case 'clydesdale_stable': case 'palomino_stable': case 'friesian_stable':
       bxT(g, 1.5, 0.75, 0.75, 'boards', '#a85a3a', 1.1, 0.04, 0.5, 1.6);
       roofT(g, 1.66, 0.38, 0.9, '#8e2c20', surfaceMat('boards', '#a85a3a', 1.6), 1.1, 0.79, 0.5, 0.08);
       for (const x of [0.65, 1.1, 1.55]) bx(g, 0.28, 0.42, 0.03, '#6b3a22', x, 0.04, 0.88);
       e.top = 1.3;
       break;
-    case 'rabbit_hutch': {
+    case 'rabbit_hutch': case 'lop_hutch': case 'angora_hutch': case 'dutch_hutch': {
       // raised hutch with a wire front, a sloped roof and a ramp down to the grass
       const hx = 0.62, hz = 0.5;
       for (const [x, z] of [[-0.38, -0.2], [0.38, -0.2], [-0.38, 0.2], [0.38, 0.2]]) bx(g, 0.05, 0.3, 0.05, '#7a4a28', hx + x, 0, hz + z);
@@ -3446,7 +3639,7 @@ function buildPen(e: Entry, d: BuildingDef) {
       bxT(g, 1.1, 0.06, 0.9, 'thatch', '#c9a85a', 0.7, 0.62, 0.6, 2.5).rotation.x = 0.18;
       e.top = 0.9;
       break;
-    case 'peacock_garden':
+    case 'peacock_garden': case 'white_peacock_garden':
       // a white garden arbor with climbing roses and a small fountain bowl
       for (const x of [0.3, 1.1]) for (const z of [0.3, 0.7]) cyl(g, 0.025, 0.025, 0.7, '#f4efe6', x, 0.04, z, 8);
       for (let i = 0; i < 5; i++) { const a = mk(g, cylGeo(0.015, 0.015, 6), M('#f4efe6'), 1, 0.44, 1, 0.3 + i * 0.2, 0.74, 0.5); a.rotation.x = Math.PI / 2; }
@@ -3455,7 +3648,7 @@ function buildPen(e: Entry, d: BuildingDef) {
       mk(g, cylGeo(0.17, 0.17, 16), WATER, 1, 0.02, 1, 1.5, 0.18, 1.5, false);
       e.top = 1.0;
       break;
-    case 'goose_pen':
+    case 'goose_pen': case 'toulouse_pen': case 'runner_pen': case 'emden_pen':
       // a little pond in one corner and an A-frame goose house
       cyl(g, 0.42, 0.45, 0.03, '#d8c38e', 1.45, 0.02, 1.45, 20, false);
       mk(g, cylGeo(0.37, 0.37, 20), WATER, 1, 0.03, 1, 1.45, 0.05, 1.45, false);
@@ -3480,7 +3673,16 @@ function buildPen(e: Entry, d: BuildingDef) {
       bxT(g, 0.5, 0.25, 0.35, 'thatch', '#e2c15a', 0.55, 0.04, 0.5, 3);
     }
   }
-  if (!['beehive', 'duck_pond', 'goose_pen', 'peacock_garden', 'swan_lake', 'flamingo_lagoon', 'golden_nest', 'mandarin_pond', 'black_swan_lake', 'silk_house', 'parrot_aviary', 'owl_barn', 'kiwi_burrow', 'squirrel_grove', 'crane_marsh'].includes(d.id)) {
+  // the wide pens are 3 x 2: their shelters, ponds and props are laid out as for 3 x 3 and pressed
+  // into the shallower yard, like the Blender models
+  if (w === 3 && h === 2) {
+    for (let i = firstScenery; i < g.children.length; i++) {
+      const c = g.children[i];
+      c.position.z *= h / 3;
+      c.scale.z *= h / 3;
+    }
+  }
+  if (!['beehive', 'duck_pond', 'goose_pen', 'peacock_garden', 'swan_lake', 'flamingo_lagoon', 'golden_nest', 'mandarin_pond', 'black_swan_lake', 'silk_house', 'parrot_aviary', 'owl_barn', 'kiwi_burrow', 'squirrel_grove', 'crane_marsh', 'heron_marsh', 'pekin_pond', 'toulouse_pen', 'runner_pen', 'white_peacock_garden', 'campbell_pond', 'call_duck_pond', 'emden_pen'].includes(d.id)) {
     bx(g, 0.55, 0.12, 0.18, '#8a5a2b', w - 0.55, 0.04, h - 0.35);
     bx(g, 0.47, 0.03, 0.12, '#e2c15a', w - 0.55, 0.14, h - 0.35, false);
   }
@@ -3572,7 +3774,7 @@ function buildPen(e: Entry, d: BuildingDef) {
         const u = hash(id, 1, 3);
         const ang = t / (4200 + u * 2000) + id * 1.7;
         const r = 0.3 + u * 0.35;
-        m.position.set(1.7 + Math.cos(ang) * r, 0.08 + Math.sin(t / 400 + id) * 0.01 + jump * 0.5, 1.7 + Math.sin(ang) * r);
+        m.position.set(1.7 + Math.cos(ang) * r, 0.08 + Math.sin(t / 400 + id) * 0.01 + jump * 0.5, (1.7 + Math.sin(ang) * r) * (d.h / 3));
         m.rotation.y = Math.atan2(-Math.sin(ang), Math.cos(ang));
         m.rotation.z = Math.sin(t / 520 + id) * 0.06;
         blink(m, t, id);
@@ -3723,13 +3925,17 @@ function buildFruitTree(e: Entry, d: BuildingDef) {
   const g = e.root;
   const leaf = TREE_LEAF[d.id] ?? '#4f9e36';
   if (d.id === 'coconut_palm' || d.id === 'date_palm') return buildPalm(e, d, leaf);
-  if (d.id === 'banana_tree') return buildBanana(e, leaf);
+  if (d.id === 'banana_tree' || d.id === 'plantain_tree') return buildBanana(e, leaf, d.fruit ?? 'banana');
   const { crown } = leafyTree(g, 0.5, 0.5, leaf, d.id === 'walnut_tree' ? 1.2 : 1, d.id.length);
   const fc = FRUIT_COLOR[d.fruit ?? 'apple'] ?? '#e53935';
   // realistic fruit: dimpled apples, paired cherries, pitted oranges, blushing peaches, lemons
   const pg = produceGeo(d.fruit ?? 'apple');
   const fm = pg ? PRODUCE_MAT : new THREE.MeshStandardMaterial({ color: fc, roughness: 0.35 });
-  const fruit = crownSpots(11, 0, 0.8, 0, 0.45).map(([x, y, z], i) => {
+  const form = TREE_FORM[d.id];
+  const spots = form?.trunk
+    ? [...Array(8)].map((_, i) => [Math.cos(i * 2.4) * form.r, form.cy + ((i % 4) / 3 - 0.5) * (form.h ?? 0.2), Math.sin(i * 2.4) * form.r] as [number, number, number])
+    : crownSpots(11, 0, form?.cy ?? 0.8, 0, form?.r ?? 0.45);
+  const fruit = spots.map(([x, y, z], i) => {
     const f = keep(mk(crown, pg ?? G.ball, fm, 0.055, 0.055, 0.055, x, y, z));
     f.rotation.set((hash(i, 2) - 0.5) * 0.6, hash(i, 3) * 6, (hash(i, 4) - 0.5) * 0.6);
     return f;
@@ -3749,7 +3955,7 @@ function buildFruitTree(e: Entry, d: BuildingDef) {
     start = st; wasReady = ti.ready;
     const n = ti.ready ? fruit.length : Math.floor(ti.p * fruit.length);
     const sc = ti.ready ? 1 : 0.5 + ti.p * 0.4;
-    const base = d.fruit === 'cherry' || d.fruit === 'olive' || d.fruit === 'mulberry' || d.fruit === 'lychee' || d.fruit === 'hazelnut' || d.fruit === 'almond' ? 0.075 : d.fruit === 'lemon' || d.fruit === 'plum' || d.fruit === 'apricot' || d.fruit === 'lime' ? 0.07 : 0.085;
+    const base = form?.size ?? (d.fruit === 'cherry' || d.fruit === 'olive' || d.fruit === 'mulberry' || d.fruit === 'lychee' || d.fruit === 'hazelnut' || d.fruit === 'almond' ? 0.075 : d.fruit === 'lemon' || d.fruit === 'plum' || d.fruit === 'apricot' || d.fruit === 'lime' ? 0.07 : 0.085);
     fruit.forEach((f, i) => {
       // new fruit swells in instead of popping into existence
       shown[i] = i < n ? Math.min(1, shown[i] + 0.04) : 0;
@@ -3766,7 +3972,7 @@ function buildFruitTree(e: Entry, d: BuildingDef) {
 
 // Banana plant: a thick fibrous pseudostem, huge ragged paddle leaves and a hanging bunch
 // with its purple flower bud.
-function buildBanana(e: Entry, leaf: string) {
+function buildBanana(e: Entry, leaf: string, kind = 'banana') {
   const g = e.root;
   const crown = group(g, 0.5, 0, 0.5);
   crown.userData.crown = true;
@@ -3785,7 +3991,7 @@ function buildBanana(e: Entry, leaf: string) {
     pv.add(lf);
     leaves.push(pv);
   }
-  const bunch = produceGeo('banana') as THREE.BufferGeometry;
+  const bunch = (produceGeo(kind) ?? produceGeo('banana')) as THREE.BufferGeometry;
   const fruit = [0, 1].map((k) => {
     const b = keep(mk(crown, bunch, PRODUCE_MAT, 0.3, 0.3, 0.3, k ? -0.12 : 0.12, 0.72, k ? 0.05 : -0.05));
     b.rotation.set(0, k * 2, k ? -0.35 : 0.35);
@@ -3976,7 +4182,10 @@ function groundGlow(g: P, x: number, z: number, size: number) {
 
 // Path tiles, refreshed with the walk grid. Paths never block the farmer.
 const pathTiles = new Set<number>();
-const WALKABLE = new Set(['dirt_path', 'stone_path']);
+// tiles people can walk over: paths, and fields (the farmer and the dog step between the rows)
+const WALKABLE = new Set(['dirt_path', 'stone_path', 'plot']);
+// fields are walkable but no place to graze
+const fieldTiles = new Set<number>();
 // One material per neighbor mask (north 1, east 2, south 4, west 8): a round center plus arms
 // running to each connected side, drawn soft so tiles blend into one winding path.
 const pathMats = new Map<number, THREE.Material>();
@@ -4327,6 +4536,12 @@ function buildDeco(e: Entry, d: BuildingDef) {
       groundGlow(g, 1, 1, 2.2);
       e.top = 1.7;
       break;
+    default: {
+      // a plain plinth stands in until the Blender model loads
+      const w = d.w ?? 1, h = d.h ?? 1;
+      bx(g, w * 0.7, 0.12, h * 0.7, '#b8a88a', w / 2, 0, h / 2);
+      e.top = Math.max(0.5, d.height * ZU);
+    }
   }
 }
 
@@ -4602,6 +4817,181 @@ function buildManor(e: Entry, d: BuildingDef) {
 }
 
 // ------------------------------------------------------------------ ambient life
+// ------------------------------------------------------------------ turtle beach
+// Loggerhead sea turtles (Blender models, tools/blender/turtle.py) nest in the cove on their own:
+// a mother swims in, hauls herself up the sand, digs a pit, lays her eggs, covers them and goes
+// back to the sea. Later the hatchlings dig out and scramble down to the water. Nobody tends
+// them; everything is a pure function of time, like the rest of the scenery.
+const TURTLE_CYCLE = 270; // seconds between one mother's visits
+const TURTLE_MOTHERS = 3;
+const lerpN = (a: number, b: number, u: number) => a + (b - a) * Math.max(0, Math.min(1, u));
+const ease = (u: number) => { const k = Math.max(0, Math.min(1, u)); return k * k * (3 - 2 * k); };
+
+interface TurtleRig { g: THREE.Group; body: THREE.Group; head?: THREE.Object3D; flips: THREE.Object3D[] }
+function turtleRig(kind: 'sea_turtle' | 'turtle_hatchling', scale: number): TurtleRig {
+  const g = new THREE.Group();
+  const body = new THREE.Group();
+  g.add(body);
+  const rig: TurtleRig = { g, body, flips: [] };
+  // a simple stand in until the Blender model is in
+  const shell = kind === 'sea_turtle' ? '#9a4a20' : '#4a3a2e', skin = kind === 'sea_turtle' ? '#c08a44' : '#4e4034';
+  mk(body, G.ball, M(shell), 0.15, 0.06, 0.19, 0, 0.08, 0);
+  mk(body, G.ball, M(skin), 0.05, 0.04, 0.06, 0, 0.08, 0.22);
+  for (const [x, z] of [[-0.18, 0.1], [0.18, 0.1], [-0.12, -0.14], [0.12, -0.14]]) {
+    const f = group(body, x * 0.6, 0.06, z);
+    mk(f, G.ball, M(skin), 0.1, 0.015, 0.035, x * 0.5, 0, 0);
+    rig.flips.push(f);
+  }
+  body.scale.setScalar(scale);
+  if (artStyle() === 'toon') {
+    loadModel(kind).then((m) => {
+      const c = m.clone();
+      body.clear();
+      body.add(c);
+      rig.head = c.getObjectByName('head') ?? undefined;
+      rig.flips = [0, 1, 2, 3].map((i) => c.getObjectByName(`flip${i}`)).filter((o): o is THREE.Object3D => !!o);
+    }).catch(() => {});
+  }
+  return rig;
+}
+
+// animate the flippers: `mode` swim (front paddles beat together) or crawl (diagonal pairs row)
+function turtleStroke(r: TurtleRig, mode: 'swim' | 'crawl' | 'dig' | 'rest', ph: number, amt = 1) {
+  const s = Math.sin(ph);
+  r.flips.forEach((f, i) => {
+    const side = i % 2 ? 1 : -1, front = i < 2;
+    f.rotation.set(0, 0, 0);
+    if (mode === 'swim') {
+      if (front) { f.rotation.z = side * s * 0.55 * amt; f.rotation.y = -side * Math.cos(ph) * 0.25 * amt; }
+      else f.rotation.y = side * s * 0.25 * amt;
+    } else if (mode === 'crawl') {
+      const pair = (i === 0 || i === 3) ? 1 : -1;
+      f.rotation.y = side * pair * s * 0.45 * amt;
+    } else if (mode === 'dig') {
+      if (!front) { f.rotation.y = side * Math.sin(ph + (side > 0 ? Math.PI : 0)) * 0.7; f.rotation.z = side * 0.3; }
+    }
+  });
+}
+
+class TurtleBeach {
+  private mothers: { rig: TurtleRig; nest: THREE.Group; eggs: THREE.Mesh[]; pit: THREE.Mesh; mound: THREE.Mesh; spray: THREE.Mesh[]; babies: TurtleRig[] }[] = [];
+
+  constructor(scene: THREE.Scene) {
+    const egg = M('#f6f2e8'), pitM = M('#b89a62'), moundM = M('#e2c88a');
+    for (let i = 0; i < TURTLE_MOTHERS; i++) {
+      const rig = turtleRig('sea_turtle', 1.3);
+      const nest = new THREE.Group();
+      const pit = mk(nest, cylGeo(0.13, 0.1, 14), pitM, 1, 0.01, 1, 0, 0.004, 0, false);
+      const eggs: THREE.Mesh[] = [];
+      for (let k = 0; k < 14; k++) {
+        const a = k * 2.4, r = Math.sqrt((k + 0.5) / 14) * 0.08;
+        eggs.push(mk(nest, G.ball, egg, 0.022, 0.022, 0.022, Math.cos(a) * r, 0.01 + (k % 3) * 0.01, Math.sin(a) * r, false));
+      }
+      const mound = mk(nest, G.ball, moundM, 0.2, 0.05, 0.2, 0, 0, 0, false);
+      const spray: THREE.Mesh[] = [];
+      for (let k = 0; k < 8; k++) spray.push(mk(nest, G.ball, moundM, 0.012, 0.012, 0.012, 0, 0, 0, false));
+      const babies: TurtleRig[] = [];
+      for (let k = 0; k < 9; k++) { const b = turtleRig('turtle_hatchling', 0.32); babies.push(b); scene.add(b.g); }
+      scene.add(rig.g, nest);
+      this.mothers.push({ rig, nest, eggs, pit, mound, spray, babies });
+    }
+  }
+
+  update(t: number) {
+    const now = t / 1000;
+    this.mothers.forEach((mo, i) => {
+      const cyc = now / TURTLE_CYCLE + i / TURTLE_MOTHERS;
+      const n = Math.floor(cyc), p = (cyc - n) * TURTLE_CYCLE;
+      // this visit's nest site on the dry upper beach, and where she meets the water
+      const nz = COVE.z + (hash(i, n, 71) - 0.5) * COVE.rz * 1.1;
+      const edge = coveEdge(nz);
+      const nx = lerpN(-1.2, edge, 0.4 + hash(n, i, 72) * 0.15);
+      const wx = edge - 0.25, far = edge - 4.5;
+      const place = (r: TurtleRig, x: number, z: number, heading: number, sink = 0) => {
+        r.g.position.set(x, Math.max(sandY(x, z), -0.6) - sink, z);
+        r.g.rotation.set(0, heading, 0);
+      };
+      const toLand = Math.PI / 2, toSea = -Math.PI / 2;
+      const m = mo.rig;
+      m.g.visible = p < 140;
+      m.body.rotation.set(0, 0, 0);
+      if (p < 18) {
+        // swimming in: shell awash, front flippers beating
+        const x = lerpN(far, wx, p / 18);
+        place(m, x, nz + Math.sin(p * 0.3) * 0.2, toLand);
+        m.g.position.y = -0.6;
+        turtleStroke(m, 'swim', now * 3);
+      } else if (p < 48) {
+        // hauling herself up the sand in heavy lurches, pausing to rest
+        const u = (p - 18) / 30, lurch = u + Math.sin(u * 40) * 0.006;
+        place(m, lerpN(wx, nx, lurch), nz, toLand);
+        turtleStroke(m, Math.sin(p * 0.7) > -0.6 ? 'crawl' : 'rest', now * 2.6);
+      } else if (p < 92) {
+        // digging the pit with her rear flippers, laying, then sweeping sand back over it
+        place(m, nx, nz, toLand);
+        m.body.rotation.x = -0.12;
+        turtleStroke(m, p < 60 || p > 80 ? 'dig' : 'rest', now * 3);
+      } else if (p < 96) {
+        place(m, nx, nz, lerpN(toLand, toLand + Math.PI, (p - 92) / 4));
+        turtleStroke(m, 'crawl', now * 2.6);
+      } else if (p < 124) {
+        const u = (p - 96) / 28;
+        place(m, lerpN(nx, wx, u + Math.sin(u * 40) * 0.006), nz, toSea);
+        turtleStroke(m, Math.sin(p * 0.7) > -0.6 ? 'crawl' : 'rest', now * 2.6);
+      } else {
+        const u = (p - 124) / 16;
+        place(m, lerpN(wx, far, u), nz, toSea);
+        m.g.position.y = -0.6 - ease(u) * 0.3;
+        turtleStroke(m, 'swim', now * 3);
+      }
+      if (m.head) m.head.rotation.x = p > 48 && p < 92 ? 0.15 + Math.sin(now * 0.8) * 0.05 : Math.sin(now * 1.3) * 0.08;
+
+      // the nest: the pit and her eggs while she lays, a smooth mound after, a crater once hatched
+      const nestP = p;
+      const hatchAt = 205;
+      mo.nest.visible = nestP > 56 && nestP < 255;
+      const ny = sandY(nx, nz);
+      mo.nest.position.set(nx, ny, nz - 0.0);
+      const behind = -0.4; // the nest sits just behind her tail
+      mo.nest.position.x = nx + behind;
+      const laid = Math.floor(ease((nestP - 62) / 16) * mo.eggs.length);
+      mo.eggs.forEach((e, k) => { e.visible = nestP < 84 && k < laid; });
+      mo.pit.visible = nestP < 86 || nestP > hatchAt;
+      mo.mound.visible = nestP >= 84 && nestP < hatchAt + 6;
+      mo.mound.scale.y = 0.05 * (nestP < hatchAt ? 1 : 1 - (nestP - hatchAt) / 6);
+      mo.spray.forEach((s, k) => {
+        const on = (nestP > 56 && nestP < 62) || (nestP > 80 && nestP < 92) || (nestP > hatchAt - 3 && nestP < hatchAt + 2);
+        s.visible = on;
+        if (!on) return;
+        const u = ((now * 1.7 + k * 0.13) % 1);
+        const a = k * 0.8 + (k % 2) * Math.PI;
+        s.position.set(Math.cos(a) * u * 0.3 - 0.05, Math.sin(u * Math.PI) * 0.15, Math.sin(a) * u * 0.3);
+      });
+
+      // hatchlings: out of the sand one after another, racing down to the surf and swimming off
+      mo.babies.forEach((b, k) => {
+        const t0 = hatchAt + k * 1.2 + hash(k, n, 73) * 2;
+        const q = nestP - t0;
+        b.g.visible = q > 0 && q < 26;
+        if (!b.g.visible) return;
+        const dz = (hash(k, n, 74) - 0.5) * 1.2, wob = Math.sin(q * 3 + k) * 0.08;
+        const sx = nx + behind, sz = nz;
+        const run = Math.min(1, q / (12 + hash(k, n, 75) * 4));
+        const x = lerpN(sx, wx - 0.3, run), z = sz + dz * run + wob * (run < 1 ? 1 : 0);
+        const heading = toSea + Math.atan2(dz, Math.abs(wx - sx)) * -1 + wob * 1.5;
+        if (q < 1) { place(b, sx, sz, heading, 0.05 * (1 - q)); turtleStroke(b, 'dig', now * 8); }
+        else if (run < 1) { place(b, x, z, heading); turtleStroke(b, 'crawl', now * 9); }
+        else {
+          const u = (q - 12 - hash(k, n, 75) * 4) / 8;
+          place(b, lerpN(wx - 0.3, wx - 2.5, u), z, heading);
+          b.g.position.y = -0.58 - Math.max(0, u - 0.5) * 0.3;
+          turtleStroke(b, 'swim', now * 10);
+        }
+      });
+    });
+  }
+}
+
 // Butterflies over the grass, gulls circling above the shore, fish leaping in the sea and a
 // sailboat drifting on the horizon. Purely cosmetic.
 

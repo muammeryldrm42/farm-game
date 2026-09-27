@@ -275,6 +275,385 @@ function onion() {
   return lathe([[0, -0.75], [0.55, -0.7], [0.95, -0.25], [0.95, 0.15], [0.55, 0.62], [0.18, 0.9], [0.08, 1.2], [0, 1.2]], 22, (x, y, z) => C.setScalar(0.85 + (Math.sin(Math.atan2(z, x) * 14) > 0.7 ? 0.15 : 0) + noise3(x * 6, y * 6, z * 6) * 0.08).clone());
 }
 
+function shallot() {
+  // a slim teardrop bulb, a little pointed at the neck
+  return lathe([[0, -0.9], [0.45, -0.8], [0.7, -0.35], [0.66, 0.2], [0.36, 0.7], [0.12, 1.05], [0, 1.1]], 20, (x, y, z) => C.setScalar(0.86 + (Math.sin(Math.atan2(z, x) * 12) > 0.75 ? 0.12 : 0) + noise3(x * 6, y * 6, z * 6) * 0.08).clone());
+}
+
+function leek() {
+  // a long pale shank with a hint of roots at the base
+  return lathe([[0, -1.0], [0.3, -0.95], [0.34, -0.8], [0.3, 0.2], [0.26, 1.0], [0, 1.05]], 16, (x, y, z) => C.setScalar(0.95 - Math.max(0, y) * 0.25 + noise3(x * 8, y * 3, z * 8) * 0.05).clone());
+}
+
+// ---- late orchard fruit
+
+const cone = new THREE.ConeGeometry(1, 1, 5);
+cone.translate(0, 0.5, 0);
+const up = new THREE.Vector3(0, 1, 0);
+// short spikes or scales standing out of a surface point along its normal
+function spikes(n: number, seed: number, place: (i: number) => [THREE.Vector3, number], color: string | ((i: number) => string), len: number, w: number) {
+  const out: THREE.BufferGeometry[] = [];
+  for (let i = 0; i < n; i++) {
+    const [p, s] = place(i);
+    const dir = p.clone().normalize();
+    const q = new THREE.Quaternion().setFromUnitVectors(up, dir);
+    const m = new THREE.Matrix4().compose(p, q, new THREE.Vector3(w * s, len * s, w * s));
+    out.push(solid(cone, typeof color === 'string' ? color : color(i + seed), m));
+  }
+  return out;
+}
+// evenly spread points on an ellipsoid (golden spiral)
+const spiral = (i: number, n: number, rx: number, ry: number) => {
+  const y = 1 - (2 * (i + 0.5)) / n, r = Math.sqrt(1 - y * y), a = i * 2.39996;
+  return new THREE.Vector3(Math.cos(a) * r * rx, y * ry, Math.sin(a) * r * rx);
+};
+const leafAt = (x: number, y: number, rz: number, color = '#4f9e36', s = 1) => solid(leafGeo, color, new THREE.Matrix4().makeTranslation(x, y, 0).multiply(new THREE.Matrix4().makeRotationZ(rz)).multiply(new THREE.Matrix4().makeScale(0.32 * s, 0.05 * s, 0.13 * s)));
+const merge = (parts: THREE.BufferGeometry[]) => mergeGeometries(parts) as THREE.BufferGeometry;
+const small = (g: THREE.BufferGeometry, s: number, x: number, y: number, z = 0) => { g.scale(s, s, s); g.translate(x, y, z); return g; };
+
+function tangerine() {
+  // a squat, loose skinned mandarin in deep orange
+  const g = lathe(round(20).map(([r, y]) => [r, y * 0.8]), 28, (x, y, z) => mix('#e05a00', '#ff8a10', 0.5 + (noise3(x * 5, y * 5, z * 5) - 0.5) * 0.8), (x, y, z) => (noise3(x * 30, y * 30, z * 30) - 0.5) * 0.04);
+  return merge([g, leafAt(0.2, 0.8, -0.4, '#3f8a2a')]);
+}
+function bloodOrange() {
+  const g = lathe(round(20).map(([r, y]) => [r, y * 0.96]), 28, (x, y, z) => mix('#e86a10', '#a8201a', 0.35 + x * 0.3 + (noise3(x * 3, y * 3, z * 3) - 0.5) * 0.9), (x, y, z) => (noise3(x * 40, y * 40, z * 40) - 0.5) * 0.03);
+  return merge([g, solid(leafGeo, '#5a8a2a', new THREE.Matrix4().makeTranslation(0, 0.95, 0).multiply(new THREE.Matrix4().makeScale(0.14, 0.05, 0.14)))]);
+}
+function kumquat() {
+  // a little oval citrus, eaten skin and all
+  const g = lathe(round(16).map(([r, y]) => [r * 0.8, y * 1.05]), 20, (x, y, z) => mix('#f07a00', '#ffa82a', 0.5 + (noise3(x * 6, y * 6, z * 6) - 0.5) * 0.7), (x, y, z) => (noise3(x * 35, y * 35, z * 35) - 0.5) * 0.03);
+  return merge([g, leafAt(0.18, 1.0, -0.5, '#2f7a2a', 0.8)]);
+}
+function yuzu() {
+  // a knobbly, lumpy bright yellow citrus
+  const g = lathe(round(20).map(([r, y]) => [r, y * 0.9]), 28, (x, y, z) => mix('#e8b400', '#fbd82a', 0.5 + (noise3(x * 5, y * 5, z * 5) - 0.5) * 0.7), (x, y, z) => (noise3(x * 4, y * 4, z * 4) - 0.5) * 0.14 + (noise3(x * 30, y * 30, z * 30) - 0.5) * 0.05);
+  return merge([g, leafAt(0.2, 0.9, -0.4, '#3a8a2e')]);
+}
+function nectarine() {
+  // smooth and glossy: a peach without the fuzz, deep red over gold
+  const g = lathe([[0, -0.85], [0.5, -0.78], [0.92, -0.35], [0.98, 0.1], [0.78, 0.6], [0.35, 0.9], [0.05, 0.82], [0, 0.78]], 26, (x, y, z) => mix('#f0b030', '#b8141e', 0.55 + x * 0.3 + y * 0.2 + (noise3(x * 4, y * 4, z * 4) - 0.5) * 0.5), (x, _y, z) => -Math.exp(-Math.pow(Math.atan2(z, x) / 0.18, 2)) * 0.07);
+  return merge([g, leafAt(0.2, 0.9, -0.4)]);
+}
+function whitePeach() {
+  const g = lathe([[0, -0.85], [0.5, -0.78], [0.92, -0.35], [0.98, 0.1], [0.78, 0.6], [0.35, 0.9], [0.05, 0.82], [0, 0.78]], 26, (x, y, z) => mix('#f6e8c8', '#ec8a8a', 0.25 + x * 0.35 + y * 0.2 + (noise3(x * 4, y * 4, z * 4) - 0.5) * 0.6), (x, _y, z) => -Math.exp(-Math.pow(Math.atan2(z, x) / 0.18, 2)) * 0.08);
+  return merge([g, leafAt(0.2, 0.9, -0.4)]);
+}
+function chestnut() {
+  // a spiny green burr split open over two glossy brown nuts
+  const burr = lathe(round(14).map(([r, y]) => [r * 0.9, y * 0.85]), 18, () => C.set('#8aa83a').clone());
+  const parts = [burr, ...spikes(70, 0, (i) => [spiral(i, 70, 0.88, 0.8), 1], '#a8c050', 0.35, 0.05)];
+  for (const x of [-0.28, 0.28]) {
+    const nut = lathe(round(12).map(([r, y]) => [r * 0.55, y * 0.6]), 16, (px, py, pz) => (py < -0.3 ? C.set('#c8b890').clone() : mix('#5a2a10', '#8a4a1e', 0.5 + (noise3(px * 8, py * 20, pz * 8) - 0.5) * 0.6)));
+    parts.push(small(nut, 1, x, 0.55, -0.1));
+  }
+  return merge(parts);
+}
+function papaya() {
+  // long pear shaped fruit ripening from green to orange, flecked with dots
+  return lathe([[0, -1.25], [0.45, -1.15], [0.72, -0.6], [0.7, 0.1], [0.55, 0.7], [0.3, 1.1], [0, 1.2]], 26, (x, y, z) => {
+    const c = mix('#f09020', '#5a9a2a', 0.2 + y * 0.35 + (noise3(x * 3, y * 3, z * 3) - 0.5) * 0.5);
+    if (noise3(x * 25, y * 25, z * 25) > 0.8) c.lerp(D.set('#3a6a1a'), 0.4);
+    return c;
+  }, (x, _y, z) => Math.abs(Math.cos(Math.atan2(z, x) * 2.5)) * 0.05);
+}
+function guava() {
+  // a rounded pear with a bumpy lime to yellow skin and a crown at the tip
+  const g = lathe([[0, -0.9], [0.55, -0.82], [0.95, -0.35], [0.95, 0.15], [0.7, 0.62], [0.3, 0.88], [0.08, 0.95], [0, 0.95]], 24, (x, y, z) => mix('#c8d850', '#7aa83a', 0.4 + y * 0.3 + (noise3(x * 5, y * 5, z * 5) - 0.5) * 0.6), (x, y, z) => (noise3(x * 12, y * 12, z * 12) - 0.5) * 0.06);
+  const parts = [g];
+  for (let i = 0; i < 5; i++) parts.push(solid(cone, '#5a4a2a', new THREE.Matrix4().makeTranslation(Math.cos(i * 1.26) * 0.08, -0.9, Math.sin(i * 1.26) * 0.08).multiply(new THREE.Matrix4().makeRotationX(Math.PI)).multiply(new THREE.Matrix4().makeScale(0.04, 0.12, 0.04))));
+  return merge([...parts, leafAt(0.2, 0.95, -0.4)]);
+}
+function pistachio() {
+  // a bunch of cream nuts blushed rose pink
+  const parts: THREE.BufferGeometry[] = [solid(cyl, '#7a5a3a', new THREE.Matrix4().makeTranslation(0, -0.2, 0).multiply(new THREE.Matrix4().makeScale(0.04, 1.2, 0.04)))];
+  for (let i = 0; i < 9; i++) {
+    const a = i * 2.4, y = 0.7 - i * 0.12;
+    const nut = lathe(round(10).map(([r, yy]) => [r * 0.6, yy]), 12, (x, py, z) => mix('#f0e0b0', '#d86a7a', 0.3 + py * 0.3 + (noise3(x * 6, py * 6, z * 6) - 0.5) * 0.7));
+    parts.push(small(nut, 0.3, Math.cos(a) * 0.25, y, Math.sin(a) * 0.25));
+  }
+  return merge(parts);
+}
+function elderberry() {
+  // a flat umbrella of tiny black purple berries on red stalks
+  const parts: THREE.BufferGeometry[] = [];
+  for (let i = 0; i < 5; i++) {
+    const a = (i / 5) * Math.PI * 2;
+    parts.push(solid(cyl, '#a82a3a', new THREE.Matrix4().makeRotationY(-a).multiply(new THREE.Matrix4().makeRotationZ(-1.1)).multiply(new THREE.Matrix4().makeScale(0.03, 0.7, 0.03))));
+  }
+  const berry = lathe(round(8), 10, (x, y, z) => mix('#1a0a2a', '#4a1a4a', 0.4 + (noise3(x * 9, y * 9, z * 9) - 0.5)));
+  for (let i = 0; i < 38; i++) {
+    const r = Math.sqrt((i + 0.5) / 38) * 0.75, a = i * 2.4;
+    parts.push(small(berry.clone(), 0.12, Math.cos(a) * r, 0.25 - r * r * 0.3, Math.sin(a) * r));
+  }
+  return merge(parts);
+}
+function dragonFruit() {
+  // a hot pink oval covered in leafy scales with green tips
+  const body = lathe(round(18).map(([r, y]) => [r * 0.8, y * 1.05]), 24, (x, y, z) => mix('#d8105a', '#f0408a', 0.5 + (noise3(x * 4, y * 4, z * 4) - 0.5) * 0.6));
+  const sc = spikes(16, 0, (i) => { const p = spiral(i, 18, 0.78, 1.0); return [p, 1]; }, (i) => (i % 2 ? '#e0206a' : '#9ab82a'), 0.45, 0.16);
+  return merge([body, ...sc]);
+}
+function pecan() {
+  // an oval green husk with four ridges along it
+  return lathe([[0, -1.0], [0.4, -0.85], [0.62, -0.3], [0.62, 0.3], [0.4, 0.85], [0, 1.0]], 24, (x, y, z) => mix('#4a7a2a', '#7aa83a', 0.5 + (noise3(x * 5, y * 5, z * 5) - 0.5) * 0.8), (x, _y, z) => Math.pow(Math.abs(Math.cos(Math.atan2(z, x) * 2)), 6) * 0.1);
+}
+function macadamia() {
+  // a round green husk splitting to show the hard brown shell
+  const husk = lathe(round(14), 18, (x, y, z) => (x > 0.35 && Math.abs(z) < 0.35 ? mix('#6a3a1a', '#8a5a2a', 0.5).clone() : mix('#4a7a2a', '#6a9a3a', noise3(x * 5, y * 5, z * 5))));
+  return merge([husk, solid(cyl, '#5a4a2a', stem(0.95, 0.05, 0.2))]);
+}
+function jackfruit() {
+  // huge and oblong, the skin a mass of little green knobs
+  return lathe([[0, -1.2], [0.5, -1.1], [0.75, -0.5], [0.78, 0.2], [0.65, 0.8], [0.35, 1.15], [0, 1.2]], 30, (x, y, z) => mix('#8aa83a', '#c8c050', 0.4 + (noise3(x * 4, y * 4, z * 4) - 0.5) * 0.8), (x, y, z) => Math.pow(Math.abs(Math.sin(x * 22) * Math.sin(y * 20) * Math.sin(z * 22)), 0.5) * 0.06);
+}
+function durian() {
+  // an olive green football of stout pyramid thorns
+  const body = lathe([[0, -1.0], [0.55, -0.85], [0.82, -0.3], [0.82, 0.3], [0.55, 0.85], [0, 1.0]], 22, (x, y, z) => mix('#7a8a2a', '#a8a83a', 0.5 + (noise3(x * 4, y * 4, z * 4) - 0.5) * 0.6));
+  return merge([body, ...spikes(80, 0, (i) => [spiral(i, 80, 0.8, 0.96), 1], (i) => (i % 3 ? '#8a9a30' : '#6a7a24'), 0.22, 0.09), solid(cyl, '#6a5a2a', stem(0.95, 0.07, 0.1))]);
+}
+function passionFruit() {
+  // a round wrinkled purple fruit with pale freckles
+  const g = lathe(round(18), 22, (x, y, z) => {
+    const c = mix('#3a0a3a', '#6a1a5a', 0.5 + (noise3(x * 4, y * 4, z * 4) - 0.5) * 0.8);
+    return noise3(x * 26, y * 26, z * 26) > 0.8 ? c.lerp(D.set('#d8c8d8'), 0.5) : c;
+  }, (x, y, z) => (noise3(x * 10, y * 10, z * 10) - 0.5) * 0.08);
+  return merge([g, solid(cyl, '#5a7a2a', stem(0.95, 0.05, 0.3))]);
+}
+function cashew() {
+  // a juicy yellow red cashew apple with the kidney shaped nut hanging below
+  const apple = lathe([[0, -0.3], [0.5, -0.25], [0.75, 0.2], [0.68, 0.8], [0.4, 1.1], [0, 1.15]], 22, (x, y, z) => mix('#f0c020', '#d8301a', 0.3 + x * 0.4 + y * 0.2 + (noise3(x * 4, y * 4, z * 4) - 0.5) * 0.5));
+  const nut = solid(leafGeo, '#8a8a70', new THREE.Matrix4().makeTranslation(0.08, -0.55, 0).multiply(new THREE.Matrix4().makeRotationZ(0.5)).multiply(new THREE.Matrix4().makeScale(0.26, 0.4, 0.22)));
+  return merge([apple, nut]);
+}
+function loquat() {
+  // a little cluster of apricot orange ovals
+  const one = () => lathe(round(12).map(([r, y]) => [r * 0.8, y * 0.95]), 16, (x, y, z) => mix('#f0a020', '#f8c040', 0.5 + (noise3(x * 5, y * 5, z * 5) - 0.5) * 0.7));
+  return merge([small(one(), 0.55, -0.35, -0.2), small(one(), 0.55, 0.35, -0.3), small(one(), 0.55, 0, 0.25), solid(cyl, '#6a5a3a', new THREE.Matrix4().makeTranslation(0, 0.3, 0).multiply(new THREE.Matrix4().makeScale(0.04, 0.6, 0.04)))]);
+}
+function crabapple() {
+  // three small tart red apples on long stems
+  const one = () => lathe([[0, -0.78], [0.35, -0.85], [0.75, -0.6], [0.98, -0.1], [0.95, 0.35], [0.7, 0.72], [0.3, 0.8], [0.08, 0.66], [0, 0.62]], 16, (x, y, z) => mix('#e0a020', '#b8101a', 0.65 + y * 0.2 + (noise3(x * 5, y * 5, z * 5) - 0.5) * 0.6));
+  const parts = [small(one(), 0.5, -0.4, -0.3), small(one(), 0.5, 0.4, -0.35), small(one(), 0.5, 0, -0.15, 0.35)];
+  for (const [x, z] of [[-0.4, 0], [0.4, 0], [0, 0.35]]) parts.push(solid(cyl, '#6a4a2a', new THREE.Matrix4().makeTranslation(x, 0.1, z).multiply(new THREE.Matrix4().makeRotationZ(x * 0.8)).multiply(new THREE.Matrix4().makeScale(0.03, 0.6, 0.03))));
+  return merge(parts);
+}
+function cinnamon() {
+  // a bunch of small dark purple berries sitting in pale cups
+  const parts: THREE.BufferGeometry[] = [];
+  for (let i = 0; i < 6; i++) {
+    const a = i * 2.4, y = 0.4 - i * 0.14, x = Math.cos(a) * 0.3, z = Math.sin(a) * 0.3;
+    parts.push(small(lathe(round(10).map(([r, yy]) => [r * 0.8, yy]), 12, (px, py, pz) => mix('#2a1a3a', '#5a3a6a', 0.5 + (noise3(px * 8, py * 8, pz * 8) - 0.5))), 0.32, x, y, z));
+    parts.push(small(lathe([[0, -0.4], [0.7, -0.2], [0.8, 0.1], [0.7, 0.12]], 10, () => C.set('#c8b890').clone()), 0.3, x, y - 0.2, z));
+  }
+  parts.push(solid(cyl, '#6a4a2a', new THREE.Matrix4().makeTranslation(0, -0.4, 0).multiply(new THREE.Matrix4().makeScale(0.04, 1.1, 0.04))));
+  return merge(parts);
+}
+function mangosteen() {
+  // a deep purple ball under a thick green cap of sepals
+  const g = lathe(round(18).map(([r, y]) => [r, y * 0.9]), 24, (x, y, z) => mix('#2a0a1a', '#5a1a3a', 0.5 + (noise3(x * 4, y * 4, z * 4) - 0.5) * 0.7));
+  const parts = [g, solid(cyl, '#6a5a2a', stem(0.95, 0.06, 0.1))];
+  for (let i = 0; i < 4; i++) parts.push(solid(leafGeo, '#5a7a2a', new THREE.Matrix4().makeRotationY((i / 4) * Math.PI * 2).multiply(new THREE.Matrix4().makeTranslation(0.3, 0.82, 0)).multiply(new THREE.Matrix4().makeRotationZ(-0.4)).multiply(new THREE.Matrix4().makeScale(0.36, 0.1, 0.28))));
+  return merge(parts);
+}
+function blackCherry() {
+  const one = (x: number) => {
+    const g = lathe([[0, -0.8], [0.6, -0.7], [0.95, -0.15], [0.9, 0.35], [0.45, 0.72], [0.12, 0.62], [0, 0.55]], 18, (px, py, pz) => mix('#12020a', '#4a0a1a', 0.4 + py * 0.3 + (noise3(px * 8, py * 8, pz * 8) - 0.5) * 0.4));
+    return small(g, 0.62, x, -0.3);
+  };
+  const s = (x: number) => solid(cyl, '#5f7a2a', new THREE.Matrix4().makeTranslation(x, 0.05, 0).multiply(new THREE.Matrix4().makeRotationZ(x > 0 ? 0.45 : -0.45)).multiply(new THREE.Matrix4().makeScale(0.04, 1.1, 0.04)));
+  return merge([one(-0.45), one(0.45), s(-0.45), s(0.45)]);
+}
+function silverPear() {
+  // a slender pale green pear with a silvery bloom
+  const g = lathe([[0, -0.9], [0.5, -0.82], [0.82, -0.4], [0.76, 0.05], [0.45, 0.45], [0.32, 0.85], [0.18, 1.05], [0, 1.07]], 24, (x, y, z) => mix('#b8c8a0', '#e0e8d0', 0.4 + y * 0.3 + (noise3(x * 5, y * 5, z * 5) - 0.5) * 0.5));
+  return merge([g, solid(cyl, '#5a3a1f', stem(1.0, 0.05, 0.3))]);
+}
+
+// ---- second wave orchard fruit
+
+// a smooth round fruit painted between two colors, squashed or stretched, with a stem
+function roundFruit(a: string, b: string, sx = 1, sy = 1, blush = 0.5, opts: { bump?: number; crease?: boolean; leaf?: boolean; speck?: string } = {}) {
+  const g = lathe(round(18).map(([r, y]) => [r * sx, y * sy]), 24, (x, y, z) => {
+    const c = mix(a, b, blush + x * 0.25 + y * 0.2 + (noise3(x * 4, y * 4, z * 4) - 0.5) * 0.6);
+    return opts.speck && noise3(x * 30, y * 30, z * 30) > 0.78 ? c.lerp(D.set(opts.speck), 0.5) : c;
+  }, (x, y, z) => (opts.bump ? (noise3(x * 9, y * 9, z * 9) - 0.5) * opts.bump : 0) - (opts.crease ? Math.exp(-Math.pow(Math.atan2(z, x) / 0.16, 2)) * 0.07 : 0));
+  const parts = [g, solid(cyl, '#5a4a2a', stem(sy * 0.95, 0.045, 0.25))];
+  if (opts.leaf) parts.push(leafAt(0.2, sy * 0.95, -0.4));
+  return merge(parts);
+}
+// a bunch of small round berries on short stalks from one twig
+function berryBunch(n: number, r: number, spread: number, color: (i: number, x: number, y: number, z: number) => THREE.Color, stalk = '#6a4a2a') {
+  const parts: THREE.BufferGeometry[] = [solid(cyl, stalk, new THREE.Matrix4().makeTranslation(0, -0.1, 0).multiply(new THREE.Matrix4().makeScale(0.035, 1.0, 0.035)))];
+  for (let i = 0; i < n; i++) {
+    const a = i * 2.4, rr = Math.sqrt((i + 0.5) / n) * spread, y = 0.3 - (i / n) * 0.7;
+    const b = lathe(round(10), 12, (x, yy, z) => color(i, x, yy, z));
+    parts.push(small(b, r, Math.cos(a) * rr, y, Math.sin(a) * rr));
+  }
+  return merge(parts);
+}
+const bloomy = (dark: string, light: string) => (_i: number, x: number, y: number, z: number) => mix(dark, light, 0.3 + (noise3(x * 6, y * 6, z * 6) - 0.5) * 0.9);
+
+const damson = () => roundFruit('#1e1238', '#4a3a78', 0.82, 1.02, 0.4, { crease: true });
+const greengage = () => roundFruit('#8ab83a', '#d8d860', 0.95, 0.95, 0.4, { crease: true });
+function sourCherry() {
+  const one = (x: number) => small(lathe([[0, -0.8], [0.6, -0.7], [0.95, -0.15], [0.9, 0.35], [0.45, 0.72], [0.12, 0.62], [0, 0.55]], 18, (px, py, pz) => mix('#a0081e', '#f0303a', 0.5 + py * 0.3 + (noise3(px * 8, py * 8, pz * 8) - 0.5) * 0.4)), 0.6, x, -0.3);
+  const s = (x: number) => solid(cyl, '#5f7a2a', new THREE.Matrix4().makeTranslation(x, 0.05, 0).multiply(new THREE.Matrix4().makeRotationZ(x > 0 ? 0.45 : -0.45)).multiply(new THREE.Matrix4().makeScale(0.04, 1.1, 0.04)));
+  return merge([one(-0.45), one(0.45), s(-0.45), s(0.45)]);
+}
+const nashi = () => roundFruit('#c8a040', '#e8d070', 1, 0.9, 0.5, { speck: '#8a6a2a', leaf: true });
+function medlar() {
+  const g = roundFruit('#6a4020', '#9a6a3a', 1, 0.85, 0.5, { speck: '#4a2a10' });
+  const parts = [g];
+  for (let i = 0; i < 5; i++) parts.push(solid(leafGeo, '#5a4a2a', new THREE.Matrix4().makeRotationY((i / 5) * Math.PI * 2).multiply(new THREE.Matrix4().makeTranslation(0.3, 0.8, 0)).multiply(new THREE.Matrix4().makeRotationZ(-0.9)).multiply(new THREE.Matrix4().makeScale(0.3, 0.05, 0.12))));
+  return merge(parts);
+}
+const hawthorn = () => berryBunch(7, 0.26, 0.45, bloomy('#a00a0a', '#e03020'));
+const rowan = () => berryBunch(22, 0.16, 0.7, bloomy('#e0400a', '#f8801a'), '#8a3a2a');
+const sloe = () => berryBunch(4, 0.34, 0.4, bloomy('#1a1a3a', '#6a6a9a'));
+const pomelo = () => roundFruit('#c8d860', '#f0f090', 1.05, 0.95, 0.5, { bump: 0.03, leaf: true });
+function citron() {
+  return merge([lathe([[0, -1.1], [0.5, -0.95], [0.72, -0.4], [0.7, 0.3], [0.5, 0.85], [0.15, 1.1], [0, 1.12]], 24, (x, y, z) => mix('#e8c010', '#f8e050', 0.5 + (noise3(x * 4, y * 4, z * 4) - 0.5) * 0.6), (x, y, z) => (noise3(x * 5, y * 5, z * 5) - 0.5) * 0.18), leafAt(0.2, 1.1, -0.4, '#3a8a2e')]);
+}
+function bergamot() {
+  return merge([lathe([[0, -0.9], [0.55, -0.8], [0.95, -0.3], [0.95, 0.2], [0.6, 0.72], [0.2, 0.85], [0.1, 1.0], [0, 1.0]], 24, (x, y, z) => mix('#a8c030', '#e8d840', 0.4 + y * 0.3 + (noise3(x * 5, y * 5, z * 5) - 0.5) * 0.5), (x, y, z) => (noise3(x * 30, y * 30, z * 30) - 0.5) * 0.03), leafAt(0.2, 0.95, -0.4)]);
+}
+function jujube() {
+  return merge([lathe(round(16).map(([r, y]) => [r * 0.75, y * 1.05]), 18, (x, y, z) => (noise3(x * 3, y * 3, z * 3) > 0.62 ? mix('#a8b040', '#c8c060', 0.5) : mix('#6a1a0a', '#a83a1a', 0.5 + (noise3(x * 6, y * 6, z * 6) - 0.5)))), solid(cyl, '#5a4a2a', stem(1.0, 0.04, 0.2))]);
+}
+function feijoa() {
+  const g = lathe(round(16).map(([r, y]) => [r * 0.7, y * 1.1]), 18, (x, y, z) => mix('#3a6a2a', '#7aa04a', 0.5 + (noise3(x * 6, y * 6, z * 6) - 0.5) * 0.8));
+  const parts = [g];
+  for (let i = 0; i < 4; i++) parts.push(solid(cone, '#4a5a2a', new THREE.Matrix4().makeRotationY((i / 4) * Math.PI * 2).multiply(new THREE.Matrix4().makeTranslation(0.08, 1.05, 0)).multiply(new THREE.Matrix4().makeScale(0.05, 0.18, 0.05))));
+  return merge(parts);
+}
+function acerola() {
+  const one = (x: number, y: number) => small(lathe(round(14).map(([r, yy]) => [r * (1 + Math.cos(Math.atan2(yy, r) * 6) * 0.04), yy * 0.8]), 20, (px, py, pz) => mix('#c0100a', '#f0402a', 0.5 + (noise3(px * 6, py * 6, pz * 6) - 0.5) * 0.6), (px, _py, pz) => Math.abs(Math.cos(Math.atan2(pz, px) * 1.5)) * 0.06), 0.5, x, y);
+  return merge([one(-0.35, -0.2), one(0.35, -0.3), one(0, 0.25), solid(cyl, '#6a5a3a', new THREE.Matrix4().makeTranslation(0, 0.3, 0).multiply(new THREE.Matrix4().makeScale(0.035, 0.6, 0.035)))]);
+}
+function pod(color1: string, color2: string, len: number, w: number, seg: number, bend: number, knobs = 0) {
+  const parts: THREE.BufferGeometry[] = [];
+  for (let i = 0; i < seg; i++) {
+    const t = i / (seg - 1), y = -t * len, x = Math.sin(t * Math.PI) * bend;
+    const s = lathe(round(10), 12, (px, py, pz) => mix(color1, color2, 0.4 + (noise3(px * 6 + i, py * 6, pz * 6) - 0.5) * 0.8));
+    s.scale(w * (1 + (knobs ? Math.sin(t * Math.PI * seg * 0.5) * knobs : 0)), len / seg * 0.9, w * 0.45);
+    s.translate(x, y + len / 2, 0);
+    parts.push(s);
+  }
+  parts.push(solid(cyl, '#5a4a2a', stem(len / 2 + 0.02, 0.04, 0.1)));
+  return merge(parts);
+}
+const carob = () => pod('#2a140a', '#5a2e14', 2.2, 0.28, 9, 0.3);
+function hickory() {
+  return lathe(round(16).map(([r, y]) => [r * 0.95, y]), 20, (x, y, z) => (Math.abs(Math.sin(Math.atan2(z, x) * 2)) < 0.08 ? mix('#4a3a1a', '#5a4a2a', 0.5) : mix('#6a7a2a', '#8a9a3a', noise3(x * 5, y * 5, z * 5))), (x, _y, z) => -Math.pow(Math.abs(Math.cos(Math.atan2(z, x) * 2)), 12) * 0.06);
+}
+function kiwifruit() {
+  const one = (x: number, y: number) => small(lathe(round(14).map(([r, yy]) => [r * 0.78, yy * 1.05]), 18, (px, py, pz) => mix('#6a4a24', '#9a7a4a', 0.5 + (noise3(px * 20, py * 20, pz * 20) - 0.5) * 0.9), (px, py, pz) => (noise3(px * 30, py * 30, pz * 30) - 0.5) * 0.03), 0.55, x, y);
+  return merge([one(-0.3, -0.2), one(0.32, -0.35), one(0, 0.3), solid(cyl, '#6a5a3a', new THREE.Matrix4().makeTranslation(0, 0.4, 0).multiply(new THREE.Matrix4().makeScale(0.035, 0.6, 0.035)))]);
+}
+function plantain() {
+  // a hand of long, angular green fingers
+  const parts: THREE.BufferGeometry[] = [solid(cyl, '#5a6a2a', new THREE.Matrix4().makeTranslation(0, 0.3, 0).multiply(new THREE.Matrix4().makeScale(0.08, 0.8, 0.08)))];
+  for (let i = 0; i < 6; i++) {
+    const f = lathe([[0, -1.3], [0.12, -1.2], [0.2, -0.6], [0.2, 0.4], [0.12, 0.9], [0.05, 1.0], [0, 1.0]], 5, (x, y, z) => mix('#4a7a1a', '#9ab840', 0.4 + (noise3(x * 5, y * 5, z * 5) - 0.5) * 0.8));
+    f.rotateZ(-0.5);
+    f.rotateY((i / 6) * Math.PI - Math.PI / 2);
+    f.translate(Math.cos((i / 6) * Math.PI) * 0.3, 0.1, Math.sin((i / 6) * Math.PI) * 0.3);
+    parts.push(f);
+  }
+  return merge(parts);
+}
+function pineNut() {
+  // a closed pine cone of spiralling woody scales
+  const core = lathe([[0, -1.1], [0.45, -0.8], [0.62, -0.2], [0.5, 0.5], [0.2, 1.0], [0, 1.05]], 14, () => C.set('#5a3a1a').clone());
+  return merge([core, ...spikes(60, 0, (i) => { const p = spiral(i, 60, 0.58, 1.0); p.x *= 1 - Math.max(0, p.y) * 0.45; p.z *= 1 - Math.max(0, p.y) * 0.45; return [p, 1]; }, (i) => (i % 3 ? '#8a5a2a' : '#a8743a'), 0.28, 0.2)]);
+}
+const tamarind = () => pod('#6a4424', '#9a6a3e', 2.0, 0.32, 8, 0.35, 0.25);
+function pawpaw() {
+  return lathe([[0, -1.1], [0.5, -0.95], [0.7, -0.3], [0.66, 0.4], [0.45, 0.95], [0, 1.1]], 22, (x, y, z) => mix('#8aa83a', '#d8c850', 0.4 + x * 0.2 + (noise3(x * 4, y * 4, z * 4) - 0.5) * 0.6));
+}
+const longan = () => berryBunch(6, 0.3, 0.45, bloomy('#a07a3a', '#d8b068'));
+function rambutan() {
+  const body = lathe(round(14).map(([r, y]) => [r * 0.8, y * 0.95]), 18, (x, y, z) => mix('#b8100a', '#e8302a', 0.5 + (noise3(x * 5, y * 5, z * 5) - 0.5) * 0.6));
+  return merge([body, ...spikes(70, 0, (i) => [spiral(i, 70, 0.8, 0.95), 1], (i) => (i % 4 ? '#e03a1a' : '#8ab02a'), 0.3, 0.035), solid(cyl, '#6a5a2a', stem(0.95, 0.05, 0.1))]);
+}
+function seaBuckthorn() {
+  const parts: THREE.BufferGeometry[] = [solid(cyl, '#6a5a4a', new THREE.Matrix4().makeTranslation(0, -1.0, 0).multiply(new THREE.Matrix4().makeScale(0.06, 2.0, 0.06)))];
+  for (let i = 0; i < 16; i++) {
+    const a = i * 2.3, y = 0.9 - (i / 16) * 1.8;
+    parts.push(small(lathe(round(8).map(([r, yy]) => [r * 0.85, yy]), 10, (x, yy, z) => mix('#e0700a', '#f8a82a', 0.5 + (noise3(x * 8, yy * 8, z * 8) - 0.5))), 0.16, Math.cos(a) * 0.15, y, Math.sin(a) * 0.15));
+  }
+  return merge(parts);
+}
+function fingerLime() {
+  return lathe([[0, -1.4], [0.2, -1.3], [0.3, -0.8], [0.3, 0.8], [0.2, 1.3], [0, 1.4]], 14, (x, y, z) => mix('#2a3a1a', '#6a7a2a', 0.4 + (noise3(x * 6, y * 3, z * 6) - 0.5) * 0.8), (x, y, z) => (noise3(x * 25, y * 25, z * 25) - 0.5) * 0.04);
+}
+const sapodilla = () => roundFruit('#7a5a3a', '#a07a52', 0.9, 0.9, 0.5, { speck: '#5a3a1a' });
+function soursop() {
+  const body = lathe([[0, -1.2], [0.55, -1.0], [0.8, -0.35], [0.78, 0.35], [0.5, 0.95], [0.15, 1.15], [0, 1.15]], 22, (x, y, z) => mix('#3a6a2a', '#6a9a3a', 0.5 + (noise3(x * 5, y * 5, z * 5) - 0.5) * 0.6));
+  return merge([body, ...spikes(50, 0, (i) => [spiral(i, 50, 0.72, 1.05), 1], '#2a4a1a', 0.14, 0.04)]);
+}
+const jabuticaba = () => roundFruit('#12061a', '#3a1a4a', 1, 1, 0.3);
+function breadfruit() {
+  return lathe(round(18).map(([r, y]) => [r, y * 0.95]), 26, (x, y, z) => mix('#6a9a2a', '#a8c840', 0.5 + (noise3(x * 4, y * 4, z * 4) - 0.5) * 0.6).lerp(D.set('#4a6a1a'), Math.abs(Math.sin(x * 14) * Math.sin(y * 14) * Math.sin(z * 14)) < 0.05 ? 0.5 : 0), (x, y, z) => Math.abs(Math.sin(x * 14) * Math.sin(y * 14) * Math.sin(z * 14)) * 0.05);
+}
+function cherimoya() {
+  return lathe([[0, -1.0], [0.6, -0.85], [0.9, -0.2], [0.8, 0.45], [0.45, 0.9], [0, 1.0]], 24, (x, y, z) => mix('#6a9a3a', '#a8c060', 0.5 + (noise3(x * 5, y * 5, z * 5) - 0.5) * 0.6), (x, y, z) => -Math.pow(Math.abs(Math.sin(Math.atan2(z, x) * 5) * Math.sin(y * 7)), 6) * 0.06);
+}
+const mamey = () => merge([lathe(round(16).map(([r, y]) => [r * 0.78, y * 1.1]), 20, (x, y, z) => mix('#7a4a2a', '#a8704a', 0.5 + (noise3(x * 12, y * 12, z * 12) - 0.5) * 0.8)), solid(cyl, '#5a4a2a', stem(1.05, 0.05, 0.1))]);
+function salak() {
+  // a teardrop covered in overlapping snake scales
+  const body = lathe([[0, -0.9], [0.5, -0.75], [0.7, -0.2], [0.55, 0.45], [0.25, 0.9], [0, 1.0]], 20, () => C.set('#4a1a0a').clone());
+  return merge([body, ...spikes(70, 0, (i) => [spiral(i, 70, 0.62, 0.9), 1], (i) => (i % 2 ? '#7a2a14' : '#5a1e0e'), 0.14, 0.18)]);
+}
+function brazilNut() {
+  const g = lathe(round(18), 22, (x, y, z) => mix('#4a2e14', '#7a4e2a', 0.5 + (noise3(x * 8, y * 8, z * 8) - 0.5) * 0.8), (x, y, z) => (noise3(x * 10, y * 10, z * 10) - 0.5) * 0.05);
+  return merge([g, solid(cyl, '#3a2410', new THREE.Matrix4().makeTranslation(0, 0.9, 0).multiply(new THREE.Matrix4().makeScale(0.22, 0.15, 0.22)))]);
+}
+function nutmeg() {
+  // an apricot like fruit split open on the red lace of mace round a brown seed
+  const half = (s: number) => {
+    const h = lathe(round(14), 16, (x, y, z) => mix('#e0b040', '#f0d070', 0.5 + (noise3(x * 5, y * 5, z * 5) - 0.5) * 0.6));
+    h.scale(0.55, 0.9, 0.9); h.translate(s * 0.55, 0, 0); h.rotateZ(-s * 0.35);
+    return h;
+  };
+  const seed = small(lathe(round(10), 12, () => C.set('#5a2e14').clone()), 0.45, 0, 0);
+  const mace = spikes(18, 0, (i) => [spiral(i, 18, 0.46, 0.46), 1], '#d0201a', 0.12, 0.05);
+  return merge([half(-1), half(1), seed, ...mace, solid(cyl, '#5a4a2a', stem(0.9, 0.05, 0.1))]);
+}
+
+// ---- third wave orchard fruit
+function clementine() {
+  const g = lathe(round(20).map(([r, y]) => [r, y * 0.85]), 26, (x, y, z) => mix('#e86a00', '#ff9a1a', 0.5 + (noise3(x * 5, y * 5, z * 5) - 0.5) * 0.7), (x, y, z) => (noise3(x * 40, y * 40, z * 40) - 0.5) * 0.03);
+  return merge([g, leafAt(0.2, 0.85, -0.4, '#2f7a2a'), leafAt(-0.15, 0.85, 0.5, '#3a8a2e', 0.8)]);
+}
+const mirabelle = () => roundFruit('#e0b010', '#f8d840', 0.95, 0.95, 0.5, { speck: '#e06a2a', crease: true });
+const chokecherry = () => berryBunch(10, 0.2, 0.5, bloomy('#1a0410', '#4a0a20'), '#5a3a2a');
+function starApple() {
+  return merge([lathe(round(18), 22, (x, y, z) => mix('#4a1a3a', '#8a3a6a', 0.5 + y * 0.3 + (noise3(x * 4, y * 4, z * 4) - 0.5) * 0.5).lerp(D.set('#a8a040'), Math.max(0, -y - 0.5) * 0.8)), solid(cyl, '#5a4a2a', stem(0.95, 0.05, 0.15))]);
+}
+function waxApple() {
+  // a glossy bell shaped fruit, flared at the bottom
+  return merge([lathe([[0, -0.8], [0.6, -0.85], [0.95, -0.6], [0.85, -0.1], [0.6, 0.45], [0.35, 0.85], [0.1, 0.95], [0, 0.95]], 24, (x, y, z) => mix('#c0102a', '#f04a5a', 0.5 + y * 0.2 + (noise3(x * 4, y * 4, z * 4) - 0.5) * 0.4), (x, y, z) => -Math.pow(Math.abs(Math.cos(Math.atan2(z, x) * 2)), 20) * 0.05 * (y < -0.4 ? 1 : 0)), solid(cyl, '#5a6a2a', stem(0.95, 0.04, 0.1))]);
+}
+const lucuma = () => merge([lathe([[0, -1.0], [0.6, -0.85], [0.9, -0.3], [0.85, 0.3], [0.5, 0.85], [0.1, 1.05], [0, 1.05]], 22, (x, y, z) => mix('#8a9a3a', '#c8b848', 0.5 + (noise3(x * 5, y * 5, z * 5) - 0.5) * 0.6)), solid(cyl, '#5a4a2a', stem(1.02, 0.05, 0.1))]);
+const marula = () => roundFruit('#d8b820', '#f0e060', 0.85, 0.95, 0.5, { speck: '#a88a20' });
+function ackee() {
+  // a red pod split in three, showing black seeds on cream arils
+  const parts: THREE.BufferGeometry[] = [];
+  for (let k = 0; k < 3; k++) {
+    const lobe = lathe(round(12).map(([r, y]) => [r * 0.55, y]), 14, (x, y, z) => mix('#c01a0a', '#f04a1a', 0.5 + (noise3(x * 5, y * 5, z * 5) - 0.5) * 0.6).lerp(D.set('#f0c020'), Math.max(0, -y - 0.6)));
+    lobe.rotateZ(0.45); lobe.rotateY((k / 3) * Math.PI * 2); lobe.translate(Math.cos((k / 3) * Math.PI * 2) * 0.35, 0, -Math.sin((k / 3) * Math.PI * 2) * 0.35);
+    parts.push(lobe);
+    const a = (k / 3) * Math.PI * 2 + Math.PI / 3;
+    parts.push(small(lathe(round(8), 10, () => C.set('#f4ecc8').clone()), 0.26, Math.cos(a) * 0.18, 0.25, Math.sin(a) * 0.18));
+    parts.push(small(lathe(round(8), 10, () => C.set('#141010').clone()), 0.17, Math.cos(a) * 0.2, 0.45, Math.sin(a) * 0.2));
+  }
+  return merge(parts);
+}
+const blackSapote = () => merge([lathe(round(18).map(([r, y]) => [r, y * 0.85]), 22, (x, y, z) => mix('#2a4a1a', '#4a6a2a', 0.5 + (noise3(x * 5, y * 5, z * 5) - 0.5) * 0.7)), solid(leafGeo, '#4a5a2a', new THREE.Matrix4().makeTranslation(0, 0.82, 0).multiply(new THREE.Matrix4().makeScale(0.35, 0.05, 0.35)))]);
+const ugliFruit = () => merge([lathe(round(20).map(([r, y]) => [r, y * 0.9]), 24, (x, y, z) => mix('#9ab030', '#e0c040', 0.4 + (noise3(x * 3, y * 3, z * 3) - 0.5) * 1.0), (x, y, z) => (noise3(x * 5, y * 5, z * 5) - 0.5) * 0.14 + (noise3(x * 35, y * 35, z * 35) - 0.5) * 0.03), leafAt(0.2, 0.9, -0.4)]);
+
 function radish() {
   // round red root with a white tail
   const g = lathe([[0, -0.8], [0.4, -0.55], [0.9, -0.1], [0.92, 0.3], [0.6, 0.72], [0, 0.8]], 20, (x, y, z) => C.setScalar(0.9 + noise3(x * 5, y * 5, z * 5) * 0.15).clone());
@@ -545,7 +924,14 @@ const makers: Record<string, () => THREE.BufferGeometry> = {
   apricot, lime, fig, olive, walnut, garlic, beet, pea: peaPod, zucchini, sweet_potato: sweetPotato,
   apple, cherry, orange, peach, lemon, coconut, tomato, strawberry, chili,
   pear, plum, mango, avocado, pomegranate, banana,
-  bell_pepper: bellPepper, eggplant, raspberry, cucumber, grape: grapes, pineapple, onion, radish, cabbage, broccoli: floret,
+  bell_pepper: bellPepper, eggplant, raspberry, cucumber, grape: grapes, pineapple, onion, radish, shallot, leek, cabbage,
+  tangerine, blood_orange: bloodOrange, kumquat, yuzu, nectarine, white_peach: whitePeach, chestnut, papaya, guava, pistachio, elderberry,
+  dragon_fruit: dragonFruit, pecan, macadamia, jackfruit, durian, passion_fruit: passionFruit, cashew, loquat, crabapple, cinnamon, mangosteen,
+  black_cherry: blackCherry, silver_pear: silverPear,
+  damson, greengage, sour_cherry: sourCherry, nashi, medlar, hawthorn, rowan, sloe, pomelo, citron, bergamot, jujube, feijoa, acerola,
+  carob, hickory, kiwifruit, plantain, pine_nut: pineNut, tamarind, pawpaw, longan, rambutan, sea_buckthorn: seaBuckthorn,
+  finger_lime: fingerLime, sapodilla, soursop, jabuticaba, breadfruit, cherimoya, mamey, salak, brazil_nut: brazilNut, nutmeg,
+  clementine, mirabelle, chokecherry, star_apple: starApple, wax_apple: waxApple, lucuma, marula, ackee, black_sapote: blackSapote, ugli_fruit: ugliFruit, broccoli: floret,
 };
 const cache = new Map<string, THREE.BufferGeometry>();
 export function produceGeo(kind: string) {

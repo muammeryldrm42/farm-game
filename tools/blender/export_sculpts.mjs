@@ -29,6 +29,7 @@ for (const f of fs.readdirSync(tmp)) {
 fs.symlinkSync(path.join(root, 'node_modules'), path.join(tmp, 'node_modules'));
 const { toonMakers } = await import(pathToFileURL(path.join(tmp, 'toon.mjs')).href);
 const { toonMakers2 } = await import(pathToFileURL(path.join(tmp, 'toon2.mjs')).href);
+const { toonMakers3 } = await import(pathToFileURL(path.join(tmp, 'toon3.mjs')).href);
 const { withDetail } = await import(pathToFileURL(path.join(tmp, 'sdf.mjs')).href);
 
 const dump = (g) => {
@@ -37,7 +38,7 @@ const dump = (g) => {
   return { p: Array.from(pos.array, (v) => +v.toFixed(5)), c: col ? Array.from(col.array, (v) => +v.toFixed(3)) : null, i: g.index ? Array.from(g.index.array) : null };
 };
 fs.mkdirSync(out, { recursive: true });
-const all = { ...toonMakers, ...toonMakers2 };
+const all = { ...toonMakers, ...toonMakers2, ...toonMakers3 };
 for (const [kind, make] of Object.entries(all)) {
   const cp = withDetail(0.9, make);
   const { body, head, leg, tail, ...meta } = cp;
