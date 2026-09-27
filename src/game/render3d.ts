@@ -2,6 +2,7 @@
 // Every model, texture and shader is generated in code, no asset files needed.
 import * as THREE from 'three';
 import { mergeGeometries, mergeVertices } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
+import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
 import { getQuality, onQuality, type Quality } from './quality';
 import { fillRich, isDrawn, paintIcon } from './icons';
 import { U } from './gfx/shared';
@@ -2526,7 +2527,40 @@ function smoke(g: THREE.Group, x: number, y: number, z: number) {
   };
 }
 
+// ------------------------------------------------------------------ Blender models
+// Hand built models made in Blender (see tools/blender) and loaded from public/models. Each file
+// is fetched once and cloned for every copy; until it arrives the entry simply stays empty.
+const gltfLoader = new GLTFLoader();
+const modelCache = new Map<string, Promise<THREE.Object3D>>();
+function loadModel(name: string) {
+  let p = modelCache.get(name);
+  if (!p) {
+    p = gltfLoader.loadAsync(`/models/${name}.glb`).then((gl) => {
+      gl.scene.traverse((o) => {
+        const m = o as THREE.Mesh;
+        if (m.isMesh) { m.castShadow = true; m.receiveShadow = true; }
+      });
+      return gl.scene;
+    });
+    modelCache.set(name, p);
+  }
+  return p;
+}
+function attachModel(e: Entry, name: string, x: number, z: number, scale = 1) {
+  loadModel(name).then((src) => {
+    const m = src.clone();
+    m.position.set(x, 0, z);
+    m.scale.setScalar(scale);
+    e.root.add(m);
+  }).catch(() => { /* model missing: the lot stays empty */ });
+}
+
 function buildHouse(e: Entry, d: BuildingDef) {
+  if (d.id === 'house' && artStyle() === 'toon') {
+    attachModel(e, 'farmhouse', d.w / 2, d.h / 2 + 0.1, 0.95);
+    e.top = 2.6;
+    return;
+  }
   const g = e.root;
   const w = d.w, h = d.h, H = d.height * ZU;
   const cx = w / 2, cz = h / 2, ww = w - 0.5, dd = h - 0.5, y0 = 0.08;
