@@ -873,7 +873,7 @@ export const BUILDINGS: BuildingDef[] = [
   b({ id: 'pumpkin_pile', name: 'Pumpkin Pile', icon: '🎃', kind: 'deco', cost: 40, level: 5, max: 20, xp: 2, height: 20, sellable: true, desc: 'A cheerful harvest heap.' }),
   b({ id: 'birdbath', name: 'Bird Bath', icon: '🕊️', kind: 'deco', cost: 90, level: 6, max: 6, xp: 4, height: 30, sellable: true, desc: 'Birds stop by for a splash.' }),
   b({ id: 'topiary', name: 'Topiary', icon: '🌳', kind: 'deco', cost: 110, level: 8, max: 12, xp: 5, height: 50, sellable: true, desc: 'A neatly clipped hedge sculpture.' }),
-  b({ id: 'well', name: 'Water Well', icon: '🪣', kind: 'deco', cost: 220, level: 8, max: 3, xp: 8, height: 60, sellable: true, desc: 'Refills your watering can faster. Up to three help.' }),
+  b({ id: 'well', name: 'Water Well', icon: '🪣', kind: 'deco', cost: 220, level: 1, max: 3, xp: 8, height: 60, sellable: true, desc: 'Tap it to fill your bucket, then water your fields. Every farm gets one.' }),
   b({ id: 'sprinkler', name: 'Sprinkler', icon: '💦', kind: 'deco', cost: 1500, level: 18, max: 8, xp: 25, height: 30, sellable: true, desc: 'Waters every field within two tiles, all by itself.' }),
   b({ id: 'flower_arch', name: 'Flower Arch', icon: '🌸', kind: 'deco', cost: 260, level: 10, max: 4, xp: 10, height: 70, sellable: true, desc: 'A rose covered garden arch.' }),
   b({ id: 'hay_wagon', name: 'Hay Wagon', icon: '🛒', kind: 'deco', w: 2, h: 1, cost: 380, level: 12, max: 3, xp: 14, height: 44, sellable: true, desc: 'A wooden wagon piled with hay.' }),

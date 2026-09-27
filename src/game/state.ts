@@ -68,7 +68,8 @@ export interface GameState {
   mapV?: number;
   fishing?: FishingData;
   restedOn?: string; // day key of the last nap that earned the rested bonus
-  water?: { n: number; at: number }; // watering can: charges left, and when the last one refilled
+  water?: { n: number; at: number }; // the bucket: waterings left, and when it was last filled
+  starterWell?: boolean; // the free well every farm gets has been handed out
 }
 
 // ---------------------------------------------------------------- helpers
@@ -106,19 +107,14 @@ export function fmtNum(n: number) {
 
 // ---------------------------------------------------------------- watering
 // Watering is a bonus, never a chore: a watered crop needs 30% less of its remaining time, an
-// unwatered one grows as before. The can holds a few charges that refill over time, faster
-// with wells on the farm; rain waters every field for free, and sprinklers water the fields
-// around them.
-export const WATER = { max: 10, refillMs: 120e3, boost: 0.3, sprinklerRange: 2 };
+// unwatered one grows as before. Water is carried in a bucket filled at a well (every farm gets
+// one); rain waters every field for free, and sprinklers water the fields around them.
+export const WATER = { bucket: 5, boost: 0.3, sprinklerRange: 2 };
 
-export function waterInfo(s: GameState, now: number) {
-  const wells = Math.min(3, s.objects.filter((o) => o.type === 'well').length);
-  const every = WATER.refillMs / (1 + 0.5 * wells);
-  const w = s.water ?? { n: WATER.max, at: now };
-  const gained = Math.max(0, Math.floor((now - w.at) / every));
-  const n = Math.min(WATER.max, w.n + gained);
-  const at = n >= WATER.max ? now : w.at + gained * every;
-  return { n, max: WATER.max, at, every, wells, nextIn: n >= WATER.max ? 0 : at + every - now };
+export function waterInfo(s: GameState, _now?: number) {
+  const n = Math.min(WATER.bucket, Math.max(0, s.water?.n ?? WATER.bucket));
+  const wells = s.objects.filter((o) => o.type === 'well').length;
+  return { n, max: WATER.bucket, wells };
 }
 
 export const needsWater = (o: FarmObject, now: number) => {
@@ -419,6 +415,8 @@ export function newGame(): GameState {
   add('board', 11, 9);
   add('barn', 16, 8);
   add('silo', 18, 8);
+  add('well', 13, 12);
+  s.starterWell = true;
   for (let i = 0; i < 3; i++) for (let j = 0; j < 2; j++) {
     add('plot', 10 + i, 12 + j, { plot: { crop: 'wheat', plantedAt: j === 0 ? now - 3600e3 : now - 8000 } });
   }
@@ -506,6 +504,7 @@ function migrate(d: Partial<GameState>): GameState {
   s.achievements = d.achievements ?? {};
   s.stall = Array.isArray(d.stall) && d.stall.length === STALL_SLOTS ? d.stall : Array.from({ length: STALL_SLOTS }, emptySlot);
   s.boat = d.boat ?? null;
+  s.starterWell = d.starterWell;
   // saves from before the tutorial existed skip it
   s.tutorial = typeof d.tutorial === 'number' ? d.tutorial : TUTORIAL_DONE;
   if (!Array.isArray(s.objects) || !Array.isArray(s.chunks)) return base;
@@ -558,6 +557,17 @@ export class GameStore {
     this.ui = { selectedId: null, placing: null, tool: null, panel: null, storageTab: 'silo', expand: null, levelUp: null, daily: false, napping: false, napAt: 0 };
     this.ensureOrders();
     this.ui.daily = this.canDaily();
+    this.giveStarterWell();
+  }
+
+  // farms from before the bucket get their free well beside the fields, once
+  private giveStarterWell() {
+    if (this.s.starterWell) return;
+    this.s.starterWell = true;
+    if (this.s.objects.some((o) => o.type === 'well')) return;
+    const plot = this.s.objects.find((o) => o.type === 'plot') ?? this.s.objects.find((o) => o.type === 'house');
+    const spot = this.findSpot('well', plot ? plot.x + 1 : GRID / 2, plot ? plot.y + 1 : GRID / 2);
+    if (spot.ok) this.s.objects.push({ id: this.s.nextId++, type: 'well', x: spot.x, y: spot.y });
   }
 
   subscribe = (l: () => void) => { this.listeners.add(l); return () => { this.listeners.delete(l); }; };
@@ -722,8 +732,6 @@ export class GameStore {
     switch (d.kind) {
       case 'plot':
         if (!o.plot?.crop && this.ui.tool) { this.plant(o, this.ui.tool.crop); return; }
-        // a thirsty crop gets watered straight away while the can has water
-        if (needsWater(o, now) && waterInfo(this.s, now).n > 0) this.waterPlot(o);
         this.select(o.id);
         return;
       case 'production':
@@ -747,8 +755,21 @@ export class GameStore {
         return;
       case 'stall': this.openPanel('stall'); return;
       case 'dock': this.openPanel('boat'); return;
-      default: this.select(o.id);
+      default:
+        if (o.type === 'well') this.fillBucket(o);
+        this.select(o.id);
     }
+  }
+
+  // fill the bucket to the brim at a well
+  fillBucket(o: FarmObject) {
+    const wi = waterInfo(this.s);
+    if (wi.n >= wi.max) { this.toast('Your bucket is already full. Tap a growing field to water it.', 'info'); return; }
+    this.s.water = { n: wi.max, at: Date.now() };
+    this.sound('collect');
+    this.burst(o, '#6fc8ff');
+    this.float(o, `🪣 ${wi.max}/${wi.max}`, '#dff4ff', 30);
+    this.emit(false);
   }
 
   // ------------------------------------------------ fishing spot
@@ -854,17 +875,17 @@ export class GameStore {
   }
 
   // A drink for a growing crop: the rest of its growing time shrinks by 30%. `free` is rain or a
-  // sprinkler; by hand it costs one charge of the watering can.
+  // sprinkler; by hand it takes one pour from the bucket.
   waterPlot(o: FarmObject, free = false) {
     const now = Date.now();
     if (!o.plot || !needsWater(o, now)) return false;
     if (!free) {
-      const wi = waterInfo(this.s, now);
+      const wi = waterInfo(this.s);
       if (wi.n <= 0) {
-        this.toast(`The watering can is empty. Next refill in ${fmtTime(wi.nextIn)}.`, 'bad');
+        this.toast(wi.wells ? 'Your bucket is empty. Tap a well to fill it.' : 'Your bucket is empty. Build a well to fill it.', 'bad');
         return false;
       }
-      this.s.water = { n: wi.n - 1, at: wi.n >= wi.max ? now : wi.at };
+      this.s.water = { n: wi.n - 1, at: this.s.water?.at ?? Date.now() };
       this.stat('water');
       this.sound('plant');
     }

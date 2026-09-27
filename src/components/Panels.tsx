@@ -803,22 +803,20 @@ function BoatModal() {
   );
 }
 
-// watering: a watered crop grows 30% faster; the can refills over time, faster with wells
+// watering: a pour from the bucket makes the crop grow 30% faster; the bucket fills at a well
 function WaterRow({ o }: { o: FarmObject }) {
   const store = useStore();
-  const now = Date.now();
-  const wi = waterInfo(store.s, now);
+  const wi = waterInfo(store.s);
   if (o.plot?.watered) {
     return <p className="text-center text-sm font-bold text-[#2f8fd0]"><span className="emoji">💧</span> Watered: growing 30% faster</p>;
   }
   return (
     <div className="flex flex-col items-center gap-1">
-      <button className="btn btn-blue" onClick={() => store.waterPlot(o)} disabled={wi.n <= 0}>
-        <span className="emoji">💧</span> Water it ({wi.n}/{wi.max})
+      <button className="btn btn-blue flex items-center gap-2 px-6 py-2 text-lg" onClick={() => store.waterPlot(o)} disabled={wi.n <= 0} title="Water it">
+        <span className="emoji text-2xl">🪣</span> Water
       </button>
       <span className="text-[11px] text-[#8a6a44]">
-        {wi.n < wi.max ? `Next refill in ${fmtTime(wi.nextIn)}` : 'The watering can is full'}
-        {wi.wells ? ` · ${wi.wells} well${wi.wells > 1 ? 's' : ''} speed it up` : ' · wells refill it faster'}
+        {wi.n > 0 ? `Bucket: ${wi.n}/${wi.max} pours` : wi.wells ? 'The bucket is empty. Tap a well to fill it.' : 'The bucket is empty. Build a well to fill it.'}
       </span>
     </div>
   );
