@@ -600,6 +600,127 @@ def clump(cx, cy, cz, r, mats, n=24, seed=1, leaf=0.3, squash=0.85):
         ball(uid('lf'), s, p, mats[rnd.randrange(len(mats))], scale=(1, 1, 0.85), segs=8)
 
 
+# ---------------------------------------------------------------- nature
+
+def leaf_mats(base='#3f8f2e', name='lf'):
+    """Three greens around a base color, so foliage reads as many leaves."""
+    from colorsys import rgb_to_hls, hls_to_rgb
+    h = base.lstrip('#')
+    r, g, b = [int(h[i:i + 2], 16) / 255 for i in (0, 2, 4)]
+    hh, ll, ss = rgb_to_hls(r, g, b)
+    hx = lambda c: '#' + ''.join(f'{int(max(0, min(1, v)) * 255):02x}' for v in c)  # noqa: E731
+    out = []
+    for i, dl in enumerate((-0.07, 0.0, 0.07)):
+        c1 = hls_to_rgb(hh, max(0, min(1, ll + dl - 0.04)), ss)
+        c2 = hls_to_rgb(hh, max(0, min(1, ll + dl + 0.04)), ss)
+        out.append(pm(f'{name}{i}', hx(c1), hx(c2), scale=40))
+    return out
+
+
+def bark_mat(name='bark', a='#6e4526', b='#8a5a34'):
+    return pm(name, a, b, scale=10, kind='wave', stretch=(1, 1, 8))
+
+
+def pine(x, y, s, leaf, bark, seed=1, layers=4):
+    """A pine: a short trunk and stacked, slightly jagged cones."""
+    rnd = random.Random(seed)
+    cyl(uid('pt'), 0.06 * s, 0.4 * s, (x, y, 0.2 * s), bark, verts=10, r2=0.045 * s)
+    for i in range(layers):
+        k = i / max(1, layers - 1)
+        r = (0.42 - 0.26 * k) * s
+        z = (0.3 + i * 0.3) * s
+        c = cyl(uid('pc'), r, 0.5 * s, (x, y, z + 0.25 * s), leaf[i % len(leaf)], verts=14, r2=0.0, bev=0, smooth=False)
+        for v in c.data.vertices:
+            if v.co.z < 0:
+                v.co.z += (rnd.random() - 0.5) * 0.08 * s
+                v.co.x *= 1 + (rnd.random() - 0.5) * 0.18
+                v.co.y *= 1 + (rnd.random() - 0.5) * 0.18
+    return (0.3 + layers * 0.3 + 0.25) * s
+
+
+def palm(x, y, s, leaf, bark, seed=1, lean=(1, 0), seg_h=0.16, bend=0.22, nuts=True):
+    """A leaning palm: ringed trunk segments curving over, a fan of drooping fronds and coconuts."""
+    rnd = random.Random(seed)
+    segs = 9
+    px, py, pz = x, y, 0.0
+    lx, ly = lean
+    for i in range(segs):
+        t = i / segs
+        nx = x + lx * math.sin(t * 1.4) * bend * s
+        ny = y + ly * math.sin(t * 1.4) * bend * s
+        nz = (i + 1) * seg_h * s
+        mid = ((px + nx) / 2, (py + ny) / 2, (pz + nz) / 2)
+        dx, dy, dz = nx - px, ny - py, nz - pz
+        ln = math.sqrt(dx * dx + dy * dy + dz * dz)
+        tilt = math.acos(dz / ln)
+        ang = math.atan2(dy, dx)
+        cyl(uid('ps'), (0.07 - t * 0.025) * s, ln * 1.05, mid, bark, verts=10, r2=(0.06 - t * 0.025) * s,
+            rot=(0, tilt, ang), bev=0.004)
+        torus(uid('pr'), (0.066 - t * 0.025) * s, 0.008 * s, (nx, ny, nz), bark, segs=12, rsegs=4)
+        px, py, pz = nx, ny, nz
+    top = (px, py, pz)
+    # fronds: an arching spine with pairs of leaflets swept back and drooping from it
+    for i in range(10):
+        a = i / 10 * math.pi * 2 + rnd.uniform(-0.15, 0.15)
+        ca, sa = math.cos(a), math.sin(a)
+        side = (-sa, ca, 0.0)
+        pts = []
+        for k in range(9):
+            u = k / 8
+            r = (0.03 + u * 0.55) * s
+            h = (0.05 + math.sin(u * 2.4) * 0.13 - u * u * 0.36) * s
+            pts.append((top[0] + ca * r, top[1] + sa * r, top[2] + h))
+        for k in range(8):
+            p0, p1 = pts[k], pts[k + 1]
+            d = [p1[j] - p0[j] for j in range(3)]
+            ln = math.sqrt(sum(q * q for q in d))
+            d = [q / ln for q in d]
+            mid = [(p0[j] + p1[j]) / 2 for j in range(3)]
+            nrm = (d[1] * side[2] - d[2] * side[1], d[2] * side[0] - d[0] * side[2], d[0] * side[1] - d[1] * side[0])
+            obox(uid('spine'), mid, (d, side, nrm), (ln * 1.05, 0.018 * s, 0.012 * s), leaf[0], bev=0)
+            u = k / 7
+            L = (0.2 - abs(u - 0.4) * 0.14) * s
+            for sd in (-1, 1):
+                v = [side[j] * sd * 0.8 + d[j] * 0.45 for j in range(3)]
+                v[2] -= 0.35 + u * 0.3
+                lv = math.sqrt(sum(q * q for q in v))
+                v = [q / lv for q in v]
+                w = [v[1] * nrm[2] - v[2] * nrm[1], v[2] * nrm[0] - v[0] * nrm[2], v[0] * nrm[1] - v[1] * nrm[0]]
+                lw = math.sqrt(sum(q * q for q in w)) or 1
+                w = [q / lw for q in w]
+                n2 = [v[1] * w[2] - v[2] * w[1], v[2] * w[0] - v[0] * w[2], v[0] * w[1] - v[1] * w[0]]
+                c = [mid[j] + v[j] * L / 2 for j in range(3)]
+                obox(uid('leaflet'), c, (v, w, n2), (L, 0.045 * s, 0.008 * s), leaf[(i + k + (sd > 0)) % len(leaf)], bev=0)
+    nut = pm('coconut', '#6a4222', '#7e5230', scale=30)
+    for i in range(3 if nuts else 0):
+        a = i * 2.1
+        ball(uid('nut'), 0.045 * s, (top[0] + math.cos(a) * 0.06 * s, top[1] + math.sin(a) * 0.06 * s, top[2] - 0.05 * s), nut, segs=10)
+    return top[2]
+
+
+def oak(x, y, s, leaf, bark, seed=1, crowns=None):
+    """A round leafy tree: a flared trunk with roots and two branches under a crown of clumps."""
+    rnd = random.Random(seed)
+    cyl(uid('ot'), 0.1 * s, 0.7 * s, (x, y, 0.35 * s), bark, verts=12, r2=0.07 * s)
+    for k in range(4):
+        a = k * 1.57 + rnd.uniform(-0.3, 0.3)
+        cyl(uid('root'), 0.035 * s, 0.2 * s, (x + math.cos(a) * 0.1 * s, y + math.sin(a) * 0.1 * s, 0.04 * s), bark, verts=8,
+            r2=0.015 * s, rot=(math.sin(a) * 1.1, -math.cos(a) * 1.1, 0))
+    for k in range(2):
+        a = k * math.pi + rnd.uniform(-0.4, 0.4)
+        cyl(uid('br'), 0.04 * s, 0.35 * s, (x + math.cos(a) * 0.1 * s, y + math.sin(a) * 0.1 * s, 0.75 * s), bark, verts=8,
+            r2=0.02 * s, rot=(math.sin(a) * 0.7, -math.cos(a) * 0.7, 0))
+    spots = crowns or [(0, 0, 1.05, 0.42), (-0.25, 0.08, 0.9, 0.3), (0.26, -0.06, 0.92, 0.3), (0.05, 0.2, 1.3, 0.28),
+                       (-0.05, -0.22, 1.2, 0.26)]
+    for i, (cx, cy, cz, r) in enumerate(spots):
+        clump(x + cx * s, y + cy * s, cz * s, r * s, leaf, n=30, seed=seed * 10 + i, leaf=0.3)
+    return max(cz + r for _, _, cz, r in spots) * s
+
+
+def snow(x, y, r, mat, seed=1):
+    ball(uid('snow'), r, (x, y, 0.0), mat, scale=(1.2 + random.Random(seed).random() * 0.4, 1, 0.35), segs=12)
+
+
 def move_all(offset):
     """Shift everything built so far (markers and animation pivots too)."""
     import mathutils

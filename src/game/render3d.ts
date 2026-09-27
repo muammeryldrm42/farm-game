@@ -2126,7 +2126,7 @@ function lodMesh(m: THREE.Mesh, kind: string, part: LodPart) {
 // (times three with the shadow and ambient occlusion passes) to a handful.
 function bakeable(o: THREE.Object3D): o is THREE.Mesh {
   const m = o as THREE.Mesh;
-  return !!m.isMesh && !(o as THREE.InstancedMesh).isInstancedMesh && !Array.isArray(m.material) && o.visible && !o.userData.noMerge && !m.onBeforeRender.length;
+  return !!m.isMesh && !(o as THREE.InstancedMesh).isInstancedMesh && !Array.isArray(m.material) && o.visible && !o.userData.noMerge && !o.userData.keep && !m.onBeforeRender.length;
 }
 function mergeStatic(root: THREE.Object3D) {
   root.updateMatrixWorld(true);
@@ -2596,6 +2596,10 @@ const MODELS: Record<string, ModelSpec> = {
 };
 for (const id of ['hay_bale', 'picket_fence', 'bird_house', 'pumpkin_pile', 'birdbath', 'topiary', 'well', 'flower_arch',
   'hay_wagon', 'tractor', 'bench', 'lamp', 'scarecrow', 'windmill', 'pond', 'mailbox', 'gazebo', 'fountain']) MODELS[id] = {};
+for (const d of Object.values(BUILDING)) if (d.kind === 'pen') MODELS[d.id] = {};
+for (const d of Object.values(BUILDING)) if (d.kind === 'tree' && d.id !== 'banana_tree') MODELS[d.id] = {};
+MODELS.oak = {};
+MODELS.tree_obs = { variants: 2 };
 MODELS.rock_obs = { variants: 3 };
 MODELS.bush_obs = { variants: 2 };
 for (const id of ['bakery', 'feed_mill', 'dairy', 'sugar_mill', 'bbq_grill', 'juice_press', 'loom', 'jam_maker', 'ice_cream',
@@ -2613,8 +2617,15 @@ function useModel(e: Entry, o: FarmObject, d: BuildingDef) {
   loadModel(spec.variants ? `${d.id}${o.id % spec.variants}` : d.id).then((src) => {
     const m = src.clone();
     m.position.set(cx, 0, cz);
-    for (const c of standIn) g.remove(c);
+    // trees: the model's foliage joins the stand in's swaying crown group, beside its fruit
+    const leaves = m.getObjectByName('crown');
+    const crown = leaves && standIn.find((c) => c.userData.crown);
+    for (const c of standIn) if (c !== crown) g.remove(c);
     g.add(m);
+    if (leaves && crown) {
+      for (const c of [...crown.children]) if (!c.userData.keep) crown.remove(c);
+      crown.add(leaves);
+    }
     const puffs: ((on: boolean, t: number) => void)[] = [];
     const movers: { o: THREE.Object3D; spin: boolean; axis: 'x' | 'y' | 'z'; base: number }[] = [];
     for (const c of m.children) {
@@ -2933,7 +2944,7 @@ function buildPen(e: Entry, d: BuildingDef) {
   // grassy pens keep the lawn (and its swaying grass), the others get a dirt yard
   if (!GRASSY_PEN.has(d.id)) {
     const dirt = !['duck_pond', 'swan_lake', 'reindeer_lodge', 'musk_ox_range', 'beaver_pond', 'mandarin_pond', 'black_swan_lake'].includes(d.id);
-    bxT(g, w - 0.1, 0.04, h - 0.1, dirt ? 'soil' : 'grass', PEN_GROUND[d.id] ?? d.wall, w / 2, 0, h / 2, dirt ? 1.5 : 0.8, false);
+    keep(bxT(g, w - 0.1, 0.04, h - 0.1, dirt ? 'soil' : 'grass', PEN_GROUND[d.id] ?? d.wall, w / 2, 0, h / 2, dirt ? 1.5 : 0.8, false));
   }
   if (d.id !== 'beehive') fence(g, w, h, WHITE_FENCE.has(d.id));
   e.top = 0.9;
@@ -3050,7 +3061,7 @@ function buildPen(e: Entry, d: BuildingDef) {
       const nest = mk(g, new THREE.TorusGeometry(0.42, 0.14, 10, 24), surfaceMat('thatch', '#c8a050', 4), 1, 1, 1, 1, 0.1, 1);
       nest.rotation.x = Math.PI / 2;
       mk(g, cylGeo(0.42, 0.42, 20), surfaceMat('thatch', '#e8c865', 4), 1, 0.06, 1, 1, 0.04, 1, false);
-      mk(g, G.ball, new THREE.MeshStandardMaterial({ color: '#ffd23a', metalness: 0.35, roughness: 0.25, emissive: '#7a5200', emissiveIntensity: 0.5 }), 0.09, 0.12, 0.09, 1.15, 0.16, 0.9);
+      keep(mk(g, G.ball, new THREE.MeshStandardMaterial({ color: '#ffd23a', metalness: 0.35, roughness: 0.25, emissive: '#7a5200', emissiveIntensity: 0.5 }), 0.09, 0.12, 0.09, 1.15, 0.16, 0.9));
       break;
     }
     case 'duck_pond':
@@ -3104,7 +3115,7 @@ function buildPen(e: Entry, d: BuildingDef) {
     case 'buffalo_wallow':
       // a muddy wallow pool beside the shelter
       cyl(g, 0.62, 0.66, 0.02, '#5a4028', 2.0, 0.03, 1.95, 20, false);
-      mk(g, cylGeo(0.55, 0.55, 20), new THREE.MeshStandardMaterial({ color: '#6a5034', roughness: 0.25 }), 1, 0.02, 1, 2.0, 0.05, 1.95, false);
+      keep(mk(g, cylGeo(0.55, 0.55, 20), new THREE.MeshStandardMaterial({ color: '#6a5034', roughness: 0.25 }), 1, 0.02, 1, 2.0, 0.05, 1.95, false));
       for (const [x, z] of [[0.25, 0.25], [1.15, 0.25], [0.25, 0.95], [1.15, 0.95]]) mk(g, cylGeo(0.04, 0.045, 8), surfaceMat('bark', '#8a5a33', 4), 1, 0.6, 1, x, 0.34, z);
       bxT(g, 1.1, 0.06, 0.9, 'thatch', '#c9a85a', 0.7, 0.62, 0.6, 2.5).rotation.x = 0.18;
       e.top = 0.9;
@@ -3147,9 +3158,11 @@ function buildPen(e: Entry, d: BuildingDef) {
     bx(g, 0.55, 0.12, 0.18, '#8a5a2b', w - 0.55, 0.04, h - 0.35);
     bx(g, 0.47, 0.03, 0.12, '#e2c15a', w - 0.55, 0.14, h - 0.35, false);
   }
+  // water stays live when the Blender model swaps in
+  for (const c of g.children) if ((c as THREE.Mesh).material === WATER) keep(c);
   // everything built so far is scenery: bake it before the (animated) herd joins the pen
   mergeStatic(g);
-  const herd = group(g);
+  const herd = keep(group(g));
   let count = -1;
   const an = ANIMAL[d.animal ?? ''];
   const fed = new Map<number, number | null>();
@@ -3275,6 +3288,7 @@ function toonTree(g: P, x: number, z: number, leaf: string, k: number, seed: num
     mk(g, G.ball, bark, 0.05 * k, 0.035 * k, 0.05 * k, x + Math.cos(a) * 0.09 * k, 0.02, z + Math.sin(a) * 0.09 * k);
   }
   const crown = group(g, x, 0, z);
+  crown.userData.crown = true;
   const m = mk(crown, toonCrown(seed), toonLeafMat(leaf), k, k, k, 0, 0, 0);
   m.receiveShadow = true;
   return { crown, main: m };
@@ -3322,6 +3336,7 @@ function crownSpots(n: number, cx: number, cy: number, cz: number, r: number) {
 // Coconut palm: a curved ringed trunk and a crown of long arching fronds.
 function palmTree(g: P, leaf: string) {
   const crown = group(g, 0.5, 0, 0.5);
+  crown.userData.crown = true;
   const segs = 9;
   let x = 0, z = 0;
   const bark = surfaceMat('bark', '#9a7248', 3);
@@ -3333,7 +3348,7 @@ function palmTree(g: P, leaf: string) {
     mk(crown, cylGeo(0.07 - t * 0.02, 0.07 - t * 0.02, 10), M('#7a5634'), 1, 0.02, 1, nx, ny - 0.01, z);
     x = nx;
   }
-  const top = group(crown, x, segs * 0.15, z);
+  const top = keep(group(crown, x, segs * 0.15, z));
   for (let i = 0; i < 9; i++) {
     const a = (i / 9) * Math.PI * 2 + (i % 2) * 0.2;
     const f = group(top);
@@ -3363,7 +3378,7 @@ function buildFruitTree(e: Entry, d: BuildingDef) {
   const pg = produceGeo(d.fruit ?? 'apple');
   const fm = pg ? PRODUCE_MAT : new THREE.MeshStandardMaterial({ color: fc, roughness: 0.35 });
   const fruit = crownSpots(11, 0, 0.8, 0, 0.45).map(([x, y, z], i) => {
-    const f = mk(crown, pg ?? G.ball, fm, 0.055, 0.055, 0.055, x, y, z);
+    const f = keep(mk(crown, pg ?? G.ball, fm, 0.055, 0.055, 0.055, x, y, z));
     f.rotation.set((hash(i, 2) - 0.5) * 0.6, hash(i, 3) * 6, (hash(i, 4) - 0.5) * 0.6);
     return f;
   });
