@@ -521,7 +521,13 @@ export class Renderer {
     this.life = new Life(this.scene);
     this.sel = this.buildSelection();
     // start fetching the Blender models right away, so they are usually in before the farm shows
-    if (artStyle() === 'toon') loadModel('farmhouse').catch(() => {});
+    if (artStyle() === 'toon') {
+      loadModel('farmhouse').catch(() => {});
+      // the forest and FOR SALE signs on locked land: rebuild the land once their models are in
+      for (const name of ['forest_pine', 'forest_round', 'forsale_sign'] as const) {
+        loadModel(name).then((m) => { WORLD_MODELS[name] = m; this.landKey = ''; }).catch(() => {});
+      }
+    }
     this.farmer = actor(FARM_C.x - 0.5, FARM_C.y + 0.5, buildFarmer());
     this.dog = actor(FARM_C.x + 0.5, FARM_C.y + 0.5, buildDog());
     this.cat = actor(FARM_C.x + 1.5, FARM_C.y + 1.5, buildCat());
@@ -892,6 +898,25 @@ export class Renderer {
       }
     }
     const mtx = new THREE.Matrix4(), q = new THREE.Quaternion(), sv = new THREE.Vector3(), pv = new THREE.Vector3();
+    const pineSrc = firstMesh(WORLD_MODELS.forest_pine), roundSrc = firstMesh(WORLD_MODELS.forest_round);
+    if (artStyle() === 'toon' && pineSrc && roundSrc) {
+      // Blender forest: one instanced mesh per kind, each copy turned, sized and tinted a little
+      const up = new THREE.Vector3(0, 1, 0);
+      for (const [list, src, salt] of [[pines, pineSrc, 5], [rounds, roundSrc, 9]] as const) {
+        const im = new THREE.InstancedMesh(src.geometry, src.material, list.length);
+        list.forEach(([x, z, sc], i) => {
+          q.setFromAxisAngle(up, hash(i, salt, 3) * Math.PI * 2);
+          mtx.compose(pv.set(x, 0, z), q, sv.setScalar(sc * 1.05));
+          im.setMatrixAt(i, mtx);
+          im.setColorAt(i, col.setRGB(1, 1, 1).offsetHSL((hash(i, salt) - 0.5) * 0.03, 0, (hash(i, salt, 7) - 0.5) * 0.14));
+        });
+        im.castShadow = true;
+        im.receiveShadow = true;
+        this.dynLand.add(im);
+      }
+      this.land.add(this.dynLand);
+      return;
+    }
     const trunks = new THREE.InstancedMesh(cylGeo(0.06, 0.09, 8), surfaceMat('bark', '#7a4a26', 4), pines.length + rounds.length);
     const pineA = new THREE.InstancedMesh(pineGeo(), new THREE.MeshStandardMaterial({ color: '#ffffff', roughness: 0.85 }), pines.length);
     const pineB = new THREE.InstancedMesh(pineGeo(), new THREE.MeshStandardMaterial({ color: '#ffffff', roughness: 0.85 }), pines.length);
@@ -933,6 +958,12 @@ export class Renderer {
   private signs: THREE.Group[] = [];
   private buildSign(p: P, cx: number, cy: number) {
     const g = group(p, cx * CHUNK + CHUNK / 2, 0, cy * CHUNK + CHUNK / 2);
+    if (artStyle() === 'toon' && WORLD_MODELS.forsale_sign) {
+      g.add(WORLD_MODELS.forsale_sign.clone());
+      g.userData.sign = true;
+      this.signs.push(g);
+      return;
+    }
     cyl(g, 0.05, 0.05, 0.9, '#6b4226', 0, 0, 0, 6);
     const tex = canvasTex('forsale', 256, 128, (c) => {
       c.fillStyle = '#c98a45'; c.fillRect(0, 0, 256, 128);
@@ -1077,7 +1108,12 @@ export class Renderer {
       if (e.bounce || e.root.scale.x !== 1) this.applyBounce(e, o, dt);
     }
     tickAnims(dt);
-    for (const g of this.signs) { g.children[1].position.y = 0.95 + Math.sin(t / 500 + g.position.x) * 0.03; g.rotation.y = this.az; }
+    for (const g of this.signs) {
+      // the procedural board bobs on its post; the Blender sign is one piece and just turns
+      const board = g.children[1];
+      if (board) board.position.y = 0.95 + Math.sin(t / 500 + g.position.x) * 0.03;
+      g.rotation.y = this.az;
+    }
 
     this.updateGhost(t);
     this.updateSelection(t);
@@ -2483,7 +2519,7 @@ function buildPlot(e: Entry) {
     r.rotation.z = Math.PI / 2;
     r.scale.set(1, 0.8, 0.45);
   }
-  const crop = group(g);
+  const crop = keep(group(g));
   let cur: string | null = null;
   let wasReady = false;
   let first = true;
@@ -2589,6 +2625,14 @@ function loadModel(name: string) {
   return p;
 }
 
+// scenery models the land builder uses once loaded (forest trees, FOR SALE sign)
+const WORLD_MODELS: Record<string, THREE.Object3D> = {};
+function firstMesh(o?: THREE.Object3D) {
+  let found: THREE.Mesh | null = null;
+  o?.traverse((c) => { if (!found && (c as THREE.Mesh).isMesh) found = c as THREE.Mesh; });
+  return found as THREE.Mesh | null;
+}
+
 // The procedural building stands in until its model has loaded and is then swapped out; if the
 // model cannot load, the procedural building simply stays. Placement ghosts keep the procedural
 // look, since their see through styling is applied once when they are built.
@@ -2621,6 +2665,7 @@ for (const d of Object.values(BUILDING)) if (d.kind === 'tree' && d.id !== 'bana
 MODELS.oak = {};
 MODELS.tree_obs = { variants: 2 };
 MODELS.rock_obs = { variants: 3 };
+MODELS.plot = {};
 MODELS.bush_obs = { variants: 2 };
 for (const id of ['bakery', 'feed_mill', 'dairy', 'sugar_mill', 'bbq_grill', 'juice_press', 'loom', 'jam_maker', 'ice_cream',
   'sushi_bar', 'salad_bar', 'pizzeria', 'coffee_kiosk', 'oil_press', 'florist', 'workshop']) MODELS[id] = { badge: 0.26 };
