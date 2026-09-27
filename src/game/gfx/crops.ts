@@ -5,6 +5,7 @@ import * as THREE from 'three';
 import type { CropDef } from '../data';
 import { Kit, P, blade, cylinder, lump, ribs, ruffledLeaf, tip, type V3 } from './kit';
 import { produceGeo } from './produce';
+import { lateCrop, latePaint } from './cropsLate';
 
 const r = (i: number, s: number) => {
   let h = Math.imul(i | 0, 374761393) ^ Math.imul(s | 0, 668265263);
@@ -28,7 +29,7 @@ function build(cd: CropDef): CropGeo {
   const L = cd.leaf, F = cd.fruit;
   const dark = shade(L, -0.1);
   const W = '#ffffff';
-  switch (cd.shape) {
+  if (!lateCrop(cd, plant, fruit)) switch (cd.shape) {
     case 'grain': {
       // a dense clump of stalks with heavy, slightly nodding ears
       const rice = cd.id === 'rice';
@@ -337,6 +338,7 @@ function build(cd: CropDef): CropGeo {
       col.setXYZ(i, k, k, k);
     }
   }
+  latePaint(cd, fg);
   return { plant: plant.build(), fruit: fg };
 }
 

@@ -407,6 +407,29 @@ function dropDown(src: THREE.Object3D, delay = 0) {
 const HIT_MAT = new THREE.MeshBasicMaterial({ visible: false });
 // middle of the starting farm
 const FARM_C = { x: 13.5 + MAP_OFF, y: 11.5 + MAP_OFF };
+// where the fruit hangs on trees whose crown is not the usual round one: crown centre height and
+// radius, or a ring round the trunk (papaya, jackfruit), plus the fruit size
+const TREE_FORM: Record<string, { cy: number; r: number; h?: number; trunk?: boolean; size?: number }> = {
+  papaya_tree: { cy: 0.92, r: 0.085, h: 0.14, trunk: true, size: 0.1 },
+  jackfruit_tree: { cy: 0.5, r: 0.12, h: 0.3, trunk: true, size: 0.12 },
+  durian_tree: { cy: 0.92, r: 0.5, size: 0.095 },
+  dragon_fruit_tree: { cy: 0.66, r: 0.4, size: 0.085 },
+  passion_fruit_tree: { cy: 0.86, r: 0.38, size: 0.07 },
+  silver_pear_tree: { cy: 0.8, r: 0.46 },
+  cashew_tree: { cy: 0.72, r: 0.52, size: 0.09 },
+  pistachio_tree: { cy: 0.7, r: 0.5, size: 0.1 },
+  elderberry_tree: { cy: 0.56, r: 0.38, size: 0.1 },
+  cinnamon_tree: { cy: 0.86, r: 0.33, size: 0.09 },
+  mangosteen_tree: { cy: 0.88, r: 0.35, size: 0.075 },
+  macadamia_tree: { cy: 0.86, r: 0.33, size: 0.07 },
+  kumquat_tree: { cy: 0.6, r: 0.36, size: 0.06 },
+  guava_tree: { cy: 0.62, r: 0.38 },
+  crabapple_tree: { cy: 0.74, r: 0.42, size: 0.09 },
+  loquat_tree: { cy: 0.8, r: 0.45, size: 0.09 },
+  black_cherry_tree: { cy: 0.82, r: 0.44, size: 0.075 },
+  chestnut_tree: { cy: 0.95, r: 0.52, size: 0.08 },
+  pecan_tree: { cy: 1.0, r: 0.5, size: 0.065 },
+};
 const FRUIT_COLOR: Record<string, string> = { apple: '#e53935', cherry: '#b0102a', orange: '#ff9800', peach: '#ffa274', lemon: '#ffe03a', coconut: '#7a4a26', pear: '#c8c040', plum: '#5a2070', mango: '#f0902a', avocado: '#2f4a1a', pomegranate: '#c0282a', banana: '#f2d23a', apricot: '#f6a23a', lime: '#6ab82a', fig: '#5a2a4a', olive: '#5a6a1a', walnut: '#5a8a2a', quince: '#e8c83a', almond: '#9ab880', mulberry: '#3a0a2a', grapefruit: '#f2b04a', persimmon: '#f07a1a', date: '#7a3a14', lychee: '#d83a3a', hazelnut: '#8a5a2a', starfruit: '#e8c21a', maple_syrup: '#b8321a', cocoa_pod: '#c0601a', sakura: '#f4b0c8', golden_apple: '#f2c230', tangerine: '#f08a1a', nectarine: '#f0603a', chestnut: '#7a4a22', papaya: '#f0a040', kumquat: '#f8a020', guava: '#b8d060', pistachio: '#b8c860', elderberry: '#2a1a3a', dragon_fruit: '#e8307a', pecan: '#8a5a2a', blood_orange: '#c8301a', jackfruit: '#a8b040', macadamia: '#d8c8a0', yuzu: '#f0d020', passion_fruit: '#6a2a6a', cashew: '#e8b040', white_peach: '#f8d0c0', loquat: '#f0a830', crabapple: '#c02a3a', cinnamon: '#8a4a22', mangosteen: '#5a1a3a', durian: '#b8a840', black_cherry: '#4a0a1a', silver_pear: '#d8d8c8' };
 const TREE_LEAF: Record<string, string> = { apple_tree: '#4f9e36', cherry_tree: '#3f8a3a', orange_tree: '#2f7d32', peach_tree: '#5aa53a', lemon_tree: '#3b8f3c', coconut_palm: '#4c9a38', pear_tree: '#58a03a', plum_tree: '#3f7f3a', banana_tree: '#5aa844', mango_tree: '#2f7a32', avocado_tree: '#2a6a2e', pomegranate_tree: '#4a8a36', apricot_tree: '#5aa03a', lime_tree: '#2f7f32', fig_tree: '#4a9a3a', olive_tree: '#8a9a7a', walnut_tree: '#3f7a2e', quince_tree: '#5a9a3a', almond_tree: '#6aa84a', mulberry_tree: '#3f8a34', grapefruit_tree: '#3a8a3a', persimmon_tree: '#6a9a2a', date_palm: '#5a8a3a', lychee_tree: '#2f7a32', hazelnut_tree: '#5a9a34', starfruit_tree: '#3f8f3c', maple_tree: '#d8542a', cocoa_tree: '#2f6a2e', sakura_tree: '#f2a6c4', golden_apple_tree: '#7ab84a', tangerine_tree: '#2a7a2e', nectarine_tree: '#52a036', chestnut_tree: '#3a7a2c', papaya_tree: '#3a8a3a', kumquat_tree: '#2a7a30', guava_tree: '#469636', pistachio_tree: '#6a9a4a', elderberry_tree: '#3a8a36', dragon_fruit_tree: '#4a9a3a', pecan_tree: '#3a762c', blood_orange_tree: '#2a7a2e', jackfruit_tree: '#2a7a30', macadamia_tree: '#3a8a36', yuzu_tree: '#358a36', passion_fruit_tree: '#3a8a36', cashew_tree: '#469636', white_peach_tree: '#52a036', loquat_tree: '#3a7a2e', crabapple_tree: '#4a9a32', cinnamon_tree: '#2f7a32', mangosteen_tree: '#2a6a2e', durian_tree: '#3a7a2c', black_cherry_tree: '#3a7a36', silver_pear_tree: '#8aa890' };
 const GRASSY_PEN = new Set(['hereford_ranch', 'suffolk_fold', 'heron_marsh', 'highland_pasture', 'pheasant_run', 'llama_ranch', 'pony_paddock', 'black_sheepfold', 'jersey_pasture', 'merino_fold', 'galloway_pasture', 'jacob_fold', 'deer_park', 'moose_woods', 'squirrel_grove', 'parrot_aviary', 'kiwi_burrow', 'owl_barn', 'silk_house', 'crane_marsh', 'muscovy_pond', 'pasture', 'sheepfold', 'beehive', 'rabbit_hutch', 'alpaca_ranch', 'goose_pen', 'peacock_garden', 'donkey_paddock', 'yak_pasture']);
@@ -3732,7 +3755,11 @@ function buildFruitTree(e: Entry, d: BuildingDef) {
   // realistic fruit: dimpled apples, paired cherries, pitted oranges, blushing peaches, lemons
   const pg = produceGeo(d.fruit ?? 'apple');
   const fm = pg ? PRODUCE_MAT : new THREE.MeshStandardMaterial({ color: fc, roughness: 0.35 });
-  const fruit = crownSpots(11, 0, 0.8, 0, 0.45).map(([x, y, z], i) => {
+  const form = TREE_FORM[d.id];
+  const spots = form?.trunk
+    ? [...Array(8)].map((_, i) => [Math.cos(i * 2.4) * form.r, form.cy + ((i % 4) / 3 - 0.5) * (form.h ?? 0.2), Math.sin(i * 2.4) * form.r] as [number, number, number])
+    : crownSpots(11, 0, form?.cy ?? 0.8, 0, form?.r ?? 0.45);
+  const fruit = spots.map(([x, y, z], i) => {
     const f = keep(mk(crown, pg ?? G.ball, fm, 0.055, 0.055, 0.055, x, y, z));
     f.rotation.set((hash(i, 2) - 0.5) * 0.6, hash(i, 3) * 6, (hash(i, 4) - 0.5) * 0.6);
     return f;
@@ -3752,7 +3779,7 @@ function buildFruitTree(e: Entry, d: BuildingDef) {
     start = st; wasReady = ti.ready;
     const n = ti.ready ? fruit.length : Math.floor(ti.p * fruit.length);
     const sc = ti.ready ? 1 : 0.5 + ti.p * 0.4;
-    const base = d.fruit === 'cherry' || d.fruit === 'olive' || d.fruit === 'mulberry' || d.fruit === 'lychee' || d.fruit === 'hazelnut' || d.fruit === 'almond' ? 0.075 : d.fruit === 'lemon' || d.fruit === 'plum' || d.fruit === 'apricot' || d.fruit === 'lime' ? 0.07 : 0.085;
+    const base = form?.size ?? (d.fruit === 'cherry' || d.fruit === 'olive' || d.fruit === 'mulberry' || d.fruit === 'lychee' || d.fruit === 'hazelnut' || d.fruit === 'almond' ? 0.075 : d.fruit === 'lemon' || d.fruit === 'plum' || d.fruit === 'apricot' || d.fruit === 'lime' ? 0.07 : 0.085);
     fruit.forEach((f, i) => {
       // new fruit swells in instead of popping into existence
       shown[i] = i < n ? Math.min(1, shown[i] + 0.04) : 0;

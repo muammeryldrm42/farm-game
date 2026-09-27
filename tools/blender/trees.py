@@ -10,7 +10,7 @@ import random
 import sys
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-from kit import anim_group, ball, bark_mat, clump, cyl, finish, leaf_mats, main, palm, pm, torus, uid  # noqa: E402
+from kit import anim_group, ball, bark_mat, box, clump, cyl, finish, leaf_mats, main, palm, pm, torus, uid  # noqa: E402
 
 SHAPES = {
     'round': [(0, 0, 0.82, 0.36), (-0.21, 0.06, 0.72, 0.26), (0.22, -0.05, 0.74, 0.26), (0.04, 0.18, 0.98, 0.24),
@@ -19,6 +19,12 @@ SHAPES = {
     'tall': [(0, 0, 0.74, 0.32), (0, 0.02, 1.0, 0.3), (0.13, -0.1, 0.87, 0.22), (-0.13, 0.1, 0.86, 0.22), (0, 0, 1.22, 0.2)],
     'broad': [(0, 0, 0.86, 0.34), (-0.3, 0.05, 0.78, 0.26), (0.3, -0.05, 0.78, 0.26), (0, 0.26, 0.8, 0.24), (0.02, -0.25, 0.84, 0.24)],
     'bushy': [(0, 0, 0.66, 0.34), (-0.23, 0.1, 0.56, 0.26), (0.23, -0.1, 0.57, 0.26), (0.05, 0.1, 0.9, 0.26), (0, -0.2, 0.8, 0.22)],
+    'cone': [(0, 0, 0.62, 0.3), (0, 0, 0.84, 0.27), (0, 0, 1.04, 0.21), (0, 0, 1.22, 0.14), (0.15, 0.08, 0.7, 0.22), (-0.15, -0.08, 0.72, 0.22),
+             (0.05, -0.16, 0.9, 0.2), (-0.06, 0.16, 0.88, 0.2)],
+    'spread': [(0, 0, 0.78, 0.3), (-0.36, 0.1, 0.7, 0.25), (0.36, -0.08, 0.7, 0.25), (0.1, 0.34, 0.72, 0.23), (-0.12, -0.34, 0.72, 0.23),
+               (0, 0, 0.95, 0.2), (0.26, 0.26, 0.66, 0.2), (-0.26, -0.26, 0.66, 0.2)],
+    'weeping': [(0, 0, 0.9, 0.34), (-0.2, 0.08, 0.8, 0.25), (0.2, -0.06, 0.8, 0.25), (0, 0.2, 0.84, 0.23), (0, -0.2, 0.84, 0.23), (0, 0, 1.12, 0.2)],
+    'shrub': [(0, 0, 0.56, 0.3), (-0.24, 0.1, 0.48, 0.24), (0.24, -0.1, 0.48, 0.24), (0.05, 0.22, 0.62, 0.22), (0, -0.22, 0.6, 0.22), (0, 0, 0.78, 0.2)],
     'olive': [(0.08, 0, 0.86, 0.3), (-0.22, 0.08, 0.76, 0.22), (0.27, -0.08, 0.72, 0.2), (0, 0.18, 1.0, 0.2), (-0.05, -0.18, 0.95, 0.18)],
 }
 
@@ -39,39 +45,50 @@ TREES = {
     'cocoa_tree': ('tall', '#2a662c', None, 1), 'sakura_tree': ('round', '#de6a9a', ('#fbd8e6', '#e8407a'), 1),
     'golden_apple_tree': ('round', '#6aae42', ('#f0c020',), 1),
     'tangerine_tree': ('citrus', '#2a7a2e', None, 1),
-    'nectarine_tree': ('round', '#52a036', None, 1),
-    'chestnut_tree': ('round', '#3a7a2c', None, 1),
-    'papaya_tree': ('tall', '#3a8a3a', None, 1),
-    'kumquat_tree': ('citrus', '#2a7a30', None, 1),
-    'guava_tree': ('broad', '#469636', None, 1),
-    'pistachio_tree': ('bushy', '#6a9a4a', None, 1),
-    'elderberry_tree': ('bushy', '#3a8a36', None, 1),
-    'dragon_fruit_tree': ('tall', '#4a9a3a', None, 1),
-    'pecan_tree': ('round', '#3a762c', None, 1),
-    'blood_orange_tree': ('citrus', '#2a7a2e', None, 1),
-    'jackfruit_tree': ('broad', '#2a7a30', None, 1),
-    'macadamia_tree': ('round', '#3a8a36', None, 1),
-    'yuzu_tree': ('citrus', '#358a36', None, 1),
-    'passion_fruit_tree': ('bushy', '#3a8a36', None, 1),
-    'cashew_tree': ('broad', '#469636', None, 1),
-    'white_peach_tree': ('round', '#52a036', ('#fbe8ee',), 1),
-    'loquat_tree': ('broad', '#3a7a2e', None, 1),
-    'crabapple_tree': ('round', '#4a9a32', ('#f8c8d8', '#f07aa0'), 1),
-    'cinnamon_tree': ('tall', '#2f7a32', None, 1),
-    'mangosteen_tree': ('round', '#2a6a2e', None, 1),
-    'durian_tree': ('broad', '#3a7a2c', None, 1),
-    'black_cherry_tree': ('round', '#3a7a36', None, 1),
-    'silver_pear_tree': ('tall', '#8aa890', None, 1),
+    'nectarine_tree': ('round', '#4a9a32', None, 1),
+    'chestnut_tree': ('broad', '#3a7a2a', None, 1.2),
+    'kumquat_tree': ('bushy', '#2a7a2a', ('#fbf6ea',), 0.9),
+    'guava_tree': ('bushy', '#6aa83a', None, 1),
+    'pistachio_tree': ('spread', '#7a9a5a', None, 0.95),
+    'elderberry_tree': ('shrub', '#4a8a36', ('#f8f4e0',), 1),
+    'pecan_tree': ('tall', '#4a8a30', None, 1.2),
+    'blood_orange_tree': ('citrus', '#26702a', None, 1),
+    'jackfruit_tree': ('broad', '#2a6a28', None, 1.12),
+    'macadamia_tree': ('cone', '#2a6a30', None, 1),
+    'yuzu_tree': ('citrus', '#2f7a2a', ('#ffffff',), 0.95),
+    'cashew_tree': ('spread', '#3a8a30', None, 1.05),
+    'white_peach_tree': ('round', '#5aa03a', ('#f8d8e0',), 1),
+    'loquat_tree': ('broad', '#2a5a2a', None, 0.95),
+    'crabapple_tree': ('round', '#4a8a32', ('#f8b8c8', '#e0507a'), 0.92),
+    'cinnamon_tree': ('cone', '#2a6a2e', None, 1),
+    'mangosteen_tree': ('cone', '#1f5a26', None, 1.05),
+    'durian_tree': ('tall', '#4a7a2c', None, 1.15),
+    'black_cherry_tree': ('tall', '#2f6a30', ('#ffffff', '#f4e8ec'), 1),
+    'silver_pear_tree': ('weeping', '#9ab8a0', ('#ffffff',), 1),
 }
 
 
 def trunk(bark, s, rnd, shape):
     """Flared trunk with roots and two limbs reaching into the crown."""
-    h = (0.36 if shape == 'bushy' else 0.55) * s
+    h = (0.36 if shape in ('bushy', 'shrub') else 0.55) * s
     if shape == 'olive':
         # two twisting stems leaning apart
         for k, lean in enumerate((0.22, -0.18)):
             cyl(uid('tr'), 0.06 * s, h * 1.1, (lean * 0.25 * s, 0, h * 0.55), bark, verts=10, r2=0.045 * s, rot=(0, lean, k * 0.8))
+    elif shape == 'shrub':
+        # several thin stems from one root crown
+        for k in range(5):
+            a = k * 1.26
+            cyl(uid('tr'), 0.03 * s, h * 1.2, (math.cos(a) * 0.05 * s, math.sin(a) * 0.05 * s, h * 0.6), bark, verts=8, r2=0.02 * s,
+                rot=(math.sin(a) * 0.35, -math.cos(a) * 0.35, 0))
+        return
+    elif shape == 'spread':
+        # a short trunk forking into low, wide limbs
+        cyl(uid('tr'), 0.1 * s, h * 0.8, (0, 0, h * 0.4), bark, verts=12, r2=0.075 * s)
+        for k in range(4):
+            a = k * 1.57 + 0.4
+            cyl(uid('limb'), 0.05 * s, 0.42 * s, (math.cos(a) * 0.15 * s, math.sin(a) * 0.15 * s, h * 0.95), bark, verts=8, r2=0.03 * s,
+                rot=(math.sin(a) * 1.0, -math.cos(a) * 1.0, 0))
     else:
         cyl(uid('tr'), 0.09 * s, h, (0, 0, h / 2), bark, verts=12, r2=0.06 * s)
     for k in range(4):
@@ -91,6 +108,14 @@ def crown(shape, leaf, blossom, s, seed):
     with anim_group('crown', (0, 0, 0)):
         for i, (x, y, z, r) in enumerate(SHAPES[shape]):
             clump(x * s, y * s, z * s, r * s, mats, n=13, seed=seed * 10 + i, leaf=0.42, squash=0.9)
+        if shape == 'weeping':
+            # long leafy strands trailing down around the crown
+            for i in range(40):
+                a = i * 2.4
+                rr = (0.3 + (i % 3) * 0.05) * s
+                for k in range(6):
+                    ball(uid('drip'), (0.045 - k * 0.005) * s, (math.cos(a) * (rr + k * 0.015 * s), math.sin(a) * (rr + k * 0.015 * s), (0.84 - k * 0.07) * s),
+                         mats[(i + k) % len(mats)], scale=(1, 1, 1.4), segs=8)
         for i in range(34 if blooms else 0):
             # blossoms dotted over the outside of the crown
             a = rnd.uniform(0, math.pi * 2)
@@ -194,8 +219,106 @@ def banana_tree():
     finish('banana_tree', tex=1024)
 
 
+def papaya_tree():
+    """A slender papaya: one ringed trunk topped by big lobed leaves on long stalks. The game hangs
+    the fruit in a ring round the trunk just under the leaves."""
+    bark = pm('papaya_bark', '#9a8a6a', '#b0a07a', scale=12)
+    leafm = leaf_mats('#4a9a36', 'pap')
+    stalk = pm('papaya_stalk', '#9ab860')
+    with anim_group('crown', (0, 0, 0)):
+        cyl(uid('stem'), 0.06, 1.1, (0, 0, 0.55), bark, verts=12, r2=0.045)
+        for k in range(8):
+            torus(uid('scar'), 0.056 - k * 0.0015, 0.008, (0, 0, 0.15 + k * 0.1), pm('papaya_scar', '#7a6a50'), segs=14, rsegs=4)
+        for i in range(10):
+            a = i * 2.4
+            tilt = 0.7 + (i % 3) * 0.25
+            ca, sa = math.cos(a), math.sin(a)
+            cyl(uid('pet'), 0.008, 0.46, (ca * 0.2 * math.sin(tilt), sa * 0.2 * math.sin(tilt), 1.08 + 0.2 * math.cos(tilt)), stalk, verts=5,
+                rot=(-sa * tilt, ca * tilt, 0), bev=0)
+            cx, cy, cz = ca * 0.42 * math.sin(tilt), sa * 0.42 * math.sin(tilt), 1.08 + 0.42 * math.cos(tilt)
+            for j in range(5):
+                b = a + (j - 2) * 0.35
+                ball(uid('lobe'), 0.09, (cx + math.cos(b) * 0.08, cy + math.sin(b) * 0.08, cz - abs(j - 2) * 0.02), leafm[(i + j) % len(leafm)],
+                     scale=(1.3, 0.6, 0.3), segs=8).rotation_euler = (0, 0, b)
+    grass(random.Random(5), 5)
+    finish('papaya_tree', tex=1024)
+
+
+def dragon_fruit_tree():
+    """Dragon fruit cactus trained up a wooden post, its three winged stems arching over a ring at
+    the top and drooping down all round."""
+    from common import obox
+    post = bark_mat('df_post', '#8a6a44', '#a07e52')
+    cact = pm('df_cactus', '#4a7a44', '#5e9454', scale=14)
+    with anim_group('crown', (0, 0, 0)):
+        box(uid('post'), (0.1, 0.1, 0.78), (0, 0, 0.39), post, bev=0.012)
+        torus(uid('ring'), 0.2, 0.02, (0, 0, 0.8), pm('df_tire', '#2a2a2a'), segs=20, rsegs=6)
+        for i in range(4):
+            a = i * math.pi / 2
+            box(uid('bar'), (0.24, 0.035, 0.035), (math.cos(a) * 0.1, math.sin(a) * 0.1, 0.8), post, rot=(0, 0, a), bev=0.004)
+        # climbing stems up the post
+        for k in range(2):
+            a = k * math.pi
+            for j in range(6):
+                obox(uid('climb'), (math.cos(a) * 0.07, math.sin(a) * 0.07, 0.1 + j * 0.12), ((0, 0, 1), (math.cos(a), math.sin(a), 0), (-math.sin(a), math.cos(a), 0)),
+                     (0.13, 0.06, 0.02), cact, bev=0.006)
+        # arching stems: each a chain of three finned segments
+        for i in range(9):
+            a = i * 2 * math.pi / 9
+            ca, sa = math.cos(a), math.sin(a)
+            x, z, ang = 0.12, 0.84, 0.9
+            for j in range(6):
+                ang -= 0.45
+                dx, dz = math.cos(ang) * 0.1, math.sin(ang) * 0.1
+                mid = (ca * (x + dx / 2), sa * (x + dx / 2), z + dz / 2)
+                d = (ca * math.cos(ang), sa * math.cos(ang), math.sin(ang))
+                t1 = (-sa, ca, 0.0)
+                t2 = (d[1] * t1[2] - d[2] * t1[1], d[2] * t1[0] - d[0] * t1[2], d[0] * t1[1] - d[1] * t1[0])
+                for f in range(3):
+                    fa = f * 2.094
+                    side = tuple(math.cos(fa) * t1[q] + math.sin(fa) * t2[q] for q in range(3))
+                    nrm = (d[1] * side[2] - d[2] * side[1], d[2] * side[0] - d[0] * side[2], d[0] * side[1] - d[1] * side[0])
+                    c = tuple(mid[q] + side[q] * 0.018 for q in range(3))
+                    obox(uid('fin'), c, (d, side, nrm), (0.11, 0.04, 0.02), cact, bev=0.006)
+                    ball(uid('areole'), 0.006, tuple(mid[q] + side[q] * 0.04 for q in range(3)), pm('df_areole', '#d8d0b0'), segs=6)
+                x, z = x + dx, z + dz
+    grass(random.Random(6), 5)
+    finish('dragon_fruit_tree', tex=1024)
+
+
+def passion_fruit_tree():
+    """A passion fruit vine smothering a little wooden arbor, with a few purple white flowers."""
+    wood = bark_mat('pf_wood', '#8a5a34', '#a06a3e')
+    mats = leaf_mats('#3a8a30', 'pf')
+    with anim_group('crown', (0, 0, 0)):
+        for sx in (-1, 1):
+            for sy in (-1, 1):
+                box(uid('post'), (0.05, 0.05, 1.0), (sx * 0.32, sy * 0.32, 0.5), wood, bev=0.008)
+            box(uid('beam'), (0.05, 0.76, 0.05), (sx * 0.32, 0, 1.0), wood, bev=0.006)
+        for k in range(4):
+            box(uid('slat'), (0.76, 0.035, 0.03), (0, -0.27 + k * 0.18, 1.03), wood, bev=0.004)
+        rnd = random.Random(9)
+        for i in range(9):
+            clump(rnd.uniform(-0.3, 0.3), rnd.uniform(-0.3, 0.3), 1.05, 0.18, mats, n=10, seed=200 + i, leaf=0.4, squash=0.6)
+        for sx in (-1, 1):
+            for sy in (-1, 1):
+                for k in range(4):
+                    clump(sx * 0.32, sy * 0.32, 0.25 + k * 0.2, 0.08, mats, n=5, seed=300 + k + sx * 7 + sy * 3, leaf=0.4)
+        petal, crownm = pm('pf_petal', '#f4f0f8'), pm('pf_corona', '#6a3aa8')
+        for i in range(6):
+            a = i * 1.05
+            x, y = math.cos(a) * 0.38, math.sin(a) * 0.38
+            ball(uid('petal'), 0.05, (x, y, 1.0), petal, scale=(1, 1, 0.2), segs=10)
+            ball(uid('cor'), 0.03, (x, y, 1.012), crownm, scale=(1, 1, 0.3), segs=10)
+    grass(random.Random(7), 5)
+    finish('passion_fruit_tree', tex=1024)
+
+
 MODELS = {tid: (lambda t=tid: fruit_tree(t)) for tid in TREES}
 MODELS['banana_tree'] = banana_tree
+MODELS['papaya_tree'] = papaya_tree
+MODELS['dragon_fruit_tree'] = dragon_fruit_tree
+MODELS['passion_fruit_tree'] = passion_fruit_tree
 MODELS['coconut_palm'] = lambda: palm_tree('coconut_palm', '#4c9a38')
 MODELS['date_palm'] = lambda: palm_tree('date_palm', '#5a8a3a')
 MODELS['oak'] = lambda: oak_tree('oak', '#4a9a32', 1.0, 3)
