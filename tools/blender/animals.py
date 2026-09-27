@@ -309,7 +309,94 @@ def chicken():
     finish('animal_chicken', tex=512, vivid=1.1, ao_min=0.6, ao_dist=0.08)
 
 
+# ---------------------------------------------------------------- the rest, from the game's sculpts
+# Every other animal starts from the game's own cartoon sculpt (shape and painted coat, dumped by
+# export_sculpts.mjs into tools/blender/sculpts), which Blender smooths, trims to a light mesh and
+# bakes with soft ambient occlusion into one texture, split into the same animated parts.
+
+SCULPTS = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'sculpts')
+HAND_MADE = {'cow', 'sheep', 'horse', 'chicken'}
+PETS = {'dog', 'cat'}   # the farmer's pets keep their sculpts
+
+
+def vcol_mat():
+    m = bpy.data.materials.get('sculpt_vcol')
+    if m:
+        return m
+    m = bpy.data.materials.new('sculpt_vcol')
+    m.use_nodes = True
+    nt = m.node_tree
+    attr = nt.nodes.new('ShaderNodeVertexColor')
+    attr.layer_name = 'Col'
+    bsdf = nt.nodes['Principled BSDF']
+    bsdf.inputs['Roughness'].default_value = 0.6
+    nt.links.new(attr.outputs['Color'], bsdf.inputs['Base Color'])
+    return m
+
+
+def part_mesh(name, data, offset, target):
+    """One sculpt part as a smooth mesh with its vertex colors, placed at `offset` (game coords)."""
+    import bmesh
+    pts, cols, idx = data['p'], data['c'], data['i']
+    n = len(pts) // 3
+    ox, oy, oz = offset
+    me = bpy.data.meshes.new(name)
+    verts = [B(pts[k * 3] + ox, pts[k * 3 + 1] + oy, pts[k * 3 + 2] + oz) for k in range(n)]
+    tris = [tuple(idx[k:k + 3]) for k in range(0, len(idx), 3)] if idx else [(k, k + 1, k + 2) for k in range(0, n, 3)]
+    me.from_pydata(verts, [], tris)
+    lay = me.color_attributes.new('Col', 'FLOAT_COLOR', 'POINT')
+    if cols:
+        for k in range(n):
+            # the sculpt colors are linear already (three.js vertex colors)
+            lay.data[k].color = (cols[k * 3], cols[k * 3 + 1], cols[k * 3 + 2], 1.0)
+    me.update()
+    o = bpy.data.objects.new(name, me)
+    bpy.context.collection.objects.link(o)
+    bm = bmesh.new()
+    bm.from_mesh(me)
+    bmesh.ops.remove_doubles(bm, verts=bm.verts, dist=0.0005)
+    bm.to_mesh(me)
+    bm.free()
+    bpy.ops.object.select_all(action='DESELECT')
+    bpy.context.view_layer.objects.active = o
+    o.select_set(True)
+    faces = len(me.polygons)
+    if faces > target:
+        d = o.modifiers.new('dec', 'DECIMATE')
+        d.ratio = target / faces
+        bpy.ops.object.modifier_apply(modifier='dec')
+    for poly in me.polygons:
+        poly.use_smooth = True
+    me.materials.append(vcol_mat())
+    return o
+
+
+def from_sculpt(kind):
+    import json
+    with open(os.path.join(SCULPTS, f'{kind}.json')) as f:
+        d = json.load(f)
+    meta = d['meta']
+    part_mesh('body', d['body'], (0, 0, 0), 2200)
+    hx, hy, hz = meta['headAt']
+    with anim_group('head', B(hx, hy, hz)):
+        part_mesh('headm', d['head'], (hx, hy, hz), 1500)
+    if d['leg']:
+        for i, (x, z) in enumerate(meta['legs']):
+            with anim_group(f'leg{i}', B(x, meta['legLen'], z)):
+                part_mesh(f'legm{i}', d['leg'], (x, meta['legLen'], z), 260)
+    if d['tail']:
+        tx, ty, tz = meta['tailAt']
+        with anim_group('tail', B(tx, ty, tz)):
+            part_mesh('tailm', d['tail'], (tx, ty, tz), 300)
+    finish(f'animal_{kind}', tex=512, vivid=1.08, ao_min=0.62, ao_dist=0.1)
+
+
 MODELS = {'animal_cow': cow, 'animal_sheep': sheep, 'animal_horse': horse, 'animal_chicken': chicken}
+if os.path.isdir(SCULPTS):
+    for f in sorted(os.listdir(SCULPTS)):
+        k = f[:-5]
+        if f.endswith('.json') and k not in HAND_MADE | PETS:
+            MODELS[f'animal_{k}'] = (lambda kk=k: from_sculpt(kk))
 
 if __name__ == '__main__':
     main(MODELS)
