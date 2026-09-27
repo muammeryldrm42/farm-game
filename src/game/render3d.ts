@@ -1,7 +1,7 @@
 // Talons Farm - real time 3D renderer built on three.js.
 // Every model, texture and shader is generated in code, no asset files needed.
 import * as THREE from 'three';
-import { mergeVertices } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
+import { mergeGeometries, mergeVertices } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 import { getQuality, onQuality, type Quality } from './quality';
 import { fillRich, isDrawn, paintIcon } from './icons';
 import { U } from './gfx/shared';
@@ -505,6 +505,7 @@ export class Renderer {
     sc.left = -24; sc.right = 24; sc.top = 24; sc.bottom = -24; sc.near = 1; sc.far = 90;
     this.sun.shadow.bias = -0.0005;
     this.sun.shadow.normalBias = 0.025;
+    this.sun.shadow.autoUpdate = false;
     this.sun.shadow.radius = 3;
     // layer 2 holds shadow only casters (cloud shadows): the sun sees them, the camera does not
     this.sun.shadow.camera.layers.enable(2);
@@ -572,7 +573,8 @@ export class Renderer {
   resize(w: number, h: number, dpr: number) {
     this.size = { w, h, dpr };
     this.W = w; this.H = h;
-    const px = this.quality === 'high' ? dpr : Math.min(dpr, 1.25);
+    // phones report up to 3x; past 2x the extra pixels cost a lot and show little
+    const px = (this.quality === 'high' ? Math.min(dpr, 2) : Math.min(dpr, 1.25)) * this.resScale;
     this.gl.setPixelRatio(px);
     this.gl.setSize(w, h, false);
     this.post?.setSize(w, h, px);
@@ -890,7 +892,7 @@ export class Renderer {
     const pineB = new THREE.InstancedMesh(pineGeo(), new THREE.MeshStandardMaterial({ color: '#ffffff', roughness: 0.85 }), pines.length);
     const toon = artStyle() === 'toon';
     const crown = toon
-      ? new THREE.InstancedMesh(toonCrown(2), new THREE.MeshStandardMaterial({ color: '#ffffff', vertexColors: true, roughness: 0.8 }), rounds.length)
+      ? new THREE.InstancedMesh(toonCrown(2, 0.04), new THREE.MeshStandardMaterial({ color: '#ffffff', vertexColors: true, roughness: 0.8 }), rounds.length)
       : new THREE.InstancedMesh(blobGeo(1, true), new THREE.MeshStandardMaterial({ color: '#ffffff', roughness: 0.85 }), rounds.length);
     let ti = 0;
     pines.forEach(([x, z, sc], i) => {
@@ -1030,8 +1032,36 @@ export class Renderer {
 
   // ------------------------------------------------ frame
 
+  private frameNo = 0;
+  private projM = new THREE.Matrix4();
+  private frustum = new THREE.Frustum();
+  private cullSphere = new THREE.Sphere();
+  // dynamic resolution: the render scale drops a notch when frames run long for a while and
+  // creeps back up when there is headroom, so slower devices stay smooth
+  private frameMs = 16;
+  private slowFor = 0;
+  private fastFor = 0;
+  private resScale = 1;
+
+  private adaptResolution(rawMs: number, dt: number) {
+    if (rawMs > 200) return; // tab switch or a one off hitch
+    this.frameMs += (rawMs - this.frameMs) * 0.05;
+    this.slowFor = this.frameMs > 26 ? this.slowFor + dt : 0;
+    this.fastFor = this.frameMs < 17.5 ? this.fastFor + dt : 0;
+    let next = this.resScale;
+    if (this.slowFor > 2 && this.resScale > 0.6) next = Math.max(0.6, this.resScale - 0.1);
+    else if (this.fastFor > 5 && this.resScale < 1) next = Math.min(1, this.resScale + 0.1);
+    if (next !== this.resScale) {
+      this.resScale = next;
+      this.slowFor = this.fastFor = 0;
+      this.resize(this.size.w, this.size.h, this.size.dpr);
+    }
+  }
+
   frame(t: number) {
-    const dt = Math.min(0.05, (t - (this.last || t)) / 1000);
+    const rawMs = t - (this.last || t);
+    const dt = Math.min(0.05, rawMs / 1000);
+    this.adaptResolution(rawMs, dt);
     this.last = t;
     const s = this.store.s;
     const ui = this.store.ui;
@@ -1047,11 +1077,21 @@ export class Renderer {
     this.updateCamera();
 
     const moveId = ui.placing?.moveId;
+    // objects outside the view only animate now and then; their state is time based, so they
+    // look right again the moment they scroll into view
+    this.frameNo++;
+    resetSculptBudget();
+    this.projM.multiplyMatrices(this.camera.projectionMatrix, this.camera.matrixWorldInverse);
+    this.frustum.setFromProjectionMatrix(this.projM);
     for (const o of s.objects) {
       const e = this.entries.get(o.id);
       if (!e) continue;
       e.root.visible = o.id !== moveId;
-      e.update?.(o, now, t, dt);
+      const d = BUILDING[o.type];
+      this.cullSphere.center.set(o.x + d.w / 2, 0.6, o.y + d.h / 2);
+      this.cullSphere.radius = Math.max(d.w, d.h) * 0.8 + 1.2;
+      const seen = this.frustum.intersectsSphere(this.cullSphere);
+      if (seen || (this.frameNo + o.id) % 24 === 0) e.update?.(o, now, t, dt);
       if (e.bounce || e.root.scale.x !== 1) this.applyBounce(e, o, dt);
     }
     tickAnims(dt);
@@ -1230,7 +1270,12 @@ export class Renderer {
     this.sun.target.position.set(x, 0, z);
     this.sun.position.set(x + 14, 26, z + 8);
     this.sun.target.updateMatrixWorld();
+    // the shadow map is redrawn every other frame, or at once when the view moves
+    const key = x * 1000 + z + half * 1e7;
+    if (key !== this.shadowKey || this.frameNo % 2 === 0) this.sun.shadow.needsUpdate = true;
+    this.shadowKey = key;
   }
+  private shadowKey = 0;
 
   private updateFishing(t: number, now: number) {
     const fi = fishingInfo(this.store.s, now);
@@ -2029,7 +2074,10 @@ function contactShadow(p: P, w: number, d: number) {
 // camera comes close, the fine sculpt for that kind is built in idle time (one kind at a time,
 // so there is no hitch) and swapped in. Far away animals drop back to the light mesh.
 type LodPart = 'body' | 'head' | 'leg' | 'tail';
-const LOD_NEAR = 30, LOD_FAR = 34;
+// the fine sculpt only for close ups; at the usual farm view the light mesh is indistinguishable
+const LOD_NEAR = 20, LOD_FAR = 23;
+let sculptBudget = 1;
+const resetSculptBudget = () => { sculptBudget = 1; };
 const lodWanted = new Set<string>();
 let lodBusy = false;
 function lodPump() {
@@ -2062,6 +2110,56 @@ function lodMesh(m: THREE.Mesh, kind: string, part: LodPart) {
     near = want;
     m.geometry = geo;
   };
+}
+
+// ------------------------------------------------------------------ static batching
+// Pens, fences and sheds are built from dozens of little boxes and cylinders. Once built they
+// never move, so they are baked into one mesh per material: a pen goes from ~60 draw calls
+// (times three with the shadow and ambient occlusion passes) to a handful.
+function bakeable(o: THREE.Object3D): o is THREE.Mesh {
+  const m = o as THREE.Mesh;
+  return !!m.isMesh && !(o as THREE.InstancedMesh).isInstancedMesh && !Array.isArray(m.material) && o.visible && !o.userData.noMerge && !m.onBeforeRender.length;
+}
+function mergeStatic(root: THREE.Object3D) {
+  root.updateMatrixWorld(true);
+  const inv = new THREE.Matrix4().copy(root.matrixWorld).invert();
+  const rel = new THREE.Matrix4();
+  const buckets = new Map<string, { mat: THREE.Material; cast: boolean; recv: boolean; geos: THREE.BufferGeometry[]; meshes: THREE.Mesh[] }>();
+  const walk = (node: THREE.Object3D) => {
+    for (const ch of node.children) {
+      if (bakeable(ch)) {
+        const mat = ch.material as THREE.Material;
+        const key = `${mat.uuid}|${ch.castShadow}|${ch.receiveShadow}`;
+        let b = buckets.get(key);
+        if (!b) { b = { mat, cast: ch.castShadow, recv: ch.receiveShadow, geos: [], meshes: [] }; buckets.set(key, b); }
+        const g = ch.geometry.index ? ch.geometry.toNonIndexed() : ch.geometry.clone();
+        g.applyMatrix4(rel.multiplyMatrices(inv, ch.matrixWorld));
+        b.geos.push(g);
+        b.meshes.push(ch);
+      }
+      walk(ch);
+    }
+  };
+  walk(root);
+  for (const b of buckets.values()) {
+    if (b.meshes.length < 2) continue;
+    const names = ['position', 'normal', 'uv', 'color'].filter((a) => b.geos.some((g) => g.getAttribute(a)));
+    for (const g of b.geos) {
+      for (const a of Object.keys(g.attributes)) if (!names.includes(a)) g.deleteAttribute(a);
+      const n = g.getAttribute('position').count;
+      if (names.includes('uv') && !g.getAttribute('uv')) g.setAttribute('uv', new THREE.BufferAttribute(new Float32Array(n * 2), 2));
+      if (names.includes('color') && !g.getAttribute('color')) g.setAttribute('color', new THREE.BufferAttribute(new Float32Array(n * 3).fill(1), 3));
+      if (!g.getAttribute('normal')) g.computeVertexNormals();
+      g.clearGroups();
+    }
+    const merged = mergeGeometries(b.geos);
+    if (!merged) continue;
+    for (const m of b.meshes) m.removeFromParent();
+    const mesh = new THREE.Mesh(merged, b.mat);
+    mesh.castShadow = b.cast;
+    mesh.receiveShadow = b.recv;
+    root.add(mesh);
+  }
 }
 
 // Puts a sculpted creature together on pivots: legs swing from the hips, the head nods from
@@ -2131,8 +2229,35 @@ function realEyes(head: THREE.Object3D, spec: [number, number, number, number, n
 
 // Cartoon eyes: a big white eye with a dark pupil looking forward and two catch lights, and a
 // soft lid on top in the coat color.
-const EYE_PUPIL = new THREE.MeshStandardMaterial({ color: '#1a120c', roughness: 0.08 });
-const EYE_GLOSS = new THREE.MeshBasicMaterial({ color: '#ffffff' });
+const EYE_TOON = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.12 });
+const eyeGeoCache = new Map<string, THREE.BufferGeometry>();
+function toonEyeGeo(r: number, sx: number, lid: string) {
+  const key = `${r.toFixed(4)}|${sx}|${lid}`;
+  let g = eyeGeoCache.get(key);
+  if (g) return g;
+  const parts: [THREE.BufferGeometry, string, number, number, number, number, number, number][] = [
+    [G.ball, '#ffffff', r, r * 1.12, r * 0.8, 0, 0, 0],
+    [G.ball, '#1a120c', r * 0.58, r * 0.7, r * 0.4, -sx * r * 0.12, -r * 0.05, r * 0.52],
+    [G.ball, '#ffffff', r * 0.2, r * 0.2, r * 0.1, sx * r * 0.1, r * 0.3, r * 0.86],
+    [G.ball, '#ffffff', r * 0.09, r * 0.09, r * 0.05, -sx * r * 0.28, -r * 0.3, r * 0.84],
+    [torus(1, 0.1, 6, 20, Math.PI), lid, r * 1.02, r * 1.1, r * 0.8, 0, 0, r * 0.12],
+  ];
+  const m = new THREE.Matrix4(), c = new THREE.Color();
+  const geos = parts.map(([geo, col, a, b, d, px, py, pz]) => {
+    const p = (geo.index ? geo.toNonIndexed() : geo.clone());
+    p.applyMatrix4(m.makeScale(a, b, d).setPosition(px, py, pz));
+    for (const k of Object.keys(p.attributes)) if (k !== 'position' && k !== 'normal') p.deleteAttribute(k);
+    c.set(col);
+    const n = p.getAttribute('position').count, arr = new Float32Array(n * 3);
+    for (let i = 0; i < n; i++) { arr[i * 3] = c.r; arr[i * 3 + 1] = c.g; arr[i * 3 + 2] = c.b; }
+    p.setAttribute('color', new THREE.BufferAttribute(arr, 3));
+    return p;
+  });
+  g = mergeGeometries(geos) as THREE.BufferGeometry;
+  eyeGeoCache.set(key, g);
+  return g;
+}
+
 function toonEyes(head: THREE.Object3D, spec: [number, number, number, number, number], lid: string) {
   const [x, y, z, r0, yaw] = spec;
   // big googly eyes are most of a cartoon animal's charm
@@ -2141,13 +2266,8 @@ function toonEyes(head: THREE.Object3D, spec: [number, number, number, number, n
   for (const sx of [-1, 1]) {
     const e = group(head, sx * x, y, z);
     e.rotation.y = sx * yaw;
-    mk(e, G.ball, EYE_W, r, r * 1.12, r * 0.8, 0, 0, 0, false);
-    mk(e, G.ball, EYE_PUPIL, r * 0.58, r * 0.7, r * 0.4, -sx * r * 0.12, -r * 0.05, r * 0.52, false);
-    mk(e, G.ball, EYE_GLOSS, r * 0.2, r * 0.2, r * 0.1, sx * r * 0.1, r * 0.3, r * 0.86, false);
-    mk(e, G.ball, EYE_GLOSS, r * 0.09, r * 0.09, r * 0.05, -sx * r * 0.28, -r * 0.3, r * 0.84, false);
-    // a thin lid line over the top of the eye
-    const lidm = mk(e, torus(1, 0.1, 6, 20, Math.PI), M(lid), r * 1.02, r * 1.1, r * 0.8, 0, 0, r * 0.12, false);
-    lidm.rotation.z = 0;
+    // the white, pupil, two catch lights and the lid are one vertex colored mesh per eye
+    mk(e, toonEyeGeo(r, sx, lid), EYE_TOON, 1, 1, 1, 0, 0, 0, false);
     list.push(e);
   }
   head.userData.eyes = list;
@@ -2898,6 +3018,8 @@ function buildPen(e: Entry, d: BuildingDef) {
     bx(g, 0.55, 0.12, 0.18, '#8a5a2b', w - 0.55, 0.04, h - 0.35);
     bx(g, 0.47, 0.03, 0.12, '#e2c15a', w - 0.55, 0.14, h - 0.35, false);
   }
+  // everything built so far is scenery: bake it before the (animated) herd joins the pen
+  mergeStatic(g);
   const herd = group(g);
   let count = -1;
   const an = ANIMAL[d.animal ?? ''];
@@ -2905,6 +3027,12 @@ function buildPen(e: Entry, d: BuildingDef) {
   const hop = new Map<number, number>();
   e.update = (o, now, t) => {
     const list = o.pen?.animals ?? [];
+    // sculpting a new kind takes a moment, so at most one new kind is sculpted per frame;
+    // a farm full of pens fills in over a few frames instead of freezing on load
+    if (list.length !== count && an && an.id !== 'bee' && !hasCreature(an.id, 1)) {
+      if (sculptBudget <= 0) return;
+      sculptBudget--;
+    }
     if (list.length !== count) {
       const grew = count >= 0 && list.length > count;
       herd.clear();

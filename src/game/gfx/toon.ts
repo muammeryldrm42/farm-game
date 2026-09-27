@@ -875,8 +875,10 @@ export function toonPersonParts(shirt: string, overall: string) {
 // A puffy cartoon tree crown: a cluster of soft round leaf balls, darker underneath and sunlit
 // on top, sculpted as one smooth piece. Colors are baked in grey so any leaf color can tint it.
 const crowns = new Map<number, THREE.BufferGeometry>();
-export function toonCrown(seed: number) {
-  const key = seed % 6;
+// `cell` sets the mesh density: fine for the orchard, coarse for forests and bushes, which are
+// drawn by the hundred and seen from afar
+export function toonCrown(seed: number, cell = 0.014) {
+  const key = (seed % 6) + cell * 1000;
   const hit = crowns.get(key);
   if (hit) return hit;
   const shadeY = (_x: number, y: number) => mixHex('#8c9488', '#ffffff', smooth(0.5, 1.2, y));
@@ -885,15 +887,15 @@ export function toonCrown(seed: number) {
   const n = 9;
   for (let i = 0; i < n; i++) {
     const y = 0.85 - (1.7 * (i + 0.5)) / n;
-    const rad = Math.sqrt(1 - y * y), th = ga * i + key * 1.3;
+    const rad = Math.sqrt(1 - y * y), th = ga * i + (seed % 6) * 1.3;
     const r = 0.16 + ((Math.sin(i * 7.1 + key * 3.3) + 1) / 2) * 0.06;
     s.add(sphere(Math.cos(th) * rad * 0.3, 0.8 + y * 0.27, Math.sin(th) * rad * 0.3, r), shadeY, 0.07);
   }
   s.add(sphere(0.04, 1.08, -0.02, 0.17), shadeY, 0.08);
   // a few leafy bumps break up the silhouette
-  s.displace((x, y, z) => (noise3(x * 12 + key, y * 12, z * 12) - 0.5) * 0.016);
+  s.displace((x, y, z) => (noise3(x * 12 + seed, y * 12, z * 12) - 0.5) * 0.016);
   s.grain = 0.05;
-  const g = s.build([-0.62, 0.3, -0.62], [0.62, 1.34, 0.62], 0.014);
+  const g = s.build([-0.62, 0.3, -0.62], [0.62, 1.34, 0.62], cell);
   crowns.set(key, g);
   return g;
 }

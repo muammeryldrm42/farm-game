@@ -158,7 +158,7 @@ export class Foliage {
       this.group.add(im);
     });
     if (bushes.length) {
-      const im = new THREE.InstancedMesh(toonCrown(4), this.bushMat, bushes.length);
+      const im = new THREE.InstancedMesh(toonCrown(4, 0.035), this.bushMat, bushes.length);
       bushes.forEach(([x, z, s], i) => {
         q.setFromAxisAngle(up, rnd(i, 40) * 6);
         // the crown sits around y 0.8 with its underside near 0.36, so sink it to the ground
@@ -233,7 +233,7 @@ function painted(src: THREE.BufferGeometry, color: string) {
 
 // a soft rounded petal or leaf: a squashed sphere pushed out along +x
 function blade(len: number, wid: number, thick: number) {
-  const g = new THREE.SphereGeometry(1, 10, 6);
+  const g = new THREE.SphereGeometry(1, 6, 4);
   g.scale(len, thick, wid);
   g.translate(len, 0, 0);
   return g;
@@ -244,7 +244,7 @@ export function flowerKit(kind: FlowerKind, petal: string, h = 0.22) {
   const hit = kitCache.get(key);
   if (hit) return hit;
   const parts: THREE.BufferGeometry[] = [];
-  const stem = new THREE.CylinderGeometry(0.006, 0.009, h, 6);
+  const stem = new THREE.CylinderGeometry(0.006, 0.009, h, 4);
   stem.translate(0, h / 2, 0);
   parts.push(painted(stem, '#3f8f2c'));
   // two leaves on the stem, angled up and out
@@ -282,7 +282,7 @@ export function flowerKit(kind: FlowerKind, petal: string, h = 0.22) {
     // lupine or lavender: little florets stacked up the top of the stem, smaller toward the tip
     for (let i = 0; i < 9; i++) {
       const t = i / 8, r = 0.013 * (1 - t * 0.55);
-      const fl = new THREE.SphereGeometry(r, 6, 4);
+      const fl = new THREE.SphereGeometry(r, 5, 3);
       fl.translate(Math.cos(i * 2.4) * r * 0.6, h * (0.62 + t * 0.4), Math.sin(i * 2.4) * r * 0.6);
       parts.push(painted(fl, i % 2 ? petal : dark));
     }
