@@ -3707,12 +3707,7 @@ function buildDeco(e: Entry, d: BuildingDef) {
         bxT(g, w, 0.12, d, 'planks', '#b07a42', x, 0, z, 3);
       }
       bx(g, 0.72, 0.1, 0.72, '#4a2e18', 0.5, 0, 0.5, false);
-      // leafy clumps that fill the bed, and a tidy 4 by 4 planting of short stemmed flowers
-      const leaf = toonLeafMat('#3f932c');
-      for (let i = 0; i < 9; i++) {
-        const lx = 0.26 + (i % 3) * 0.24 + (hash(i, 1, 5) - 0.5) * 0.06, lz = 0.26 + Math.floor(i / 3) * 0.24 + (hash(i, 2, 5) - 0.5) * 0.06;
-        mk(g, toonCrown(i, 0.035), leaf, 0.2, 0.16, 0.2, lx, 0.0, lz, false);
-      }
+      // a tidy 4 by 4 planting of short stemmed flowers in bare soil
       const cols = ['#ff5f86', '#ffd23a', '#ffffff', '#a97cff', '#ff8a3d', '#ff3b4f'];
       const kinds: FlowerKind[] = ['tulip', 'daisy', 'rose'];
       const seed = Math.abs(e.id);
