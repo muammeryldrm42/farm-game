@@ -1,4 +1,5 @@
 'use client';
+import Ico from './Ico';
 import { BUILDING, CROP, ITEMS } from '@/game/data';
 import { TUTORIAL, TUTORIAL_DONE, canFulfill, claimableBadges, claimableQuests, fmtNum, xpNeed } from '@/game/state';
 import { useStore, useVersion } from './ctx';
@@ -63,7 +64,7 @@ export default function Hud() {
       {tut && !ui.placing && (
         <div className="absolute inset-x-0 top-16 flex justify-center px-3 sm:top-20">
         <div className="pointer-events-auto flex w-full max-w-md animate-pop items-center gap-3 rounded-2xl border-[3px] border-[#5d3a1f] bg-[#fff6df] px-3 py-2 text-[#5a3a1a] shadow-[0_4px_0_#5d3a1f]">
-          <span className="emoji animate-bob text-3xl">{tut.icon}</span>
+          <span className="emoji animate-bob text-3xl"><Ico i={tut.icon} /></span>
           <div className="min-w-0 flex-1">
             <div className="text-[10px] font-bold uppercase tracking-wide text-[#a8733f]">
               Step {s.tutorial + 1} of {TUTORIAL.length}
@@ -94,7 +95,7 @@ export default function Hud() {
       {/* planting tool banner */}
       {ui.tool && !ui.placing && (
         <div className="pointer-events-auto absolute bottom-4 left-1/2 flex -translate-x-1/2 items-center gap-3 rounded-3xl border-4 border-[#8a5a2b] bg-[#fff6df] px-4 py-2 text-[#5a3a1a] shadow-[0_6px_0_#5d3a1f]">
-          <span className="emoji text-3xl">{ITEMS[ui.tool.crop].icon}</span>
+          <span className="emoji text-3xl"><Ico i={ITEMS[ui.tool.crop].icon} /></span>
           <div className="leading-tight">
             <div className="font-bold">Planting {ITEMS[ui.tool.crop].name}</div>
             <div className="flex items-center gap-1 text-xs">
@@ -176,7 +177,7 @@ function HudBtn({ icon, label, onClick, badge = 0, pulse = false, glow = false, 
       onClick={onClick}
       aria-label={label}
     >
-      <span className="emoji text-xl sm:text-2xl">{icon}</span>
+      <span className="emoji text-xl sm:text-2xl"><Ico i={icon} /></span>
       <span className="text-[9px] sm:text-[10px] font-bold leading-3">{label}</span>
       {badge > 0 && <span className="badge">{badge}</span>}
     </button>

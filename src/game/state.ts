@@ -1,11 +1,17 @@
 // Talons Farm - game state, persistence and all player actions
 import { ANIMAL, BUILDING, BUILDINGS, CROP, ITEMS, ITEM_LIST, RECIPE, type BuildingDef } from './data';
 
-export const GRID = 28;
+export const GRID = 44;
+// older saves were made on a 28 tile map; their farm is moved by this many tiles to the new center
+export const MAP_OFF = 8;
 export const CHUNK = 4;
 export const NCH = GRID / CHUNK;
 export const SAVE_KEY = 'talons-farm-save-v1';
 
+export interface FishingData { open: boolean; castAt: number | null; catchAt: number | null }
+// the fishing spot lies in the sea just off the south shore
+export const FISH_SPOT = { x: GRID / 2, y: GRID + 2.3 };
+export const FISHING = { level: 5, cost: 800, time: 45 };
 export interface PlotData { crop: string | null; plantedAt: number }
 export interface QueueEntry { recipe: string; startAt: number; endsAt: number }
 export interface ProdData { queue: QueueEntry[]; slots: number }
@@ -55,6 +61,9 @@ export interface GameState {
   boat: Boat | null;
   achievements: Record<string, number>;
   tutorial: number;
+  mapV?: number;
+  fishing?: FishingData;
+  restedOn?: string; // day key of the last nap that earned the rested bonus
 }
 
 // ---------------------------------------------------------------- helpers
@@ -183,8 +192,36 @@ export function chunkState(s: GameState, cx: number, cy: number): 'open' | 'buya
 
 export function expandInfo(s: GameState) {
   const n = Math.max(0, s.chunks.length - 9);
-  return { cost: Math.round((300 * Math.pow(1.35, n)) / 10) * 10, level: Math.min(35, 2 + Math.floor(n * 0.8)) };
+  // prices grow fast at first, then level off so the bigger map stays reachable
+  const cost = 300 * Math.pow(1.35, Math.min(n, 18)) + Math.max(0, n - 18) * 3000;
+  return { cost: Math.round(cost / 10) * 10, level: Math.min(35, 2 + Math.floor(n * 0.8)) };
 }
+
+export function fishingInfo(s: GameState, now: number) {
+  const f = s.fishing;
+  if (!f?.open) return { state: 'locked' as const, remaining: 0, p: 0 };
+  if (f.castAt === null || f.catchAt === null) return { state: 'idle' as const, remaining: 0, p: 0 };
+  const total = f.catchAt - f.castAt;
+  if (now >= f.catchAt) return { state: 'ready' as const, remaining: 0, p: 1 };
+  return { state: 'waiting' as const, remaining: f.catchAt - now, p: (now - f.castAt) / total };
+}
+
+// Everything that can bite at the fishing spot: [item, level, weight]. Rarer, later catches
+// carry smaller weights, so a golden fish stays a thrill even at level 200.
+export const CATCHES: [string, number, number][] = [
+  ['fish', 1, 40], ['salmon', 10, 20], ['lobster', 12, 14], ['crab', 14, 12], ['trout', 22, 12], ['tuna', 31, 10],
+  ['shrimp', 40, 10], ['squid', 52, 8], ['octopus', 64, 7], ['swordfish', 78, 6], ['eel', 92, 6], ['pufferfish', 108, 5],
+  ['stingray', 125, 4], ['marlin', 145, 3.5], ['pearl', 170, 3], ['golden_fish', 195, 1.5],
+];
+export function pickCatch(level: number, roll: number) {
+  const open = CATCHES.filter(([, lv]) => level >= lv);
+  let r = roll * open.reduce((a, [, , w]) => a + w, 0);
+  for (const [id, , w] of open) { r -= w; if (r <= 0) return id; }
+  return 'fish';
+}
+
+export const NAP_MS = 20000;
+export const restBonus = (level: number) => 40 + level * 10;
 
 export function todayKey(d = new Date()) {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
@@ -226,6 +263,25 @@ export const QUESTS: Quest[] = [
   { id: 'q23', text: 'Catch 15 fish', target: 15, coins: 700, gems: 3, xp: 50, progress: (s) => st(s, 'make:fish') },
   { id: 'q19', text: 'Reach level 20', target: 20, coins: 3000, gems: 10, xp: 0, progress: (s) => s.level },
   { id: 'q24', text: 'Make 10 sushi', target: 10, coins: 2500, gems: 6, xp: 120, progress: (s) => st(s, 'make:sushi') },
+  // the long road to level 200
+  { id: 'q25', text: 'Reach level 30', target: 30, coins: 5000, gems: 12, xp: 0, progress: (s) => s.level },
+  { id: 'q26', text: 'Collect 20 speckled eggs', target: 20, coins: 4000, gems: 6, xp: 200, progress: (s) => st(s, 'collect:speckled_egg') },
+  { id: 'q27', text: 'Pick 20 quinces', target: 20, coins: 4500, gems: 6, xp: 220, progress: (s) => st(s, 'harvest:quince') },
+  { id: 'q28', text: 'Reach level 50', target: 50, coins: 12000, gems: 20, xp: 0, progress: (s) => s.level },
+  { id: 'q29', text: 'Collect 25 fresh cream', target: 25, coins: 9000, gems: 10, xp: 400, progress: (s) => st(s, 'collect:fresh_cream') },
+  { id: 'q30', text: 'Build a swan lake', target: 1, coins: 8000, gems: 10, xp: 300, progress: (s) => cnt(s, 'swan_lake') },
+  { id: 'q31', text: 'Reach level 75', target: 75, coins: 25000, gems: 30, xp: 0, progress: (s) => s.level },
+  { id: 'q32', text: 'Collect 30 reindeer milk', target: 30, coins: 20000, gems: 15, xp: 800, progress: (s) => st(s, 'collect:reindeer_milk') },
+  { id: 'q33', text: 'Reach level 100', target: 100, coins: 60000, gems: 50, xp: 0, progress: (s) => s.level },
+  { id: 'q34', text: 'Build a flamingo lagoon', target: 1, coins: 30000, gems: 20, xp: 1500, progress: (s) => cnt(s, 'flamingo_lagoon') },
+  { id: 'q35', text: 'Reach level 125', target: 125, coins: 90000, gems: 60, xp: 0, progress: (s) => s.level },
+  { id: 'q36', text: 'Build a crane marsh', target: 1, coins: 80000, gems: 50, xp: 3000, progress: (s) => cnt(s, 'crane_marsh') },
+  { id: 'q37', text: 'Reach level 150', target: 150, coins: 150000, gems: 80, xp: 0, progress: (s) => s.level },
+  { id: 'q38', text: 'Collect 20 barn owl feathers', target: 20, coins: 120000, gems: 60, xp: 5000, progress: (s) => st(s, 'collect:owl_feather') },
+  { id: 'q39', text: 'Reach level 175', target: 175, coins: 250000, gems: 100, xp: 0, progress: (s) => s.level },
+  { id: 'q40', text: 'Plant a golden apple tree', target: 1, coins: 200000, gems: 100, xp: 8000, progress: (s) => cnt(s, 'golden_apple_tree') },
+  { id: 'q41', text: 'Reach level 200', target: 200, coins: 500000, gems: 200, xp: 0, progress: (s) => s.level },
+  { id: 'q42', text: 'Build the golden nest', target: 1, coins: 500000, gems: 250, xp: 0, progress: (s) => cnt(s, 'golden_nest') },
 ];
 
 // ---------------------------------------------------------------- achievements
@@ -235,7 +291,7 @@ export const BADGE_GEMS = [2, 5, 10];
 export const ACHIEVEMENTS: Achievement[] = [
   { id: 'harvester', name: 'Harvester', icon: '🌾', unit: 'crops harvested', tiers: [100, 1000, 5000], progress: (s) => st(s, 'harvest') },
   { id: 'maker', name: 'Master Maker', icon: '🍞', unit: 'goods made', tiers: [50, 500, 2500], progress: (s) => st(s, 'make') },
-  { id: 'rancher', name: 'Rancher', icon: '🐄', unit: 'animal goods collected', tiers: [50, 500, 2000], progress: (s) => ['egg', 'milk', 'bacon', 'wool', 'feather', 'goat_milk', 'honey', 'horseshoe'].reduce((a, k) => a + st(s, `collect:${k}`), 0) },
+  { id: 'rancher', name: 'Rancher', icon: '🐄', unit: 'animal goods collected', tiers: [50, 500, 2000], progress: (s) => ['egg', 'milk', 'wool', 'feather', 'goat_milk', 'honey', 'horseshoe', 'angora', 'alpaca_wool'].reduce((a, k) => a + st(s, `collect:${k}`), 0) },
   { id: 'orchard', name: 'Orchard Keeper', icon: '🍎', unit: 'fruit picked', tiers: [50, 500, 2000], progress: (s) => st(s, 'fruit') },
   { id: 'fisher', name: 'Angler', icon: '🎣', unit: 'catches', tiers: [20, 200, 1000], progress: (s) => st(s, 'make:fish') + st(s, 'make:lobster') },
   { id: 'trader', name: 'Order Hero', icon: '📋', unit: 'orders delivered', tiers: [25, 200, 1000], progress: (s) => st(s, 'orders') },
@@ -323,18 +379,73 @@ export function newGame(): GameState {
     [19, 19, 'tree_obs'], [17, 17, 'rock_obs'], [8, 14, 'bush_obs'], [15, 14, 'tree_obs'], [19, 12, 'bush_obs'],
   ];
   for (const [x, y, t] of obs) add(t, x, y);
+  // a dirt path past the front doors and down to the fields
+  for (let x = 8; x <= 17; x++) add('dirt_path', x, 10);
+  for (let y = 11; y <= 13; y++) add('dirt_path', 9, y);
   for (let i = 0; i < orderCount(1); i++) s.orders.push(genOrder(s, now));
   // first order is always doable with starting wheat, for the tutorial
   s.orders[0] = { ...s.orders[0], items: [{ id: 'wheat', qty: 6 }], coins: 30, xp: 5, gems: 0 };
+  shiftMap(s);
   return s;
 }
 
+// Pigs and unicorns, and their goods, were taken out of the game. Saves that still hold them are paid back in
+// coins, and orders, stall slots, boat crates and queues that mention them are cleaned up.
+const REMOVED_VALUE: Record<string, number> = { bacon: 50, pig_feed: 14, rainbow_mane: 520 };
+const REMOVED_BUILDING: Record<string, { cost: number; animal: number }> = { pigpen: { cost: 1000, animal: 160 }, unicorn_meadow: { cost: 32000, animal: 4000 } };
+function dropRemoved(s: GameState) {
+  for (const o of s.objects) {
+    const r = REMOVED_BUILDING[o.type];
+    if (r) s.coins += r.cost + (o.pen?.animals.length ?? 0) * r.animal;
+  }
+  for (const k of Object.keys(s.inv)) {
+    if (ITEMS[k]) continue;
+    s.coins += (REMOVED_VALUE[k] ?? 0) * s.inv[k];
+    delete s.inv[k];
+  }
+  s.stall = s.stall.map((x) => {
+    if (!x.item || ITEMS[x.item]) return x;
+    s.coins += (REMOVED_VALUE[x.item] ?? 0) * x.qty;
+    return emptySlot();
+  });
+  if (s.boat) for (const c of s.boat.crates) if (!ITEMS[c.item]) { c.item = 'egg'; }
+  const now = Date.now();
+  s.orders = s.orders.map((o) => (o.items.every((it) => ITEMS[it.id]) ? o : genOrder(s, now)));
+  for (const o of s.objects) if (o.prod) o.prod.queue = o.prod.queue.filter((e) => RECIPE[e.recipe]);
+}
+
+// Moves a farm laid out on the old 28 tile map to the middle of the current map.
+function shiftMap(s: GameState) {
+  const cs = MAP_OFF / CHUNK;
+  s.objects = s.objects.map((o) => ({ ...o, x: o.x + MAP_OFF, y: o.y + MAP_OFF }));
+  s.chunks = s.chunks.map((k) => {
+    const [x, y] = k.split(',').map(Number);
+    return `${x + cs},${y + cs}`;
+  });
+  s.mapV = 2;
+}
+
 export function loadGame(): GameState {
+  let s: GameState | null = null;
   try {
     const raw = localStorage.getItem(SAVE_KEY);
-    if (raw) return migrate(JSON.parse(raw));
+    if (raw) s = migrate(JSON.parse(raw));
   } catch { /* corrupted save, start fresh */ }
-  return newGame();
+  return testBoost(s ?? newGame());
+}
+
+// TEMP test boost: max level and 1,000,000 coins, granted once per browser. Remove later.
+const BOOST_KEY = 'talons-farm-test-boost-1';
+function testBoost(s: GameState): GameState {
+  try {
+    if (localStorage.getItem(BOOST_KEY)) return s;
+    localStorage.setItem(BOOST_KEY, '1');
+  } catch { return s; }
+  s.level = Math.max(s.level, 35);
+  s.xp = 0;
+  s.coins += 1000000;
+  s.tutorial = TUTORIAL_DONE;
+  return s;
 }
 
 function migrate(d: Partial<GameState>): GameState {
@@ -350,6 +461,8 @@ function migrate(d: Partial<GameState>): GameState {
   // saves from before the tutorial existed skip it
   s.tutorial = typeof d.tutorial === 'number' ? d.tutorial : TUTORIAL_DONE;
   if (!Array.isArray(s.objects) || !Array.isArray(s.chunks)) return base;
+  if ((d.mapV ?? 1) < 2) shiftMap(s);
+  dropRemoved(s);
   s.objects = s.objects.filter((o) => BUILDING[o.type]);
   return s;
 }
@@ -360,7 +473,7 @@ export type Sfx = 'harvest' | 'plant' | 'coin' | 'build' | 'error' | 'levelup' |
 export interface Fx { kind: 'float' | 'burst'; gx: number; gy: number; text?: string; color?: string; z?: number }
 export interface Placing { type: string; x: number; y: number; moveId?: number }
 export interface Tool { kind: 'plant'; crop: string }
-export type Panel = 'shop' | 'orders' | 'storage' | 'settings' | 'quests' | 'stall' | 'boat' | null;
+export type Panel = 'shop' | 'orders' | 'storage' | 'settings' | 'quests' | 'stall' | 'boat' | 'fishing' | 'home' | null;
 export interface Flyer { icon: string; gx: number; gy: number; z: number; target: 'storage' | 'coins' | 'xp' }
 export interface Toast { id: number; text: string; tone: 'info' | 'bad' | 'good'; at: number }
 
@@ -373,6 +486,8 @@ export interface UIState {
   expand: { cx: number; cy: number } | null;
   levelUp: number | null;
   daily: boolean;
+  napping: boolean; // the farmer is asleep at home
+  napAt: number;
 }
 
 export class GameStore {
@@ -385,14 +500,14 @@ export class GameStore {
   toScreen: (gx: number, gy: number, z: number) => { x: number; y: number } | null = () => null;
   toasts: Toast[] = [];
   sound: (n: Sfx) => void = () => {};
-  viewCenter: () => { x: number; y: number } = () => ({ x: 13, y: 13 });
+  viewCenter: () => { x: number; y: number } = () => ({ x: GRID / 2, y: GRID / 2 });
   private listeners = new Set<() => void>();
   private saveT: ReturnType<typeof setTimeout> | null = null;
   private toastId = 0;
 
   constructor(s: GameState) {
     this.s = s;
-    this.ui = { selectedId: null, placing: null, tool: null, panel: null, storageTab: 'silo', expand: null, levelUp: null, daily: false };
+    this.ui = { selectedId: null, placing: null, tool: null, panel: null, storageTab: 'silo', expand: null, levelUp: null, daily: false, napping: false, napAt: 0 };
     this.ensureOrders();
     this.ui.daily = this.canDaily();
   }
@@ -575,7 +690,7 @@ export class GameStore {
       case 'barn': this.ui.storageTab = 'barn'; this.openPanel('storage'); return;
       case 'silo': this.ui.storageTab = 'silo'; this.openPanel('storage'); return;
       case 'board': this.openPanel('orders'); return;
-      case 'house': this.openPanel('quests'); return;
+      case 'house': this.openPanel('home'); return;
       case 'tree':
         if (treeInfo(o, now).ready) this.collectTree(o);
         this.select(o.id);
@@ -584,6 +699,57 @@ export class GameStore {
       case 'dock': this.openPanel('boat'); return;
       default: this.select(o.id);
     }
+  }
+
+  // ------------------------------------------------ fishing spot
+
+  tapFishing() {
+    this.sound('click');
+    if (fishingInfo(this.s, Date.now()).state === 'ready') { this.reelIn(); return; }
+    this.openPanel('fishing');
+  }
+
+  buyFishing() {
+    if (this.s.fishing?.open) return;
+    if (this.s.level < FISHING.level) { this.toast(`The fishing spot opens at level ${FISHING.level}.`, 'bad'); return; }
+    if (this.s.coins < FISHING.cost) { this.toast('Not enough coins.', 'bad'); return; }
+    this.s.coins -= FISHING.cost;
+    this.s.fishing = { open: true, castAt: null, catchAt: null };
+    this.sound('build');
+    this.fx.push({ kind: 'burst', gx: FISH_SPOT.x, gy: FISH_SPOT.y, color: '#8fd3ff', z: 10 });
+    this.fx.push({ kind: 'float', gx: FISH_SPOT.x, gy: FISH_SPOT.y, text: 'Fishing spot open!', color: '#e6f7ff', z: 30 });
+    this.emit();
+  }
+
+  castLine() {
+    const f = this.s.fishing;
+    if (!f?.open || f.castAt !== null) return;
+    const now = Date.now();
+    f.castAt = now;
+    f.catchAt = now + FISHING.time * 1000;
+    this.sound('plant');
+    this.emit();
+  }
+
+  reelIn() {
+    const f = this.s.fishing;
+    const now = Date.now();
+    if (!f || fishingInfo(this.s, now).state !== 'ready') return;
+    // what bites depends on luck and level: plain fish most often, rarer catches as you grow
+    const id = pickCatch(this.s.level, Math.random());
+    const lobster = id !== 'fish';
+    const qty = lobster ? 1 : 1 + (Math.random() < 0.4 ? 1 : 0);
+    if (!this.canStore(id, qty)) { this.fullToast(id); return; }
+    this.add(id, qty);
+    f.castAt = null;
+    f.catchAt = null;
+    this.stat('fish', qty);
+    this.addXp(lobster ? 4 + Math.floor(ITEMS[id].sell / 40) : 3);
+    this.sound('collect');
+    if (this.flyers.length < 40) this.flyers.push({ icon: ITEMS[id].icon, gx: FISH_SPOT.x, gy: FISH_SPOT.y, z: 20, target: 'storage' });
+    this.fx.push({ kind: 'float', gx: FISH_SPOT.x, gy: FISH_SPOT.y, text: `+${qty} ${ITEMS[id].icon}`, color: '#ffffff', z: 40 });
+    this.fx.push({ kind: 'burst', gx: FISH_SPOT.x, gy: FISH_SPOT.y, color: '#bfe9ff', z: 5 });
+    this.emit();
   }
 
   tapTile(x: number, y: number) {
@@ -992,6 +1158,35 @@ export class GameStore {
 
   canDaily() { return this.s.lastDaily !== todayKey(); }
 
+  // ---- sleeping at home (the farmhouse, or the manor once built)
+  canRest() { return this.s.restedOn !== todayKey(); }
+  sleep() {
+    if (this.ui.napping) return;
+    this.ui.napping = true;
+    this.ui.napAt = Date.now();
+    this.ui.panel = null;
+    this.ui.selectedId = null;
+    this.sound('click');
+    this.emit(false);
+  }
+  // the first nap of each day that lasts NAP_MS earns a small rested bonus
+  wake() {
+    if (!this.ui.napping) return;
+    this.ui.napping = false;
+    const s = this.s;
+    if (this.canRest()) {
+      if (Date.now() - this.ui.napAt >= NAP_MS) {
+        s.restedOn = todayKey();
+        const coins = restBonus(s.level);
+        this.earn(coins);
+        this.addXp(10);
+        this.sound('levelup');
+        this.toast(`Well rested! +${coins} coins, +10 XP`, 'good');
+      } else this.toast('Up already? Sleep a little longer for the rested bonus.');
+    }
+    this.emit();
+  }
+
   claimDaily() {
     if (!this.canDaily()) return;
     const y = new Date(); y.setDate(y.getDate() - 1);
@@ -1200,7 +1395,7 @@ export class GameStore {
 
   private replace(s: GameState) {
     this.s = s;
-    this.ui = { selectedId: null, placing: null, tool: null, panel: null, storageTab: 'silo', expand: null, levelUp: null, daily: this.canDaily() };
+    this.ui = { selectedId: null, placing: null, tool: null, panel: null, storageTab: 'silo', expand: null, levelUp: null, daily: this.canDaily(), napping: false, napAt: 0 };
     this.ensureOrders();
     this.objVersion++;
     this.emit();

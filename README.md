@@ -11,11 +11,19 @@ By Talons Protocol.
 - Wind blown instanced grass and wild flowers, animated water with shallows and surf, gradient sky with stars
 - ACES tone mapping, soft shadows, ambient occlusion (GTAO) and bloom for night lights
 - Harvest, planting, production, animal and tree animations
+- A bigger 44 x 44 island (older saves are moved to the middle automatically)
+- Fishing spot off the south shore: cast a line, wait for a bite, reel in fish and lobsters
+- Manor for the farmer; tap free land to walk the farmer and dog there, at night they go home to sleep
+- Butterflies, gulls, leaping fish and a sailboat on the horizon
+- Rabbits (angora fur) and alpacas (alpaca wool) with new loom goods; straw skep beehives
+- Realistic sculpted animals (jointed legs, lifelike eyes, breed colors) and painted produce: dimpled apples, cherry pairs, pitted oranges, blushing peaches, lemons, tomatoes, strawberries, chilies
+- Hand painted canvas icons for goods without a fitting emoji; leaf card tree crowns; realistic Holstein cows; ruffled lettuce
+- Sculpted signed distance field animals, rolling sea swell and a subtle tilt shift miniature look
 - High and Low graphics quality in Settings (kept per device, outside the save)
 - Free camera: drag to pan, pinch or scroll to zoom, twist with two fingers or press Q and E to rotate
 - 9 crops (wheat to sunflower) with drag to plant and drag to harvest
 - 7 production buildings (Bakery, Feed Mill, Dairy, Sugar Mill, BBQ Grill, Juice Press, Loom) with queues and extra slots
-- 4 animal homes (chickens, cows, pigs, sheep) that need feed and give eggs, milk, bacon and wool
+- Animal homes (chickens, cows, sheep and more) that need feed and give eggs, milk, wool and other goods
 - Order board with rotating orders, rewards and discard cooldown
 - Silo and barn storage with capacity upgrades and a market to sell goods
 - Land expansion, obstacles to clear, 10 decorations
@@ -32,8 +40,17 @@ By Talons Protocol.
 - Roadside stall where you set your own prices and villagers buy over time
 - 11 badges with bronze, silver and gold tiers
 - A 5 step tutorial for new players (older saves skip it)
-- 8 animals: chickens, cows, pigs, sheep, ducks, goats, bees and horses (each horse adds 5% to order coins)
+- Animals: chickens, cows, sheep, ducks, geese, gobblers, quails, goats, rabbits, alpacas, donkeys, water buffalo, peacocks, ostriches, yaks, camels, bees and horses (each horse adds 5% to order coins)
 - Workshop for candles and feather pillows, goat cheese at the dairy
+- Tap the farmhouse (or the manor once built) to send the farmer to bed and keep farming meanwhile; a nap of 20 seconds or more gives a once a day rested bonus
+- Content all the way to level 200: 11 late game animals (guinea fowl, pheasant, highland cow, swan, emu, reindeer, bison, flamingo, llama and the golden goose at 200), 13 new orchard trees (quince to golden apple), 12 new catches at the fishing spot (trout to the golden fish) and goals up to level 200
+- 30 more farm animals spread between levels 21 and 182: silkie chickens, ponies, black, merino and Jacob sheep, Jersey, Belted Galloway, zebu, Watusi and musk ox cattle, Nubian, angora and cashmere goats, Muscovy and Mandarin ducks, black swans, silkworms, squirrels, parrots, moose, spotted deer, rheas, cassowaries, kiwi birds, cranes, Bactrian camels, beavers, chinchillas, barn owls and vicunas, each with its own pen and product
+- Two animal art styles, picked in Settings: Cartoon (chunky friendly sculpts with big eyes, the default) and Realistic
+- Cartoon farmer, puffy cartoon trees and round garden bushes; a calico farm cat roams between the house and the farmer and curls up by the door at night
+- Dirt paths that join up with their neighbors (new farms start with one), a porch, dormers and mailbox on the farmhouse, a cupola and weathervane on the barn, and meadow scatter of lupines, wild flowers and pebbles
+- The cartoon farmhouse is a Blender model (tools/blender): individual stones, clapboards, a roof of staggered shingles, dormers, a porch and flower boxes, with painted colors and soft shadows baked into one texture; its windows glow at night and the procedural house stands in until it loads
+- Animals use a light mesh from afar and a detailed one up close, built in idle time
+- Performance: pen scenery is baked into a few meshes, cartoon eyes are single meshes, objects out of view animate rarely, the shadow map redraws every other frame, forests use light crowns, new animal kinds are sculpted one per frame, and the render scale adapts on slow devices
 
 ## Run locally
 
