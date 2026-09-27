@@ -577,8 +577,9 @@ export class Renderer {
   resize(w: number, h: number, dpr: number) {
     this.size = { w, h, dpr };
     this.W = w; this.H = h;
-    // phones report up to 3x; past 2x the extra pixels cost a lot and show little
-    const px = (this.quality === 'high' ? Math.min(dpr, 2) : Math.min(dpr, 1.25)) * this.resScale;
+    // phones report up to 3x; past 2x the extra pixels cost a lot and show little. The picture
+    // is always drawn at full sharpness: no resolution drop, even on slower devices.
+    const px = this.quality === 'high' ? Math.min(dpr, 2) : Math.min(dpr, 1.5);
     this.gl.setPixelRatio(px);
     this.gl.setSize(w, h, false);
     this.post?.setSize(w, h, px);
@@ -1040,32 +1041,9 @@ export class Renderer {
   private projM = new THREE.Matrix4();
   private frustum = new THREE.Frustum();
   private cullSphere = new THREE.Sphere();
-  // dynamic resolution: the render scale drops a notch when frames run long for a while and
-  // creeps back up when there is headroom, so slower devices stay smooth
-  private frameMs = 16;
-  private slowFor = 0;
-  private fastFor = 0;
-  private resScale = 1;
-
-  private adaptResolution(rawMs: number, dt: number) {
-    if (rawMs > 200) return; // tab switch or a one off hitch
-    this.frameMs += (rawMs - this.frameMs) * 0.05;
-    this.slowFor = this.frameMs > 26 ? this.slowFor + dt : 0;
-    this.fastFor = this.frameMs < 17.5 ? this.fastFor + dt : 0;
-    let next = this.resScale;
-    if (this.slowFor > 2 && this.resScale > 0.6) next = Math.max(0.6, this.resScale - 0.1);
-    else if (this.fastFor > 5 && this.resScale < 1) next = Math.min(1, this.resScale + 0.1);
-    if (next !== this.resScale) {
-      this.resScale = next;
-      this.slowFor = this.fastFor = 0;
-      this.resize(this.size.w, this.size.h, this.size.dpr);
-    }
-  }
-
   frame(t: number) {
     const rawMs = t - (this.last || t);
     const dt = Math.min(0.05, rawMs / 1000);
-    this.adaptResolution(rawMs, dt);
     this.last = t;
     const s = this.store.s;
     const ui = this.store.ui;
