@@ -3,6 +3,7 @@
 import * as THREE from 'three';
 import { mergeGeometries, mergeVertices } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
+import { DRACOLoader } from 'three/examples/jsm/loaders/DRACOLoader.js';
 import { getQuality, onQuality, type Quality } from './quality';
 import { fillRich, isDrawn, paintIcon } from './icons';
 import { U } from './gfx/shared';
@@ -2530,7 +2531,8 @@ function smoke(g: THREE.Group, x: number, y: number, z: number) {
 // ------------------------------------------------------------------ Blender models
 // Hand built models made in Blender (see tools/blender) and loaded from public/models. Each file
 // is fetched once and cloned for every copy; until it arrives the entry simply stays empty.
-const gltfLoader = new GLTFLoader();
+// models are Draco compressed; the decoder lives in public/draco
+const gltfLoader = new GLTFLoader().setDRACOLoader(new DRACOLoader().setDecoderPath('/draco/'));
 const modelCache = new Map<string, Promise<THREE.Object3D>>();
 function loadModel(name: string) {
   let p = modelCache.get(name);
