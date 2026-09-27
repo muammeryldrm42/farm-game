@@ -20,7 +20,9 @@ fs.rmSync(dataDir, { recursive: true, force: true });
 // node wants explicit extensions on relative ESM imports
 for (const f of fs.readdirSync(tmp)) {
   const p = path.join(tmp, f);
-  const code = fs.readFileSync(p, 'utf8').replace(/from '(\.\/[^']+)'/g, "from '$1.mjs'");
+  let code = fs.readFileSync(p, 'utf8').replace(/from '(\.\/[^']+)'/g, "from '$1.mjs'");
+  // the realistic sculpts are private to creatures.ts; expose them for the dump
+  if (f === 'creatures.js') code += '\nexport { makers };\n';
   fs.writeFileSync(p.replace(/\.js$/, '.mjs'), code);
 }
 // three lives in the project's node_modules
@@ -41,6 +43,14 @@ for (const [kind, make] of Object.entries(all)) {
   const { body, head, leg, tail, ...meta } = cp;
   fs.writeFileSync(path.join(out, `${kind}.json`), JSON.stringify({ meta, body: dump(body), head: dump(head), leg: dump(leg), tail: dump(tail) }));
   console.log('exported', kind);
+}
+// the realistic sculpts too, for the kinds that have one (real_<kind>.json)
+const { makers } = await import(pathToFileURL(path.join(tmp, 'creatures.mjs')).href);
+for (const [kind, make] of Object.entries(makers)) {
+  const cp = withDetail(0.9, make);
+  const { body, head, leg, tail, ...meta } = cp;
+  fs.writeFileSync(path.join(out, `real_${kind}.json`), JSON.stringify({ meta, body: dump(body), head: dump(head), leg: dump(leg), tail: dump(tail) }));
+  console.log('exported real', kind);
 }
 const { cropGeo } = await import(pathToFileURL(path.join(tmp, 'crops.mjs')).href);
 const { CROPS } = await import(pathToFileURL(path.join(tmp, 'data.mjs')).href);

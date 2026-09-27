@@ -12,7 +12,7 @@ import sys
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import bpy  # noqa: E402
 import mathutils  # noqa: E402
-from kit import anim_group, ball, cyl, finish, main, pm, uid  # noqa: E402
+from kit import anim_group, ball, cyl, finish, main, marker, pm, uid  # noqa: E402
 
 K = 1.75   # metaball radius per unit of visible radius (threshold 0.6, stiffness 2)
 
@@ -430,14 +430,15 @@ def vcol_mat():
     return m
 
 
-def part_mesh(name, data, offset, target):
-    """One sculpt part as a smooth mesh with its vertex colors, placed at `offset` (game coords)."""
+def part_mesh(name, data, offset, target, scale=1.0):
+    """One sculpt part as a smooth mesh with its vertex colors, placed at `offset` (game coords)
+    and scaled by `scale` about that point."""
     import bmesh
     pts, cols, idx = data['p'], data['c'], data['i']
     n = len(pts) // 3
     ox, oy, oz = offset
     me = bpy.data.meshes.new(name)
-    verts = [B(pts[k * 3] + ox, pts[k * 3 + 1] + oy, pts[k * 3 + 2] + oz) for k in range(n)]
+    verts = [B(pts[k * 3] * scale + ox, pts[k * 3 + 1] * scale + oy, pts[k * 3 + 2] * scale + oz) for k in range(n)]
     tris = [tuple(idx[k:k + 3]) for k in range(0, len(idx), 3)] if idx else [(k, k + 1, k + 2) for k in range(0, n, 3)]
     me.from_pydata(verts, [], tris)
     lay = me.color_attributes.new('Col', 'FLOAT_COLOR', 'POINT')
@@ -467,24 +468,67 @@ def part_mesh(name, data, offset, target):
     return o
 
 
+# horns the realistic sculpts leave to the game (arcs of a torus, as the game drew them)
+REAL_HORNS = {
+    'goat': dict(R=0.05, t=0.01, arc=math.pi * 0.85, at=(0.022, 0.04, -0.045), rot=(0, math.pi / 2, 0.1), col='#8d8479'),
+    'yak': dict(R=0.07, t=0.014, arc=math.pi * 0.6, at=(0.07, 0.06, -0.02), rot=(0, 0, 0.9), col='#e8e0cc', flip=True),
+    'buffalo': dict(R=0.1, t=0.018, arc=math.pi * 0.75, at=(0.05, 0.06, -0.04), rot=(0, 0, -0.2), col='#5a5048', flip=True),
+}
+
+
+def horns(kind, head_at):
+    h = REAL_HORNS.get(kind)
+    if not h:
+        return
+    mat = pm(f'horn_{kind}', h['col'])
+    for sx in (-1, 1):
+        rx, ry, rz = h['rot']
+        if h.get('flip') and sx < 0:
+            ry += math.pi
+        R = mathutils.Euler((rx, ry, rz), 'XYZ').to_matrix()
+        pts = []
+        for k in range(9):
+            a = h['arc'] * k / 8
+            v = R @ mathutils.Vector((h['R'] * math.cos(a), h['R'] * math.sin(a), 0))
+            ax, ay, az = h['at']
+            pts.append((head_at[0] + sx * ax + v.x, head_at[1] + ay + v.y, head_at[2] + az + v.z))
+        b = Blob(0.003)
+        for k in range(8):
+            b.cap(pts[k], pts[k + 1], h['t'] * (1.1 - k * 0.06), h['t'] * (1.1 - (k + 1) * 0.06))
+        b.build(mat, 300)
+
+
 def from_sculpt(kind):
+    """Refine one of the game's sculpts: the realistic one when the kind has it, else the cartoon
+    one with its head brought down to a more natural size. Marks where the game puts the eyes."""
     import json
-    with open(os.path.join(SCULPTS, f'{kind}.json')) as f:
+    real = os.path.exists(os.path.join(SCULPTS, f'real_{kind}.json'))
+    with open(os.path.join(SCULPTS, f'{"real_" if real else ""}{kind}.json')) as f:
         d = json.load(f)
     meta = d['meta']
-    part_mesh('body', d['body'], (0, 0, 0), 2200)
+    hs = 1.0 if real else 0.84
+    part_mesh('body', d['body'], (0, 0, 0), 2400)
     hx, hy, hz = meta['headAt']
     with anim_group('head', B(hx, hy, hz)):
-        part_mesh('headm', d['head'], (hx, hy, hz), 1500)
+        part_mesh('headm', d['head'], (hx, hy, hz), 1600, scale=hs)
+        if real:
+            horns(kind, (hx, hy, hz))
     if d['leg']:
         for i, (x, z) in enumerate(meta['legs']):
             with anim_group(f'leg{i}', B(x, meta['legLen'], z)):
-                part_mesh(f'legm{i}', d['leg'], (x, meta['legLen'], z), 260)
+                part_mesh(f'legm{i}', d['leg'], (x, meta['legLen'], z), 300)
     if d['tail']:
         tx, ty, tz = meta['tailAt']
         with anim_group('tail', B(tx, ty, tz)):
             part_mesh('tailm', d['tail'], (tx, ty, tz), 300)
-    finish(f'animal_{kind}', tex=512, vivid=1.08, ao_min=0.62, ao_dist=0.1)
+    # the right eye: position on the head, radius in its scale and outward yaw in its turn
+    if meta.get('eye'):
+        ex, ey, ez, er, yaw = meta['eye']
+        mk = marker('eye', B(hx + ex * hs, hy + ey * hs, hz + ez * hs))
+        r = er * hs * (1.0 if real else 0.78)
+        mk.scale = (r, r, r)
+        mk.rotation_euler[2] = yaw
+    finish(f'animal_{kind}', tex=512, vivid=1.1, ao_min=0.62, ao_dist=0.1)
 
 
 MODELS = {'animal_cow': cow, 'animal_sheep': sheep, 'animal_horse': horse, 'animal_chicken': chicken, 'farmer': farmer,
@@ -492,7 +536,7 @@ MODELS = {'animal_cow': cow, 'animal_sheep': sheep, 'animal_horse': horse, 'anim
 if os.path.isdir(SCULPTS):
     for f in sorted(os.listdir(SCULPTS)):
         k = f[:-5]
-        if f.endswith('.json') and k not in HAND_MADE:
+        if f.endswith('.json') and not k.startswith(('crop_', 'real_')):
             MODELS[f'animal_{k}'] = (lambda kk=k: from_sculpt(kk))
 
 if __name__ == '__main__':

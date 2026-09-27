@@ -745,7 +745,6 @@ export class Renderer {
     }
 
     this.buildShore();
-    this.buildDistantIslands();
 
     const grass = new THREE.MeshStandardMaterial({ color: '#ffffff', roughness: 0.95, ...surface('grass') });
     grass.normalScale.set(0.8, 0.8);
@@ -786,23 +785,6 @@ export class Renderer {
       this.tiles.setColorAt(y * GRID + x, new THREE.Color('#7cc450'));
     }
     this.land.add(this.tiles);
-  }
-
-  // hazy green islands out at sea, so the horizon has depth when zoomed out
-  private buildDistantIslands() {
-    const spots: [number, number, number][] = [[-34, -10, 7], [GRID + 30, 6, 9], [GRID / 2 + 6, GRID + 36, 8], [-26, GRID + 22, 6], [GRID + 26, GRID + 30, 5], [GRID / 2 - 10, -34, 7]];
-    const sand = M('#e8d49a'), hill = M('#5f9a44'), rock = MF('#9a9ea3');
-    spots.forEach(([x, z, r], i) => {
-      const isl = group(this.scene, x, -0.55, z);
-      mk(isl, cylGeo(r * 1.08, r * 1.15, 24), sand, 1, 0.25, 1, 0, 0.05, 0, false);
-      mk(isl, blobGeo(90 + i, true), hill, r * 0.95, r * 0.45, r * 0.8, 0, 0.1, 0, false);
-      mk(isl, blobGeo(96 + i, true), hill, r * 0.5, r * 0.55, r * 0.45, r * 0.25, 0.3, -r * 0.1, false);
-      for (let k = 0; k < 7; k++) {
-        const a = hash(k, i, 3) * Math.PI * 2, d = hash(k, i, 4) * r * 0.6;
-        mk(isl, pineGeo(), M('#2f6b2a'), 0.35 + hash(k, i, 5) * 0.3, 1.2 + hash(k, i, 6) * 0.8, 0.35 + hash(k, i, 5) * 0.3, Math.cos(a) * d, r * 0.3 + 0.6, Math.sin(a) * d, false);
-      }
-      mk(isl, G.rock, rock, r * 0.2, r * 0.15, r * 0.18, r * 0.9, 0.1, r * 0.3, false);
-    });
   }
 
   // boulders along the beach and in the surf, plus a few starfish on the sand
@@ -2099,7 +2081,8 @@ function farmerFromModel(src: THREE.Object3D) {
 export function buildCat() {
   const g = assemble('cat');
   const cp = creature('cat');
-  if (cp?.eye) toonEyes(g.userData.head as THREE.Group, cp.eye, '#3a2e28');
+  if (g.userData.model) modelEyes(g, 'cat');
+  else if (cp?.eye) toonEyes(g.userData.head as THREE.Group, cp.eye, '#3a2e28');
   g.scale.setScalar(1.25);
   return g;
 }
@@ -2107,7 +2090,8 @@ export function buildCat() {
 export function buildDog() {
   const g = assemble('dog');
   const dp = creature('dog');
-  if (dp?.eye && dp.toon) toonEyes(g.userData.head as THREE.Group, dp.eye, '#3a2e28');
+  if (g.userData.model) modelEyes(g, 'dog');
+  else if (dp?.eye && dp.toon) toonEyes(g.userData.head as THREE.Group, dp.eye, '#3a2e28');
   else if (dp?.eye) realEyes(g.userData.head as THREE.Group, dp.eye, LID.dog);
   const tail = g.userData.tail as THREE.Object3D;
   tail.rotation.x = -0.6;
@@ -2270,6 +2254,11 @@ function assembleModel(src: THREE.Object3D) {
   const g = new THREE.Group();
   const legs: THREE.Object3D[] = [];
   for (const c of [...src.clone().children]) {
+    if (c.name === 'eye') {
+      // where the right eye goes: position in the model, radius in its scale, yaw in its turn
+      g.userData.eyeAt = { p: c.position.clone(), r: c.scale.x, yaw: c.rotation.y };
+      continue;
+    }
     if (c.name === 'head') g.userData.head = c;
     else if (c.name === 'tail') g.userData.tail = c;
     else if (/^leg\d$/.test(c.name)) legs[+c.name.slice(3)] = c;
@@ -2281,7 +2270,17 @@ function assembleModel(src: THREE.Object3D) {
   }
   g.userData.legs = legs;
   g.userData.signs = legs.length === 4 ? [1, -1, -1, 1] : [1, -1];
+  g.userData.model = true;
   return g;
+}
+
+// small natural eyes on a Blender animal's head, where its model marks them
+function modelEyes(g: THREE.Object3D, kind: string) {
+  const ea = g.userData.eyeAt as { p: THREE.Vector3; r: number; yaw: number } | undefined;
+  const head = g.userData.head as THREE.Object3D | undefined;
+  if (!ea || !head) return;
+  const lp = ea.p.clone().sub(head.position);
+  realEyes(head, [Math.abs(lp.x), lp.y, lp.z, ea.r, ea.yaw], LID[kind] ?? '#3a2a20');
 }
 
 function assemble(kind: string) {
@@ -2411,11 +2410,18 @@ function animalBody(kind: string) {
   const head = g.userData.head as THREE.Group | undefined;
   if (!head) return g;
   const cp = creature(kind);
-  // cartoon animals read bigger against their pens, like in classic farm games
-  if (cp?.toon) g.scale.setScalar(TALL.has(kind) ? 1.15 : 1.35);
-  if (cp?.eye && cp.toon) toonEyes(head, cp.eye, '#3a2e28');
+  if (g.userData.model) {
+    // Blender animals: natural proportions and small natural eyes, a little larger than life so
+    // they still read well against their pens
+    g.scale.setScalar(TALL.has(kind) ? 1.08 : 1.25);
+    modelEyes(g, kind);
+  } else if (cp?.toon) {
+    // cartoon animals read bigger against their pens, like in classic farm games
+    g.scale.setScalar(TALL.has(kind) ? 1.15 : 1.35);
+  }
+  if (g.userData.model) { /* eyes done above */ } else if (cp?.eye && cp.toon) toonEyes(head, cp.eye, '#3a2e28');
   else if (cp?.eye) realEyes(head, cp.eye, LID[kind] ?? '#3a2a20');
-  if (cp?.bell) {
+  if (cp?.bell && !g.userData.model) {
     // leather collar with a brass bell
     const [bx, by, bz, br] = cp.bell;
     const collar = new THREE.Mesh(torus(br, br * 0.16, 8, 28), M('#c0392b'));
