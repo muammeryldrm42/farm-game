@@ -531,6 +531,25 @@ export class Renderer {
     this.farmer = actor(FARM_C.x - 0.5, FARM_C.y + 0.5, buildFarmer());
     this.dog = actor(FARM_C.x + 0.5, FARM_C.y + 0.5, buildDog());
     this.cat = actor(FARM_C.x + 1.5, FARM_C.y + 1.5, buildCat());
+    // the farmer and pets start as sculpts and take on their Blender models once loaded
+    if (artStyle() === 'toon') {
+      loadModel('farmer').then((m) => {
+        const fresh = farmerFromModel(m);
+        const g = this.farmer.g;
+        g.clear();
+        for (const c of [...fresh.children]) g.add(c);
+        Object.assign(g.userData, fresh.userData);
+      }).catch(() => {});
+      for (const [kind, pet, make] of [['dog', this.dog, buildDog], ['cat', this.cat, buildCat]] as const) {
+        loadModel(`animal_${kind}`).then((m) => {
+          animalSrc.set(kind, m);
+          const fresh = make();
+          pet.g.clear();
+          for (const c of [...fresh.children]) pet.g.add(c);
+          Object.assign(pet.g.userData, fresh.userData);
+        }).catch(() => {});
+      }
+    }
     this.world.add(this.farmer.g, this.dog.g, this.cat.g);
     this.applyQuality(this.quality);
     this.offQuality = onQuality((q) => this.applyQuality(q));
@@ -2038,6 +2057,33 @@ function buildToonFarmer(shirt: string, overall: string, jeans: string) {
   return g;
 }
 
+// the Blender farmer (tools/blender/animals.py): legs on the hips, and a body group carrying the
+// torso, both arms and the head, like the sculpted farmer, so the walk cycle drives it unchanged
+function farmerFromModel(src: THREE.Object3D) {
+  const g = new THREE.Group();
+  const body = group(g);
+  const legs: THREE.Object3D[] = [], arms: THREE.Object3D[] = [];
+  let head: THREE.Object3D | null = null;
+  for (const c of [...src.clone().children]) {
+    if (/^leg\d$/.test(c.name)) { legs[+c.name.slice(3)] = c; g.add(c); }
+    else if (/^arm\d$/.test(c.name)) { const i = +c.name.slice(3); arms[i] = c; c.rotation.z = (i ? 1 : -1) * 0.16; body.add(c); }
+    else if (c.name === 'head') { head = c; body.add(c); }
+    else body.add(c);
+  }
+  if (head) {
+    // the hat brim would shade the whole face; a cartoon face stays bright under it
+    (head as THREE.Object3D).traverse((c) => { c.receiveShadow = false; });
+    toonEyes(head, [0.05, 0.028, 0.116, 0.03, 0.22], '#6b4020');
+  }
+  contactShadow(g, 0.4, 0.3);
+  g.userData.legs = legs;
+  g.userData.signs = [1, -1];
+  g.userData.arms = arms;
+  g.userData.head = head;
+  g.userData.body = body;
+  return g;
+}
+
 export function buildCat() {
   const g = assemble('cat');
   const cp = creature('cat');
@@ -2191,8 +2237,8 @@ function mergeStatic(root: THREE.Object3D) {
 // sculpt stands in; pens rebuild their herd when a model arrives.
 const ANIMAL_MODELS = new Set([
   'alpaca', 'angora_goat', 'bactrian_camel', 'barn_owl', 'beaver', 'belted_galloway', 'bison', 'black_sheep',
-  'black_swan', 'buffalo', 'camel', 'cashmere_goat', 'cassowary', 'chicken', 'chinchilla', 'cow',
-  'crane', 'donkey', 'duck', 'emu', 'flamingo', 'goat', 'gobbler', 'golden_goose', 'goose',
+  'black_swan', 'buffalo', 'camel', 'cashmere_goat', 'cassowary', 'cat', 'chicken', 'chinchilla', 'cow',
+  'crane', 'dog', 'donkey', 'duck', 'emu', 'flamingo', 'goat', 'gobbler', 'golden_goose', 'goose',
   'guinea_fowl', 'highland_cow', 'horse', 'jacob_sheep', 'jersey_cow', 'kiwi_bird', 'llama', 'mandarin_duck',
   'merino_sheep', 'moose', 'muscovy_duck', 'musk_ox', 'nubian_goat', 'ostrich', 'parrot', 'peacock',
   'pheasant', 'pony', 'quail', 'rabbit', 'reindeer', 'rhea', 'sheep', 'silkie_chicken', 'silkworm',
@@ -2429,14 +2475,22 @@ function skepGeo() {
   return skep;
 }
 
+let hiveSrc: THREE.Object3D | null = null;
 function buildHive() {
   const g = new THREE.Group();
-  // a round straw skep on a little wooden stand
-  for (const [x, z] of [[-0.1, -0.1], [0.1, -0.1], [-0.1, 0.1], [0.1, 0.1]]) cyl(g, 0.015, 0.015, 0.08, '#8a5a33', x, 0, z, 6);
-  bxT(g, 0.34, 0.03, 0.34, 'planks', '#b98048', 0, 0.08, 0, 4);
-  mk(g, skepGeo(), surfaceMat('thatch', '#e8c160', 3, 0.9), 1, 1, 1, 0, 0.11, 0);
-  mk(g, G.ball, M('#3a2616'), 0.035, 0.028, 0.01, 0, 0.14, 0.14, false);
-  ball(g, 0.02, '#c9983a', 0, 0.39, 0, 1, 0.6, 1);
+  if (artStyle() === 'toon' && !hiveSrc && !modelCache.has('beehive_skep')) {
+    // the bee garden rebuilds its hives (like a herd) once the Blender skep is in
+    loadModel('beehive_skep').then((m) => { hiveSrc = m; animalVer++; }).catch(() => {});
+  }
+  if (hiveSrc) g.add(hiveSrc.clone());
+  else {
+    // a round straw skep on a little wooden stand
+    for (const [x, z] of [[-0.1, -0.1], [0.1, -0.1], [-0.1, 0.1], [0.1, 0.1]]) cyl(g, 0.015, 0.015, 0.08, '#8a5a33', x, 0, z, 6);
+    bxT(g, 0.34, 0.03, 0.34, 'planks', '#b98048', 0, 0.08, 0, 4);
+    mk(g, skepGeo(), surfaceMat('thatch', '#e8c160', 3, 0.9), 1, 1, 1, 0, 0.11, 0);
+    mk(g, G.ball, M('#3a2616'), 0.035, 0.028, 0.01, 0, 0.14, 0.14, false);
+    ball(g, 0.02, '#c9983a', 0, 0.39, 0, 1, 0.6, 1);
+  }
   const bees = group(g);
   for (let i = 0; i < 4; i++) {
     const b = group(bees);
@@ -2470,7 +2524,38 @@ function fruitMat(color: string) {
   return m;
 }
 
+// Blender crops (tools/blender/crops.py): a `plant` and its `fruit`, whose baked ripe colors
+// swap for a plain green while the crop grows. Plots replant quietly once a model arrives.
+const cropSrc = new Map<string, THREE.Object3D>();
+let cropVer = 0;
+const unripeMats = new Map<string, THREE.MeshStandardMaterial>();
+function cropModel(id: string) {
+  if (artStyle() !== 'toon') return null;
+  const src = cropSrc.get(id);
+  if (!src && !modelCache.has(`crop_${id}`)) {
+    loadModel(`crop_${id}`).then((m) => { cropSrc.set(id, m); cropVer++; }).catch(() => {});
+  }
+  return src ?? null;
+}
 function plantModel(cd: CropDef) {
+  const src = cropModel(cd.id);
+  if (src) {
+    const g = new THREE.Group();
+    const fruit: THREE.Mesh[] = [];
+    for (const c of [...src.clone().children]) {
+      g.add(c);
+      if (c.name === 'fruit' && (c as THREE.Mesh).isMesh) {
+        const f = c as THREE.Mesh;
+        const unripe = cd.shape === 'flower' ? '#9cc45a' : '#b9d36a';
+        let um = unripeMats.get(unripe);
+        if (!um) { um = new THREE.MeshStandardMaterial({ color: unripe, roughness: 0.5 }); unripeMats.set(unripe, um); }
+        f.userData.ripe = f.material;
+        f.userData.unripe = um;
+        fruit.push(f);
+      }
+    }
+    return { g, fruit };
+  }
   const g = new THREE.Group();
   const geo = cropGeo(cd);
   const plant = new THREE.Mesh(geo.plant, PLANT_MAT);
@@ -2523,20 +2608,23 @@ function buildPlot(e: Entry) {
   let cur: string | null = null;
   let wasReady = false;
   let first = true;
-  let born = 0;
+  let born = 0, cver = cropVer;
   let plants: { g: THREE.Group; fruit: THREE.Mesh[]; ripe: number }[] = [];
   e.top = 0.55;
   e.update = (o, now, t) => {
     const pp = plotProgress(o, now);
-    if (pp.crop !== cur) {
+    // a crop model that just arrived swaps in without the harvest or planting fuss
+    const reload = !!cur && pp.crop === cur && cver !== cropVer;
+    if (pp.crop !== cur || reload) {
+      cver = cropVer;
       // harvested: the grown plants jump out of the soil
-      if (!first && cur && wasReady) {
+      if (!reload && !first && cur && wasReady) {
         plants.forEach((pl, i) => popOut(pl.g, i * 0.06, 1.1));
         bump(e, 'big');
       }
       crop.clear();
       plants = [];
-      const planted = !first && !!pp.crop;
+      const planted = !reload && !first && !!pp.crop;
       cur = pp.crop;
       if (cur) {
         const cd = CROP[cur];
@@ -2568,7 +2656,9 @@ function buildPlot(e: Entry) {
       const ripe = pp.ready ? 1 : 0;
       for (const f of pl.fruit) { f.visible = s > 0.45; }
       if (pl.ripe !== ripe) {
-        for (const f of pl.fruit) f.material = ripe ? fruitMat(cd.fruit) : fruitMat(cd.shape === 'flower' ? '#9cc45a' : '#b9d36a');
+        for (const f of pl.fruit) {
+          f.material = ripe ? (f.userData.ripe ?? fruitMat(cd.fruit)) : (f.userData.unripe ?? fruitMat(cd.shape === 'flower' ? '#9cc45a' : '#b9d36a'));
+        }
         pl.ripe = ripe;
       }
     });
@@ -2661,7 +2751,9 @@ const MODELS: Record<string, ModelSpec> = {
 for (const id of ['hay_bale', 'picket_fence', 'bird_house', 'pumpkin_pile', 'birdbath', 'topiary', 'well', 'flower_arch',
   'hay_wagon', 'tractor', 'bench', 'lamp', 'scarecrow', 'windmill', 'pond', 'mailbox', 'gazebo', 'fountain']) MODELS[id] = {};
 for (const d of Object.values(BUILDING)) if (d.kind === 'pen') MODELS[d.id] = {};
-for (const d of Object.values(BUILDING)) if (d.kind === 'tree' && d.id !== 'banana_tree') MODELS[d.id] = {};
+for (const d of Object.values(BUILDING)) if (d.kind === 'tree') MODELS[d.id] = {};
+MODELS.flowers = {};
+MODELS.stone_path = {};
 MODELS.oak = {};
 MODELS.tree_obs = { variants: 2 };
 MODELS.rock_obs = { variants: 3 };
@@ -3483,6 +3575,7 @@ function buildFruitTree(e: Entry, d: BuildingDef) {
 function buildBanana(e: Entry, leaf: string) {
   const g = e.root;
   const crown = group(g, 0.5, 0, 0.5);
+  crown.userData.crown = true;
   const stemM = surfaceMat('bark', '#8a8a4a', 3);
   mk(crown, cylGeo(0.07, 0.1, 12), stemM, 1, 0.95, 1, 0, 0.475, 0);
   const leafM = windify(new THREE.MeshStandardMaterial({ color: leaf, vertexColors: true, side: THREE.DoubleSide, roughness: 0.7 }), 1, 0.3);
@@ -3500,7 +3593,7 @@ function buildBanana(e: Entry, leaf: string) {
   }
   const bunch = produceGeo('banana') as THREE.BufferGeometry;
   const fruit = [0, 1].map((k) => {
-    const b = mk(crown, bunch, PRODUCE_MAT, 0.3, 0.3, 0.3, k ? -0.12 : 0.12, 0.72, k ? 0.05 : -0.05);
+    const b = keep(mk(crown, bunch, PRODUCE_MAT, 0.3, 0.3, 0.3, k ? -0.12 : 0.12, 0.72, k ? 0.05 : -0.05));
     b.rotation.set(0, k * 2, k ? -0.35 : 0.35);
     return b;
   });

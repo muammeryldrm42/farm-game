@@ -131,7 +131,47 @@ def wild_tree(v):
     finish(f'tree_obs{v}', tex=1024)
 
 
+def banana_tree():
+    """A banana plant: a thick fibrous pseudostem and big paddle leaves arching out from the top.
+    The game hangs its fruit bunches (and swaps them in and out) beside the crown."""
+    from common import obox
+    stem = pm('banana_stem', '#8a8a4a', '#9e9e58', scale=10, kind='wave', stretch=(1, 1, 8))
+    leafm = leaf_mats('#56a640', 'bl')
+    rib = pm('banana_rib', '#8cc05a')
+    with anim_group('crown', (0, 0, 0)):
+        cyl(uid('stem'), 0.1, 0.95, (0, 0, 0.475), stem, verts=14, r2=0.07)
+        for k in range(3):
+            torus(uid('ring'), 0.095 - k * 0.01, 0.01, (0, 0, 0.2 + k * 0.25), stem, segs=16, rsegs=4)
+        for i in range(8):
+            a = i / 8 * math.pi * 2 + (i % 2) * 0.3
+            ca, sa = math.cos(a), math.sin(a)
+            side = (-sa, ca, 0.0)
+            pts = []
+            lift = 0.8 + (i % 3) * 0.15
+            for k in range(8):
+                u = k / 7
+                r = 0.04 + u * 0.72
+                h = 0.9 + math.sin(u * 2.2) * 0.3 * lift - u * u * 0.45
+                pts.append((ca * r, sa * r, h))
+            for k in range(7):
+                p0, p1 = pts[k], pts[k + 1]
+                d = [p1[j] - p0[j] for j in range(3)]
+                ln = math.sqrt(sum(q * q for q in d))
+                d = [q / ln for q in d]
+                nrm = (d[1] * side[2] - d[2] * side[1], d[2] * side[0] - d[0] * side[2], d[0] * side[1] - d[1] * side[0])
+                mid = [(p0[j] + p1[j]) / 2 for j in range(3)]
+                u = (k + 0.5) / 7
+                w = 0.08 + math.sin(u * math.pi) * 0.16
+                obox(uid('blade'), mid, (d, side, nrm), (ln * 1.04, w, 0.008), leafm[(i + k) % 3], bev=0)
+                obox(uid('rib'), mid, (d, side, nrm), (ln * 1.04, 0.014, 0.014), rib, bev=0)
+        ball(uid('bud'), 0.045, (0.16, 0.06, 0.55), pm('banana_bud', '#6a2a4a'), scale=(0.8, 0.8, 1.4), segs=12)
+    rnd = random.Random(8)
+    grass(rnd, 5)
+    finish('banana_tree', tex=1024)
+
+
 MODELS = {tid: (lambda t=tid: fruit_tree(t)) for tid in TREES}
+MODELS['banana_tree'] = banana_tree
 MODELS['coconut_palm'] = lambda: palm_tree('coconut_palm', '#4c9a38')
 MODELS['date_palm'] = lambda: palm_tree('date_palm', '#5a8a3a')
 MODELS['oak'] = lambda: oak_tree('oak', '#4a9a32', 1.0, 3)

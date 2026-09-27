@@ -12,7 +12,7 @@ import sys
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import bpy  # noqa: E402
 import mathutils  # noqa: E402
-from kit import anim_group, ball, finish, main, pm, uid  # noqa: E402
+from kit import anim_group, ball, cyl, finish, main, pm, uid  # noqa: E402
 
 K = 1.75   # metaball radius per unit of visible radius (threshold 0.6, stiffness 2)
 
@@ -309,6 +309,96 @@ def chicken():
     finish('animal_chicken', tex=512, vivid=1.1, ao_min=0.6, ao_dist=0.08)
 
 
+# ---------------------------------------------------------------- the farmer
+
+def farmer():
+    """The farmer in a red plaid shirt, blue overalls, jeans, boots and a big straw hat. Parts:
+    `leg0/1` at the hips, `body` (torso), `arm0/1` at the shoulders and `head` at the neck,
+    on the pivots the game's walk cycle uses."""
+    import math as _m
+    skin, skin_d = pm('skin', '#ffd0a6', '#ffdab4', scale=40), pm('cheek', '#f6a8a0')
+    hair = pm('hair', '#6b4020', '#7a4c28', scale=60, kind='wave', stretch=(1, 1, 6))
+    red, red_d, red_l = pm('plaid', '#d64541'), pm('plaid_d', '#8a2622'), pm('plaid_l', '#e8726c')
+    denim = pm('denim', '#3b6fa8', '#4a7eb8', scale=60)
+    jeans = pm('jeans', '#2f5d8a', '#3a6a98', scale=60)
+    boot, brass = pm('boot', '#6a3e1c', '#7a4a24', scale=30), pm('button', '#f2d16b', rough=0.3, metal=0.6)
+    straw = pm('straw_hat', '#efc95e', '#f6d676', scale=50, kind='wave', stretch=(1, 1, 5))
+    band = pm('hat_band', '#c0392b')
+
+    def plaid(x, y, z):
+        a, b = _m.sin(x * 160) > 0.55, _m.sin(y * 160) > 0.55
+        return red_d if a and b else red if a or b else red_l
+
+    for i, x in enumerate((-0.06, 0.06)):
+        with anim_group(f'leg{i}', B(x, 0.28, 0)):
+            lg = Blob(0.005)
+            lg.cap((x, 0.29, 0), (x, 0.05, 0.004), 0.05, 0.046)
+            lg.build(jeans, 400)
+            bt = Blob(0.004)
+            bt.ell((x, 0.032, 0.03), 0.059, 0.043, 0.09)
+            bt.build(boot, 300)
+    with anim_group('body', B(0, 0, 0)):
+        t = Blob(0.006)
+        t.ell((0, 0.33, 0), 0.118, 0.085, 0.116).cap((0, 0.4, 0), (0, 0.52, 0), 0.112, 0.104)
+        t.ell((0, 0.58, 0), 0.1, 0.05, 0.09)
+
+        def paint(x, y, z):
+            if y < 0.43:
+                return denim
+            if z > 0.05 and abs(x) < 0.066 and y < 0.53:
+                return denim   # the bib
+            if z > 0 and abs(abs(x) - 0.055) < 0.014 and y < 0.6:
+                return denim   # the straps
+            return plaid(x, y, z)
+        t.build(paint, 1400)
+        for sx in (-1, 1):
+            ball(uid('btn'), 0.016, B(sx * 0.056, 0.515, 0.12), brass, segs=10)
+        pk = Blob(0.003)
+        pk.ell((0, 0.47, 0.115), 0.04, 0.03, 0.01)
+        pk.build(pm('pocket', '#335f94'), 120)
+    for i, sx in enumerate((-1, 1)):
+        with anim_group(f'arm{i}', B(sx * 0.15, 0.53, 0)):
+            a = Blob(0.004)
+            a.cap((sx * 0.15, 0.55, 0), (sx * 0.15, 0.39, 0), 0.05, 0.044)
+            a.build(plaid, 400)
+            h = Blob(0.004)
+            h.ball((sx * 0.15, 0.33, 0), 0.052)
+            h.build(skin, 250)
+    hx, hy, hz = 0, 0.74, 0
+    with anim_group('head', B(hx, hy, hz)):
+        o = lambda x, y, z: (hx + x, hy + y, hz + z)  # noqa: E731
+        hd = Blob(0.005)
+        hd.ell(o(0, 0, 0), 0.128, 0.122, 0.12).ell(o(0, -0.07, 0.02), 0.08, 0.05, 0.08)
+        hd.ell(o(0, -0.012, 0.125), 0.024, 0.022, 0.022)   # nose
+        for sx in (-1, 1):
+            hd.ell(o(sx * 0.125, -0.006, 0), 0.02, 0.034, 0.025)   # ears
+        hd.ell(o(0, -0.058, 0.108), 0.03, 0.006, 0.02, neg=True)   # smile
+
+        def face(x, y, z):
+            lz, ly, lx = z - hz, y - hy, x - hx
+            if lz > 0.07 and abs(lx) > 0.05 and -0.055 < ly < -0.01:
+                return skin_d
+            return skin
+        hd.build(face, 1200)
+        hr = Blob(0.005)
+        hr.ell(o(0, 0.035, -0.022), 0.132, 0.1, 0.118).ell(o(0.035, 0.07, 0.075), 0.06, 0.028, 0.04)
+        hr.ell(o(0, -0.02, -0.06), 0.1, 0.07, 0.07)
+        hr.build(hair, 700)
+        # big straw hat tipped back so the face shows
+        tilt = _m.radians(-18)
+
+        def rot(p):
+            x, y, z = p
+            return (x, y * _m.cos(tilt) - z * _m.sin(tilt), y * _m.sin(tilt) + z * _m.cos(tilt))
+        hc = o(0, 0, 0)
+        for (py, r, h, mat_, r2) in ((0.085, 0.235, 0.022, straw, 0.225), (0.111, 0.142, 0.032, band, None)):
+            c = rot((0, py, -0.01))
+            cyl(uid('hat'), r, h, B(hc[0] + c[0], hc[1] + c[1], hc[2] + c[2]), mat_, verts=32, r2=r2, rot=(tilt, 0, 0))
+        c = rot((0, 0.1, -0.01))
+        ball(uid('crown'), 0.14, B(hc[0] + c[0], hc[1] + c[1], hc[2] + c[2]), straw, scale=(1, 1, 0.85), segs=18)
+    finish('farmer', tex=512, vivid=1.1, ao_min=0.82, ao_dist=0.05)
+
+
 # ---------------------------------------------------------------- the rest, from the game's sculpts
 # Every other animal starts from the game's own cartoon sculpt (shape and painted coat, dumped by
 # export_sculpts.mjs into tools/blender/sculpts), which Blender smooths, trims to a light mesh and
@@ -316,7 +406,6 @@ def chicken():
 
 SCULPTS = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'sculpts')
 HAND_MADE = {'cow', 'sheep', 'horse', 'chicken'}
-PETS = {'dog', 'cat'}   # the farmer's pets keep their sculpts
 
 
 def vcol_mat():
@@ -391,11 +480,11 @@ def from_sculpt(kind):
     finish(f'animal_{kind}', tex=512, vivid=1.08, ao_min=0.62, ao_dist=0.1)
 
 
-MODELS = {'animal_cow': cow, 'animal_sheep': sheep, 'animal_horse': horse, 'animal_chicken': chicken}
+MODELS = {'animal_cow': cow, 'animal_sheep': sheep, 'animal_horse': horse, 'animal_chicken': chicken, 'farmer': farmer}
 if os.path.isdir(SCULPTS):
     for f in sorted(os.listdir(SCULPTS)):
         k = f[:-5]
-        if f.endswith('.json') and k not in HAND_MADE | PETS:
+        if f.endswith('.json') and k not in HAND_MADE:
             MODELS[f'animal_{k}'] = (lambda kk=k: from_sculpt(kk))
 
 if __name__ == '__main__':
