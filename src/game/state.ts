@@ -1,5 +1,6 @@
 // Talons Farm - game state, persistence and all player actions
 import { ANIMAL, BUILDING, BUILDINGS, CROP, ITEMS, ITEM_LIST, RECIPE, type BuildingDef } from './data';
+import { isRaining } from './weather';
 
 export const GRID = 44;
 // older saves were made on a 28 tile map; their farm is moved by this many tiles to the new center
@@ -12,10 +13,13 @@ export interface FishingData { open: boolean; castAt: number | null; catchAt: nu
 // the fishing spot lies in the sea just off the south shore
 export const FISH_SPOT = { x: GRID / 2, y: GRID + 2.3 };
 export const FISHING = { level: 5, cost: 800, time: 45 };
-export interface PlotData { crop: string | null; plantedAt: number }
+// `watered`: the current crop got its drink (by hand, rain or a sprinkler) and grows faster
+export interface PlotData { crop: string | null; plantedAt: number; watered?: boolean }
 export interface QueueEntry { recipe: string; startAt: number; endsAt: number }
 export interface ProdData { queue: QueueEntry[]; slots: number }
-export interface Animal { id: number; fedAt: number | null }
+// `graze`: the animal left through the open gate at `at` to eat grass (bees: nectar); `back`
+// is set when it was called home early. A full animal walks back and starts producing.
+export interface Animal { id: number; fedAt: number | null; graze?: { at: number; back?: number } }
 export interface PenData { animals: Animal[] }
 export interface TreeData { startAt: number }
 export interface StallSlot { item: string | null; qty: number; price: number; listedAt: number; soldAt: number }
@@ -64,6 +68,7 @@ export interface GameState {
   mapV?: number;
   fishing?: FishingData;
   restedOn?: string; // day key of the last nap that earned the rested bonus
+  water?: { n: number; at: number }; // watering can: charges left, and when the last one refilled
 }
 
 // ---------------------------------------------------------------- helpers
@@ -99,6 +104,28 @@ export function fmtNum(n: number) {
   return n.toLocaleString('en-US');
 }
 
+// ---------------------------------------------------------------- watering
+// Watering is a bonus, never a chore: a watered crop needs 30% less of its remaining time, an
+// unwatered one grows as before. The can holds a few charges that refill over time, faster
+// with wells on the farm; rain waters every field for free, and sprinklers water the fields
+// around them.
+export const WATER = { max: 10, refillMs: 120e3, boost: 0.3, sprinklerRange: 2 };
+
+export function waterInfo(s: GameState, now: number) {
+  const wells = Math.min(3, s.objects.filter((o) => o.type === 'well').length);
+  const every = WATER.refillMs / (1 + 0.5 * wells);
+  const w = s.water ?? { n: WATER.max, at: now };
+  const gained = Math.max(0, Math.floor((now - w.at) / every));
+  const n = Math.min(WATER.max, w.n + gained);
+  const at = n >= WATER.max ? now : w.at + gained * every;
+  return { n, max: WATER.max, at, every, wells, nextIn: n >= WATER.max ? 0 : at + every - now };
+}
+
+export const needsWater = (o: FarmObject, now: number) => {
+  const pp = plotProgress(o, now);
+  return !!pp.crop && !pp.ready && !o.plot?.watered;
+};
+
 export function plotProgress(o: FarmObject, now: number) {
   const p = o.plot;
   if (!p || !p.crop) return { crop: null as string | null, p: 0, ready: false, remaining: 0 };
@@ -121,13 +148,34 @@ export function animalReady(a: { fedAt: number | null }, time: number, now: numb
   return a.fedAt !== null && now >= a.fedAt + time * 1000;
 }
 
+// ---------------------------------------------------------------- grazing
+// A trip out of the pen: a walk to the pasture, a meal, and a walk home. Times are fixed so the
+// rules stay a pure function of time (offline too); the renderer paces the walks to fit.
+export const GRAZE = { walkMs: 12e3, eatMs: 45e3, beeEatMs: 35e3 };
+
+export function grazePhase(a: Animal, now: number, bee = false) {
+  const g = a.graze;
+  if (!g) return { phase: 'in' as const, k: 0 };
+  const { walkMs } = GRAZE, eatMs = bee ? GRAZE.beeEatMs : GRAZE.eatMs;
+  if (g.back !== undefined) {
+    const k = (now - g.back) / walkMs;
+    return k >= 1 ? { phase: 'home' as const, k: 1 } : { phase: 'returning' as const, k, from: g.back };
+  }
+  const t = now - g.at;
+  if (t < walkMs) return { phase: 'leaving' as const, k: t / walkMs };
+  if (t < walkMs + eatMs) return { phase: 'eating' as const, k: (t - walkMs) / eatMs };
+  if (t < 2 * walkMs + eatMs) return { phase: 'returning' as const, k: (t - walkMs - eatMs) / walkMs, from: g.at + walkMs + eatMs };
+  return { phase: 'full' as const, k: 1, doneAt: g.at + 2 * walkMs + eatMs };
+}
+
 export function penInfo(o: FarmObject, now: number) {
   const d = BUILDING[o.type];
   const an = ANIMAL[d.animal ?? ''];
   const list = o.pen?.animals ?? [];
-  let ready = 0, fed = 0, hungry = 0, soonest = Infinity, soonestP = 0;
+  let ready = 0, fed = 0, hungry = 0, out = 0, soonest = Infinity, soonestP = 0;
   for (const a of list) {
-    if (a.fedAt === null) hungry++;
+    if (a.graze) out++;
+    if (a.fedAt === null) { if (!a.graze) hungry++; }
     else if (animalReady(a, an.time, now)) ready++;
     else {
       fed++;
@@ -135,7 +183,7 @@ export function penInfo(o: FarmObject, now: number) {
       if (rem < soonest) { soonest = rem; soonestP = 1 - rem / (an.time * 1000); }
     }
   }
-  return { animal: an, ready, fed, hungry, total: list.length, soonest, progress: soonestP };
+  return { animal: an, ready, fed, hungry, out, total: list.length, soonest, progress: soonestP };
 }
 
 export function treeInfo(o: FarmObject, now: number) {
@@ -674,6 +722,8 @@ export class GameStore {
     switch (d.kind) {
       case 'plot':
         if (!o.plot?.crop && this.ui.tool) { this.plant(o, this.ui.tool.crop); return; }
+        // a thirsty crop gets watered straight away while the can has water
+        if (needsWater(o, now) && waterInfo(this.s, now).n > 0) this.waterPlot(o);
         this.select(o.id);
         return;
       case 'production':
@@ -775,6 +825,7 @@ export class GameStore {
     else { if (!quiet) this.toast('Not enough coins for seeds.', 'bad'); else this.toast('Out of seeds.', 'bad'); this.ui.tool = null; this.emit(); return false; }
     o.plot.crop = cropId;
     o.plot.plantedAt = Date.now();
+    o.plot.watered = false;
     this.stat('plant');
     this.sound('plant');
     this.burst(o, '#8a5a34');
@@ -791,6 +842,7 @@ export class GameStore {
     this.stat('harvest', 2);
     this.stat(`harvest:${pp.crop}`, 2);
     o.plot.crop = null;
+    o.plot.watered = false;
     this.addXp(c.xp);
     this.float(o, `+2 ${ITEMS[c.id].icon}`, '#fff6c8', 30);
     this.fly(o, ITEMS[c.id].icon, 'storage');
@@ -798,6 +850,30 @@ export class GameStore {
     this.sound('harvest');
     if (!quiet) { /* reserved for future single tap feedback */ }
     this.emit();
+    return true;
+  }
+
+  // A drink for a growing crop: the rest of its growing time shrinks by 30%. `free` is rain or a
+  // sprinkler; by hand it costs one charge of the watering can.
+  waterPlot(o: FarmObject, free = false) {
+    const now = Date.now();
+    if (!o.plot || !needsWater(o, now)) return false;
+    if (!free) {
+      const wi = waterInfo(this.s, now);
+      if (wi.n <= 0) {
+        this.toast(`The watering can is empty. Next refill in ${fmtTime(wi.nextIn)}.`, 'bad');
+        return false;
+      }
+      this.s.water = { n: wi.n - 1, at: wi.n >= wi.max ? now : wi.at };
+      this.stat('water');
+      this.sound('plant');
+    }
+    const rem = plotProgress(o, now).remaining;
+    o.plot.plantedAt -= rem * WATER.boost;
+    o.plot.watered = true;
+    this.burst(o, '#6fc8ff');
+    if (!free) this.float(o, '💧', '#dff4ff', 20);
+    this.emit(false);
     return true;
   }
 
@@ -903,7 +979,7 @@ export class GameStore {
     if (!o.pen) return;
     let n = 0;
     for (const a of o.pen.animals) {
-      if (a.fedAt !== null) continue;
+      if (a.fedAt !== null || a.graze) continue;
       if ((this.s.inv[pi.animal.feed] ?? 0) <= 0) break;
       this.take(pi.animal.feed, 1);
       a.fedAt = Date.now();
@@ -911,6 +987,35 @@ export class GameStore {
     }
     if (n) { this.sound('plant'); this.float(o, `Fed ${n} ${pi.animal.icon}`, '#ffffff', 40); this.emit(); }
     else if (pi.hungry) this.toast(`You need ${ITEMS[pi.animal.feed].name}. ${feedHint(pi.animal.feed)}`, 'bad');
+  }
+
+  // Open the gate: every hungry animal walks out to graze (bees fly off to the flowers) and
+  // comes home by itself once full, ready to produce.
+  openGate(o: FarmObject) {
+    if (!o.pen) return;
+    const now = Date.now();
+    let n = 0;
+    for (const a of o.pen.animals) if (a.fedAt === null && !a.graze) { a.graze = { at: now }; n++; }
+    const an = penInfo(o, now).animal;
+    if (!n) { this.toast(`No hungry ${an.name.toLowerCase()}s to let out.`); return; }
+    this.sound('click');
+    this.float(o, an.id === 'bee' ? `🌼 ${n} off to the flowers` : `🌿 ${n} out to graze`, '#ffffff', 40);
+    this.stat('graze', n);
+    this.emit();
+  }
+
+  // Call them home early: they walk back and stay hungry (unless the meal was already done).
+  recallPen(o: FarmObject) {
+    if (!o.pen) return;
+    const now = Date.now();
+    let n = 0;
+    const bee = penInfo(o, now).animal.id === 'bee';
+    for (const a of o.pen.animals) {
+      if (!a.graze || a.graze.back !== undefined) continue;
+      const ph = grazePhase(a, now, bee).phase;
+      if (ph === 'leaving' || ph === 'eating') { a.graze.back = now; n++; }
+    }
+    if (n) { this.sound('click'); this.float(o, `📣 ${n} coming home`, '#ffffff', 40); this.emit(); }
   }
 
   collectPen(o: FarmObject) {
@@ -1319,8 +1424,46 @@ export class GameStore {
   }
 
   // called every second
+  private rainNoteAt = 0;
+
+  // grazing animals that finished their trip: home and fed (or home and still hungry if called back)
+  private settleGrazing(now: number) {
+    let changed = false;
+    for (const o of this.s.objects) {
+      if (!o.pen) continue;
+      const bee = BUILDING[o.type].animal === 'bee';
+      let fedN = 0;
+      for (const a of o.pen.animals) {
+        if (!a.graze) continue;
+        const gp = grazePhase(a, now, bee);
+        if (gp.phase === 'home') { delete a.graze; changed = true; }
+        else if (gp.phase === 'full') { a.fedAt = gp.doneAt; delete a.graze; fedN++; changed = true; }
+      }
+      if (fedN) this.float(o, bee ? `🍯 ${fedN} bees full of nectar` : `😋 ${fedN} full and home`, '#ffffff', 40);
+    }
+    return changed;
+  }
+
   tick() {
     const now = Date.now();
+    if (this.settleGrazing(now)) this.emit();
+    // rain and sprinklers water thirsty fields for free
+    const thirsty = this.s.objects.filter((o) => o.type === 'plot' && needsWater(o, now));
+    if (thirsty.length) {
+      const rain = this.s.settings.weather && isRaining(now);
+      const sprinklers = this.s.objects.filter((o) => o.type === 'sprinkler');
+      const r = WATER.sprinklerRange;
+      let rained = 0;
+      for (const o of thirsty) {
+        if (rain) { this.waterPlot(o, true); rained++; }
+        else if (sprinklers.some((sp) => Math.abs(sp.x - o.x) <= r && Math.abs(sp.y - o.y) <= r)) this.waterPlot(o, true);
+      }
+      // one note per shower, not one per field
+      if (rained && now - this.rainNoteAt > 5 * 60e3) {
+        this.rainNoteAt = now;
+        this.toast('Rain is watering your fields! 🌧️', 'good');
+      }
+    }
     const b = this.s.boat;
     if (b && this.countType('dock') > 0) {
       if (b.crates.length && now >= b.leavesAt) {

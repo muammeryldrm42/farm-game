@@ -526,12 +526,106 @@ def bush_obs(v):
     finish(f'bush_obs{v}', tex=512)
 
 
+def flower(x, y, z, kind, petal, m, seed=0):
+    """One garden flower on a short stem with two leaves: a tulip cup, a daisy or a rose."""
+    stem = pm('fl_stem', '#3f8a2a')
+    cyl(uid('stem'), 0.006, 0.1, (x, y, z + 0.05), stem, verts=6, bev=0)
+    for sd in (-1, 1):
+        a = seed + sd * 1.2
+        obox(uid('leaf'), (x + math.cos(a) * 0.022, y + math.sin(a) * 0.022, z + 0.03),
+             ((math.cos(a), math.sin(a), 0.6), (-math.sin(a), math.cos(a), 0), (-0.6 * math.cos(a), -0.6 * math.sin(a), 1)),
+             (0.05, 0.02, 0.004), m['leaf'], bev=0)
+    top = z + 0.105
+    if kind == 'tulip':
+        for k in range(5):
+            a = seed + k * 1.2566
+            ball(uid('pt'), 0.018, (x + math.cos(a) * 0.012, y + math.sin(a) * 0.012, top + 0.012), petal, scale=(0.7, 0.7, 1.35), segs=10)
+    elif kind == 'daisy':
+        for k in range(10):
+            a = seed + k * 0.628
+            ball(uid('pt'), 0.011, (x + math.cos(a) * 0.02, y + math.sin(a) * 0.02, top), petal, scale=(1.7, 0.7, 0.35), segs=8).rotation_euler = (0, 0, a)
+        ball(uid('ctr'), 0.01, (x, y, top + 0.004), pm('daisy_c', '#f0b820'), scale=(1, 1, 0.6), segs=8)
+    else:
+        ball(uid('rose'), 0.02, (x, y, top + 0.008), petal, scale=(1, 1, 0.85), segs=12)
+        for k in range(5):
+            a = seed + k * 1.2566
+            ball(uid('pt'), 0.013, (x + math.cos(a) * 0.017, y + math.sin(a) * 0.017, top + 0.002), petal, scale=(1.2, 1, 0.6), segs=8)
+
+
+def flowers():
+    """A raised plank bed of dark soil planted with a tidy 4 by 4 mix of garden flowers."""
+    m = std()
+    rnd = random.Random(12)
+    plank = pm('bed_plank', '#b07a42', '#c28a4e', scale=6, kind='wave', stretch=(1, 8, 1))
+    for sx, sy, w, d in ((0, -0.39, 0.84, 0.06), (0, 0.39, 0.84, 0.06), (-0.39, 0, 0.06, 0.72), (0.39, 0, 0.06, 0.72)):
+        box(uid('pl'), (w, d, 0.12), (sx, sy, 0.06), plank, bev=0.012)
+    box(uid('soil'), (0.72, 0.72, 0.1), (0, 0, 0.05), m['soil'], bev=0.01)
+    cols = [pm('f1', '#ff4f7a'), pm('f2', '#ffd23a'), pm('f3', '#ffffff'), pm('f4', '#9a6aff'), pm('f5', '#ff8a3d'), pm('f6', '#e8303a')]
+    kinds = ['tulip', 'daisy', 'rose']
+    for i in range(16):
+        x = -0.27 + (i % 4) * 0.18 + (rnd.random() - 0.5) * 0.04
+        y = -0.27 + (i // 4) * 0.18 + (rnd.random() - 0.5) * 0.04
+        flower(x, y, 0.1, kinds[i % 3], cols[(i * 5) % 6], m, seed=rnd.random() * 6)
+    finish('flowers', tex=512)
+
+
+def stone_path():
+    """Five flat irregular flagstones set in the grass."""
+    rnd = random.Random(5)
+    stone = [pm('fs1', '#bcb4a4', '#ccc4b4', scale=20), pm('fs2', '#b0a898', '#c0b8a8', scale=20)]
+    for i in range(5):
+        x = -0.28 + (i % 3) * 0.28
+        y = 0.25 - (i // 3) * 0.45 - (i % 2) * 0.08
+        r = rock(uid('flag'), 0.14 + rnd.random() * 0.04, (x, y, 0.0), stone[i % 2], seed=i + 20, squash=0.18, rough=0.12)
+        r.rotation_euler[2] = rnd.random() * 3
+    finish('stone_path', tex=256)
+
+
+def beehive_skep():
+    """A coiled straw bee skep on a little wooden stand, with its entrance hole in front."""
+    m = std()
+    straw = pm('skep', '#dcae4a', '#ecc262', scale=40, kind='wave', stretch=(1, 1, 6))
+    for sx in (-1, 1):
+        for sy in (-1, 1):
+            box(uid('leg'), (0.03, 0.03, 0.08), (sx * 0.1, sy * 0.1, 0.04), m['wood_dark'], bev=0.004)
+    box(uid('stand'), (0.34, 0.34, 0.03), (0, 0, 0.095), m['wood'], bev=0.008)
+    rings = 7
+    for i in range(rings):
+        t0 = (i + 0.5) / rings
+        r = 0.16 * math.sqrt(max(0.0, 1 - t0 ** 2.2)) + 0.012
+        torus(uid('coil'), r, 0.021, (0, 0, 0.11 + t0 * 0.27), straw, segs=28, rsegs=8)
+    ball(uid('fill'), 0.155, (0, 0, 0.245), straw, scale=(1, 1, 0.92), segs=20)
+    ball(uid('knob'), 0.022, (0, 0, 0.39), straw, scale=(1, 1, 0.6), segs=10)
+    ball(uid('door'), 0.036, (0, -0.152, 0.14), pm('skep_door', '#2a1a10'), scale=(1, 0.3, 0.75), segs=10)
+    finish('beehive_skep', tex=512)
+
+
+def sprinkler():
+    """A garden sprinkler on a stake: a brass riser and a spinning head with two nozzles (the game
+    turns the head and sprays the water)."""
+    m = std()
+    brass = pm('spr_brass', '#c8962e', '#d8a83e', scale=20, rough=0.3, metal=0.7)
+    green = pm('spr_green', '#2f8a3a')
+    box(uid('stake'), (0.05, 0.05, 0.12), (0, 0, 0.06), m['wood_dark'], bev=0.01)
+    cyl(uid('base'), 0.08, 0.04, (0, 0, 0.02), green, verts=16)
+    cyl(uid('riser'), 0.018, 0.3, (0, 0, 0.19), brass, verts=10)
+    torus(uid('hose'), 0.14, 0.018, (0.1, 0.06, 0.02), green, segs=20, rsegs=6)
+    with anim_group('spinY_head', (0, 0, 0.34)):
+        cyl(uid('hub'), 0.035, 0.05, (0, 0, 0.345), brass, verts=12)
+        for sx in (-1, 1):
+            cyl(uid('arm'), 0.01, 0.16, (sx * 0.07, 0, 0.36), brass, verts=8, rot=(0, math.radians(90), 0))
+            cyl(uid('nozzle'), 0.014, 0.03, (sx * 0.15, 0, 0.375), brass, verts=8)
+    cyl(uid('puddle'), 0.3, 0.005, (0, 0, 0.003), pm('spr_puddle', '#5a8a3a'), verts=24, bev=0)
+    finish('sprinkler', tex=256)
+
+
 MODELS = {'hay_bale': hay_bale, 'picket_fence': picket_fence, 'bird_house': bird_house, 'pumpkin_pile': pumpkin_pile,
           'birdbath': birdbath, 'topiary': topiary, 'well': well, 'flower_arch': flower_arch, 'hay_wagon': hay_wagon,
           'tractor': tractor, 'bench': bench, 'lamp': lamp, 'scarecrow': scarecrow, 'windmill': windmill, 'pond': pond,
           'mailbox': mailbox, 'gazebo': gazebo, 'fountain': fountain,
           'rock_obs0': lambda: rock_obs(0), 'rock_obs1': lambda: rock_obs(1), 'rock_obs2': lambda: rock_obs(2),
-          'bush_obs0': lambda: bush_obs(0), 'bush_obs1': lambda: bush_obs(1)}
+          'bush_obs0': lambda: bush_obs(0), 'bush_obs1': lambda: bush_obs(1),
+          'flowers': flowers, 'stone_path': stone_path, 'beehive_skep': beehive_skep, 'sprinkler': sprinkler}
 
 if __name__ == '__main__':
     main(MODELS)

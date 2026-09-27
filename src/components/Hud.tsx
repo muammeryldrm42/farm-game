@@ -1,8 +1,8 @@
 'use client';
 import Ico from './Ico';
 import { BUILDING, CROP, ITEMS } from '@/game/data';
-import { TUTORIAL, TUTORIAL_DONE, canFulfill, claimableBadges, claimableQuests, fmtNum, xpNeed } from '@/game/state';
-import { useStore, useVersion } from './ctx';
+import { TUTORIAL, TUTORIAL_DONE, canFulfill, claimableBadges, claimableQuests, fmtNum, fmtTime, waterInfo, xpNeed } from '@/game/state';
+import { useNow, useStore, useVersion } from './ctx';
 
 export function Coin({ className = '' }: { className?: string }) {
   return <span className={`coin ${className}`} aria-label="coins" />;
@@ -50,6 +50,7 @@ export default function Hud() {
             <Coin className="text-xl sm:text-2xl" />
             <span className="min-w-[2rem] text-right">{fmtNum(s.coins)}</span>
           </div>
+          <WaterPill />
           <div className="pill">
             <span className="emoji text-lg sm:text-xl">💎</span>
             <span className="min-w-[1rem] text-right">{fmtNum(s.gems)}</span>
@@ -166,6 +167,20 @@ export default function Hud() {
         </div>
       )}
     </div>
+  );
+}
+
+// the watering can: charges left; tap for when the next one comes
+function WaterPill() {
+  const store = useStore();
+  const now = useNow(1000);
+  const wi = waterInfo(store.s, now);
+  const tip = wi.n < wi.max ? `Watering can ${wi.n}/${wi.max}, next refill in ${fmtTime(wi.nextIn)}` : 'The watering can is full. Tap a growing field to water it.';
+  return (
+    <button className="pill" title={tip} aria-label={tip} onClick={() => store.toast(tip)}>
+      <span className="emoji text-lg sm:text-xl">💧</span>
+      <span className="min-w-[1.5rem] text-right">{wi.n}/{wi.max}</span>
+    </button>
   );
 }
 

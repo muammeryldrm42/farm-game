@@ -9,6 +9,7 @@ import { fillRich, isDrawn, paintIcon } from './icons';
 import { U } from './gfx/shared';
 import { Sky } from './gfx/sky';
 import { makeWater } from './gfx/water';
+import { seasonOf, weatherAt, type Season } from './weather';
 import { FLOWER_KIT_MAT, Foliage, flowerKit, windify, type FlowerKind, type Spot } from './gfx/foliage';
 import { Post } from './gfx/post';
 import { PLANT_MAT, cropGeo } from './gfx/crops';
@@ -20,8 +21,8 @@ import { SCULPT_MAT, TOON_MAT, TOON_WOOL, WOOL_MAT } from './gfx/sdf';
 import { leafShell, leafTexture, meterBox, meterHip, meterRoof, surface, surfaceMat, type SurfaceKind } from './gfx/textures';
 import { ANIMAL, BUILDING, CROP, ITEMS, type BuildingDef, type CropDef } from './data';
 import {
-  CHUNK, FISH_SPOT, GRID, MAP_OFF, NCH, animalReady, fishingInfo, boatState, canFulfill, chunkState, penInfo, plotProgress, prodInfo, treeInfo,
-  type FarmObject, type GameStore,
+  CHUNK, FISH_SPOT, GRID, MAP_OFF, NCH, animalReady, fishingInfo, boatState, canFulfill, chunkState, grazePhase, penInfo, plotProgress, prodInfo, treeInfo,
+  type Animal, type FarmObject, type GameStore,
 } from './state';
 
 export const ZU = 1 / 40; // converts the old pixel heights used by effects into world units
@@ -43,27 +44,6 @@ export function nightFactor(now: number) {
   const night = clamp((-c - 0.3) / 0.5, 0, 1);
   const dusk = clamp(1 - Math.abs(c + 0.15) / 0.3, 0, 1);
   return { night, dusk };
-}
-
-type Season = 'spring' | 'summer' | 'autumn' | 'winter';
-export function seasonOf(d = new Date()): Season {
-  const m = d.getMonth();
-  if (m === 11 || m <= 1) return 'winter';
-  if (m <= 4) return 'spring';
-  if (m <= 7) return 'summer';
-  return 'autumn';
-}
-
-// Weather is cosmetic: short showers (or snow in winter) come and go on a schedule.
-export function weatherAt(now: number, season: Season) {
-  const CYCLE = 9 * 60 * 1000;
-  const idx = Math.floor(now / CYCLE);
-  const into = (now % CYCLE) / 1000;
-  const chance = season === 'winter' ? 0.6 : season === 'summer' ? 0.25 : 0.4;
-  const len = season === 'winter' ? 180 : 110;
-  if (hash(idx, 3, 5) >= chance || into > len) return { kind: 'clear' as const, k: 0 };
-  const k = clamp(Math.min(into / 8, (len - into) / 8), 0, 1);
-  return { kind: season === 'winter' ? ('snow' as const) : ('rain' as const), k };
 }
 
 // ------------------------------------------------------------------ shared geometry, materials, textures
@@ -521,10 +501,42 @@ export class Renderer {
     this.life = new Life(this.scene);
     this.sel = this.buildSelection();
     // start fetching the Blender models right away, so they are usually in before the farm shows
-    if (artStyle() === 'toon') loadModel('farmhouse').catch(() => {});
+    if (artStyle() === 'toon') {
+      loadModel('farmhouse').catch(() => {});
+      // the forest and FOR SALE signs on locked land: rebuild the land once their models are in
+      for (const name of ['forest_pine', 'forest_round', 'forsale_sign'] as const) {
+        loadModel(name).then((m) => { WORLD_MODELS[name] = m; this.landKey = ''; }).catch(() => {});
+      }
+    }
     this.farmer = actor(FARM_C.x - 0.5, FARM_C.y + 0.5, buildFarmer());
     this.dog = actor(FARM_C.x + 0.5, FARM_C.y + 0.5, buildDog());
     this.cat = actor(FARM_C.x + 1.5, FARM_C.y + 1.5, buildCat());
+    // grazing animals borrow the farmer's walk grid; bees look for blossoms
+    GRAZE_NAV = {
+      path: (sx, sy, tx, ty) => { this.rebuildNav(); return this.findPath(sx, sy, tx, ty); },
+      nearest: (x, y) => { this.rebuildNav(); return this.nearestFree(x, y); },
+      grass: (x, y) => { this.rebuildNav(); return this.free(x, y) && !pathTiles.has(y * GRID + x); },
+      flowers: () => this.flowerSpots(),
+    };
+    // the farmer and pets start as sculpts and take on their Blender models once loaded
+    if (artStyle() === 'toon') {
+      loadModel('farmer').then((m) => {
+        const fresh = farmerFromModel(m);
+        const g = this.farmer.g;
+        g.clear();
+        for (const c of [...fresh.children]) g.add(c);
+        Object.assign(g.userData, fresh.userData);
+      }).catch(() => {});
+      for (const [kind, pet, make] of [['dog', this.dog, buildDog], ['cat', this.cat, buildCat]] as const) {
+        loadModel(`animal_${kind}`).then((m) => {
+          animalSrc.set(kind, m);
+          const fresh = make();
+          pet.g.clear();
+          for (const c of [...fresh.children]) pet.g.add(c);
+          Object.assign(pet.g.userData, fresh.userData);
+        }).catch(() => {});
+      }
+    }
     this.world.add(this.farmer.g, this.dog.g, this.cat.g);
     this.applyQuality(this.quality);
     this.offQuality = onQuality((q) => this.applyQuality(q));
@@ -720,7 +732,6 @@ export class Renderer {
     }
 
     this.buildShore();
-    this.buildDistantIslands();
 
     const grass = new THREE.MeshStandardMaterial({ color: '#ffffff', roughness: 0.95, ...surface('grass') });
     grass.normalScale.set(0.8, 0.8);
@@ -763,23 +774,6 @@ export class Renderer {
     this.land.add(this.tiles);
   }
 
-  // hazy green islands out at sea, so the horizon has depth when zoomed out
-  private buildDistantIslands() {
-    const spots: [number, number, number][] = [[-34, -10, 7], [GRID + 30, 6, 9], [GRID / 2 + 6, GRID + 36, 8], [-26, GRID + 22, 6], [GRID + 26, GRID + 30, 5], [GRID / 2 - 10, -34, 7]];
-    const sand = M('#e8d49a'), hill = M('#5f9a44'), rock = MF('#9a9ea3');
-    spots.forEach(([x, z, r], i) => {
-      const isl = group(this.scene, x, -0.55, z);
-      mk(isl, cylGeo(r * 1.08, r * 1.15, 24), sand, 1, 0.25, 1, 0, 0.05, 0, false);
-      mk(isl, blobGeo(90 + i, true), hill, r * 0.95, r * 0.45, r * 0.8, 0, 0.1, 0, false);
-      mk(isl, blobGeo(96 + i, true), hill, r * 0.5, r * 0.55, r * 0.45, r * 0.25, 0.3, -r * 0.1, false);
-      for (let k = 0; k < 7; k++) {
-        const a = hash(k, i, 3) * Math.PI * 2, d = hash(k, i, 4) * r * 0.6;
-        mk(isl, pineGeo(), M('#2f6b2a'), 0.35 + hash(k, i, 5) * 0.3, 1.2 + hash(k, i, 6) * 0.8, 0.35 + hash(k, i, 5) * 0.3, Math.cos(a) * d, r * 0.3 + 0.6, Math.sin(a) * d, false);
-      }
-      mk(isl, G.rock, rock, r * 0.2, r * 0.15, r * 0.18, r * 0.9, 0.1, r * 0.3, false);
-    });
-  }
-
   // boulders along the beach and in the surf, plus a few starfish on the sand
   private buildShore() {
     const rocks: THREE.Matrix4[] = [];
@@ -803,10 +797,22 @@ export class Renderer {
       rocks.push(m.clone());
       cols.push(new THREE.Color('#9da3a8').offsetHSL(0, 0, (hash(i, 7, 21) - 0.5) * 0.18));
     }
-    const im = new THREE.InstancedMesh(G.rock, MF('#ffffff'), rocks.length);
+    const im = new THREE.InstancedMesh<THREE.BufferGeometry, THREE.Material | THREE.Material[]>(G.rock, MF('#ffffff'), rocks.length);
     rocks.forEach((mm, i) => { im.setMatrixAt(i, mm); im.setColorAt(i, cols[i]); });
     im.castShadow = true; im.receiveShadow = true;
     this.land.add(im);
+    if (artStyle() === 'toon') {
+      // the Blender boulder (tools/blender/world.py) takes over the shoreline rocks once loaded;
+      // its stone is painted already, so the tints only nudge each copy lighter or darker
+      loadModel('shore_rock').then((mdl) => {
+        const src = firstMesh(mdl);
+        if (!src) return;
+        im.geometry = src.geometry;
+        im.material = src.material;
+        cols.forEach((c, i) => im.setColorAt(i, c.setRGB(1, 1, 1).offsetHSL(0, 0, (hash(i, 7, 21) - 0.5) * 0.16)));
+        if (im.instanceColor) im.instanceColor.needsUpdate = true;
+      }).catch(() => {});
+    }
     const star = new THREE.Shape();
     for (let i = 0; i < 10; i++) {
       const a = (i / 10) * Math.PI * 2, r = i % 2 ? 0.4 : 1;
@@ -892,6 +898,25 @@ export class Renderer {
       }
     }
     const mtx = new THREE.Matrix4(), q = new THREE.Quaternion(), sv = new THREE.Vector3(), pv = new THREE.Vector3();
+    const pineSrc = firstMesh(WORLD_MODELS.forest_pine), roundSrc = firstMesh(WORLD_MODELS.forest_round);
+    if (artStyle() === 'toon' && pineSrc && roundSrc) {
+      // Blender forest: one instanced mesh per kind, each copy turned, sized and tinted a little
+      const up = new THREE.Vector3(0, 1, 0);
+      for (const [list, src, salt] of [[pines, pineSrc, 5], [rounds, roundSrc, 9]] as const) {
+        const im = new THREE.InstancedMesh(src.geometry, src.material, list.length);
+        list.forEach(([x, z, sc], i) => {
+          q.setFromAxisAngle(up, hash(i, salt, 3) * Math.PI * 2);
+          mtx.compose(pv.set(x, 0, z), q, sv.setScalar(sc * 1.05));
+          im.setMatrixAt(i, mtx);
+          im.setColorAt(i, col.setRGB(1, 1, 1).offsetHSL((hash(i, salt) - 0.5) * 0.03, 0, (hash(i, salt, 7) - 0.5) * 0.14));
+        });
+        im.castShadow = true;
+        im.receiveShadow = true;
+        this.dynLand.add(im);
+      }
+      this.land.add(this.dynLand);
+      return;
+    }
     const trunks = new THREE.InstancedMesh(cylGeo(0.06, 0.09, 8), surfaceMat('bark', '#7a4a26', 4), pines.length + rounds.length);
     const pineA = new THREE.InstancedMesh(pineGeo(), new THREE.MeshStandardMaterial({ color: '#ffffff', roughness: 0.85 }), pines.length);
     const pineB = new THREE.InstancedMesh(pineGeo(), new THREE.MeshStandardMaterial({ color: '#ffffff', roughness: 0.85 }), pines.length);
@@ -933,6 +958,12 @@ export class Renderer {
   private signs: THREE.Group[] = [];
   private buildSign(p: P, cx: number, cy: number) {
     const g = group(p, cx * CHUNK + CHUNK / 2, 0, cy * CHUNK + CHUNK / 2);
+    if (artStyle() === 'toon' && WORLD_MODELS.forsale_sign) {
+      g.add(WORLD_MODELS.forsale_sign.clone());
+      g.userData.sign = true;
+      this.signs.push(g);
+      return;
+    }
     cyl(g, 0.05, 0.05, 0.9, '#6b4226', 0, 0, 0, 6);
     const tex = canvasTex('forsale', 256, 128, (c) => {
       c.fillStyle = '#c98a45'; c.fillRect(0, 0, 256, 128);
@@ -1077,7 +1108,12 @@ export class Renderer {
       if (e.bounce || e.root.scale.x !== 1) this.applyBounce(e, o, dt);
     }
     tickAnims(dt);
-    for (const g of this.signs) { g.children[1].position.y = 0.95 + Math.sin(t / 500 + g.position.x) * 0.03; g.rotation.y = this.az; }
+    for (const g of this.signs) {
+      // the procedural board bobs on its post; the Blender sign is one piece and just turns
+      const board = g.children[1];
+      if (board) board.position.y = 0.95 + Math.sin(t / 500 + g.position.x) * 0.03;
+      g.rotation.y = this.az;
+    }
 
     this.updateGhost(t);
     this.updateSelection(t);
@@ -1504,6 +1540,25 @@ export class Renderer {
   private homeZzz: THREE.Sprite | null = null;
   private nightMode = false;
   private zzz: THREE.Sprite | null = null;
+
+  // blossoms for the bees: flower beds and arches, flowering crops, fruit trees
+  private flowerKey = '';
+  private flowerList: { x: number; y: number }[] = [];
+  private flowerSpots() {
+    const s = this.store.s;
+    const key = `${this.store.objVersion}|${s.objects.length}`;
+    if (key !== this.flowerKey) {
+      this.flowerKey = key;
+      this.flowerList = [];
+      for (const o of s.objects) {
+        const d = BUILDING[o.type];
+        const bloom = o.type === 'flowers' || o.type === 'flower_arch' || d.kind === 'tree'
+          || (d.kind === 'plot' && !!o.plot?.crop && CROP[o.plot.crop]?.shape === 'flower');
+        if (bloom) this.flowerList.push({ x: o.x + d.w / 2, y: o.y + d.h / 2 });
+      }
+    }
+    return this.flowerList;
+  }
 
   private rebuildNav() {
     const s = this.store.s;
@@ -2002,10 +2057,38 @@ function buildToonFarmer(shirt: string, overall: string, jeans: string) {
   return g;
 }
 
+// the Blender farmer (tools/blender/animals.py): legs on the hips, and a body group carrying the
+// torso, both arms and the head, like the sculpted farmer, so the walk cycle drives it unchanged
+function farmerFromModel(src: THREE.Object3D) {
+  const g = new THREE.Group();
+  const body = group(g);
+  const legs: THREE.Object3D[] = [], arms: THREE.Object3D[] = [];
+  let head: THREE.Object3D | null = null;
+  for (const c of [...src.clone().children]) {
+    if (/^leg\d$/.test(c.name)) { legs[+c.name.slice(3)] = c; g.add(c); }
+    else if (/^arm\d$/.test(c.name)) { const i = +c.name.slice(3); arms[i] = c; c.rotation.z = (i ? 1 : -1) * 0.16; body.add(c); }
+    else if (c.name === 'head') { head = c; body.add(c); }
+    else body.add(c);
+  }
+  if (head) {
+    // the hat brim would shade the whole face; a cartoon face stays bright under it
+    (head as THREE.Object3D).traverse((c) => { c.receiveShadow = false; });
+    toonEyes(head, [0.05, 0.028, 0.116, 0.03, 0.22], '#6b4020');
+  }
+  contactShadow(g, 0.4, 0.3);
+  g.userData.legs = legs;
+  g.userData.signs = [1, -1];
+  g.userData.arms = arms;
+  g.userData.head = head;
+  g.userData.body = body;
+  return g;
+}
+
 export function buildCat() {
   const g = assemble('cat');
   const cp = creature('cat');
-  if (cp?.eye) toonEyes(g.userData.head as THREE.Group, cp.eye, '#3a2e28');
+  if (g.userData.model) modelEyes(g, 'cat');
+  else if (cp?.eye) toonEyes(g.userData.head as THREE.Group, cp.eye, '#3a2e28');
   g.scale.setScalar(1.25);
   return g;
 }
@@ -2013,7 +2096,8 @@ export function buildCat() {
 export function buildDog() {
   const g = assemble('dog');
   const dp = creature('dog');
-  if (dp?.eye && dp.toon) toonEyes(g.userData.head as THREE.Group, dp.eye, '#3a2e28');
+  if (g.userData.model) modelEyes(g, 'dog');
+  else if (dp?.eye && dp.toon) toonEyes(g.userData.head as THREE.Group, dp.eye, '#3a2e28');
   else if (dp?.eye) realEyes(g.userData.head as THREE.Group, dp.eye, LID.dog);
   const tail = g.userData.tail as THREE.Object3D;
   tail.rotation.x = -0.6;
@@ -2155,8 +2239,8 @@ function mergeStatic(root: THREE.Object3D) {
 // sculpt stands in; pens rebuild their herd when a model arrives.
 const ANIMAL_MODELS = new Set([
   'alpaca', 'angora_goat', 'bactrian_camel', 'barn_owl', 'beaver', 'belted_galloway', 'bison', 'black_sheep',
-  'black_swan', 'buffalo', 'camel', 'cashmere_goat', 'cassowary', 'chicken', 'chinchilla', 'cow',
-  'crane', 'donkey', 'duck', 'emu', 'flamingo', 'goat', 'gobbler', 'golden_goose', 'goose',
+  'black_swan', 'buffalo', 'camel', 'cashmere_goat', 'cassowary', 'cat', 'chicken', 'chinchilla', 'cow',
+  'crane', 'dog', 'donkey', 'duck', 'emu', 'flamingo', 'goat', 'gobbler', 'golden_goose', 'goose',
   'guinea_fowl', 'highland_cow', 'horse', 'jacob_sheep', 'jersey_cow', 'kiwi_bird', 'llama', 'mandarin_duck',
   'merino_sheep', 'moose', 'muscovy_duck', 'musk_ox', 'nubian_goat', 'ostrich', 'parrot', 'peacock',
   'pheasant', 'pony', 'quail', 'rabbit', 'reindeer', 'rhea', 'sheep', 'silkie_chicken', 'silkworm',
@@ -2176,6 +2260,11 @@ function assembleModel(src: THREE.Object3D) {
   const g = new THREE.Group();
   const legs: THREE.Object3D[] = [];
   for (const c of [...src.clone().children]) {
+    if (c.name === 'eye') {
+      // where the right eye goes: position in the model, radius in its scale, yaw in its turn
+      g.userData.eyeAt = { p: c.position.clone(), r: c.scale.x, yaw: c.rotation.y };
+      continue;
+    }
     if (c.name === 'head') g.userData.head = c;
     else if (c.name === 'tail') g.userData.tail = c;
     else if (/^leg\d$/.test(c.name)) legs[+c.name.slice(3)] = c;
@@ -2187,7 +2276,17 @@ function assembleModel(src: THREE.Object3D) {
   }
   g.userData.legs = legs;
   g.userData.signs = legs.length === 4 ? [1, -1, -1, 1] : [1, -1];
+  g.userData.model = true;
   return g;
+}
+
+// small natural eyes on a Blender animal's head, where its model marks them
+function modelEyes(g: THREE.Object3D, kind: string) {
+  const ea = g.userData.eyeAt as { p: THREE.Vector3; r: number; yaw: number } | undefined;
+  const head = g.userData.head as THREE.Object3D | undefined;
+  if (!ea || !head) return;
+  const lp = ea.p.clone().sub(head.position);
+  realEyes(head, [Math.abs(lp.x), lp.y, lp.z, ea.r, ea.yaw], LID[kind] ?? '#3a2a20');
 }
 
 function assemble(kind: string) {
@@ -2317,11 +2416,18 @@ function animalBody(kind: string) {
   const head = g.userData.head as THREE.Group | undefined;
   if (!head) return g;
   const cp = creature(kind);
-  // cartoon animals read bigger against their pens, like in classic farm games
-  if (cp?.toon) g.scale.setScalar(TALL.has(kind) ? 1.15 : 1.35);
-  if (cp?.eye && cp.toon) toonEyes(head, cp.eye, '#3a2e28');
+  if (g.userData.model) {
+    // Blender animals: natural proportions and small natural eyes, a little larger than life so
+    // they still read well against their pens
+    g.scale.setScalar(TALL.has(kind) ? 1.08 : 1.25);
+    modelEyes(g, kind);
+  } else if (cp?.toon) {
+    // cartoon animals read bigger against their pens, like in classic farm games
+    g.scale.setScalar(TALL.has(kind) ? 1.15 : 1.35);
+  }
+  if (g.userData.model) { /* eyes done above */ } else if (cp?.eye && cp.toon) toonEyes(head, cp.eye, '#3a2e28');
   else if (cp?.eye) realEyes(head, cp.eye, LID[kind] ?? '#3a2a20');
-  if (cp?.bell) {
+  if (cp?.bell && !g.userData.model) {
     // leather collar with a brass bell
     const [bx, by, bz, br] = cp.bell;
     const collar = new THREE.Mesh(torus(br, br * 0.16, 8, 28), M('#c0392b'));
@@ -2393,14 +2499,22 @@ function skepGeo() {
   return skep;
 }
 
+let hiveSrc: THREE.Object3D | null = null;
 function buildHive() {
   const g = new THREE.Group();
-  // a round straw skep on a little wooden stand
-  for (const [x, z] of [[-0.1, -0.1], [0.1, -0.1], [-0.1, 0.1], [0.1, 0.1]]) cyl(g, 0.015, 0.015, 0.08, '#8a5a33', x, 0, z, 6);
-  bxT(g, 0.34, 0.03, 0.34, 'planks', '#b98048', 0, 0.08, 0, 4);
-  mk(g, skepGeo(), surfaceMat('thatch', '#e8c160', 3, 0.9), 1, 1, 1, 0, 0.11, 0);
-  mk(g, G.ball, M('#3a2616'), 0.035, 0.028, 0.01, 0, 0.14, 0.14, false);
-  ball(g, 0.02, '#c9983a', 0, 0.39, 0, 1, 0.6, 1);
+  if (artStyle() === 'toon' && !hiveSrc && !modelCache.has('beehive_skep')) {
+    // the bee garden rebuilds its hives (like a herd) once the Blender skep is in
+    loadModel('beehive_skep').then((m) => { hiveSrc = m; animalVer++; }).catch(() => {});
+  }
+  if (hiveSrc) g.add(hiveSrc.clone());
+  else {
+    // a round straw skep on a little wooden stand
+    for (const [x, z] of [[-0.1, -0.1], [0.1, -0.1], [-0.1, 0.1], [0.1, 0.1]]) cyl(g, 0.015, 0.015, 0.08, '#8a5a33', x, 0, z, 6);
+    bxT(g, 0.34, 0.03, 0.34, 'planks', '#b98048', 0, 0.08, 0, 4);
+    mk(g, skepGeo(), surfaceMat('thatch', '#e8c160', 3, 0.9), 1, 1, 1, 0, 0.11, 0);
+    mk(g, G.ball, M('#3a2616'), 0.035, 0.028, 0.01, 0, 0.14, 0.14, false);
+    ball(g, 0.02, '#c9983a', 0, 0.39, 0, 1, 0.6, 1);
+  }
   const bees = group(g);
   for (let i = 0; i < 4; i++) {
     const b = group(bees);
@@ -2434,7 +2548,38 @@ function fruitMat(color: string) {
   return m;
 }
 
+// Blender crops (tools/blender/crops.py): a `plant` and its `fruit`, whose baked ripe colors
+// swap for a plain green while the crop grows. Plots replant quietly once a model arrives.
+const cropSrc = new Map<string, THREE.Object3D>();
+let cropVer = 0;
+const unripeMats = new Map<string, THREE.MeshStandardMaterial>();
+function cropModel(id: string) {
+  if (artStyle() !== 'toon') return null;
+  const src = cropSrc.get(id);
+  if (!src && !modelCache.has(`crop_${id}`)) {
+    loadModel(`crop_${id}`).then((m) => { cropSrc.set(id, m); cropVer++; }).catch(() => {});
+  }
+  return src ?? null;
+}
 function plantModel(cd: CropDef) {
+  const src = cropModel(cd.id);
+  if (src) {
+    const g = new THREE.Group();
+    const fruit: THREE.Mesh[] = [];
+    for (const c of [...src.clone().children]) {
+      g.add(c);
+      if (c.name === 'fruit' && (c as THREE.Mesh).isMesh) {
+        const f = c as THREE.Mesh;
+        const unripe = cd.shape === 'flower' ? '#9cc45a' : '#b9d36a';
+        let um = unripeMats.get(unripe);
+        if (!um) { um = new THREE.MeshStandardMaterial({ color: unripe, roughness: 0.5 }); unripeMats.set(unripe, um); }
+        f.userData.ripe = f.material;
+        f.userData.unripe = um;
+        fruit.push(f);
+      }
+    }
+    return { g, fruit };
+  }
   const g = new THREE.Group();
   const geo = cropGeo(cd);
   const plant = new THREE.Mesh(geo.plant, PLANT_MAT);
@@ -2475,6 +2620,8 @@ function buildObject(e: Entry, o: FarmObject, d: BuildingDef, store: GameStore) 
   useModel(e, o, d);
 }
 
+const WET_MAT = new THREE.MeshStandardMaterial({ color: '#241206', transparent: true, opacity: 0.45, roughness: 0.15, depthWrite: false });
+const DROP_MAT = new THREE.MeshStandardMaterial({ color: '#9fdcff', roughness: 0.05, metalness: 0.1, transparent: true, opacity: 0.85 });
 function buildPlot(e: Entry) {
   const g = e.root;
   bxT(g, 0.92, 0.1, 0.92, 'soil', '#8a5a34', 0.5, 0, 0.5, 2, false);
@@ -2483,24 +2630,32 @@ function buildPlot(e: Entry) {
     r.rotation.z = Math.PI / 2;
     r.scale.set(1, 0.8, 0.45);
   }
-  const crop = group(g);
+  const crop = keep(group(g));
+  // a watered field: darker, glistening soil with a few drops, until the crop is ready
+  const wet = keep(mk(g, G.box, WET_MAT, 0.9, 0.01, 0.9, 0.5, 0.118, 0.5, false));
+  const drops = keep(group(g));
+  for (let k = 0; k < 7; k++) mk(drops, G.ball, DROP_MAT, 0.018, 0.012, 0.018, 0.15 + hash(k, 3) * 0.7, 0.125, 0.15 + hash(k, 5) * 0.7, false);
+  wet.visible = drops.visible = false;
   let cur: string | null = null;
   let wasReady = false;
   let first = true;
-  let born = 0;
+  let born = 0, cver = cropVer;
   let plants: { g: THREE.Group; fruit: THREE.Mesh[]; ripe: number }[] = [];
   e.top = 0.55;
   e.update = (o, now, t) => {
     const pp = plotProgress(o, now);
-    if (pp.crop !== cur) {
+    // a crop model that just arrived swaps in without the harvest or planting fuss
+    const reload = !!cur && pp.crop === cur && cver !== cropVer;
+    if (pp.crop !== cur || reload) {
+      cver = cropVer;
       // harvested: the grown plants jump out of the soil
-      if (!first && cur && wasReady) {
+      if (!reload && !first && cur && wasReady) {
         plants.forEach((pl, i) => popOut(pl.g, i * 0.06, 1.1));
         bump(e, 'big');
       }
       crop.clear();
       plants = [];
-      const planted = !first && !!pp.crop;
+      const planted = !reload && !first && !!pp.crop;
       cur = pp.crop;
       if (cur) {
         const cd = CROP[cur];
@@ -2517,6 +2672,9 @@ function buildPlot(e: Entry) {
     }
     first = false;
     wasReady = pp.ready;
+    const isWet = !!cur && !pp.ready && !!o.plot?.watered;
+    wet.visible = drops.visible = isWet;
+    if (isWet) drops.children.forEach((d, k) => { d.scale.setScalar(0.012 + Math.max(0, Math.sin(t / 400 + k * 1.7)) * 0.01); });
     if (!cur) return;
     const cd = CROP[cur];
     const s = pp.p;
@@ -2532,7 +2690,9 @@ function buildPlot(e: Entry) {
       const ripe = pp.ready ? 1 : 0;
       for (const f of pl.fruit) { f.visible = s > 0.45; }
       if (pl.ripe !== ripe) {
-        for (const f of pl.fruit) f.material = ripe ? fruitMat(cd.fruit) : fruitMat(cd.shape === 'flower' ? '#9cc45a' : '#b9d36a');
+        for (const f of pl.fruit) {
+          f.material = ripe ? (f.userData.ripe ?? fruitMat(cd.fruit)) : (f.userData.unripe ?? fruitMat(cd.shape === 'flower' ? '#9cc45a' : '#b9d36a'));
+        }
         pl.ripe = ripe;
       }
     });
@@ -2589,6 +2749,14 @@ function loadModel(name: string) {
   return p;
 }
 
+// scenery models the land builder uses once loaded (forest trees, FOR SALE sign)
+const WORLD_MODELS: Record<string, THREE.Object3D> = {};
+function firstMesh(o?: THREE.Object3D) {
+  let found: THREE.Mesh | null = null;
+  o?.traverse((c) => { if (!found && (c as THREE.Mesh).isMesh) found = c as THREE.Mesh; });
+  return found as THREE.Mesh | null;
+}
+
 // The procedural building stands in until its model has loaded and is then swapped out; if the
 // model cannot load, the procedural building simply stays. Placement ghosts keep the procedural
 // look, since their see through styling is applied once when they are built.
@@ -2617,10 +2785,14 @@ const MODELS: Record<string, ModelSpec> = {
 for (const id of ['hay_bale', 'picket_fence', 'bird_house', 'pumpkin_pile', 'birdbath', 'topiary', 'well', 'flower_arch',
   'hay_wagon', 'tractor', 'bench', 'lamp', 'scarecrow', 'windmill', 'pond', 'mailbox', 'gazebo', 'fountain']) MODELS[id] = {};
 for (const d of Object.values(BUILDING)) if (d.kind === 'pen') MODELS[d.id] = {};
-for (const d of Object.values(BUILDING)) if (d.kind === 'tree' && d.id !== 'banana_tree') MODELS[d.id] = {};
+for (const d of Object.values(BUILDING)) if (d.kind === 'tree') MODELS[d.id] = {};
+MODELS.flowers = {};
+MODELS.sprinkler = {};
+MODELS.stone_path = {};
 MODELS.oak = {};
 MODELS.tree_obs = { variants: 2 };
 MODELS.rock_obs = { variants: 3 };
+MODELS.plot = {};
 MODELS.bush_obs = { variants: 2 };
 for (const id of ['bakery', 'feed_mill', 'dairy', 'sugar_mill', 'bbq_grill', 'juice_press', 'loom', 'jam_maker', 'ice_cream',
   'sushi_bar', 'salad_bar', 'pizzeria', 'coffee_kiosk', 'oil_press', 'florist', 'workshop']) MODELS[id] = { badge: 0.26 };
@@ -2958,6 +3130,140 @@ function fence(g: THREE.Group, w: number, h: number, white = false) {
   }
 }
 
+// ------------------------------------------------------------------ grazing trips
+// Animals let out of their pen walk (never teleport) along tile paths: out through the gate to a
+// few grassy spots near the pen, eating at each, then back in. Positions are a pure function
+// of time and the trip's start, so every frame (and a reload) agrees. The renderer lends its
+// walk grid and knows where the flowers are for the bees.
+type P2 = { x: number; y: number };
+let GRAZE_NAV: {
+  path: (sx: number, sy: number, tx: number, ty: number) => P2[] | null;
+  nearest: (x: number, y: number) => P2 | null;
+  grass: (x: number, y: number) => boolean;
+  flowers: () => P2[];
+} | null = null;
+
+interface Trip { out: P2[]; eat: P2[][]; back: P2[]; recall?: { at: number; path: P2[] } }
+const trips = new Map<string, Trip>();
+
+function polyLen(pts: P2[]) {
+  let L = 0;
+  for (let i = 1; i < pts.length; i++) L += Math.hypot(pts[i].x - pts[i - 1].x, pts[i].y - pts[i - 1].y);
+  return L;
+}
+// point at fraction k of the way along a polyline, and the walking direction there
+function along(pts: P2[], k: number) {
+  if (pts.length === 1) return { x: pts[0].x, y: pts[0].y, dx: 0, dy: 1 };
+  const L = polyLen(pts);
+  let want = Math.max(0, Math.min(1, k)) * L;
+  for (let i = 1; i < pts.length; i++) {
+    const a = pts[i - 1], b = pts[i];
+    const seg = Math.hypot(b.x - a.x, b.y - a.y);
+    if (want <= seg || i === pts.length - 1) {
+      const u = seg ? Math.min(1, want / seg) : 1;
+      return { x: a.x + (b.x - a.x) * u, y: a.y + (b.y - a.y) * u, dx: b.x - a.x, dy: b.y - a.y };
+    }
+    want -= seg;
+  }
+  const z = pts[pts.length - 1];
+  return { x: z.x, y: z.y, dx: 0, dy: 1 };
+}
+const tileOf = (p: P2) => ({ x: Math.floor(p.x), y: Math.floor(p.y) });
+function walk(from: P2, to: P2) {
+  const a = tileOf(from), b = tileOf(to);
+  const p = GRAZE_NAV?.path(a.x, a.y, b.x, b.y);
+  return p ? [from, ...p, to] : [from, to];
+}
+
+function tripFor(o: FarmObject, d: BuildingDef, a: Animal): Trip | null {
+  if (!a.graze || !GRAZE_NAV) return null;
+  const key = `${o.id}|${o.x},${o.y}|${a.id}|${a.graze.at}`;
+  let tr = trips.get(key);
+  if (!tr) {
+    const sp = animalSpot(d, a.id, a.graze.at);
+    const home = { x: o.x + sp.x, y: o.y + sp.z };
+    const gateIn = { x: o.x + d.w / 2, y: o.y + d.h - 0.3 };
+    const gateOut = { x: o.x + d.w / 2, y: o.y + d.h + 0.45 };
+    const g0 = GRAZE_NAV.nearest(Math.floor(gateOut.x), Math.floor(gateOut.y)) ?? tileOf(gateOut);
+    // three grassy spots a few tiles from the gate, picked by the animal and the trip
+    const spots: P2[] = [];
+    for (let k = 0; k < 3; k++) {
+      let best: P2 | null = null;
+      for (let tries = 0; tries < 14 && !best; tries++) {
+        const ang = hash(a.id, a.graze.at % 100000, k * 17 + tries) * Math.PI * 2;
+        const r = 2 + hash(a.id, k, tries + 5) * 4;
+        const tx = Math.floor(g0.x + Math.cos(ang) * r), ty = Math.floor(g0.y + Math.abs(Math.sin(ang)) * r * 0.9 + 0.5);
+        if (GRAZE_NAV.grass(tx, ty)) best = { x: tx + 0.3 + hash(a.id, tx, ty) * 0.4, y: ty + 0.3 + hash(a.id, ty, tx) * 0.4 };
+      }
+      spots.push(best ?? { x: g0.x + 0.5, y: g0.y + 0.5 });
+    }
+    const out = [home, gateIn, gateOut, ...walk(gateOut, spots[0]).slice(1)];
+    const eat = [walk(spots[0], spots[1]), walk(spots[1], spots[2])];
+    const back = [...walk(spots[2], gateOut), gateIn, home];
+    tr = { out, eat, back };
+    if (trips.size > 400) trips.clear();
+    trips.set(key, tr);
+  }
+  return tr;
+}
+
+// where a grazing animal is at time `now`: world x, y, heading, walking or eating
+function grazePose(o: FarmObject, d: BuildingDef, a: Animal, now: number): { x: number; y: number; heading: number; moving: boolean } | null {
+  const tr = tripFor(o, d, a);
+  if (!tr) return null;
+  const gp = grazePhase(a, now);
+  let pt: { x: number; y: number; dx: number; dy: number }, moving = true;
+  if (gp.phase === 'leaving') pt = along(tr.out, gp.k);
+  else if (gp.phase === 'eating') {
+    // stand and eat, stroll to the next patch, eat, stroll, eat
+    const k = gp.k;
+    if (k < 0.3) { pt = along(tr.eat[0], 0); moving = false; }
+    else if (k < 0.4) pt = along(tr.eat[0], (k - 0.3) / 0.1);
+    else if (k < 0.65) { pt = along(tr.eat[1], 0); moving = false; }
+    else if (k < 0.75) pt = along(tr.eat[1], (k - 0.65) / 0.1);
+    else { pt = along(tr.eat[1], 1); moving = false; }
+  } else if (gp.phase === 'returning' && a.graze?.back !== undefined) {
+    // called home early: from wherever it was, the shortest way back through the gate
+    if (!tr.recall || tr.recall.at !== a.graze.back) {
+      const from = grazePose(o, d, { ...a, graze: { at: a.graze.at } }, a.graze.back) ?? { x: o.x, y: o.y };
+      const sp = animalSpot(d, a.id, a.graze.at);
+      const gateOut = { x: o.x + d.w / 2, y: o.y + d.h + 0.45 };
+      tr.recall = { at: a.graze.back, path: [...walk({ x: from.x, y: from.y }, gateOut), { x: o.x + d.w / 2, y: o.y + d.h - 0.3 }, { x: o.x + sp.x, y: o.y + sp.z }] };
+    }
+    pt = along(tr.recall.path, gp.k);
+  } else if (gp.phase === 'returning') pt = along(tr.back, gp.k);
+  else return null;
+  return { x: pt.x, y: pt.y, heading: Math.atan2(pt.dx, pt.dy), moving };
+}
+
+// the bees of a hive fly (straight, they can) to flowers near the pen and back
+function beePose(o: FarmObject, a: Animal, k: number, now: number) {
+  const gp = grazePhase(a, now, true);
+  if (gp.phase === 'in' || gp.phase === 'home' || gp.phase === 'full') return null;
+  const fl = GRAZE_NAV?.flowers() ?? [];
+  const cx = o.x + 1, cy = o.y + 1;
+  const near = fl.filter((f) => Math.hypot(f.x - cx, f.y - cy) < 9);
+  const pick = near.length ? near[Math.floor(hash(a.id, k, 7) * near.length)]
+    : { x: cx + (hash(a.id, k, 3) - 0.5) * 6, y: o.y + 2.5 + hash(a.id, k, 4) * 3 };
+  const target = { x: pick.x + (hash(k, a.id, 9) - 0.5) * 0.5, y: pick.y + (hash(a.id, k, 11) - 0.5) * 0.5 };
+  const home = { x: cx, y: cy };
+  const lerp2 = (p: P2, q: P2, u: number) => ({ x: p.x + (q.x - p.x) * u, y: p.y + (q.y - p.y) * u });
+  let at: P2, h = 0.6, landed = false;
+  if (gp.phase === 'leaving') { at = lerp2(home, target, gp.k); h = 0.5 + Math.sin(gp.k * Math.PI) * 0.6; }
+  else if (gp.phase === 'eating') {
+    // hop from bloom to bloom around the patch, landing to sip
+    const w = now / 900 + k * 2;
+    at = { x: target.x + Math.cos(w) * 0.25, y: target.y + Math.sin(w * 1.3) * 0.25 };
+    landed = Math.sin(now / 700 + k) > 0.2;
+    h = landed ? 0.28 : 0.45;
+  } else {
+    const from = gp.from !== undefined && a.graze?.back !== undefined ? target : target;
+    at = lerp2(from, home, gp.k);
+    h = 0.5 + Math.sin(gp.k * Math.PI) * 0.6;
+  }
+  return { x: at.x, y: at.y, h, landed };
+}
+
 function buildPen(e: Entry, d: BuildingDef) {
   const g = e.root;
   const w = d.w, h = d.h;
@@ -3226,6 +3532,16 @@ function buildPen(e: Entry, d: BuildingDef) {
         m.position.set(x, 0.04 + jump * 0.3, z);
         const bees = m.userData.bees as THREE.Group;
         bees.children.forEach((b, k) => {
+          const bp = a?.graze ? beePose(o, a, k, now) : null;
+          if (bp) {
+            // out on the flowers: the hive sits at (o.x + x, o.y + z)
+            b.position.set(bp.x - o.x - x, bp.h + (bp.landed ? 0 : Math.sin(t / 150 + k) * 0.03), bp.y - o.y - z);
+            b.rotation.y = t / 300 + k;
+            const f2 = Math.sin(t / 18 + k) * (bp.landed ? 0.2 : 0.6);
+            b.children[2].rotation.z = f2;
+            b.children[3].rotation.z = -f2;
+            return;
+          }
           const ang = t / (400 + k * 90) + k * 2 + id;
           b.position.set(Math.cos(ang) * (0.25 + k * 0.05), 0.35 + Math.sin(t / 300 + k) * 0.08, Math.sin(ang) * (0.25 + k * 0.05));
           b.rotation.y = -ang;
@@ -3237,6 +3553,21 @@ function buildPen(e: Entry, d: BuildingDef) {
       }
       const head = m.userData.head as THREE.Object3D | undefined;
       const tail = m.userData.tail as THREE.Object3D | undefined;
+      const gz = a?.graze ? grazePose(o, d, a, now) : null;
+      if (gz) {
+        // out grazing: walking the path, or head down nibbling the grass
+        m.position.set(gz.x - o.x, 0.04 + (gz.moving ? Math.abs(Math.sin(t / 110 + id)) * 0.012 : 0), gz.y - o.y);
+        m.rotation.y = gz.heading;
+        m.rotation.z = 0;
+        animateLegs(m, gz.moving ? Math.sin(t / 110 + id) * 0.32 : 0);
+        if (head) head.rotation.x = gz.moving ? 0 : 0.55 + Math.max(0, Math.sin(t / 260 + id)) * 0.25;
+        if (tail) tail.rotation.z = Math.sin(t / 300 + id) * 0.4;
+        blink(m, t, id);
+        const cs = m.userData.shadow as THREE.Object3D | undefined;
+        if (cs) cs.position.y = 0.006 - (m.position.y - 0.04);
+        return;
+      }
+      if (head && !gz) head.rotation.x = Math.min(head.rotation.x, 0.5);
       if (an && SWIMMERS.has(an.id)) {
         const u = hash(id, 1, 3);
         const ang = t / (4200 + u * 2000) + id * 1.7;
@@ -3438,6 +3769,7 @@ function buildFruitTree(e: Entry, d: BuildingDef) {
 function buildBanana(e: Entry, leaf: string) {
   const g = e.root;
   const crown = group(g, 0.5, 0, 0.5);
+  crown.userData.crown = true;
   const stemM = surfaceMat('bark', '#8a8a4a', 3);
   mk(crown, cylGeo(0.07, 0.1, 12), stemM, 1, 0.95, 1, 0, 0.475, 0);
   const leafM = windify(new THREE.MeshStandardMaterial({ color: leaf, vertexColors: true, side: THREE.DoubleSide, roughness: 0.7 }), 1, 0.3);
@@ -3455,7 +3787,7 @@ function buildBanana(e: Entry, leaf: string) {
   }
   const bunch = produceGeo('banana') as THREE.BufferGeometry;
   const fruit = [0, 1].map((k) => {
-    const b = mk(crown, bunch, PRODUCE_MAT, 0.3, 0.3, 0.3, k ? -0.12 : 0.12, 0.72, k ? 0.05 : -0.05);
+    const b = keep(mk(crown, bunch, PRODUCE_MAT, 0.3, 0.3, 0.3, k ? -0.12 : 0.12, 0.72, k ? 0.05 : -0.05));
     b.rotation.set(0, k * 2, k ? -0.35 : 0.35);
     return b;
   });
@@ -3580,6 +3912,14 @@ function buildDock(e: Entry, store: GameStore) {
   boat.add(sail);
   bx(boat, 0.01, 0.1, 0.16, '#e74c3c', 0, 1.42, 0.13);
   const crates = group(boat);
+  if (artStyle() === 'toon') {
+    // the Blender cargo boat (tools/blender/world.py) takes over the hull, mast and sail
+    const hull = boat.children.filter((c) => c !== crates);
+    loadModel('cargo_boat').then((m) => {
+      for (const c of hull) boat.remove(c);
+      boat.add(m.clone());
+    }).catch(() => {});
+  }
   const buoy = keep(ball(g, 0.07, '#e74c3c', 1.4, 0.1, 1.1));
   let key = '';
   e.top = 1.5;
@@ -3945,6 +4285,28 @@ function buildDeco(e: Entry, d: BuildingDef) {
       };
       break;
     }
+    case 'sprinkler': {
+      // a brass riser on a stake; the Blender model adds the spinning head, the game the spray
+      cyl(g, 0.02, 0.02, 0.34, '#c8962e', 0.5, 0, 0.5, 8);
+      cyl(g, 0.07, 0.08, 0.04, '#2f8a3a', 0.5, 0, 0.5, 12);
+      const spray = keep(group(g, 0.5, 0.38, 0.5));
+      const jets = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9].map(() => ball(spray, 0.022, '#bfe8ff', 0, 0, 0, 1, 1, 1, false));
+      for (const j of jets) j.material = DROP_MAT;
+      e.top = 0.6;
+      e.update = (o, _n, t) => {
+        // two arcs of water sweeping round, reaching out over the fields nearby
+        jets.forEach((j, k) => {
+          const arm = k % 2 ? Math.PI : 0;
+          const ph = ((t / 900 + k * 0.1) % 1);
+          const a = t / 700 + arm;
+          const r = ph * 1.6;
+          j.position.set(Math.cos(a) * r, Math.sin(ph * Math.PI) * 0.35 - ph * 0.3, Math.sin(a) * r);
+          j.visible = ph < 0.95;
+        });
+        spray.rotation.y = Math.sin(o.id) * 0.3;
+      };
+      break;
+    }
     case 'mailbox':
       cyl(g, 0.025, 0.025, 0.55, '#6b4226', 0.5, 0, 0.5, 5);
       bx(g, 0.18, 0.15, 0.3, '#2e6da4', 0.5, 0.55, 0.5);
@@ -4000,6 +4362,7 @@ function buildFishingSpot() {
   const root = new THREE.Group();
   const X = FISH_SPOT.x, Z0 = GRID + 0.25, Z1 = FISH_SPOT.y - 0.2;
   // jetty deck on posts
+  const n0 = root.children.length;
   const deck = new THREE.Mesh(meterBox(Z1 - Z0, 0.07, 0.7), surfaceMat('planks', '#c49660', 1.2));
   deck.rotation.y = Math.PI / 2;
   deck.position.set(X, -0.12, (Z0 + Z1) / 2);
@@ -4017,6 +4380,16 @@ function buildFishingSpot() {
   board.position.set(0, 0.72, 0);
   board.castShadow = true;
   sign.add(board);
+  // the Blender jetty (tools/blender/world.py) replaces the deck, piles and sign once loaded
+  const jettyStandIn = root.children.slice(n0);
+  if (artStyle() === 'toon') {
+    loadModel('fishing_jetty').then((m) => {
+      for (const c of jettyStandIn) root.remove(c);
+      const j = m.clone();
+      j.position.set(X, 0, Z0);
+      root.add(j);
+    }).catch(() => {});
+  }
   const lock = badge(root, '🔒', 0.3, X, 0.35, Z0 + 0.3);
   lock.rotation.x = -0.3;
   // chain rope across the jetty while locked
@@ -4041,6 +4414,7 @@ function buildFishingSpot() {
   mk(boat, new THREE.TorusGeometry(1, 0.06, 6, 24), M('#7a4a28'), 0.26, 0.55, 0.4, 0, 0.3, 0).rotation.x = Math.PI / 2;
   mk(boat, G.ball, M('#f4efe6'), 0.27, 0.05, 0.56, 0, 0.16, 0);
   bx(boat, 0.44, 0.03, 0.1, '#7a4a28', 0, 0.22, -0.12);
+  const hullStandIn = [...boat.children];
   const fisher = buildFarmer('#f2b134', '#3a5a40', '#3a5a40');
   fisher.position.set(0, 0.0, -0.12);
   fisher.scale.setScalar(0.9);
@@ -4049,6 +4423,21 @@ function buildFishingSpot() {
   const arms = fisher.userData.arms as THREE.Object3D[];
   arms.forEach((a) => { a.rotation.x = -1.1; });
   boat.add(fisher);
+  if (artStyle() === 'toon') {
+    // Blender rowboat and fisher, seated and holding the rod like the stand ins
+    loadModel('rowboat').then((m) => {
+      for (const c of hullStandIn) boat.remove(c);
+      boat.add(m.clone());
+    }).catch(() => {});
+    loadModel('fisher').then((m) => {
+      const fresh = farmerFromModel(m);
+      fisher.clear();
+      for (const c of [...fresh.children]) fisher.add(c);
+      Object.assign(fisher.userData, fresh.userData);
+      (fisher.userData.legs as THREE.Object3D[]).forEach((l) => { l.rotation.x = -1.4; });
+      (fisher.userData.arms as THREE.Object3D[]).forEach((a) => { a.rotation.x = -1.1; });
+    }).catch(() => {});
+  }
   const rod = group(boat, 0.08, 0.4, 0.1);
   mk(rod, cylGeo(0.006, 0.012, 5), M('#5a3a1a'), 1, 0.9, 1, 0, 0.45, 0);
   rod.rotation.x = 0.9;

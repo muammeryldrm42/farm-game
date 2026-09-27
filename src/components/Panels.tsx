@@ -33,6 +33,8 @@ import {
   upgradeCost,
   NAP_MS,
   restBonus,
+  waterInfo,
+  grazePhase,
   type FarmObject,
 } from '@/game/state';
 import { getQuality, setQuality, type Quality } from '@/game/quality';
@@ -186,6 +188,7 @@ function PlotSheet({ o }: { o: FarmObject }) {
               <Bar p={pp.p} />
               <span className="w-20 shrink-0 text-right font-bold">{fmtTime(pp.remaining)}</span>
             </div>
+            <WaterRow o={o} />
             <div className="flex justify-center">
               <button className="btn btn-blue" onClick={() => store.speedPlot(o)} disabled={s.gems < gemCost(pp.remaining)}>
                 Finish now <Gems n={gemCost(pp.remaining)} />
@@ -377,7 +380,16 @@ function PenSheet({ o }: { o: FarmObject }) {
             return (
               <div key={a.id} className="card flex w-16 flex-col items-center gap-1 p-1.5">
                 <span className="emoji text-2xl"><Ico i={an.icon} /></span>
-                {ready ? (
+                {a.graze ? (
+                  <span className="text-center text-[10px] font-bold leading-3 text-[#2d7a2a]">
+                    {(() => {
+                      const ph = grazePhase(a, now, an.id === 'bee').phase;
+                      if (ph === 'leaving') return an.id === 'bee' ? 'Flying out' : 'Heading out';
+                      if (ph === 'eating') return an.id === 'bee' ? 'On flowers' : 'Grazing';
+                      return 'Coming home';
+                    })()}
+                  </span>
+                ) : ready ? (
                   <span className="emoji text-lg"><Ico i={ITEMS[an.product].icon} /></span>
                 ) : a.fedAt === null ? (
                   <span className="text-[10px] font-bold text-[#c0392b]">Hungry</span>
@@ -401,6 +413,16 @@ function PenSheet({ o }: { o: FarmObject }) {
             Feed {Math.min(pi.hungry, feedHave) || ''} <span className="emoji"><Ico i={ITEMS[an.feed].icon} /></span>
           </button>
         )}
+        {pi.hungry > 0 && (
+          <button className="btn btn-green" onClick={() => store.openGate(o)} title={an.id === 'bee' ? 'Let the bees fly to the flowers' : 'Open the gate: hungry animals walk out to graze and come back full'}>
+            <span className="emoji">{an.id === 'bee' ? '🌼' : '🚪'}</span> {an.id === 'bee' ? 'Send to flowers' : 'Open gate'}
+          </button>
+        )}
+        {(o.pen?.animals ?? []).some((a) => { const ph = grazePhase(a, now, an.id === 'bee').phase; return ph === 'leaving' || ph === 'eating'; }) && (
+          <button className="btn btn-wood" onClick={() => store.recallPen(o)}>
+            <span className="emoji">📣</span> Call back
+          </button>
+        )}
         {pi.fed > 0 && (
           <button className="btn btn-blue" onClick={() => store.speedPen(o)} disabled={s.gems < gemCost(maxRem)}>
             Finish now <Gems n={gemCost(maxRem)} />
@@ -416,7 +438,8 @@ function PenSheet({ o }: { o: FarmObject }) {
         </button>
       </div>
       <p className="mt-2 text-xs text-[#8a6a44]">
-        {ITEMS[an.feed].name} in storage: <b>{feedHave}</b>. {feedHint(an.feed)}
+        {ITEMS[an.feed].name} in storage: <b>{feedHave}</b>. {feedHint(an.feed)}{' '}
+        {an.id === 'bee' ? 'Or send the bees to the flowers: they come back full of nectar.' : 'Or open the gate: they graze on the grass and walk back full.'}
       </p>
     </Sheet>
   );
@@ -780,68 +803,122 @@ function BoatModal() {
   );
 }
 
+// watering: a watered crop grows 30% faster; the can refills over time, faster with wells
+function WaterRow({ o }: { o: FarmObject }) {
+  const store = useStore();
+  const now = Date.now();
+  const wi = waterInfo(store.s, now);
+  if (o.plot?.watered) {
+    return <p className="text-center text-sm font-bold text-[#2f8fd0]"><span className="emoji">💧</span> Watered: growing 30% faster</p>;
+  }
+  return (
+    <div className="flex flex-col items-center gap-1">
+      <button className="btn btn-blue" onClick={() => store.waterPlot(o)} disabled={wi.n <= 0}>
+        <span className="emoji">💧</span> Water it ({wi.n}/{wi.max})
+      </button>
+      <span className="text-[11px] text-[#8a6a44]">
+        {wi.n < wi.max ? `Next refill in ${fmtTime(wi.nextIn)}` : 'The watering can is full'}
+        {wi.wells ? ` · ${wi.wells} well${wi.wells > 1 ? 's' : ''} speed it up` : ' · wells refill it faster'}
+      </span>
+    </div>
+  );
+}
+
 // ------------------------------------------------------------------ shop
 
-type ShopTab = 'farming' | 'buildings' | 'animals' | 'decor';
-const SHOP_TABS: { id: ShopTab; label: string; icon: string; filter: (d: BuildingDef) => boolean }[] = [
-  { id: 'farming', label: 'Farming', icon: '🌱', filter: (d) => d.kind === 'plot' || d.kind === 'tree' },
-  { id: 'buildings', label: 'Buildings', icon: '🏭', filter: (d) => d.kind === 'production' || d.kind === 'stall' || d.kind === 'dock' || (d.kind === 'house' && d.buyable) },
-  { id: 'animals', label: 'Animals', icon: '🐔', filter: (d) => d.kind === 'pen' },
+type ShopTab = 'crops' | 'trees' | 'animals' | 'production' | 'services' | 'decor';
+const SHOP_TABS: { id: ShopTab; label: string; icon: string; filter: (d: BuildingDef) => boolean; hint?: string }[] = [
+  { id: 'crops', label: 'Fields & Crops', icon: '🌾', filter: (d) => d.kind === 'plot',
+    hint: 'Place fields, then tap one to plant. Seeds come from your harvest; with none left, planting costs the seed price.' },
+  { id: 'trees', label: 'Fruit Trees', icon: '🌳', filter: (d) => d.kind === 'tree', hint: 'Trees fruit again and again. Tap a ripe tree to pick it.' },
+  { id: 'animals', label: 'Animals', icon: '🐔', filter: (d) => d.kind === 'pen', hint: 'Each pen comes with room for its animals. Feed them to collect their goods.' },
+  { id: 'production', label: 'Production', icon: '🏭', filter: (d) => d.kind === 'production', hint: 'Workshops turn crops and animal goods into products for orders.' },
+  { id: 'services', label: 'Home & Trade', icon: '🏰', filter: (d) => d.kind === 'stall' || d.kind === 'dock' || (d.kind === 'house' && d.buyable) },
   { id: 'decor', label: 'Decor', icon: '🌷', filter: (d) => d.kind === 'deco' },
 ];
 
-function ShopModal() {
+function ShopCard({ d }: { d: BuildingDef }) {
   const store = useStore();
   const s = store.s;
-  const [tab, setTab] = useState<ShopTab>('farming');
+  const locked = s.level < d.level;
+  const owned = store.countType(d.id);
+  const max = store.maxOf(d);
+  const full = owned >= max;
+  const cost = store.costOf(d);
+  const poor = s.coins < cost;
+  return (
+    <button
+      disabled={locked || full}
+      onClick={() => store.startBuy(d.id)}
+      className="card flex flex-col items-center gap-1 p-3 text-center transition active:scale-95 disabled:opacity-60"
+    >
+      <span className={`emoji text-4xl ${locked ? 'grayscale' : ''}`}><Ico i={d.icon} /></span>
+      <span className="font-bold leading-tight">{d.name}</span>
+      <span className="line-clamp-2 min-h-[2rem] text-[11px] leading-4 text-[#8a6a44]">{d.desc}</span>
+      {locked ? (
+        <Lock level={d.level} />
+      ) : (
+        <>
+          <span className={`text-sm font-bold ${poor ? 'text-[#c0392b]' : ''}`}>
+            <Coins n={cost} />
+          </span>
+          <span className="text-[11px] text-[#8a6a44]">{full ? 'Max owned' : `Owned ${owned}/${max}`}</span>
+        </>
+      )}
+    </button>
+  );
+}
+
+// the crops you can plant, with grow time and seed price; planting happens on a field
+function CropCard({ id }: { id: string }) {
+  const store = useStore();
+  const cd = CROPS.find((c) => c.id === id)!;
+  const it = ITEMS[id];
+  const locked = store.s.level < cd.level;
+  const have = store.s.inv[id] ?? 0;
+  return (
+    <div className={`card flex flex-col items-center gap-1 p-3 text-center ${locked ? 'opacity-60' : ''}`}>
+      <span className={`emoji text-4xl ${locked ? 'grayscale' : ''}`}><Ico i={it.icon} /></span>
+      <span className="font-bold leading-tight">{it.name}</span>
+      {locked ? (
+        <Lock level={cd.level} />
+      ) : (
+        <>
+          <span className="text-[11px] text-[#8a6a44]">⏱ {fmtTime(cd.time * 1000)} · +{cd.xp} XP</span>
+          <span className="text-sm font-bold"><Coins n={cd.seedCost} /> <span className="text-[11px] font-normal text-[#8a6a44]">seed</span></span>
+          <span className="text-[11px] text-[#8a6a44]">In storage: {have}</span>
+        </>
+      )}
+    </div>
+  );
+}
+
+function ShopModal() {
+  const store = useStore();
+  const [tab, setTab] = useState<ShopTab>('crops');
   const t = SHOP_TABS.find((x) => x.id === tab)!;
   const list = BUILDINGS.filter((d) => d.buyable && t.filter(d)).sort((a, b) => a.level - b.level || a.cost - b.cost);
-
+  const crops = [...CROPS].sort((a, b) => a.level - b.level || a.seedCost - b.seedCost);
   return (
     <Modal title="Shop" icon="🛒" onClose={() => store.openPanel(null)} wide>
-      <div className="mb-3 flex gap-1.5 overflow-x-auto">
+      <div className="mb-3 flex gap-1.5 overflow-x-auto pb-1">
         {SHOP_TABS.map((x) => (
           <button key={x.id} className={`btn shrink-0 ${tab === x.id ? 'btn-yellow' : 'btn-ghost'}`} onClick={() => setTab(x.id)}>
             <span className="emoji"><Ico i={x.icon} /></span> {x.label}
           </button>
         ))}
       </div>
+      {t.hint && <p className="mb-2 text-center text-xs text-[#8a6a44]">{t.hint}</p>}
       <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 md:grid-cols-4">
-        {list.map((d) => {
-          const locked = s.level < d.level;
-          const owned = store.countType(d.id);
-          const max = store.maxOf(d);
-          const full = owned >= max;
-          const cost = store.costOf(d);
-          const poor = s.coins < cost;
-          return (
-            <button
-              key={d.id}
-              disabled={locked || full}
-              onClick={() => store.startBuy(d.id)}
-              className="card flex flex-col items-center gap-1 p-3 text-center transition active:scale-95 disabled:opacity-60"
-            >
-              <span className={`emoji text-4xl ${locked ? 'grayscale' : ''}`}><Ico i={d.icon} /></span>
-              <span className="font-bold leading-tight">{d.name}</span>
-              <span className="line-clamp-2 min-h-[2rem] text-[11px] leading-4 text-[#8a6a44]">{d.desc}</span>
-              {locked ? (
-                <Lock level={d.level} />
-              ) : (
-                <>
-                  <span className={`text-sm font-bold ${poor ? 'text-[#c0392b]' : ''}`}>
-                    <Coins n={cost} />
-                  </span>
-                  <span className="text-[11px] text-[#8a6a44]">
-                    {full ? 'Max owned' : `Owned ${owned}/${max}`}
-                  </span>
-                </>
-              )}
-            </button>
-          );
-        })}
+        {list.map((d) => <ShopCard key={d.id} d={d} />)}
       </div>
-      {tab === 'farming' && (
-        <p className="mt-3 text-center text-xs text-[#8a6a44]">You can own more fields as you level up. After placing one, the next is ready to place right away.</p>
+      {tab === 'crops' && (
+        <>
+          <h3 className="mb-2 mt-4 text-center font-bold text-[#6b4226]">Crops you can grow</h3>
+          <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 md:grid-cols-4">
+            {crops.map((c) => <CropCard key={c.id} id={c.id} />)}
+          </div>
+        </>
       )}
     </Modal>
   );
