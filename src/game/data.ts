@@ -604,6 +604,266 @@ item('nutmeg', 'Nutmeg', '🟤', 'silo', 248, 198);
 item('cassava', 'Cassava', '🥔', 'silo', 456, 199);
 item('cassava_pizza', 'Cassava Pizza', '🍕', 'barn', 1496, 200);
 
+// ---- third wave: every level gets at least four new things (workshops, dishes, animals, fish...)
+item('herring', 'Herring', '@herring', 'barn', 88, 23);
+item('white_egg', 'White Egg', '🥚', 'barn', 77, 26);
+item('swiss_chard', 'Swiss Chard', '🥬', 'silo', 80, 28);
+item('clementine', 'Clementine', '🍊', 'silo', 67, 34);
+item('sprat', 'Sprat', '@sprat', 'barn', 127, 38);
+item('campbell_egg', 'Campbell Egg', '🥚', 'barn', 108, 40);
+item('zander', 'Zander', '@zander', 'barn', 137, 42);
+item('watercress', 'Watercress', '🌿', 'silo', 117, 45);
+item('mirabelle', 'Mirabelle', '🟡', 'silo', 86, 51);
+item('dutch_fluff', 'Dutch Fluff', '🧶', 'barn', 137, 53);
+item('tench', 'Tench', '@tench', 'barn', 171, 55);
+item('radicchio', 'Radicchio', '🥬', 'silo', 146, 58);
+item('red_hen_egg', 'Speckled Egg', '🥚', 'barn', 156, 62);
+item('roach', 'Roach', '@roach', 'barn', 200, 66);
+item('chokecherry', 'Chokecherry', '🍒', 'silo', 105, 68);
+item('rainbow_trout', 'Rainbow Trout', '@rainbow_trout', 'barn', 213, 71);
+item('golden_milk', 'Golden Milk', '🥛', 'barn', 181, 73);
+item('sorrel', 'Sorrel', '🌿', 'silo', 183, 75);
+item('hake', 'Hake', '@hake', 'barn', 239, 81);
+item('shetland_wool', 'Shetland Wool', '🧶', 'barn', 205, 84);
+item('star_apple', 'Star Apple', '🟣', 'silo', 125, 86);
+item('pollock', 'Pollock', '@pollock', 'barn', 257, 88);
+item('sweet_pea', 'Sweet Pea', '🌸', 'silo', 219, 91);
+item('call_duck_down', 'Call Duck Down', '🪶', 'barn', 233, 97);
+item('whiting', 'Whiting', '@whiting', 'barn', 291, 101);
+item('wax_apple', 'Wax Apple', '🔔', 'silo', 143, 103);
+item('endive', 'Endive', '🥬', 'silo', 252, 106);
+item('alpine_milk', 'Alpine Milk', '🥛', 'barn', 262, 110);
+item('garfish', 'Garfish', '@garfish', 'barn', 324, 114);
+item('john_dory', 'John Dory', '@john_dory', 'barn', 330, 116);
+item('laced_feather', 'Laced Feather', '🪶', 'barn', 282, 119);
+item('zinnia', 'Zinnia', '🌼', 'silo', 285, 121);
+item('lucuma', 'Lucuma', '🟢', 'silo', 169, 126);
+item('amberjack', 'Amberjack', '@amberjack', 'barn', 361, 128);
+item('swiss_cream', 'Alpine Cream', '🥛', 'barn', 308, 131);
+item('tarpon', 'Tarpon', '@tarpon', 'barn', 374, 133);
+item('sunchoke', 'Sunchoke', '🌻', 'silo', 315, 135);
+item('marula', 'Marula', '🟡', 'silo', 185, 141);
+item('emden_down', 'Emden Down', '🪶', 'barn', 335, 143);
+item('snook', 'Snook', '@snook', 'barn', 410, 147);
+item('snapdragon', 'Snapdragon', '🌸', 'silo', 346, 149);
+item('karakul_wool', 'Karakul Wool', '🧶', 'barn', 359, 154);
+item('cobia', 'Cobia', '@cobia', 'barn', 434, 156);
+item('ackee', 'Ackee', '🔴', 'silo', 205, 159);
+item('triggerfish', 'Triggerfish', '@triggerfish', 'barn', 447, 161);
+item('golden_ribbon', 'Golden Ribbon', '🎗️', 'barn', 381, 164);
+item('salsify', 'Salsify', '🥕', 'silo', 384, 166);
+item('butterflyfish', 'Butterflyfish', '@butterflyfish', 'barn', 473, 171);
+item('chocolate_egg', 'Chocolate Egg', '🥚', 'barn', 401, 173);
+item('black_sapote', 'Black Sapote', '🟢', 'silo', 223, 175);
+item('blue_tang', 'Blue Tang', '@blue_tang', 'barn', 491, 178);
+item('cosmos', 'Cosmos', '🌸', 'silo', 414, 180);
+item('dexter_butter', 'Dexter Butter', '🧈', 'barn', 427, 185);
+item('boxfish', 'Boxfish', '@boxfish', 'barn', 514, 187);
+item('ugli_fruit', 'Ugli Fruit', '🍊', 'silo', 239, 190);
+item('lupin', 'Lupin', '🪻', 'silo', 441, 192);
+item('black_plume', 'Black Plume', '🪶', 'barn', 453, 197);
+item('sailfish', 'Sailfish', '@sailfish', 'barn', 545, 199);
+item('chili_pepper_latte', 'Chili Pepper Latte', '☕', 'barn', 170, 21);
+item('chili_pepper_chai', 'Chili Pepper Chai', '☕', 'barn', 147, 25);
+item('iced_lemon_tea', 'Iced Lemon Tea', '🧋', 'barn', 136, 25);
+item('quince_smoothie', 'Quince Smoothie', '🥤', 'barn', 172, 27);
+item('coconut_shake', 'Coconut Shake', '🥛', 'barn', 220, 29);
+item('lavender_tea', 'Lavender Tea', '🍵', 'barn', 189, 29);
+item('tilapia_nigiri', 'Tilapia Nigiri', '🍣', 'barn', 247, 31);
+item('mackerel_ravioli', 'Mackerel Ravioli', '🥟', 'barn', 399, 33);
+item('arugula_lasagna', 'Arugula Lasagna', '🍝', 'barn', 340, 34);
+item('daikon_pasta', 'Daikon Pasta', '🍝', 'barn', 291, 35);
+item('daikon_calzone', 'Daikon Calzone', '🥟', 'barn', 385, 35);
+item('tangerine_candy', 'Tangerine Candy', '🍬', 'barn', 268, 37);
+item('rowan_gummies', 'Rowan Gummies', '🍬', 'barn', 340, 39);
+item('candied_rowan', 'Candied Rowan', '🍭', 'barn', 256, 41);
+item('mulberry_gelato', 'Mulberry Gelato', '🍨', 'barn', 254, 41);
+item('kale_slaw', 'Kale Slaw', '🥗', 'barn', 304, 42);
+item('clementine_nectar', 'Clementine Nectar', '🧃', 'barn', 304, 43);
+item('nubian_goat_cheese', 'Nubian Goat Cheese', '🧀', 'barn', 644, 44);
+item('dill_herb_cheese', 'Dill Herb Cheese', '🧀', 'barn', 234, 47);
+item('watercress_skewers', 'Watercress Skewers', '🍢', 'barn', 304, 48);
+item('nectarine_marmalade', 'Nectarine Marmalade', '🫙', 'barn', 265, 49);
+item('clementine_yogurt', 'Clementine Yogurt', '🥛', 'barn', 262, 50);
+item('persimmon_pie', 'Persimmon Pie', '🥧', 'barn', 354, 50);
+item('sea_bass_noodles', 'Sea Bass Noodles', '🍜', 'barn', 536, 52);
+item('sea_bream_ramen', 'Sea Bream Ramen', '🍜', 'barn', 430, 54);
+item('cantaloupe_muffins', 'Cantaloupe Muffins', '🧁', 'barn', 416, 55);
+item('zander_ramen', 'Zander Ramen', '🍜', 'barn', 228, 56);
+item('kohlrabi_noodles', 'Kohlrabi Noodles', '🍜', 'barn', 472, 57);
+item('basil_herb_cheese', 'Basil Herb Cheese', '🧀', 'barn', 296, 57);
+item('smoked_zander', 'Smoked Zander', '🐟', 'barn', 206, 59);
+item('smoked_zander_pate', 'Smoked Zander Pate', '🥫', 'barn', 206, 60);
+item('smoked_catfish_pate', 'Smoked Catfish Pate', '🥫', 'barn', 286, 61);
+item('smoked_cod', 'Smoked Cod', '🐟', 'barn', 534, 61);
+item('galloway_cheese', 'Galloway Cheese', '🧀', 'barn', 947, 62);
+item('mirabelle_gummies', 'Mirabelle Gummies', '🍬', 'barn', 332, 63);
+item('candied_papaya', 'Candied Papaya', '🍭', 'barn', 324, 65);
+item('basil_spice_rub', 'Basil Spice Rub', '🧂', 'barn', 436, 67);
+item('basil_powder', 'Basil Powder', '🧂', 'barn', 615, 69);
+item('dill_spice_rub', 'Dill Spice Rub', '🧂', 'barn', 312, 69);
+item('ginger_powder', 'Ginger Powder', '🧂', 'barn', 732, 70);
+item('kumquat_candy', 'Kumquat Candy', '🍬', 'barn', 382, 70);
+item('ginger_pasta', 'Ginger Pasta', '🍝', 'barn', 518, 72);
+item('radicchio_lasagna', 'Radicchio Lasagna', '🍝', 'barn', 343, 72);
+item('fennel_ravioli', 'Fennel Ravioli', '🥟', 'barn', 570, 73);
+item('ginger_body_mist', 'Ginger Body Mist', '🧴', 'barn', 534, 74);
+item('marigold_perfume', 'Marigold Perfume', '🧴', 'barn', 686, 75);
+item('poppy_perfume', 'Poppy Perfume', '🧴', 'barn', 531, 77);
+item('marigold_body_mist', 'Marigold Body Mist', '🧴', 'barn', 503, 77);
+item('feijoa_smoothie', 'Feijoa Smoothie', '🥤', 'barn', 352, 78);
+item('guava_shake', 'Guava Shake', '🥛', 'barn', 402, 80);
+item('ginger_tea', 'Ginger Tea', '🍵', 'barn', 576, 81);
+item('iced_sorrel_tea', 'Iced Sorrel Tea', '🧋', 'barn', 248, 82);
+item('marigold_soap', 'Marigold Soap', '🧼', 'barn', 517, 83);
+item('golden_milk_soap', 'Golden Milk Soap', '🧼', 'barn', 290, 85);
+item('daffodil_soap', 'Daffodil Soap', '🧼', 'barn', 629, 85);
+item('reindeer_milk_soap', 'Reindeer Milk Soap', '🧼', 'barn', 710, 87);
+item('ginger_chai', 'Ginger Chai', '☕', 'barn', 321, 87);
+item('hazelnut_latte', 'Hazelnut Latte', '☕', 'barn', 284, 88);
+item('pollock_nigiri', 'Pollock Nigiri', '🍣', 'barn', 192, 89);
+item('green_bean_calzone', 'Green Bean Calzone', '🥟', 'barn', 718, 89);
+item('pistachio_gelato', 'Pistachio Gelato', '🍨', 'barn', 419, 90);
+item('green_bean_slaw', 'Green Bean Slaw', '🥗', 'barn', 612, 90);
+item('elderberry_nectar', 'Elderberry Nectar', '🧃', 'barn', 556, 91);
+item('oregano_candle', 'Oregano Candle', '🕯️', 'barn', 772, 93);
+item('mint_candle', 'Mint Candle', '🕯️', 'barn', 777, 95);
+item('acerola_marmalade', 'Acerola Marmalade', '🫙', 'barn', 382, 96);
+item('pollock_skewers', 'Pollock Skewers', '🍢', 'barn', 304, 97);
+item('elderberry_yogurt', 'Elderberry Yogurt', '🥛', 'barn', 430, 99);
+item('dragon_fruit_muffins', 'Dragon Fruit Muffins', '🧁', 'barn', 416, 99);
+item('kiwi_fruit_pie', 'Kiwi Fruit Pie', '🥧', 'barn', 503, 100);
+item('kiwi_fruit_candle', 'Kiwi Fruit Candle', '🕯️', 'barn', 564, 100);
+item('saanen_milk_soap', 'Saanen Milk Soap', '🧼', 'barn', 788, 101);
+item('chamomile_soap', 'Chamomile Soap', '🧼', 'barn', 732, 102);
+item('chamomile_body_mist', 'Chamomile Body Mist', '🧴', 'barn', 718, 102);
+item('chamomile_perfume', 'Chamomile Perfume', '🧴', 'barn', 1010, 103);
+item('oregano_powder', 'Oregano Powder', '🧂', 'barn', 900, 104);
+item('jalapeno_spice_rub', 'Jalapeno Spice Rub', '🧂', 'barn', 584, 105);
+item('smoked_sole', 'Smoked Sole', '🐟', 'barn', 830, 105);
+item('smoked_sole_pate', 'Smoked Sole Pate', '🥫', 'barn', 518, 107);
+item('yellowtail_noodles', 'Yellowtail Noodles', '🍜', 'barn', 965, 109);
+item('whiting_ramen', 'Whiting Ramen', '🍜', 'barn', 228, 109);
+item('saanen_cheese', 'Saanen Cheese', '🧀', 'barn', 1052, 110);
+item('chamomile_herb_cheese', 'Chamomile Herb Cheese', '🧀', 'barn', 427, 111);
+item('pecan_candy', 'Pecan Candy', '🍬', 'barn', 503, 111);
+item('candied_honeydew', 'Candied Honeydew', '🍭', 'barn', 769, 113);
+item('kiwi_fruit_gummies', 'Kiwi Fruit Gummies', '🍬', 'barn', 522, 113);
+item('leek_ravioli', 'Leek Ravioli', '🥟', 'barn', 867, 114);
+item('leek_lasagna', 'Leek Lasagna', '🍝', 'barn', 884, 115);
+item('endive_pasta', 'Endive Pasta', '🍝', 'barn', 233, 115);
+item('currant_smoothie', 'Currant Smoothie', '🥤', 'barn', 780, 117);
+item('jackfruit_shake', 'Jackfruit Shake', '🥛', 'barn', 522, 117);
+item('chamomile_tea', 'Chamomile Tea', '🍵', 'barn', 760, 118);
+item('chamomile_chai', 'Chamomile Chai', '☕', 'barn', 413, 120);
+item('iced_kiwi_fruit_tea', 'Iced Kiwi Fruit Tea', '🧋', 'barn', 438, 121);
+item('macadamia_latte', 'Macadamia Latte', '☕', 'barn', 332, 122);
+item('red_snapper_nigiri', 'Red Snapper Nigiri', '🍣', 'barn', 548, 122);
+item('endive_calzone', 'Endive Calzone', '🥟', 'barn', 326, 123);
+item('macadamia_gelato', 'Macadamia Gelato', '🍨', 'barn', 539, 124);
+item('celeriac_slaw', 'Celeriac Slaw', '🥗', 'barn', 802, 125);
+item('lucuma_nectar', 'Lucuma Nectar', '🧃', 'barn', 304, 126);
+item('halibut_skewers', 'Halibut Skewers', '🍢', 'barn', 1105, 127);
+item('longan_marmalade', 'Longan Marmalade', '🫙', 'barn', 528, 127);
+item('pawpaw_yogurt', 'Pawpaw Yogurt', '🥛', 'barn', 522, 129);
+item('pawpaw_pie', 'Pawpaw Pie', '🥧', 'barn', 573, 129);
+item('longan_muffins', 'Longan Muffins', '🧁', 'barn', 508, 130);
+item('rosemary_candle', 'Rosemary Candle', '🕯️', 'barn', 987, 130);
+item('hibiscus_soap', 'Hibiscus Soap', '🧼', 'barn', 881, 131);
+item('creamy_milk_soap', 'Creamy Milk Soap', '🧼', 'barn', 914, 132);
+item('hibiscus_perfume', 'Hibiscus Perfume', '🧴', 'barn', 1232, 132);
+item('hibiscus_body_mist', 'Hibiscus Body Mist', '🧴', 'barn', 867, 133);
+item('passion_fruit_bonbon', 'Passion Fruit Bonbon', '🍬', 'barn', 508, 134);
+item('yuzu_chocolate', 'Yuzu Chocolate', '🍫', 'barn', 744, 135);
+item('macadamia_truffle', 'Macadamia Truffle', '🍫', 'barn', 520, 137);
+item('lucuma_bonbon', 'Lucuma Bonbon', '🍬', 'barn', 360, 137);
+item('kiwi_fruit_truffle', 'Kiwi Fruit Truffle', '🍫', 'barn', 483, 138);
+item('cranberry_chocolate', 'Cranberry Chocolate', '🍫', 'barn', 1164, 138);
+item('sea_buckthorn_chocolate', 'Sea Buckthorn Chocolate', '🍫', 'barn', 774, 139);
+item('sea_buckthorn_bonbon', 'Sea Buckthorn Bonbon', '🍬', 'barn', 518, 140);
+item('cashew_truffle', 'Cashew Truffle', '🍫', 'barn', 548, 140);
+item('pine_nut_truffle', 'Pine Nut Truffle', '🍫', 'barn', 501, 141);
+item('marula_bonbon', 'Marula Bonbon', '🍬', 'barn', 360, 142);
+item('marula_chocolate', 'Marula Chocolate', '🍫', 'barn', 458, 142);
+item('horseradish_spice_rub', 'Horseradish Spice Rub', '🧂', 'barn', 959, 143);
+item('horseradish_powder', 'Horseradish Powder', '🧂', 'barn', 1400, 144);
+item('smoked_mahi_mahi_pate', 'Smoked Mahi Mahi Pate', '🥫', 'barn', 650, 144);
+item('smoked_amberjack', 'Smoked Amberjack', '🐟', 'barn', 206, 146);
+item('turbot_noodles', 'Turbot Noodles', '🍜', 'barn', 1127, 147);
+item('snook_ramen', 'Snook Ramen', '🍜', 'barn', 228, 148);
+item('hibiscus_herb_cheese', 'Hibiscus Herb Cheese', '🧀', 'barn', 501, 148);
+item('watusi_cheese', 'Watusi Cheese', '🧀', 'barn', 1896, 149);
+item('loquat_gummies', 'Loquat Gummies', '🍬', 'barn', 682, 150);
+item('white_peach_candy', 'White Peach Candy', '🍬', 'barn', 618, 150);
+item('candied_cranberry', 'Candied Cranberry', '🍭', 'barn', 954, 151);
+item('tomatillo_ravioli', 'Tomatillo Ravioli', '🥟', 'barn', 976, 151);
+item('romanesco_pasta', 'Romanesco Pasta', '🍝', 'barn', 1025, 152);
+item('romanesco_lasagna', 'Romanesco Lasagna', '🍝', 'barn', 1136, 153);
+item('loquat_smoothie', 'Loquat Smoothie', '🥤', 'barn', 584, 153);
+item('marula_shake', 'Marula Shake', '🥛', 'barn', 276, 155);
+item('iced_saffron_tea', 'Iced Saffron Tea', '🧋', 'barn', 1004, 156);
+item('green_tea', 'Green Tea', '🍵', 'barn', 1108, 157);
+item('green_chai', 'Green Chai', '☕', 'barn', 587, 157);
+item('habanero_latte', 'Habanero Latte', '☕', 'barn', 599, 158);
+item('mahi_mahi_nigiri', 'Mahi Mahi Nigiri', '🍣', 'barn', 636, 158);
+item('romanesco_calzone', 'Romanesco Calzone', '🥟', 'barn', 1119, 159);
+item('loquat_gelato', 'Loquat Gelato', '🍨', 'barn', 626, 160);
+item('romanesco_slaw', 'Romanesco Slaw', '🥗', 'barn', 1012, 160);
+item('soursop_nectar', 'Soursop Nectar', '🧃', 'barn', 858, 161);
+item('romanesco_skewers', 'Romanesco Skewers', '🍢', 'barn', 1096, 162);
+item('gooseberry_marmalade', 'Gooseberry Marmalade', '🫙', 'barn', 1077, 162);
+item('mangosteen_yogurt', 'Mangosteen Yogurt', '🥛', 'barn', 651, 163);
+item('loquat_pie', 'Loquat Pie', '🥧', 'barn', 662, 163);
+item('mangosteen_muffins', 'Mangosteen Muffins', '🧁', 'barn', 618, 164);
+item('soursop_chocolate', 'Soursop Chocolate', '🍫', 'barn', 828, 165);
+item('pecan_truffle', 'Pecan Truffle', '🍫', 'barn', 494, 166);
+item('soursop_bonbon', 'Soursop Bonbon', '🍬', 'barn', 545, 167);
+item('lily_candle', 'Lily Candle', '🕯️', 'barn', 1234, 167);
+item('watusi_milk_soap', 'Watusi Milk Soap', '🧼', 'barn', 1351, 169);
+item('green_soap', 'Green Soap', '🧼', 'barn', 1080, 169);
+item('lily_body_mist', 'Lily Body Mist', '🧴', 'barn', 1108, 170);
+item('peony_perfume', 'Peony Perfume', '🧴', 'barn', 1585, 171);
+item('sage_powder', 'Sage Powder', '🧂', 'barn', 1669, 172);
+item('sesame_spice_rub', 'Sesame Spice Rub', '🧂', 'barn', 1057, 172);
+item('smoked_cobia_pate', 'Smoked Cobia Pate', '🥫', 'barn', 206, 173);
+item('smoked_cobia', 'Smoked Cobia', '🐟', 'barn', 206, 174);
+item('cobia_ramen', 'Cobia Ramen', '🍜', 'barn', 228, 174);
+item('salsify_noodles', 'Salsify Noodles', '🍜', 'barn', 290, 175);
+item('creamy_cheese', 'Creamy Cheese', '🧀', 'barn', 1241, 176);
+item('sage_herb_cheese', 'Sage Herb Cheese', '🧀', 'barn', 647, 177);
+item('candied_cherimoya', 'Candied Cherimoya', '🍭', 'barn', 676, 177);
+item('cherimoya_candy', 'Cherimoya Candy', '🍬', 'barn', 718, 178);
+item('cherimoya_gummies', 'Cherimoya Gummies', '🍬', 'barn', 760, 179);
+item('okra_ravioli', 'Okra Ravioli', '🥟', 'barn', 1248, 179);
+item('bitter_melon_lasagna', 'Bitter Melon Lasagna', '🍝', 'barn', 1290, 180);
+item('sage_pasta', 'Sage Pasta', '🍝', 'barn', 1143, 181);
+item('black_sapote_shake', 'Black Sapote Shake', '🥛', 'barn', 276, 181);
+item('cherimoya_smoothie', 'Cherimoya Smoothie', '🥤', 'barn', 662, 182);
+item('sesame_chai', 'Sesame Chai', '☕', 'barn', 592, 183);
+item('hops_tea', 'Hops Tea', '🍵', 'barn', 1242, 184);
+item('iced_vanilla_tea', 'Iced Vanilla Tea', '🧋', 'barn', 1158, 185);
+item('sturgeon_nigiri', 'Sturgeon Nigiri', '🍣', 'barn', 807, 186);
+item('turmeric_latte', 'Turmeric Latte', '☕', 'barn', 633, 186);
+item('artichoke_calzone', 'Artichoke Calzone', '🥟', 'barn', 1284, 187);
+item('black_sapote_gelato', 'Black Sapote Gelato', '🍨', 'barn', 276, 188);
+item('taro_slaw', 'Taro Slaw', '🥗', 'barn', 1234, 188);
+item('goji_nectar', 'Goji Nectar', '🧃', 'barn', 1761, 189);
+item('taro_skewers', 'Taro Skewers', '🍢', 'barn', 1318, 189);
+item('ugli_fruit_marmalade', 'Ugli Fruit Marmalade', '🫙', 'barn', 248, 190);
+item('ugli_fruit_yogurt', 'Ugli Fruit Yogurt', '🥛', 'barn', 262, 191);
+item('ugli_fruit_pie', 'Ugli Fruit Pie', '🥧', 'barn', 312, 191);
+item('brazil_nut_muffins', 'Brazil Nut Muffins', '🧁', 'barn', 707, 192);
+item('goji_bonbon', 'Goji Bonbon', '🍬', 'barn', 846, 193);
+item('brazil_nut_truffle', 'Brazil Nut Truffle', '🍫', 'barn', 627, 193);
+item('brazil_nut_chocolate', 'Brazil Nut Chocolate', '🍫', 'barn', 937, 194);
+item('lotus_candle', 'Lotus Candle', '🕯️', 'barn', 1393, 196);
+item('aloe_soap', 'Aloe Soap', '🧼', 'barn', 1287, 196);
+item('zebu_milk_soap', 'Zebu Milk Soap', '🧼', 'barn', 1094, 197);
+item('cornflower_body_mist', 'Cornflower Body Mist', '🧴', 'barn', 1292, 198);
+item('lotus_perfume', 'Lotus Perfume', '🧴', 'barn', 1833, 198);
+item('nutmeg_spice_rub', 'Nutmeg Spice Rub', '🧂', 'barn', 727, 199);
+item('wasabi_powder', 'Wasabi Powder', '🧂', 'barn', 1795, 200);
+
 export const ITEMS: Record<string, ItemDef> = Object.fromEntries(ITEM_LIST.map((i) => [i.id, i]));
 
 // ---------------------------------------------------------------- crops
@@ -733,6 +993,19 @@ export const CROPS: CropDef[] = [
   { id: 'taro', time: 3460, xp: 119, seedCost: 234, level: 188, shape: 'root', leaf: '#3a8a4a', fruit: '#a88a7a' },
   { id: 'cornflower', time: 3530, xp: 122, seedCost: 240, level: 193, shape: 'flower', leaf: '#6a9a7a', fruit: '#3a6ae8' },
   { id: 'cassava', time: 3614, xp: 126, seedCost: 247, level: 199, shape: 'root', leaf: '#5a8a3a', fruit: '#c89a6a' },
+  // third wave
+  { id: 'swiss_chard', time: 1220, xp: 23, seedCost: 42, level: 28, shape: 'leafy', leaf: '#3a8a3a', fruit: '#e8403a' },
+  { id: 'watercress', time: 1458, xp: 33, seedCost: 62, level: 45, shape: 'leafy', leaf: '#3a9a3a', fruit: '#4aaa3a' },
+  { id: 'radicchio', time: 1640, xp: 41, seedCost: 78, level: 58, shape: 'head', leaf: '#5a8a4a', fruit: '#9a1a3a' },
+  { id: 'sorrel', time: 1878, xp: 51, seedCost: 98, level: 75, shape: 'leafy', leaf: '#4a9a3a', fruit: '#5aa83a' },
+  { id: 'sweet_pea', time: 2102, xp: 61, seedCost: 118, level: 91, shape: 'trellis', leaf: '#5aa83a', fruit: '#e880c0' },
+  { id: 'endive', time: 2312, xp: 70, seedCost: 136, level: 106, shape: 'leafy', leaf: '#7ab84a', fruit: '#e8f0c0' },
+  { id: 'zinnia', time: 2522, xp: 79, seedCost: 154, level: 121, shape: 'flower', leaf: '#4a8a3a', fruit: '#f04a6a' },
+  { id: 'sunchoke', time: 2718, xp: 87, seedCost: 170, level: 135, shape: 'root', leaf: '#4a8a3a', fruit: '#c8a070' },
+  { id: 'snapdragon', time: 2914, xp: 96, seedCost: 187, level: 149, shape: 'flower', leaf: '#5a9a4a', fruit: '#f0a020' },
+  { id: 'salsify', time: 3152, xp: 106, seedCost: 208, level: 166, shape: 'root', leaf: '#6a9a6a', fruit: '#e0d4b8' },
+  { id: 'cosmos', time: 3348, xp: 114, seedCost: 224, level: 180, shape: 'flower', leaf: '#5aa84a', fruit: '#e878b8' },
+  { id: 'lupin', time: 3516, xp: 121, seedCost: 239, level: 192, shape: 'flower', leaf: '#5a9a5a', fruit: '#7a5ad8' },
 ];
 export const CROP: Record<string, CropDef> = Object.fromEntries(CROPS.map((c) => [c.id, c]));
 
@@ -926,6 +1199,208 @@ recipe('taro_salad', 'salad_bar', { taro: 2, lettuce: 1 }, 2500, 95, 190);
 recipe('cornflower_bouquet', 'florist', { cornflower: 2, rose: 1 }, 2550, 98, 195);
 recipe('cassava_pizza', 'pizzeria', { cassava: 2, cheese: 1, bread: 1 }, 2600, 100, 200);
 
+// third wave dishes
+recipe('chili_pepper_latte', 'coffee_kiosk', { chili: 1, coffee_bean: 1, milk: 1 }, 810, 10, 21);
+recipe('chili_pepper_chai', 'tea_house', { chili: 1, milk: 1, sugar: 1 }, 850, 12, 25);
+recipe('iced_lemon_tea', 'tea_house', { lemon: 2, sugar: 1 }, 850, 12, 25);
+recipe('quince_smoothie', 'smoothie_bar', { quince: 2, milk: 1 }, 870, 14, 27);
+recipe('coconut_shake', 'smoothie_bar', { coconut: 2, cream: 1 }, 890, 14, 29);
+recipe('lavender_tea', 'tea_house', { lavender: 2, honey: 1 }, 890, 14, 29);
+recipe('tilapia_nigiri', 'sushi_bar', { tilapia: 1, rice: 2 }, 910, 16, 31);
+recipe('mackerel_ravioli', 'pasta_maker', { mackerel: 2, wheat: 2, cheese: 1 }, 930, 16, 33);
+recipe('arugula_lasagna', 'pasta_maker', { arugula: 2, wheat: 2, cheese: 1, tomato: 1 }, 940, 17, 34);
+recipe('daikon_pasta', 'pasta_maker', { daikon: 2, wheat: 3, egg: 1 }, 950, 18, 35);
+recipe('daikon_calzone', 'pizzeria', { daikon: 2, wheat: 2, cheese: 1 }, 950, 18, 35);
+recipe('tangerine_candy', 'candy_shop', { tangerine: 2, sugar: 2 }, 970, 18, 37);
+recipe('rowan_gummies', 'candy_shop', { rowan: 2, sugar: 1, honey: 1 }, 990, 20, 39);
+recipe('candied_rowan', 'candy_shop', { rowan: 2, sugar: 1 }, 1010, 20, 41);
+recipe('mulberry_gelato', 'ice_cream', { mulberry: 2, milk: 1, sugar: 1 }, 1010, 20, 41);
+recipe('kale_slaw', 'salad_bar', { kale: 2, egg: 1 }, 1020, 21, 42);
+recipe('clementine_nectar', 'juice_press', { clementine: 3 }, 1030, 22, 43);
+recipe('nubian_goat_cheese', 'cheese_cave', { nubian_milk: 3 }, 1040, 22, 44);
+recipe('dill_herb_cheese', 'cheese_cave', { dill: 1, milk: 3 }, 1070, 24, 47);
+recipe('watercress_skewers', 'bbq_grill', { watercress: 2, butter: 1 }, 1080, 24, 48);
+recipe('nectarine_marmalade', 'jam_maker', { nectarine: 2, sugar: 1 }, 1090, 24, 49);
+recipe('clementine_yogurt', 'dairy', { clementine: 2, milk: 2 }, 1100, 25, 50);
+recipe('persimmon_pie', 'bakery', { persimmon: 2, wheat: 2, butter: 1 }, 1100, 25, 50);
+recipe('sea_bass_noodles', 'noodle_bar', { sea_bass: 2, rice: 2 }, 1120, 26, 52);
+recipe('sea_bream_ramen', 'noodle_bar', { sea_bream: 2, wheat: 2, egg: 1 }, 1140, 27, 54);
+recipe('cantaloupe_muffins', 'bakery', { cantaloupe: 2, wheat: 2, egg: 1 }, 1150, 28, 55);
+recipe('zander_ramen', 'noodle_bar', { zander: 2, wheat: 2, egg: 1 }, 1160, 28, 56);
+recipe('kohlrabi_noodles', 'noodle_bar', { kohlrabi: 2, rice: 2 }, 1170, 28, 57);
+recipe('basil_herb_cheese', 'cheese_cave', { basil: 1, milk: 3 }, 1170, 28, 57);
+recipe('smoked_zander', 'smokehouse', { zander: 2 }, 1190, 30, 59);
+recipe('smoked_zander_pate', 'smokehouse', { zander: 1, butter: 1 }, 1200, 30, 60);
+recipe('smoked_catfish_pate', 'smokehouse', { catfish: 1, butter: 1 }, 1210, 30, 61);
+recipe('smoked_cod', 'smokehouse', { cod: 2 }, 1210, 30, 61);
+recipe('galloway_cheese', 'cheese_cave', { galloway_milk: 3 }, 1220, 31, 62);
+recipe('mirabelle_gummies', 'candy_shop', { mirabelle: 2, sugar: 1, honey: 1 }, 1230, 32, 63);
+recipe('candied_papaya', 'candy_shop', { papaya: 2, sugar: 1 }, 1250, 32, 65);
+recipe('basil_spice_rub', 'spice_mill', { basil: 2, garlic: 1 }, 1270, 34, 67);
+recipe('basil_powder', 'spice_mill', { basil: 3 }, 1290, 34, 69);
+recipe('dill_spice_rub', 'spice_mill', { dill: 2, garlic: 1 }, 1290, 34, 69);
+recipe('ginger_powder', 'spice_mill', { ginger: 3 }, 1300, 35, 70);
+recipe('kumquat_candy', 'candy_shop', { kumquat: 2, sugar: 2 }, 1300, 35, 70);
+recipe('ginger_pasta', 'pasta_maker', { ginger: 2, wheat: 3, egg: 1 }, 1320, 36, 72);
+recipe('radicchio_lasagna', 'pasta_maker', { radicchio: 2, wheat: 2, cheese: 1, tomato: 1 }, 1320, 36, 72);
+recipe('fennel_ravioli', 'pasta_maker', { fennel: 2, wheat: 2, cheese: 1 }, 1330, 36, 73);
+recipe('ginger_body_mist', 'perfumery', { ginger: 2, lemon: 1 }, 1340, 37, 74);
+recipe('marigold_perfume', 'perfumery', { marigold: 3 }, 1350, 38, 75);
+recipe('poppy_perfume', 'perfumery', { poppy: 3 }, 1370, 38, 77);
+recipe('marigold_body_mist', 'perfumery', { marigold: 2, lemon: 1 }, 1370, 38, 77);
+recipe('feijoa_smoothie', 'smoothie_bar', { feijoa: 2, milk: 1 }, 1380, 39, 78);
+recipe('guava_shake', 'smoothie_bar', { guava: 2, cream: 1 }, 1400, 40, 80);
+recipe('ginger_tea', 'tea_house', { ginger: 2, honey: 1 }, 1410, 40, 81);
+recipe('iced_sorrel_tea', 'tea_house', { sorrel: 2, sugar: 1 }, 1420, 41, 82);
+recipe('marigold_soap', 'soap_maker', { marigold: 2, goat_milk: 1 }, 1430, 42, 83);
+recipe('golden_milk_soap', 'soap_maker', { golden_milk: 2, honey: 1 }, 1450, 42, 85);
+recipe('daffodil_soap', 'soap_maker', { daffodil: 2, goat_milk: 1 }, 1450, 42, 85);
+recipe('reindeer_milk_soap', 'soap_maker', { reindeer_milk: 2, honey: 1 }, 1470, 44, 87);
+recipe('ginger_chai', 'tea_house', { ginger: 1, milk: 1, sugar: 1 }, 1470, 44, 87);
+recipe('hazelnut_latte', 'coffee_kiosk', { hazelnut: 1, coffee_bean: 1, milk: 1 }, 1480, 44, 88);
+recipe('pollock_nigiri', 'sushi_bar', { pollock: 1, rice: 2 }, 1490, 44, 89);
+recipe('green_bean_calzone', 'pizzeria', { green_bean: 2, wheat: 2, cheese: 1 }, 1490, 44, 89);
+recipe('pistachio_gelato', 'ice_cream', { pistachio: 2, milk: 1, sugar: 1 }, 1500, 45, 90);
+recipe('green_bean_slaw', 'salad_bar', { green_bean: 2, egg: 1 }, 1500, 45, 90);
+recipe('elderberry_nectar', 'juice_press', { elderberry: 3 }, 1510, 46, 91);
+recipe('oregano_candle', 'candle_shop', { oregano: 2, honey: 2 }, 1530, 46, 93);
+recipe('mint_candle', 'candle_shop', { mint: 2, honey: 2 }, 1550, 48, 95);
+recipe('acerola_marmalade', 'jam_maker', { acerola: 2, sugar: 1 }, 1560, 48, 96);
+recipe('pollock_skewers', 'bbq_grill', { pollock: 2, butter: 1 }, 1570, 48, 97);
+recipe('elderberry_yogurt', 'dairy', { elderberry: 2, milk: 2 }, 1590, 50, 99);
+recipe('dragon_fruit_muffins', 'bakery', { dragon_fruit: 2, wheat: 2, egg: 1 }, 1590, 50, 99);
+recipe('kiwi_fruit_pie', 'bakery', { kiwifruit: 2, wheat: 2, butter: 1 }, 1600, 50, 100);
+recipe('kiwi_fruit_candle', 'candle_shop', { kiwifruit: 2, honey: 2 }, 1600, 50, 100);
+recipe('saanen_milk_soap', 'soap_maker', { saanen_milk: 2, honey: 1 }, 1610, 50, 101);
+recipe('chamomile_soap', 'soap_maker', { chamomile: 2, goat_milk: 1 }, 1620, 51, 102);
+recipe('chamomile_body_mist', 'perfumery', { chamomile: 2, lemon: 1 }, 1620, 51, 102);
+recipe('chamomile_perfume', 'perfumery', { chamomile: 3 }, 1630, 52, 103);
+recipe('oregano_powder', 'spice_mill', { oregano: 3 }, 1640, 52, 104);
+recipe('jalapeno_spice_rub', 'spice_mill', { jalapeno: 2, garlic: 1 }, 1650, 52, 105);
+recipe('smoked_sole', 'smokehouse', { sole: 2 }, 1650, 52, 105);
+recipe('smoked_sole_pate', 'smokehouse', { sole: 1, butter: 1 }, 1670, 54, 107);
+recipe('yellowtail_noodles', 'noodle_bar', { yellowtail: 2, rice: 2 }, 1690, 54, 109);
+recipe('whiting_ramen', 'noodle_bar', { whiting: 2, wheat: 2, egg: 1 }, 1690, 54, 109);
+recipe('saanen_cheese', 'cheese_cave', { saanen_milk: 3 }, 1700, 55, 110);
+recipe('chamomile_herb_cheese', 'cheese_cave', { chamomile: 1, milk: 3 }, 1710, 56, 111);
+recipe('pecan_candy', 'candy_shop', { pecan: 2, sugar: 2 }, 1710, 56, 111);
+recipe('candied_honeydew', 'candy_shop', { honeydew: 2, sugar: 1 }, 1730, 56, 113);
+recipe('kiwi_fruit_gummies', 'candy_shop', { kiwifruit: 2, sugar: 1, honey: 1 }, 1730, 56, 113);
+recipe('leek_ravioli', 'pasta_maker', { leek: 2, wheat: 2, cheese: 1 }, 1740, 57, 114);
+recipe('leek_lasagna', 'pasta_maker', { leek: 2, wheat: 2, cheese: 1, tomato: 1 }, 1750, 58, 115);
+recipe('endive_pasta', 'pasta_maker', { endive: 2, wheat: 3, egg: 1 }, 1750, 58, 115);
+recipe('currant_smoothie', 'smoothie_bar', { currant: 2, milk: 1 }, 1770, 58, 117);
+recipe('jackfruit_shake', 'smoothie_bar', { jackfruit: 2, cream: 1 }, 1770, 58, 117);
+recipe('chamomile_tea', 'tea_house', { chamomile: 2, honey: 1 }, 1780, 59, 118);
+recipe('chamomile_chai', 'tea_house', { chamomile: 1, milk: 1, sugar: 1 }, 1800, 60, 120);
+recipe('iced_kiwi_fruit_tea', 'tea_house', { kiwifruit: 2, sugar: 1 }, 1810, 60, 121);
+recipe('macadamia_latte', 'coffee_kiosk', { macadamia: 1, coffee_bean: 1, milk: 1 }, 1820, 61, 122);
+recipe('red_snapper_nigiri', 'sushi_bar', { red_snapper: 1, rice: 2 }, 1820, 61, 122);
+recipe('endive_calzone', 'pizzeria', { endive: 2, wheat: 2, cheese: 1 }, 1830, 62, 123);
+recipe('macadamia_gelato', 'ice_cream', { macadamia: 2, milk: 1, sugar: 1 }, 1840, 62, 124);
+recipe('celeriac_slaw', 'salad_bar', { celeriac: 2, egg: 1 }, 1850, 62, 125);
+recipe('lucuma_nectar', 'juice_press', { lucuma: 3 }, 1860, 63, 126);
+recipe('halibut_skewers', 'bbq_grill', { halibut: 2, butter: 1 }, 1870, 64, 127);
+recipe('longan_marmalade', 'jam_maker', { longan: 2, sugar: 1 }, 1870, 64, 127);
+recipe('pawpaw_yogurt', 'dairy', { pawpaw: 2, milk: 2 }, 1890, 64, 129);
+recipe('pawpaw_pie', 'bakery', { pawpaw: 2, wheat: 2, butter: 1 }, 1890, 64, 129);
+recipe('longan_muffins', 'bakery', { longan: 2, wheat: 2, egg: 1 }, 1900, 65, 130);
+recipe('rosemary_candle', 'candle_shop', { rosemary: 2, honey: 2 }, 1900, 65, 130);
+recipe('hibiscus_soap', 'soap_maker', { hibiscus: 2, goat_milk: 1 }, 1910, 66, 131);
+recipe('creamy_milk_soap', 'soap_maker', { creamy_milk: 2, honey: 1 }, 1920, 66, 132);
+recipe('hibiscus_perfume', 'perfumery', { hibiscus: 3 }, 1920, 66, 132);
+recipe('hibiscus_body_mist', 'perfumery', { hibiscus: 2, lemon: 1 }, 1930, 66, 133);
+recipe('passion_fruit_bonbon', 'chocolatier', { passion_fruit: 1, cocoa_pod: 1, sugar: 1 }, 1940, 67, 134);
+recipe('yuzu_chocolate', 'chocolatier', { yuzu: 2, cocoa_pod: 1, sugar: 1 }, 1950, 68, 135);
+recipe('macadamia_truffle', 'chocolatier', { macadamia: 1, cocoa_pod: 1, cream: 1 }, 1970, 68, 137);
+recipe('lucuma_bonbon', 'chocolatier', { lucuma: 1, cocoa_pod: 1, sugar: 1 }, 1970, 68, 137);
+recipe('kiwi_fruit_truffle', 'chocolatier', { kiwifruit: 1, cocoa_pod: 1, cream: 1 }, 1980, 69, 138);
+recipe('cranberry_chocolate', 'chocolatier', { cranberry: 2, cocoa_pod: 1, sugar: 1 }, 1980, 69, 138);
+recipe('sea_buckthorn_chocolate', 'chocolatier', { sea_buckthorn: 2, cocoa_pod: 1, sugar: 1 }, 1990, 70, 139);
+recipe('sea_buckthorn_bonbon', 'chocolatier', { sea_buckthorn: 1, cocoa_pod: 1, sugar: 1 }, 2000, 70, 140);
+recipe('cashew_truffle', 'chocolatier', { cashew: 1, cocoa_pod: 1, cream: 1 }, 2000, 70, 140);
+recipe('pine_nut_truffle', 'chocolatier', { pine_nut: 1, cocoa_pod: 1, cream: 1 }, 2010, 70, 141);
+recipe('marula_bonbon', 'chocolatier', { marula: 1, cocoa_pod: 1, sugar: 1 }, 2020, 71, 142);
+recipe('marula_chocolate', 'chocolatier', { marula: 2, cocoa_pod: 1, sugar: 1 }, 2020, 71, 142);
+recipe('horseradish_spice_rub', 'spice_mill', { horseradish: 2, garlic: 1 }, 2030, 72, 143);
+recipe('horseradish_powder', 'spice_mill', { horseradish: 3 }, 2040, 72, 144);
+recipe('smoked_mahi_mahi_pate', 'smokehouse', { mahi_mahi: 1, butter: 1 }, 2040, 72, 144);
+recipe('smoked_amberjack', 'smokehouse', { amberjack: 2 }, 2060, 73, 146);
+recipe('turbot_noodles', 'noodle_bar', { turbot: 2, rice: 2 }, 2070, 74, 147);
+recipe('snook_ramen', 'noodle_bar', { snook: 2, wheat: 2, egg: 1 }, 2080, 74, 148);
+recipe('hibiscus_herb_cheese', 'cheese_cave', { hibiscus: 1, milk: 3 }, 2080, 74, 148);
+recipe('watusi_cheese', 'cheese_cave', { watusi_milk: 3 }, 2090, 74, 149);
+recipe('loquat_gummies', 'candy_shop', { loquat: 2, sugar: 1, honey: 1 }, 2100, 75, 150);
+recipe('white_peach_candy', 'candy_shop', { white_peach: 2, sugar: 2 }, 2100, 75, 150);
+recipe('candied_cranberry', 'candy_shop', { cranberry: 2, sugar: 1 }, 2110, 76, 151);
+recipe('tomatillo_ravioli', 'pasta_maker', { tomatillo: 2, wheat: 2, cheese: 1 }, 2110, 76, 151);
+recipe('romanesco_pasta', 'pasta_maker', { romanesco: 2, wheat: 3, egg: 1 }, 2120, 76, 152);
+recipe('romanesco_lasagna', 'pasta_maker', { romanesco: 2, wheat: 2, cheese: 1, tomato: 1 }, 2130, 76, 153);
+recipe('loquat_smoothie', 'smoothie_bar', { loquat: 2, milk: 1 }, 2130, 76, 153);
+recipe('marula_shake', 'smoothie_bar', { marula: 2, cream: 1 }, 2150, 78, 155);
+recipe('iced_saffron_tea', 'tea_house', { saffron: 2, sugar: 1 }, 2160, 78, 156);
+recipe('green_tea', 'tea_house', { tea: 2, honey: 1 }, 2170, 78, 157);
+recipe('green_chai', 'tea_house', { tea: 1, milk: 1, sugar: 1 }, 2170, 78, 157);
+recipe('habanero_latte', 'coffee_kiosk', { habanero: 1, coffee_bean: 1, milk: 1 }, 2180, 79, 158);
+recipe('mahi_mahi_nigiri', 'sushi_bar', { mahi_mahi: 1, rice: 2 }, 2180, 79, 158);
+recipe('romanesco_calzone', 'pizzeria', { romanesco: 2, wheat: 2, cheese: 1 }, 2190, 80, 159);
+recipe('loquat_gelato', 'ice_cream', { loquat: 2, milk: 1, sugar: 1 }, 2200, 80, 160);
+recipe('romanesco_slaw', 'salad_bar', { romanesco: 2, egg: 1 }, 2200, 80, 160);
+recipe('soursop_nectar', 'juice_press', { soursop: 3 }, 2210, 80, 161);
+recipe('romanesco_skewers', 'bbq_grill', { romanesco: 2, butter: 1 }, 2220, 81, 162);
+recipe('gooseberry_marmalade', 'jam_maker', { gooseberry: 2, sugar: 1 }, 2220, 81, 162);
+recipe('mangosteen_yogurt', 'dairy', { mangosteen: 2, milk: 2 }, 2230, 82, 163);
+recipe('loquat_pie', 'bakery', { loquat: 2, wheat: 2, butter: 1 }, 2230, 82, 163);
+recipe('mangosteen_muffins', 'bakery', { mangosteen: 2, wheat: 2, egg: 1 }, 2240, 82, 164);
+recipe('soursop_chocolate', 'chocolatier', { soursop: 2, cocoa_pod: 1, sugar: 1 }, 2250, 82, 165);
+recipe('pecan_truffle', 'chocolatier', { pecan: 1, cocoa_pod: 1, cream: 1 }, 2260, 83, 166);
+recipe('soursop_bonbon', 'chocolatier', { soursop: 1, cocoa_pod: 1, sugar: 1 }, 2270, 84, 167);
+recipe('lily_candle', 'candle_shop', { lily: 2, honey: 2 }, 2270, 84, 167);
+recipe('watusi_milk_soap', 'soap_maker', { watusi_milk: 2, honey: 1 }, 2290, 84, 169);
+recipe('green_soap', 'soap_maker', { tea: 2, goat_milk: 1 }, 2290, 84, 169);
+recipe('lily_body_mist', 'perfumery', { lily: 2, lemon: 1 }, 2300, 85, 170);
+recipe('peony_perfume', 'perfumery', { peony: 3 }, 2310, 86, 171);
+recipe('sage_powder', 'spice_mill', { sage: 3 }, 2320, 86, 172);
+recipe('sesame_spice_rub', 'spice_mill', { sesame: 2, garlic: 1 }, 2320, 86, 172);
+recipe('smoked_cobia_pate', 'smokehouse', { cobia: 1, butter: 1 }, 2330, 86, 173);
+recipe('smoked_cobia', 'smokehouse', { cobia: 2 }, 2340, 87, 174);
+recipe('cobia_ramen', 'noodle_bar', { cobia: 2, wheat: 2, egg: 1 }, 2340, 87, 174);
+recipe('salsify_noodles', 'noodle_bar', { salsify: 2, rice: 2 }, 2350, 88, 175);
+recipe('creamy_cheese', 'cheese_cave', { creamy_milk: 3 }, 2360, 88, 176);
+recipe('sage_herb_cheese', 'cheese_cave', { sage: 1, milk: 3 }, 2370, 88, 177);
+recipe('candied_cherimoya', 'candy_shop', { cherimoya: 2, sugar: 1 }, 2370, 88, 177);
+recipe('cherimoya_candy', 'candy_shop', { cherimoya: 2, sugar: 2 }, 2380, 89, 178);
+recipe('cherimoya_gummies', 'candy_shop', { cherimoya: 2, sugar: 1, honey: 1 }, 2390, 90, 179);
+recipe('okra_ravioli', 'pasta_maker', { okra: 2, wheat: 2, cheese: 1 }, 2390, 90, 179);
+recipe('bitter_melon_lasagna', 'pasta_maker', { bitter_melon: 2, wheat: 2, cheese: 1, tomato: 1 }, 2400, 90, 180);
+recipe('sage_pasta', 'pasta_maker', { sage: 2, wheat: 3, egg: 1 }, 2410, 90, 181);
+recipe('black_sapote_shake', 'smoothie_bar', { black_sapote: 2, cream: 1 }, 2410, 90, 181);
+recipe('cherimoya_smoothie', 'smoothie_bar', { cherimoya: 2, milk: 1 }, 2420, 91, 182);
+recipe('sesame_chai', 'tea_house', { sesame: 1, milk: 1, sugar: 1 }, 2430, 92, 183);
+recipe('hops_tea', 'tea_house', { hops: 2, honey: 1 }, 2440, 92, 184);
+recipe('iced_vanilla_tea', 'tea_house', { vanilla: 2, sugar: 1 }, 2450, 92, 185);
+recipe('sturgeon_nigiri', 'sushi_bar', { sturgeon: 1, rice: 2 }, 2460, 93, 186);
+recipe('turmeric_latte', 'coffee_kiosk', { turmeric: 1, coffee_bean: 1, milk: 1 }, 2460, 93, 186);
+recipe('artichoke_calzone', 'pizzeria', { artichoke: 2, wheat: 2, cheese: 1 }, 2470, 94, 187);
+recipe('black_sapote_gelato', 'ice_cream', { black_sapote: 2, milk: 1, sugar: 1 }, 2480, 94, 188);
+recipe('taro_slaw', 'salad_bar', { taro: 2, egg: 1 }, 2480, 94, 188);
+recipe('goji_nectar', 'juice_press', { goji: 3 }, 2490, 94, 189);
+recipe('taro_skewers', 'bbq_grill', { taro: 2, butter: 1 }, 2490, 94, 189);
+recipe('ugli_fruit_marmalade', 'jam_maker', { ugli_fruit: 2, sugar: 1 }, 2500, 95, 190);
+recipe('ugli_fruit_yogurt', 'dairy', { ugli_fruit: 2, milk: 2 }, 2510, 96, 191);
+recipe('ugli_fruit_pie', 'bakery', { ugli_fruit: 2, wheat: 2, butter: 1 }, 2510, 96, 191);
+recipe('brazil_nut_muffins', 'bakery', { brazil_nut: 2, wheat: 2, egg: 1 }, 2520, 96, 192);
+recipe('goji_bonbon', 'chocolatier', { goji: 1, cocoa_pod: 1, sugar: 1 }, 2530, 96, 193);
+recipe('brazil_nut_truffle', 'chocolatier', { brazil_nut: 1, cocoa_pod: 1, cream: 1 }, 2530, 96, 193);
+recipe('brazil_nut_chocolate', 'chocolatier', { brazil_nut: 2, cocoa_pod: 1, sugar: 1 }, 2540, 97, 194);
+recipe('lotus_candle', 'candle_shop', { lotus: 2, honey: 2 }, 2560, 98, 196);
+recipe('aloe_soap', 'soap_maker', { aloe: 2, goat_milk: 1 }, 2560, 98, 196);
+recipe('zebu_milk_soap', 'soap_maker', { zebu_milk: 2, honey: 1 }, 2570, 98, 197);
+recipe('cornflower_body_mist', 'perfumery', { cornflower: 2, lemon: 1 }, 2580, 99, 198);
+recipe('lotus_perfume', 'perfumery', { lotus: 3 }, 2580, 99, 198);
+recipe('nutmeg_spice_rub', 'spice_mill', { nutmeg: 2, garlic: 1 }, 2590, 100, 199);
+recipe('wasabi_powder', 'spice_mill', { wasabi: 3 }, 2600, 100, 200);
+
 export const RECIPE: Record<string, RecipeDef> = Object.fromEntries(RECIPES.map((r) => [r.id, r]));
 
 // ---------------------------------------------------------------- animals
@@ -1016,6 +1491,23 @@ export const ANIMALS: AnimalDef[] = [
   { id: 'texas_longhorn', name: 'Texas Longhorn', icon: '🐂', house: 'longhorn_ranch', feed: 'cow_feed', product: 'ranch_cream', time: 1128, xp: 44, cost: 4928, level: 176 },
   { id: 'clydesdale', name: 'Clydesdale', icon: '🐴', house: 'clydesdale_stable', feed: 'carrot', product: 'draft_rosette', time: 1152, xp: 46, cost: 5152, level: 184 },
   { id: 'elk', name: 'Elk', icon: '🦌', house: 'elk_woods', feed: 'carrot', product: 'elk_antler', time: 1182, xp: 48, cost: 5432, level: 194 },
+  // third wave
+  { id: 'leghorn', name: 'Leghorn Hen', icon: '🐔', house: 'leghorn_coop', feed: 'chicken_feed', product: 'white_egg', time: 678, xp: 6, cost: 728, level: 26 },
+  { id: 'khaki_campbell', name: 'Khaki Campbell', icon: '🦆', house: 'campbell_pond', feed: 'duck_feed', product: 'campbell_egg', time: 720, xp: 10, cost: 1120, level: 40 },
+  { id: 'dutch_rabbit', name: 'Dutch Rabbit', icon: '🐇', house: 'dutch_hutch', feed: 'carrot', product: 'dutch_fluff', time: 759, xp: 13, cost: 1484, level: 53 },
+  { id: 'rhode_island_red', name: 'Rhode Island Red', icon: '🐓', house: 'rhode_coop', feed: 'chicken_feed', product: 'red_hen_egg', time: 786, xp: 16, cost: 1736, level: 62 },
+  { id: 'guernsey', name: 'Guernsey Cow', icon: '🐄', house: 'guernsey_pasture', feed: 'cow_feed', product: 'golden_milk', time: 819, xp: 18, cost: 2044, level: 73 },
+  { id: 'shetland_sheep', name: 'Shetland Sheep', icon: '🐑', house: 'shetland_fold', feed: 'sheep_feed', product: 'shetland_wool', time: 852, xp: 21, cost: 2352, level: 84 },
+  { id: 'call_duck', name: 'Call Duck', icon: '🦆', house: 'call_duck_pond', feed: 'duck_feed', product: 'call_duck_down', time: 891, xp: 24, cost: 2716, level: 97 },
+  { id: 'alpine_goat', name: 'Alpine Goat', icon: '🐐', house: 'alpine_yard', feed: 'goat_feed', product: 'alpine_milk', time: 930, xp: 28, cost: 3080, level: 110 },
+  { id: 'wyandotte', name: 'Wyandotte Hen', icon: '🐔', house: 'wyandotte_coop', feed: 'chicken_feed', product: 'laced_feather', time: 957, xp: 30, cost: 3332, level: 119 },
+  { id: 'brown_swiss', name: 'Brown Swiss Cow', icon: '🐄', house: 'swiss_pasture', feed: 'cow_feed', product: 'swiss_cream', time: 993, xp: 33, cost: 3668, level: 131 },
+  { id: 'emden_goose', name: 'Emden Goose', icon: '🪿', house: 'emden_pen', feed: 'duck_feed', product: 'emden_down', time: 1029, xp: 36, cost: 4004, level: 143 },
+  { id: 'karakul', name: 'Karakul Sheep', icon: '🐑', house: 'karakul_fold', feed: 'sheep_feed', product: 'karakul_wool', time: 1062, xp: 38, cost: 4312, level: 154 },
+  { id: 'palomino', name: 'Palomino', icon: '🐎', house: 'palomino_stable', feed: 'carrot', product: 'golden_ribbon', time: 1092, xp: 41, cost: 4592, level: 164 },
+  { id: 'marans', name: 'Marans Hen', icon: '🐔', house: 'marans_coop', feed: 'chicken_feed', product: 'chocolate_egg', time: 1119, xp: 43, cost: 4844, level: 173 },
+  { id: 'dexter', name: 'Dexter Cow', icon: '🐄', house: 'dexter_pasture', feed: 'cow_feed', product: 'dexter_butter', time: 1155, xp: 46, cost: 5180, level: 185 },
+  { id: 'friesian', name: 'Friesian Horse', icon: '🐴', house: 'friesian_stable', feed: 'carrot', product: 'black_plume', time: 1191, xp: 49, cost: 5516, level: 197 },
 ];
 export const ANIMAL: Record<string, AnimalDef> = Object.fromEntries(ANIMALS.map((a) => [a.id, a]));
 
@@ -1309,6 +1801,57 @@ export const BUILDINGS: BuildingDef[] = [
   b({ id: 'elk_woods', name: 'Elk Woods', icon: '🦌', kind: 'pen', w: 3, h: 3, cost: 34920, level: 194, xp: 291, height: 26, wall: '#8fc45a', roof: '#8a4a2a', animal: 'elk', capacity: 5, desc: 'Home for up to 5 elk.' }),
   b({ id: 'ferris_wheel', name: 'Ferris Wheel', icon: '🎡', kind: 'deco', w: 2, h: 2, cost: 11760, level: 196, max: 2, xp: 59, height: 170, sellable: true, desc: 'Round and round above the farm.' }),
   b({ id: 'nutmeg_tree', name: 'Nutmeg Tree', icon: '🟤', kind: 'tree', cost: 17820, level: 198, max: 8, xp: 89, height: 66, sellable: true, fruit: 'nutmeg', growTime: 2388, desc: 'Gives 2 nutmegs again and again.' }),
+  // third wave
+  b({ id: 'tea_house', name: 'Tea House', icon: '🫖', kind: 'production', w: 2, h: 2, cost: 3450, level: 23, xp: 34, height: 56, wall: '#e8f0d8', roof: '#4a7a3a', desc: 'Brews herbal teas and spiced chai.' }),
+  b({ id: 'leghorn_coop', name: 'Leghorn Coop', icon: '🐔', kind: 'pen', w: 2, h: 2, cost: 4680, level: 26, xp: 39, height: 26, wall: '#8fc45a', roof: '#8a4a2a', animal: 'leghorn', capacity: 6, desc: 'Home for up to 6 leghorn hens.' }),
+  b({ id: 'smoothie_bar', name: 'Smoothie Bar', icon: '🥤', kind: 'production', w: 2, h: 2, cost: 4050, level: 27, xp: 40, height: 56, wall: '#fbe0ec', roof: '#e84a8a', desc: 'Blends fruit into thick smoothies.' }),
+  b({ id: 'hay_stack', name: 'Haystack', icon: '🌾', kind: 'deco', w: 1, h: 1, cost: 1920, level: 32, max: 4, xp: 10, height: 60, sellable: true, desc: 'A tall stack of golden hay.' }),
+  b({ id: 'pasta_maker', name: 'Pasta Maker', icon: '🍝', kind: 'production', w: 2, h: 2, cost: 4800, level: 32, xp: 48, height: 56, wall: '#f8ecd0', roof: '#c83a2a', desc: 'Rolls and cuts fresh pasta.' }),
+  b({ id: 'clementine_tree', name: 'Clementine Tree', icon: '🍊', kind: 'tree', cost: 3060, level: 34, max: 8, xp: 15, height: 66, sellable: true, fruit: 'clementine', growTime: 1404, desc: 'Gives 2 clementines again and again.' }),
+  b({ id: 'candy_shop', name: 'Candy Shop', icon: '🍭', kind: 'production', w: 2, h: 2, cost: 5550, level: 37, xp: 56, height: 56, wall: '#fde4f0', roof: '#e85aa8', desc: 'Boils sugar into sweets and candied fruit.' }),
+  b({ id: 'campbell_pond', name: 'Campbell Pond', icon: '🦆', kind: 'pen', w: 3, h: 3, cost: 7200, level: 40, xp: 60, height: 26, wall: '#8fc45a', roof: '#8a4a2a', animal: 'khaki_campbell', capacity: 5, desc: 'Home for up to 5 khaki campbells.' }),
+  b({ id: 'cheese_cave', name: 'Cheese Cave', icon: '🧀', kind: 'production', w: 2, h: 2, cost: 6600, level: 44, xp: 66, height: 56, wall: '#e8dcc0', roof: '#8a6a3a', desc: 'Ripens wheels of farmhouse cheese.' }),
+  b({ id: 'picnic_table', name: 'Picnic Table', icon: '🪑', kind: 'deco', w: 1, h: 1, cost: 2880, level: 48, max: 4, xp: 14, height: 30, sellable: true, desc: 'Benches for a lunch outdoors.' }),
+  b({ id: 'mirabelle_tree', name: 'Mirabelle Tree', icon: '🟡', kind: 'tree', cost: 4590, level: 51, max: 8, xp: 23, height: 66, sellable: true, fruit: 'mirabelle', growTime: 1506, desc: 'Gives 2 mirabelles again and again.' }),
+  b({ id: 'noodle_bar', name: 'Noodle Bar', icon: '🍜', kind: 'production', w: 2, h: 2, cost: 7650, level: 51, xp: 76, height: 56, wall: '#fff0d8', roof: '#d8302a', desc: 'Serves steaming noodle bowls.' }),
+  b({ id: 'dutch_hutch', name: 'Dutch Hutch', icon: '🐇', kind: 'pen', w: 2, h: 2, cost: 9540, level: 53, xp: 80, height: 26, wall: '#8fc45a', roof: '#8a4a2a', animal: 'dutch_rabbit', capacity: 6, desc: 'Home for up to 6 dutch rabbits.' }),
+  b({ id: 'smokehouse', name: 'Smokehouse', icon: '🏚️', kind: 'production', w: 2, h: 2, cost: 8850, level: 59, xp: 88, height: 56, wall: '#c8b090', roof: '#5a3a2a', desc: 'Smokes fish slowly over oak.' }),
+  b({ id: 'lemonade_stand', name: 'Lemonade Stand', icon: '🍋', kind: 'deco', w: 1, h: 1, cost: 3600, level: 60, max: 4, xp: 18, height: 50, sellable: true, desc: 'Ice cold lemonade, one coin a cup.' }),
+  b({ id: 'rhode_coop', name: 'Rhode Island Coop', icon: '🐓', kind: 'pen', w: 2, h: 2, cost: 11160, level: 62, xp: 93, height: 26, wall: '#8fc45a', roof: '#8a4a2a', animal: 'rhode_island_red', capacity: 6, desc: 'Home for up to 6 rhode island reds.' }),
+  b({ id: 'spice_mill', name: 'Spice Mill', icon: '🌶️', kind: 'production', w: 2, h: 2, cost: 9900, level: 66, xp: 99, height: 56, wall: '#f0d8b0', roof: '#c0602a', desc: 'Grinds spices into blends and rubs.' }),
+  b({ id: 'chokecherry_tree', name: 'Chokecherry Tree', icon: '🍒', kind: 'tree', cost: 6120, level: 68, max: 8, xp: 31, height: 66, sellable: true, fruit: 'chokecherry', growTime: 1608, desc: 'Gives 2 chokecherrys again and again.' }),
+  b({ id: 'guernsey_pasture', name: 'Guernsey Pasture', icon: '🐄', kind: 'pen', w: 3, h: 3, cost: 13140, level: 73, xp: 110, height: 26, wall: '#8fc45a', roof: '#8a4a2a', animal: 'guernsey', capacity: 5, desc: 'Home for up to 5 guernsey cows.' }),
+  b({ id: 'perfumery', name: 'Perfumery', icon: '🌸', kind: 'production', w: 2, h: 2, cost: 11100, level: 74, xp: 111, height: 56, wall: '#f4e8f8', roof: '#9a5ac8', desc: 'Distills flowers into perfume.' }),
+  b({ id: 'insect_hotel', name: 'Insect Hotel', icon: '🐞', kind: 'deco', w: 1, h: 1, cost: 4740, level: 79, max: 4, xp: 24, height: 50, sellable: true, desc: 'Snug rooms for bees and ladybirds.' }),
+  b({ id: 'soap_maker', name: 'Soap Maker', icon: '🧼', kind: 'production', w: 2, h: 2, cost: 12450, level: 83, xp: 124, height: 56, wall: '#e0f0f4', roof: '#3a8ab0', desc: 'Makes soaps with milk, oils and herbs.' }),
+  b({ id: 'shetland_fold', name: 'Shetland Fold', icon: '🐑', kind: 'pen', w: 3, h: 3, cost: 15120, level: 84, xp: 126, height: 26, wall: '#8fc45a', roof: '#8a4a2a', animal: 'shetland_sheep', capacity: 5, desc: 'Home for up to 5 shetland sheep.' }),
+  b({ id: 'star_apple_tree', name: 'Star Apple Tree', icon: '🟣', kind: 'tree', cost: 7740, level: 86, max: 8, xp: 39, height: 66, sellable: true, fruit: 'star_apple', growTime: 1716, desc: 'Gives 2 star apples again and again.' }),
+  b({ id: 'candle_shop', name: 'Candle Shop', icon: '🕯️', kind: 'production', w: 2, h: 2, cost: 13950, level: 93, xp: 140, height: 56, wall: '#f8ecc8', roof: '#b8862a', desc: 'Pours scented beeswax candles.' }),
+  b({ id: 'weathervane', name: 'Weathervane', icon: '🐓', kind: 'deco', w: 1, h: 1, cost: 5700, level: 95, max: 4, xp: 28, height: 80, sellable: true, desc: 'A copper rooster that turns with the wind.' }),
+  b({ id: 'call_duck_pond', name: 'Call Duck Pond', icon: '🦆', kind: 'pen', w: 3, h: 3, cost: 17460, level: 97, xp: 146, height: 26, wall: '#8fc45a', roof: '#8a4a2a', animal: 'call_duck', capacity: 5, desc: 'Home for up to 5 call ducks.' }),
+  b({ id: 'wax_apple_tree', name: 'Wax Apple Tree', icon: '🔔', kind: 'tree', cost: 9270, level: 103, max: 8, xp: 46, height: 66, sellable: true, fruit: 'wax_apple', growTime: 1818, desc: 'Gives 2 wax apples again and again.' }),
+  b({ id: 'rock_garden', name: 'Rock Garden', icon: '🪨', kind: 'deco', w: 1, h: 1, cost: 6480, level: 108, max: 4, xp: 32, height: 24, sellable: true, desc: 'Stones and hardy little alpines.' }),
+  b({ id: 'alpine_yard', name: 'Alpine Yard', icon: '🐐', kind: 'pen', w: 3, h: 3, cost: 19800, level: 110, xp: 165, height: 26, wall: '#8fc45a', roof: '#8a4a2a', animal: 'alpine_goat', capacity: 5, desc: 'Home for up to 5 alpine goats.' }),
+  b({ id: 'wyandotte_coop', name: 'Wyandotte Coop', icon: '🐔', kind: 'pen', w: 2, h: 2, cost: 21420, level: 119, xp: 178, height: 26, wall: '#8fc45a', roof: '#8a4a2a', animal: 'wyandotte', capacity: 6, desc: 'Home for up to 6 wyandotte hens.' }),
+  b({ id: 'veggie_stand', name: 'Veggie Stand', icon: '🥕', kind: 'deco', w: 1, h: 1, cost: 7380, level: 123, max: 4, xp: 37, height: 50, sellable: true, desc: 'Baskets of fresh picked vegetables.' }),
+  b({ id: 'lucuma_tree', name: 'Lucuma Tree', icon: '🟢', kind: 'tree', cost: 11340, level: 126, max: 8, xp: 57, height: 66, sellable: true, fruit: 'lucuma', growTime: 1956, desc: 'Gives 2 lucumas again and again.' }),
+  b({ id: 'swiss_pasture', name: 'Swiss Pasture', icon: '🐄', kind: 'pen', w: 3, h: 3, cost: 23580, level: 131, xp: 196, height: 26, wall: '#8fc45a', roof: '#8a4a2a', animal: 'brown_swiss', capacity: 5, desc: 'Home for up to 5 brown swiss cows.' }),
+  b({ id: 'chocolatier', name: 'Chocolatier', icon: '🍫', kind: 'production', w: 2, h: 2, cost: 20100, level: 134, xp: 201, height: 56, wall: '#f0dcc8', roof: '#6a3a1e', desc: 'Makes chocolates, truffles and bonbons.' }),
+  b({ id: 'windchime', name: 'Wind Chime', icon: '🎐', kind: 'deco', w: 1, h: 1, cost: 8340, level: 139, max: 4, xp: 42, height: 60, sellable: true, desc: 'Tinkles softly in the breeze.' }),
+  b({ id: 'marula_tree', name: 'Marula Tree', icon: '🟡', kind: 'tree', cost: 12690, level: 141, max: 8, xp: 63, height: 66, sellable: true, fruit: 'marula', growTime: 2046, desc: 'Gives 2 marulas again and again.' }),
+  b({ id: 'emden_pen', name: 'Emden Pen', icon: '🪿', kind: 'pen', w: 2, h: 2, cost: 25740, level: 143, xp: 214, height: 26, wall: '#8fc45a', roof: '#8a4a2a', animal: 'emden_goose', capacity: 6, desc: 'Home for up to 6 emden gooses.' }),
+  b({ id: 'dovecote', name: 'Dovecote', icon: '🕊️', kind: 'deco', w: 1, h: 1, cost: 9120, level: 152, max: 4, xp: 46, height: 90, sellable: true, desc: 'A tall white home for doves.' }),
+  b({ id: 'karakul_fold', name: 'Karakul Fold', icon: '🐑', kind: 'pen', w: 3, h: 3, cost: 27720, level: 154, xp: 231, height: 26, wall: '#8fc45a', roof: '#8a4a2a', animal: 'karakul', capacity: 5, desc: 'Home for up to 5 karakul sheep.' }),
+  b({ id: 'ackee_tree', name: 'Ackee Tree', icon: '🔴', kind: 'tree', cost: 14310, level: 159, max: 8, xp: 72, height: 66, sellable: true, fruit: 'ackee', growTime: 2154, desc: 'Gives 2 ackees again and again.' }),
+  b({ id: 'palomino_stable', name: 'Palomino Stable', icon: '🐎', kind: 'pen', w: 3, h: 3, cost: 29520, level: 164, xp: 246, height: 26, wall: '#8fc45a', roof: '#8a4a2a', animal: 'palomino', capacity: 5, desc: 'Home for up to 5 palominos.' }),
+  b({ id: 'flag_pole', name: 'Flag Pole', icon: '🚩', kind: 'deco', w: 1, h: 1, cost: 10080, level: 168, max: 4, xp: 50, height: 110, sellable: true, desc: 'The farm flag flies high.' }),
+  b({ id: 'marans_coop', name: 'Marans Coop', icon: '🐔', kind: 'pen', w: 2, h: 2, cost: 31140, level: 173, xp: 260, height: 26, wall: '#8fc45a', roof: '#8a4a2a', animal: 'marans', capacity: 6, desc: 'Home for up to 6 marans hens.' }),
+  b({ id: 'black_sapote_tree', name: 'Black Sapote Tree', icon: '🟢', kind: 'tree', cost: 15750, level: 175, max: 8, xp: 79, height: 66, sellable: true, fruit: 'black_sapote', growTime: 2250, desc: 'Gives 2 black sapotes again and again.' }),
+  b({ id: 'ice_cream_cart', name: 'Ice Cream Cart', icon: '🍦', kind: 'deco', w: 1, h: 1, cost: 10980, level: 183, max: 4, xp: 55, height: 50, sellable: true, desc: 'Scoops of every flavor.' }),
+  b({ id: 'dexter_pasture', name: 'Dexter Pasture', icon: '🐄', kind: 'pen', w: 3, h: 3, cost: 33300, level: 185, xp: 278, height: 26, wall: '#8fc45a', roof: '#8a4a2a', animal: 'dexter', capacity: 5, desc: 'Home for up to 5 dexter cows.' }),
+  b({ id: 'ugli_fruit_tree', name: 'Ugli Fruit Tree', icon: '🍊', kind: 'tree', cost: 17100, level: 190, max: 8, xp: 86, height: 66, sellable: true, fruit: 'ugli_fruit', growTime: 2340, desc: 'Gives 2 ugli fruits again and again.' }),
+  b({ id: 'pumpkin_carriage', name: 'Pumpkin Carriage', icon: '🎃', kind: 'deco', w: 2, h: 2, cost: 11700, level: 195, max: 2, xp: 58, height: 80, sellable: true, desc: 'A fairy tale ride home by midnight.' }),
+  b({ id: 'friesian_stable', name: 'Friesian Stable', icon: '🐴', kind: 'pen', w: 3, h: 3, cost: 35460, level: 197, xp: 296, height: 26, wall: '#8fc45a', roof: '#8a4a2a', animal: 'friesian', capacity: 5, desc: 'Home for up to 5 friesian horses.' }),
 ];
 export const BUILDING: Record<string, BuildingDef> = Object.fromEntries(BUILDINGS.map((x) => [x.id, x]));
 
@@ -1319,6 +1862,7 @@ export const CATCHES: [string, number, number][] = [
   ['shrimp', 40, 10], ['squid', 52, 8], ['octopus', 64, 7], ['swordfish', 78, 6], ['eel', 92, 6], ['pufferfish', 108, 5],
   ['stingray', 125, 4], ['marlin', 145, 3.5], ['pearl', 170, 3], ['golden_fish', 195, 1.5],
   ['sardine', 2, 8.9], ['anchovy', 9, 8.7], ['carp', 14, 8.5], ['perch', 20, 8.3], ['mackerel', 26, 8.1], ['tilapia', 31, 7.9], ['catfish', 38, 7.7], ['sea_bream', 44, 7.5], ['sea_bass', 50, 7.2], ['red_mullet', 55, 7.1], ['cod', 61, 6.9], ['pike', 68, 6.6], ['haddock', 74, 6.4], ['flounder', 79, 6.2], ['koi', 85, 6.0], ['arctic_char', 91, 5.8], ['grayling', 97, 5.6], ['sole', 102, 5.4], ['yellowtail', 109, 5.2], ['red_snapper', 114, 5.0], ['bonito', 120, 4.8], ['halibut', 126, 4.6], ['turbot', 131, 4.4], ['mahi_mahi', 138, 4.2], ['barracuda', 144, 4.0], ['grouper', 150, 3.7], ['clownfish', 155, 3.6], ['angelfish', 161, 3.4], ['parrotfish', 168, 3.1], ['wahoo', 174, 2.9], ['lionfish', 179, 2.7], ['sturgeon', 185, 2.5], ['sunfish', 191, 2.3], ['anglerfish', 197, 2.1],
+  ['herring', 23, 7.3], ['sprat', 38, 6.9], ['zander', 42, 6.7], ['tench', 55, 6.3], ['roach', 66, 6.0], ['rainbow_trout', 71, 5.9], ['hake', 81, 5.6], ['pollock', 88, 5.4], ['whiting', 101, 5.0], ['garfish', 114, 4.6], ['john_dory', 116, 4.5], ['amberjack', 128, 4.2], ['tarpon', 133, 4.0], ['snook', 147, 3.6], ['cobia', 156, 3.3], ['triggerfish', 161, 3.2], ['butterflyfish', 171, 2.9], ['blue_tang', 178, 2.7], ['boxfish', 187, 2.4], ['sailfish', 199, 2.0],
 ];
 
 export function unlocksAt(level: number): { icon: string; name: string }[] {

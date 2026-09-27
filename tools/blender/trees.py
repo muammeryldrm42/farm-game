@@ -95,6 +95,16 @@ TREES = {
     'mamey_tree': ('cone', '#2f6a2e', None, 1.05),
     'brazil_nut_tree': ('tall', '#2a6a2e', None, 1.25),
     'nutmeg_tree': ('cone', '#2a5a2e', None, 1),
+    'clementine_tree': ('citrus', '#2a7a2e', ('#ffffff',), 0.95),
+    'mirabelle_tree': ('round', '#4a8a36', ('#ffffff',), 0.95),
+    'chokecherry_tree': ('tall', '#3a7a32', ('#ffffff',), 1),
+    'star_apple_tree': ('broad', '#2a6a2e', None, 1.05),
+    'wax_apple_tree': ('round', '#3a8a36', None, 1),
+    'lucuma_tree': ('tall', '#2f6a2e', None, 1),
+    'marula_tree': ('spread', '#5a8a3a', None, 1.1),
+    'ackee_tree': ('broad', '#2a7a30', None, 1),
+    'black_sapote_tree': ('cone', '#2a6a2e', None, 1.05),
+    'ugli_fruit_tree': ('citrus', '#2f7a30', None, 1.05),
 }
 
 

@@ -471,10 +471,16 @@ const TREE_FORM: Record<string, { cy: number; r: number; h?: number; trunk?: boo
   jujube_tree: { cy: 0.8, r: 0.42, size: 0.07 },
   carob_tree: { cy: 0.82, r: 0.48, size: 0.1 },
   longan_tree: { cy: 0.82, r: 0.46, size: 0.09 },
+  chokecherry_tree: { cy: 0.82, r: 0.44, size: 0.1 },
+  marula_tree: { cy: 0.74, r: 0.54, size: 0.07 },
+  black_sapote_tree: { cy: 0.9, r: 0.35, size: 0.085 },
+  ackee_tree: { cy: 0.82, r: 0.47, size: 0.09 },
+  star_apple_tree: { cy: 0.84, r: 0.48, size: 0.08 },
+  lucuma_tree: { cy: 0.84, r: 0.46, size: 0.08 },
 };
-const FRUIT_COLOR: Record<string, string> = { apple: '#e53935', cherry: '#b0102a', orange: '#ff9800', peach: '#ffa274', lemon: '#ffe03a', coconut: '#7a4a26', pear: '#c8c040', plum: '#5a2070', mango: '#f0902a', avocado: '#2f4a1a', pomegranate: '#c0282a', banana: '#f2d23a', apricot: '#f6a23a', lime: '#6ab82a', fig: '#5a2a4a', olive: '#5a6a1a', walnut: '#5a8a2a', quince: '#e8c83a', almond: '#9ab880', mulberry: '#3a0a2a', grapefruit: '#f2b04a', persimmon: '#f07a1a', date: '#7a3a14', lychee: '#d83a3a', hazelnut: '#8a5a2a', starfruit: '#e8c21a', maple_syrup: '#b8321a', cocoa_pod: '#c0601a', sakura: '#f4b0c8', golden_apple: '#f2c230', tangerine: '#f08a1a', nectarine: '#f0603a', chestnut: '#7a4a22', papaya: '#f0a040', kumquat: '#f8a020', guava: '#b8d060', pistachio: '#b8c860', elderberry: '#2a1a3a', dragon_fruit: '#e8307a', pecan: '#8a5a2a', blood_orange: '#c8301a', jackfruit: '#a8b040', macadamia: '#d8c8a0', yuzu: '#f0d020', passion_fruit: '#6a2a6a', cashew: '#e8b040', white_peach: '#f8d0c0', loquat: '#f0a830', crabapple: '#c02a3a', cinnamon: '#8a4a22', mangosteen: '#5a1a3a', durian: '#b8a840', black_cherry: '#4a0a1a', silver_pear: '#d8d8c8', damson: '#3a1a5a', greengage: '#9ac050', sour_cherry: '#c0102a', nashi: '#d8c060', medlar: '#8a5a2a', hawthorn: '#c01a1a', rowan: '#f0501a', sloe: '#2a2a5a', pomelo: '#d8e070', citron: '#f0d840', bergamot: '#b8d040', jujube: '#8a2a1a', feijoa: '#5a8a3a', acerola: '#e02a1a', carob: '#4a2a1a', hickory: '#8a7a4a', kiwifruit: '#8a6a3a', plantain: '#8ab040', pine_nut: '#b89060', tamarind: '#8a5a2a', pawpaw: '#b8c050', longan: '#c8a060', rambutan: '#d8201a', sea_buckthorn: '#f0901a', finger_lime: '#6a8a2a', sapodilla: '#8a6a4a', soursop: '#5a8a3a', jabuticaba: '#1a0a2a', breadfruit: '#9ab840', cherimoya: '#8ab060', mamey: '#a86a3a', salak: '#6a2a1a', brazil_nut: '#5a3a1a', nutmeg: '#e8c060' };
-const TREE_LEAF: Record<string, string> = { apple_tree: '#4f9e36', cherry_tree: '#3f8a3a', orange_tree: '#2f7d32', peach_tree: '#5aa53a', lemon_tree: '#3b8f3c', coconut_palm: '#4c9a38', pear_tree: '#58a03a', plum_tree: '#3f7f3a', banana_tree: '#5aa844', mango_tree: '#2f7a32', avocado_tree: '#2a6a2e', pomegranate_tree: '#4a8a36', apricot_tree: '#5aa03a', lime_tree: '#2f7f32', fig_tree: '#4a9a3a', olive_tree: '#8a9a7a', walnut_tree: '#3f7a2e', quince_tree: '#5a9a3a', almond_tree: '#6aa84a', mulberry_tree: '#3f8a34', grapefruit_tree: '#3a8a3a', persimmon_tree: '#6a9a2a', date_palm: '#5a8a3a', lychee_tree: '#2f7a32', hazelnut_tree: '#5a9a34', starfruit_tree: '#3f8f3c', maple_tree: '#d8542a', cocoa_tree: '#2f6a2e', sakura_tree: '#f2a6c4', golden_apple_tree: '#7ab84a', tangerine_tree: '#2a7a2e', nectarine_tree: '#52a036', chestnut_tree: '#3a7a2c', papaya_tree: '#3a8a3a', kumquat_tree: '#2a7a30', guava_tree: '#469636', pistachio_tree: '#6a9a4a', elderberry_tree: '#3a8a36', dragon_fruit_tree: '#4a9a3a', pecan_tree: '#3a762c', blood_orange_tree: '#2a7a2e', jackfruit_tree: '#2a7a30', macadamia_tree: '#3a8a36', yuzu_tree: '#358a36', passion_fruit_tree: '#3a8a36', cashew_tree: '#469636', white_peach_tree: '#52a036', loquat_tree: '#3a7a2e', crabapple_tree: '#4a9a32', cinnamon_tree: '#2f7a32', mangosteen_tree: '#2a6a2e', durian_tree: '#3a7a2c', black_cherry_tree: '#3a7a36', silver_pear_tree: '#8aa890', damson_tree: '#3a7a36', greengage_tree: '#4a8a36', sour_cherry_tree: '#3f8a3a', nashi_tree: '#4a9a36', medlar_tree: '#4a8a30', hawthorn_tree: '#3a7a30', rowan_tree: '#4a8a36', sloe_tree: '#3a6a30', pomelo_tree: '#2a7a2e', citron_tree: '#3a8a36', bergamot_tree: '#2f7a30', jujube_tree: '#4a8a3a', feijoa_tree: '#6a8a6a', acerola_tree: '#2f7a32', carob_tree: '#2a6a2e', hickory_tree: '#4a8a30', kiwifruit_tree: '#3a8a30', plantain_tree: '#4a9a3a', pine_nut_tree: '#2a5a3a', tamarind_tree: '#4a8a30', pawpaw_tree: '#4a9a36', longan_tree: '#2a6a2e', rambutan_tree: '#2a7a30', sea_buckthorn_tree: '#8aa890', finger_lime_tree: '#2a6a2e', sapodilla_tree: '#2a6a2e', soursop_tree: '#3a7a32', jabuticaba_tree: '#3a7a36', breadfruit_tree: '#2a7a30', cherimoya_tree: '#4a8a36', mamey_tree: '#2f6a2e', salak_tree: '#3a6a2a', brazil_nut_tree: '#2a6a2e', nutmeg_tree: '#2a5a2e' };
-const GRASSY_PEN = new Set(['angus_ranch', 'charolais_pasture', 'longhorn_ranch', 'valais_fold', 'dorper_fold', 'mule_paddock', 'elk_woods', 'lop_hutch', 'angora_hutch', 'white_peacock_garden', 'toulouse_pen', 'runner_pen', 'hereford_ranch', 'suffolk_fold', 'heron_marsh', 'highland_pasture', 'pheasant_run', 'llama_ranch', 'pony_paddock', 'black_sheepfold', 'jersey_pasture', 'merino_fold', 'galloway_pasture', 'jacob_fold', 'deer_park', 'moose_woods', 'squirrel_grove', 'parrot_aviary', 'kiwi_burrow', 'owl_barn', 'silk_house', 'crane_marsh', 'muscovy_pond', 'pasture', 'sheepfold', 'beehive', 'rabbit_hutch', 'alpaca_ranch', 'goose_pen', 'peacock_garden', 'donkey_paddock', 'yak_pasture']);
+const FRUIT_COLOR: Record<string, string> = { apple: '#e53935', cherry: '#b0102a', orange: '#ff9800', peach: '#ffa274', lemon: '#ffe03a', coconut: '#7a4a26', pear: '#c8c040', plum: '#5a2070', mango: '#f0902a', avocado: '#2f4a1a', pomegranate: '#c0282a', banana: '#f2d23a', apricot: '#f6a23a', lime: '#6ab82a', fig: '#5a2a4a', olive: '#5a6a1a', walnut: '#5a8a2a', quince: '#e8c83a', almond: '#9ab880', mulberry: '#3a0a2a', grapefruit: '#f2b04a', persimmon: '#f07a1a', date: '#7a3a14', lychee: '#d83a3a', hazelnut: '#8a5a2a', starfruit: '#e8c21a', maple_syrup: '#b8321a', cocoa_pod: '#c0601a', sakura: '#f4b0c8', golden_apple: '#f2c230', tangerine: '#f08a1a', nectarine: '#f0603a', chestnut: '#7a4a22', papaya: '#f0a040', kumquat: '#f8a020', guava: '#b8d060', pistachio: '#b8c860', elderberry: '#2a1a3a', dragon_fruit: '#e8307a', pecan: '#8a5a2a', blood_orange: '#c8301a', jackfruit: '#a8b040', macadamia: '#d8c8a0', yuzu: '#f0d020', passion_fruit: '#6a2a6a', cashew: '#e8b040', white_peach: '#f8d0c0', loquat: '#f0a830', crabapple: '#c02a3a', cinnamon: '#8a4a22', mangosteen: '#5a1a3a', durian: '#b8a840', black_cherry: '#4a0a1a', silver_pear: '#d8d8c8', damson: '#3a1a5a', greengage: '#9ac050', sour_cherry: '#c0102a', nashi: '#d8c060', medlar: '#8a5a2a', hawthorn: '#c01a1a', rowan: '#f0501a', sloe: '#2a2a5a', pomelo: '#d8e070', citron: '#f0d840', bergamot: '#b8d040', jujube: '#8a2a1a', feijoa: '#5a8a3a', acerola: '#e02a1a', carob: '#4a2a1a', hickory: '#8a7a4a', kiwifruit: '#8a6a3a', plantain: '#8ab040', pine_nut: '#b89060', tamarind: '#8a5a2a', pawpaw: '#b8c050', longan: '#c8a060', rambutan: '#d8201a', sea_buckthorn: '#f0901a', finger_lime: '#6a8a2a', sapodilla: '#8a6a4a', soursop: '#5a8a3a', jabuticaba: '#1a0a2a', breadfruit: '#9ab840', cherimoya: '#8ab060', mamey: '#a86a3a', salak: '#6a2a1a', brazil_nut: '#5a3a1a', nutmeg: '#e8c060', clementine: '#f07a10', mirabelle: '#f0c020', chokecherry: '#3a0a1a', star_apple: '#6a2a5a', wax_apple: '#e8305a', lucuma: '#b0a040', marula: '#e8d040', ackee: '#d8301a', black_sapote: '#3a5a2a', ugli_fruit: '#b8c040' };
+const TREE_LEAF: Record<string, string> = { apple_tree: '#4f9e36', cherry_tree: '#3f8a3a', orange_tree: '#2f7d32', peach_tree: '#5aa53a', lemon_tree: '#3b8f3c', coconut_palm: '#4c9a38', pear_tree: '#58a03a', plum_tree: '#3f7f3a', banana_tree: '#5aa844', mango_tree: '#2f7a32', avocado_tree: '#2a6a2e', pomegranate_tree: '#4a8a36', apricot_tree: '#5aa03a', lime_tree: '#2f7f32', fig_tree: '#4a9a3a', olive_tree: '#8a9a7a', walnut_tree: '#3f7a2e', quince_tree: '#5a9a3a', almond_tree: '#6aa84a', mulberry_tree: '#3f8a34', grapefruit_tree: '#3a8a3a', persimmon_tree: '#6a9a2a', date_palm: '#5a8a3a', lychee_tree: '#2f7a32', hazelnut_tree: '#5a9a34', starfruit_tree: '#3f8f3c', maple_tree: '#d8542a', cocoa_tree: '#2f6a2e', sakura_tree: '#f2a6c4', golden_apple_tree: '#7ab84a', tangerine_tree: '#2a7a2e', nectarine_tree: '#52a036', chestnut_tree: '#3a7a2c', papaya_tree: '#3a8a3a', kumquat_tree: '#2a7a30', guava_tree: '#469636', pistachio_tree: '#6a9a4a', elderberry_tree: '#3a8a36', dragon_fruit_tree: '#4a9a3a', pecan_tree: '#3a762c', blood_orange_tree: '#2a7a2e', jackfruit_tree: '#2a7a30', macadamia_tree: '#3a8a36', yuzu_tree: '#358a36', passion_fruit_tree: '#3a8a36', cashew_tree: '#469636', white_peach_tree: '#52a036', loquat_tree: '#3a7a2e', crabapple_tree: '#4a9a32', cinnamon_tree: '#2f7a32', mangosteen_tree: '#2a6a2e', durian_tree: '#3a7a2c', black_cherry_tree: '#3a7a36', silver_pear_tree: '#8aa890', damson_tree: '#3a7a36', greengage_tree: '#4a8a36', sour_cherry_tree: '#3f8a3a', nashi_tree: '#4a9a36', medlar_tree: '#4a8a30', hawthorn_tree: '#3a7a30', rowan_tree: '#4a8a36', sloe_tree: '#3a6a30', pomelo_tree: '#2a7a2e', citron_tree: '#3a8a36', bergamot_tree: '#2f7a30', jujube_tree: '#4a8a3a', feijoa_tree: '#6a8a6a', acerola_tree: '#2f7a32', carob_tree: '#2a6a2e', hickory_tree: '#4a8a30', kiwifruit_tree: '#3a8a30', plantain_tree: '#4a9a3a', pine_nut_tree: '#2a5a3a', tamarind_tree: '#4a8a30', pawpaw_tree: '#4a9a36', longan_tree: '#2a6a2e', rambutan_tree: '#2a7a30', sea_buckthorn_tree: '#8aa890', finger_lime_tree: '#2a6a2e', sapodilla_tree: '#2a6a2e', soursop_tree: '#3a7a32', jabuticaba_tree: '#3a7a36', breadfruit_tree: '#2a7a30', cherimoya_tree: '#4a8a36', mamey_tree: '#2f6a2e', salak_tree: '#3a6a2a', brazil_nut_tree: '#2a6a2e', nutmeg_tree: '#2a5a2e', clementine_tree: '#2a7a2e', mirabelle_tree: '#4a8a36', chokecherry_tree: '#3a7a32', star_apple_tree: '#2a6a2e', wax_apple_tree: '#3a8a36', lucuma_tree: '#2f6a2e', marula_tree: '#5a8a3a', ackee_tree: '#2a7a30', black_sapote_tree: '#2a6a2e', ugli_fruit_tree: '#2f7a30' };
+const GRASSY_PEN = new Set(['guernsey_pasture', 'swiss_pasture', 'dexter_pasture', 'shetland_fold', 'karakul_fold', 'dutch_hutch', 'emden_pen', 'angus_ranch', 'charolais_pasture', 'longhorn_ranch', 'valais_fold', 'dorper_fold', 'mule_paddock', 'elk_woods', 'lop_hutch', 'angora_hutch', 'white_peacock_garden', 'toulouse_pen', 'runner_pen', 'hereford_ranch', 'suffolk_fold', 'heron_marsh', 'highland_pasture', 'pheasant_run', 'llama_ranch', 'pony_paddock', 'black_sheepfold', 'jersey_pasture', 'merino_fold', 'galloway_pasture', 'jacob_fold', 'deer_park', 'moose_woods', 'squirrel_grove', 'parrot_aviary', 'kiwi_burrow', 'owl_barn', 'silk_house', 'crane_marsh', 'muscovy_pond', 'pasture', 'sheepfold', 'beehive', 'rabbit_hutch', 'alpaca_ranch', 'goose_pen', 'peacock_garden', 'donkey_paddock', 'yak_pasture']);
 const PEN_GROUND: Record<string, string> = {
   rabbit_hutch: '#86c24f', alpaca_ranch: '#8fc45a', goose_pen: '#86c24f', gobbler_run: '#c9a46a', quail_coop: '#d9c08a', camel_corral: '#e2cf98', buffalo_wallow: '#8a6a44', ostrich_ranch: '#d8c38e',
   coop: '#d9c08a', pasture: '#86c24f', sheepfold: '#9ccc5a',
@@ -2363,6 +2369,7 @@ const ANIMAL_MODELS = new Set([
   'spotted_deer', 'squirrel', 'swan', 'vicuna', 'watusi', 'yak', 'zebu',
   'hereford', 'suffolk_sheep', 'bronze_turkey', 'saanen_goat', 'ayam_cemani', 'grey_heron',
   'pekin_duck', 'orpington', 'lop_rabbit', 'pygmy_goat', 'brahma_chicken', 'toulouse_goose', 'angus_cow', 'polish_chicken', 'valais_blacknose', 'indian_runner', 'boer_goat', 'dorper', 'charolais', 'angora_rabbit', 'white_peacock', 'appaloosa', 'mule', 'texas_longhorn', 'clydesdale', 'elk',
+  'leghorn', 'khaki_campbell', 'dutch_rabbit', 'rhode_island_red', 'guernsey', 'shetland_sheep', 'call_duck', 'alpine_goat', 'wyandotte', 'brown_swiss', 'emden_goose', 'karakul', 'palomino', 'marans', 'dexter', 'friesian',
 ]);
 const animalSrc = new Map<string, THREE.Object3D>();
 let animalVer = 0;
@@ -2527,7 +2534,7 @@ const LID: Record<string, string> = {
 
 const TALL = new Set(['camel', 'ostrich', 'emu', 'flamingo', 'reindeer', 'llama', 'rhea', 'cassowary', 'crane', 'bactrian_camel', 'moose', 'spotted_deer', 'vicuna', 'grey_heron', 'elk', 'clydesdale']);
 // birds that float on their pond instead of walking
-const SWIMMERS = new Set(['duck', 'swan', 'mandarin_duck', 'black_swan', 'pekin_duck']);
+const SWIMMERS = new Set(['duck', 'swan', 'mandarin_duck', 'black_swan', 'pekin_duck', 'khaki_campbell', 'call_duck']);
 
 function animalBody(kind: string) {
   const g = assemble(kind);
@@ -2574,7 +2581,8 @@ function animalBody(kind: string) {
     case 'guinea_fowl': case 'pheasant': case 'emu': case 'flamingo': case 'golden_goose':
     case 'silkie_chicken': case 'muscovy_duck': case 'crane': case 'rhea': case 'cassowary': case 'kiwi_bird': case 'parrot':
     case 'bronze_turkey': case 'ayam_cemani': case 'grey_heron':
-    case 'orpington': case 'brahma_chicken': case 'polish_chicken': case 'indian_runner': case 'toulouse_goose': case 'white_peacock': g.userData.peck = true; break;
+    case 'orpington': case 'brahma_chicken': case 'polish_chicken': case 'indian_runner': case 'toulouse_goose': case 'white_peacock':
+    case 'leghorn': case 'rhode_island_red': case 'wyandotte': case 'marans': case 'emden_goose': g.userData.peck = true; break;
     case 'yak':
       if (cp?.toon) break;
       // long horns curving up and out
@@ -2597,7 +2605,7 @@ function animalBody(kind: string) {
         head.add(horn);
       }
       break;
-    case 'rabbit': case 'squirrel': case 'chinchilla': case 'lop_rabbit': case 'angora_rabbit': g.userData.hop = true; break;
+    case 'rabbit': case 'squirrel': case 'chinchilla': case 'lop_rabbit': case 'angora_rabbit': case 'dutch_rabbit': g.userData.hop = true; break;
   }
   return g;
 }
@@ -2905,7 +2913,8 @@ const MODELS: Record<string, ModelSpec> = {
 for (const id of ['hay_bale', 'picket_fence', 'bird_house', 'pumpkin_pile', 'birdbath', 'topiary', 'well', 'flower_arch',
   'hay_wagon', 'tractor', 'bench', 'lamp', 'scarecrow', 'windmill', 'pond', 'mailbox', 'gazebo', 'fountain',
   'sundial', 'bird_feeder', 'garden_swing', 'bonfire', 'totem_pole', 'picnic_spot', 'wind_turbine', 'stone_bridge', 'pergola', 'horse_statue', 'torii_gate', 'zen_garden', 'treehouse', 'greenhouse', 'water_tower', 'carousel', 'lighthouse', 'clock_tower', 'hot_air_balloon', 'golden_farmer',
-  'garden_gnome', 'wheelbarrow', 'rain_barrel', 'flower_cart', 'compost_bin', 'mushroom_ring', 'stone_lantern', 'bamboo_grove', 'fairy_house', 'snowman', 'sandcastle', 'seesaw', 'outdoor_oven', 'telescope', 'obelisk', 'hammock', 'water_wheel', 'koi_pond', 'camping_tent', 'beach_hut', 'log_cabin', 'playground_slide', 'pagoda', 'chapel', 'observatory', 'ferris_wheel']) MODELS[id] = {};
+  'garden_gnome', 'wheelbarrow', 'rain_barrel', 'flower_cart', 'compost_bin', 'mushroom_ring', 'stone_lantern', 'bamboo_grove', 'fairy_house', 'snowman', 'sandcastle', 'seesaw', 'outdoor_oven', 'telescope', 'obelisk', 'hammock', 'water_wheel', 'koi_pond', 'camping_tent', 'beach_hut', 'log_cabin', 'playground_slide', 'pagoda', 'chapel', 'observatory', 'ferris_wheel',
+  'hay_stack', 'picnic_table', 'lemonade_stand', 'insect_hotel', 'weathervane', 'rock_garden', 'veggie_stand', 'windchime', 'dovecote', 'flag_pole', 'ice_cream_cart', 'pumpkin_carriage']) MODELS[id] = {};
 for (const d of Object.values(BUILDING)) if (d.kind === 'pen') MODELS[d.id] = {};
 for (const d of Object.values(BUILDING)) if (d.kind === 'tree') MODELS[d.id] = {};
 MODELS.flowers = {};
@@ -2917,7 +2926,8 @@ MODELS.rock_obs = { variants: 3 };
 MODELS.plot = {};
 MODELS.bush_obs = { variants: 2 };
 for (const id of ['bakery', 'feed_mill', 'dairy', 'sugar_mill', 'bbq_grill', 'juice_press', 'loom', 'jam_maker', 'ice_cream',
-  'sushi_bar', 'salad_bar', 'pizzeria', 'coffee_kiosk', 'oil_press', 'florist', 'workshop']) MODELS[id] = { badge: 0.26 };
+  'sushi_bar', 'salad_bar', 'pizzeria', 'coffee_kiosk', 'oil_press', 'florist', 'workshop', 'tea_house', 'smoothie_bar', 'pasta_maker',
+  'candy_shop', 'cheese_cave', 'noodle_bar', 'smokehouse', 'spice_mill', 'perfumery', 'soap_maker', 'candle_shop', 'chocolatier']) MODELS[id] = { badge: 0.26 };
 function keep<T extends THREE.Object3D>(o: T) {
   o.userData.keep = true;
   return o;
@@ -3424,13 +3434,13 @@ function buildPen(e: Entry, d: BuildingDef) {
   const w = d.w, h = d.h;
   // grassy pens keep the lawn (and its swaying grass), the others get a dirt yard
   if (!GRASSY_PEN.has(d.id)) {
-    const dirt = !['duck_pond', 'pekin_pond', 'swan_lake', 'reindeer_lodge', 'musk_ox_range', 'beaver_pond', 'mandarin_pond', 'black_swan_lake'].includes(d.id);
+    const dirt = !['duck_pond', 'pekin_pond', 'campbell_pond', 'call_duck_pond', 'swan_lake', 'reindeer_lodge', 'musk_ox_range', 'beaver_pond', 'mandarin_pond', 'black_swan_lake'].includes(d.id);
     keep(bxT(g, w - 0.1, 0.04, h - 0.1, dirt ? 'soil' : 'grass', PEN_GROUND[d.id] ?? d.wall, w / 2, 0, h / 2, dirt ? 1.5 : 0.8, false));
   }
   if (d.id !== 'beehive') fence(g, w, h, WHITE_FENCE.has(d.id));
   e.top = 0.9;
   switch (d.id) {
-    case 'coop': case 'orpington_coop': case 'brahma_coop': case 'polish_coop':
+    case 'coop': case 'orpington_coop': case 'brahma_coop': case 'polish_coop': case 'leghorn_coop': case 'rhode_coop': case 'wyandotte_coop': case 'marans_coop':
       bxT(g, 0.72, 0.45, 0.6, 'boards', '#e3cf94', 0.55, 0.04, 0.5, 2);
       roofT(g, 0.88, 0.32, 0.76, '#b5452c', surfaceMat('boards', '#e3cf94', 2), 0.55, 0.49, 0.5, 0.08);
       bx(g, 0.16, 0.2, 0.02, '#5a3517', 0.55, 0.1, 0.81);
@@ -3545,19 +3555,19 @@ function buildPen(e: Entry, d: BuildingDef) {
       keep(mk(g, G.ball, new THREE.MeshStandardMaterial({ color: '#ffd23a', metalness: 0.35, roughness: 0.25, emissive: '#7a5200', emissiveIntensity: 0.5 }), 0.09, 0.12, 0.09, 1.15, 0.16, 0.9));
       break;
     }
-    case 'duck_pond': case 'pekin_pond':
+    case 'duck_pond': case 'pekin_pond': case 'campbell_pond': case 'call_duck_pond':
       cyl(g, 0.95, 1.0, 0.04, '#d8c38e', 1.7, 0.02, 1.7, 16, false);
       mk(g, cylGeo(0.85, 0.85, 16), WATER, 1, 0.04, 1, 1.7, 0.06, 1.7, false);
       bxT(g, 0.5, 0.35, 0.45, 'boards', '#f3e6c8', 0.45, 0.04, 0.45, 2);
       roofT(g, 0.62, 0.22, 0.58, '#2e6da4', surfaceMat('boards', '#f3e6c8', 2), 0.45, 0.39, 0.45, 0.06);
       break;
-    case 'stable': case 'appaloosa_stable': case 'clydesdale_stable':
+    case 'stable': case 'appaloosa_stable': case 'clydesdale_stable': case 'palomino_stable': case 'friesian_stable':
       bxT(g, 1.5, 0.75, 0.75, 'boards', '#a85a3a', 1.1, 0.04, 0.5, 1.6);
       roofT(g, 1.66, 0.38, 0.9, '#8e2c20', surfaceMat('boards', '#a85a3a', 1.6), 1.1, 0.79, 0.5, 0.08);
       for (const x of [0.65, 1.1, 1.55]) bx(g, 0.28, 0.42, 0.03, '#6b3a22', x, 0.04, 0.88);
       e.top = 1.3;
       break;
-    case 'rabbit_hutch': case 'lop_hutch': case 'angora_hutch': {
+    case 'rabbit_hutch': case 'lop_hutch': case 'angora_hutch': case 'dutch_hutch': {
       // raised hutch with a wire front, a sloped roof and a ramp down to the grass
       const hx = 0.62, hz = 0.5;
       for (const [x, z] of [[-0.38, -0.2], [0.38, -0.2], [-0.38, 0.2], [0.38, 0.2]]) bx(g, 0.05, 0.3, 0.05, '#7a4a28', hx + x, 0, hz + z);
@@ -3610,7 +3620,7 @@ function buildPen(e: Entry, d: BuildingDef) {
       mk(g, cylGeo(0.17, 0.17, 16), WATER, 1, 0.02, 1, 1.5, 0.18, 1.5, false);
       e.top = 1.0;
       break;
-    case 'goose_pen': case 'toulouse_pen': case 'runner_pen':
+    case 'goose_pen': case 'toulouse_pen': case 'runner_pen': case 'emden_pen':
       // a little pond in one corner and an A-frame goose house
       cyl(g, 0.42, 0.45, 0.03, '#d8c38e', 1.45, 0.02, 1.45, 20, false);
       mk(g, cylGeo(0.37, 0.37, 20), WATER, 1, 0.03, 1, 1.45, 0.05, 1.45, false);
@@ -3635,7 +3645,7 @@ function buildPen(e: Entry, d: BuildingDef) {
       bxT(g, 0.5, 0.25, 0.35, 'thatch', '#e2c15a', 0.55, 0.04, 0.5, 3);
     }
   }
-  if (!['beehive', 'duck_pond', 'goose_pen', 'peacock_garden', 'swan_lake', 'flamingo_lagoon', 'golden_nest', 'mandarin_pond', 'black_swan_lake', 'silk_house', 'parrot_aviary', 'owl_barn', 'kiwi_burrow', 'squirrel_grove', 'crane_marsh', 'heron_marsh', 'pekin_pond', 'toulouse_pen', 'runner_pen', 'white_peacock_garden'].includes(d.id)) {
+  if (!['beehive', 'duck_pond', 'goose_pen', 'peacock_garden', 'swan_lake', 'flamingo_lagoon', 'golden_nest', 'mandarin_pond', 'black_swan_lake', 'silk_house', 'parrot_aviary', 'owl_barn', 'kiwi_burrow', 'squirrel_grove', 'crane_marsh', 'heron_marsh', 'pekin_pond', 'toulouse_pen', 'runner_pen', 'white_peacock_garden', 'campbell_pond', 'call_duck_pond', 'emden_pen'].includes(d.id)) {
     bx(g, 0.55, 0.12, 0.18, '#8a5a2b', w - 0.55, 0.04, h - 0.35);
     bx(g, 0.47, 0.03, 0.12, '#e2c15a', w - 0.55, 0.14, h - 0.35, false);
   }

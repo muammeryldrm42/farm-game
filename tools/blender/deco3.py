@@ -656,13 +656,239 @@ def ferris_wheel():
     finish('ferris_wheel', tex=1024, glow=('lamp',))
 
 
+# ---------------------------------------------------------------- third wave
+
+def hay_stack():
+    m = std()
+    hay = m['hay']
+    ball(uid('stack'), 0.34, (0, 0, 0.3), hay, scale=(1, 1, 1.3), segs=20)
+    cyl(uid('base'), 0.34, 0.2, (0, 0, 0.1), hay, verts=20)
+    cyl(uid('top'), 0.12, 0.2, (0, 0, 0.72), hay, verts=14, r2=0.02)
+    cyl(uid('pole'), 0.02, 1.0, (0, 0, 0.5), m['wood_dark'], verts=6)
+    rnd = random.Random(2)
+    for i in range(16):
+        a = rnd.uniform(0, 6.28)
+        box(uid('wisp'), (0.14, 0.008, 0.006), (math.cos(a) * 0.36, math.sin(a) * 0.36, 0.01), hay, rot=(0, 0, a), bev=0)
+    cyl(uid('fork'), 0.01, 0.7, (0.3, -0.25, 0.32), m['wood'], verts=6, rot=(0.25, -0.3, 0))
+    finish('hay_stack', tex=512)
+
+
+def picnic_table():
+    m = std()
+    wood = m['wood']
+    box(uid('top'), (0.7, 0.32, 0.04), (0, 0, 0.36), wood, bev=0.008)
+    for sy in (-1, 1):
+        box(uid('bench'), (0.7, 0.12, 0.035), (0, sy * 0.3, 0.22), wood, bev=0.008)
+    for sx in (-1, 1):
+        for k in (-1, 1):
+            obox(uid('leg'), (sx * 0.28, k * 0.14, 0.18), ((1, 0, 0), (0, math.cos(0.5), k * math.sin(0.5)), (0, -k * math.sin(0.5), math.cos(0.5))), (0.04, 0.04, 0.44), m['wood_dark'], bev=0.005)
+        box(uid('brace'), (0.04, 0.66, 0.035), (sx * 0.28, 0, 0.2), m['wood_dark'], bev=0.005)
+    check = pm('pt_check', '#2a6ad8', '#f6f2ea', scale=9, kind='checker')
+    box(uid('cloth'), (0.5, 0.3, 0.008), (0, 0, 0.385), check, bev=0)
+    cyl(uid('pitcher'), 0.035, 0.1, (-0.15, 0, 0.44), pm('pt_glass', '#f0e070', rough=0.1), verts=12)
+    ball(uid('pie'), 0.07, (0.12, 0, 0.4), pm('pt_pie', '#d8904a'), scale=(1, 1, 0.3), segs=12)
+    tufts(m, [(0.4, -0.35), (-0.4, 0.35)], 51)
+    finish('picnic_table', tex=512)
+
+
+def lemonade_stand():
+    m = std()
+    yellow = pm('ls_yel', '#f8d830')
+    box(uid('counter'), (0.6, 0.3, 0.36), (0, 0, 0.18), m['wood'], bev=0.01)
+    box(uid('front'), (0.62, 0.02, 0.2), (0, -0.16, 0.22), yellow, bev=0.005)
+    for sx in (-1, 1):
+        cyl(uid('post'), 0.018, 0.5, (sx * 0.28, 0.12, 0.6), m['wood_dark'], verts=6)
+    box(uid('roof'), (0.7, 0.4, 0.03), (0, 0.02, 0.86), pm('ls_awn', '#f8d830', '#ffffff', scale=10, kind='wave', stretch=(8, 1, 1)), rot=(-0.2, 0, 0), bev=0.005)
+    cyl(uid('jug'), 0.06, 0.16, (-0.12, 0, 0.44), pm('ls_jug', '#f8f070', rough=0.1), verts=14)
+    for k in range(4):
+        ball(uid('lemon'), 0.025, (0.08 + k * 0.04, -0.02 + (k % 2) * 0.04, 0.39), yellow, scale=(1.2, 1, 1), segs=8)
+    for k in range(3):
+        cyl(uid('cup'), 0.02, 0.04, (0.2, 0.08 - k * 0.05, 0.38), pm('ls_cup', '#ffffff'), verts=8)
+    box(uid('sign'), (0.3, 0.02, 0.1), (0, -0.18, 0.28), pm('ls_sign', '#f8f4ea'), bev=0.004)
+    finish('lemonade_stand', tex=512)
+
+
+def insect_hotel():
+    m = std()
+    frame = m['wood_dark']
+    box(uid('back'), (0.5, 0.04, 0.6), (0, 0.1, 0.4), frame, bev=0.01)
+    for sx in (-1, 1):
+        box(uid('side'), (0.04, 0.24, 0.6), (sx * 0.25, 0, 0.4), frame, bev=0.008)
+    for z in (0.1, 0.3, 0.5, 0.7):
+        box(uid('shelf'), (0.5, 0.24, 0.03), (0, 0, z), frame, bev=0.006)
+    prism(uid('roof'), [(-0.18, 0.72), (0.18, 0.72), (0, 0.88)], -0.3, 0.3, pm('ih_roof', '#8a3a2a'))
+    bark = bark_mat('ih_bark', '#8a6a44', '#a07e52')
+    rnd = random.Random(5)
+    for row, z in enumerate((0.2, 0.4, 0.6)):
+        for k in range(7):
+            x = -0.2 + k * 0.066
+            cyl(uid('tube'), 0.028, 0.2, (x, -0.0, z), bark if row != 1 else pm('ih_bam', '#c8b060'), verts=8, rot=(R90, 0, 0))
+            cyl(uid('hole'), 0.015, 0.01, (x, -0.1, z), pm('ih_hole', '#2a1a10'), verts=8, rot=(R90, 0, 0), bev=0)
+    box(uid('leg'), (0.05, 0.05, 0.1), (0, 0.05, 0.05), frame, bev=0)
+    ball(uid('bee'), 0.02, (0.15, -0.15, 0.52), pm('ih_bee', '#f0c020'), scale=(1.3, 1, 1), segs=8)
+    ball(uid('bug'), 0.022, (-0.12, -0.14, 0.33), pm('ih_bug', '#d8201a'), scale=(1, 1.2, 0.6), segs=8)
+    tufts(m, [(0.35, -0.3), (-0.35, -0.25)], 52)
+    finish('insect_hotel', tex=512)
+
+
+def weathervane():
+    m = std()
+    copper = pm('wv_copper', '#3a8a70', '#5aa888', scale=16, rough=0.4, metal=0.5)
+    cyl(uid('base'), 0.12, 0.08, (0, 0, 0.04), m['stone'][0], verts=10)
+    cyl(uid('post'), 0.02, 1.4, (0, 0, 0.75), m['iron'], verts=8)
+    for k, (dx, dy, lbl) in enumerate(((1, 0, 'E'), (-1, 0, 'W'), (0, 1, 'N'), (0, -1, 'S'))):
+        box(uid('arm'), (0.3 if dx else 0.015, 0.3 if dy else 0.015, 0.015), (dx * 0.15, dy * 0.15, 1.2), m['iron'], bev=0)
+        ball(uid('ltr'), 0.025, (dx * 0.3, dy * 0.3, 1.2), m['brass'], segs=8)
+    with anim_group('spinY_vane', (0, 0, 1.3)):
+        ball(uid('body'), 0.1, (0, 0, 1.38), copper, scale=(1.2, 0.35, 0.9), segs=12)
+        ball(uid('head'), 0.05, (0.12, 0, 1.47), copper, scale=(1, 0.35, 1), segs=10)
+        cyl(uid('beak'), 0.018, 0.05, (0.18, 0, 1.47), copper, verts=6, r2=0.0, rot=(0, R90, 0))
+        box(uid('comb'), (0.05, 0.02, 0.04), (0.12, 0, 1.53), copper, bev=0.005)
+        for k in range(4):
+            obox(uid('tail'), (-0.14 - k * 0.02, 0, 1.44 + k * 0.03), ((0.4, 0, 1), (0, 1, 0), (-1, 0, 0.4)), (0.12, 0.02, 0.05), copper, bev=0.005)
+        box(uid('arrow'), (0.5, 0.012, 0.012), (0, 0, 1.3), copper, bev=0)
+        cyl(uid('tip'), 0.03, 0.06, (0.27, 0, 1.3), copper, verts=4, r2=0.0, rot=(0, R90, 0))
+    tufts(m, [(0.3, -0.3), (-0.3, 0.3)], 53)
+    finish('weathervane', tex=512)
+
+
+def rock_garden():
+    m = std()
+    gravel = pm('rg_gravel', '#b8b2a6', '#cfc8bc', scale=60)
+    cyl(uid('bed'), 0.44, 0.04, (0, 0, 0.02), gravel, verts=20)
+    for i, (x, y, r) in enumerate(((0.1, 0.05, 0.16), (-0.18, -0.08, 0.11), (0.2, -0.2, 0.08), (-0.12, 0.22, 0.09), (0.28, 0.2, 0.07))):
+        rock(uid('rock'), r, (x, y, r * 0.5), m['stone'][i % 3], seed=i + 3, squash=0.7)
+    flowers = [pm('rg_f1', '#f06a9a'), pm('rg_f2', '#ffffff'), pm('rg_f3', '#b058e0'), pm('rg_f4', '#f0c020')]
+    rnd = random.Random(8)
+    for i in range(9):
+        a = rnd.uniform(0, 6.28)
+        rr = rnd.uniform(0.15, 0.38)
+        clump(math.cos(a) * rr, math.sin(a) * rr, 0.04, 0.05, [pm('rg_l', '#5a8a4a'), pm('rg_l2', '#7aa060')], n=6, seed=60 + i, leaf=0.35, squash=0.6)
+        for k in range(3):
+            ball(uid('fl'), 0.012, (math.cos(a) * rr + rnd.uniform(-0.03, 0.03), math.sin(a) * rr + rnd.uniform(-0.03, 0.03), 0.08), flowers[i % 4], segs=6)
+    finish('rock_garden', tex=512)
+
+
+def veggie_stand():
+    m = std()
+    box(uid('table'), (0.62, 0.34, 0.04), (0, 0, 0.36), m['wood'], bev=0.008)
+    for sx in (-1, 1):
+        for sy in (-1, 1):
+            box(uid('leg'), (0.04, 0.04, 0.36), (sx * 0.27, sy * 0.13, 0.18), m['wood_dark'], bev=0)
+        cyl(uid('post'), 0.015, 0.45, (sx * 0.28, 0.15, 0.6), m['wood_dark'], verts=6)
+    box(uid('awn'), (0.68, 0.36, 0.02), (0, 0.05, 0.84), pm('vs_awn', '#2f8a4a', '#f6f2ea', scale=10, kind='wave', stretch=(8, 1, 1)), rot=(-0.2, 0, 0), bev=0.004)
+    veg = [('#f07a1a', 'carrot'), ('#e8302e', 'tomato'), ('#6a9a3a', 'cabbage'), ('#8a4a8a', 'eggplant'), ('#f0c020', 'corn'), ('#d8a060', 'potato')]
+    for k, (c, _n) in enumerate(veg):
+        x, y = -0.2 + (k % 3) * 0.2, -0.07 + (k // 3) * 0.14
+        box(uid('crate'), (0.17, 0.12, 0.05), (x, y, 0.41), m['wood_grey'], bev=0.006)
+        for j in range(4):
+            ball(uid('v'), 0.028, (x - 0.04 + (j % 2) * 0.08, y - 0.02 + (j // 2) * 0.04, 0.45), pm(f'vs_{k}', c), scale=(1, 1, 1.1), segs=8)
+    box(uid('sign'), (0.3, 0.02, 0.12), (0, -0.18, 0.26), pm('vs_sign', '#f8f4ea'), bev=0.004)
+    finish('veggie_stand', tex=512)
+
+
+def windchime():
+    m = std()
+    bark = bark_mat('wc_bark', '#7a5a3a', '#946e48')
+    cyl(uid('post'), 0.03, 1.0, (0, 0, 0.5), bark, verts=8)
+    box(uid('arm'), (0.4, 0.03, 0.03), (0.15, 0, 0.98), bark, bev=0.005)
+    with anim_group('swayX_chime', (0.3, 0, 0.96)):
+        torus(uid('ring'), 0.08, 0.008, (0.3, 0, 0.9), m['brass'], segs=16, rsegs=4)
+        for k in range(6):
+            a = k * math.pi / 3
+            x, y = 0.3 + math.cos(a) * 0.07, math.sin(a) * 0.07
+            cyl(uid('tube'), 0.012, 0.18 + (k % 3) * 0.05, (x, y, 0.78 - (k % 3) * 0.025), pm('wc_tube', '#c8ccd0', rough=0.25, metal=0.8), verts=8)
+        cyl(uid('striker'), 0.03, 0.01, (0.3, 0, 0.72), m['wood'], verts=10)
+        box(uid('sail'), (0.06, 0.005, 0.1), (0.3, 0, 0.6), pm('wc_sail', '#e84a8a'), bev=0)
+    tufts(m, [(0.3, -0.3), (-0.3, 0.3)], 54)
+    finish('windchime', tex=512)
+
+
+def dovecote():
+    m = std()
+    white = pm('dc_white', '#f6f2ea', rough=0.6)
+    cyl(uid('pole'), 0.035, 1.2, (0, 0, 0.6), m['wood_dark'], verts=10)
+    cyl(uid('house'), 0.24, 0.4, (0, 0, 1.4), white, verts=8)
+    cyl(uid('floor'), 0.3, 0.03, (0, 0, 1.2), m['wood'], verts=8)
+    cyl(uid('mid'), 0.3, 0.03, (0, 0, 1.44), m['wood'], verts=8)
+    cyl(uid('roof'), 0.32, 0.3, (0, 0, 1.75), pm('dc_roof', '#3a6a8a', '#4a7a9a', scale=20), verts=8, r2=0.02)
+    ball(uid('fin'), 0.03, (0, 0, 1.92), m['brass'], segs=8)
+    for k in range(8):
+        a = k * math.pi / 4 + math.pi / 8
+        z = 1.3 if k % 2 else 1.52
+        ball(uid('hole'), 0.04, (math.cos(a) * 0.23, math.sin(a) * 0.23, z), pm('dc_hole', '#2a2020'), scale=(1, 1, 1.3), segs=10)
+    dove = pm('dc_dove', '#f4f4f8')
+    for k, a in enumerate((0.3, 2.4, 4.4)):
+        x, y = math.cos(a) * 0.3, math.sin(a) * 0.3
+        ball(uid('dove'), 0.035, (x, y, 1.24), dove, scale=(1.3, 0.9, 0.9), segs=10)
+        ball(uid('dh'), 0.02, (x + math.cos(a) * 0.03, y + math.sin(a) * 0.03, 1.28), dove, segs=8)
+    tufts(m, [(0.3, -0.3), (-0.3, 0.3)], 55)
+    finish('dovecote', tex=512)
+
+
+def flag_pole():
+    m = std()
+    cyl(uid('base'), 0.14, 0.1, (0, 0, 0.05), m['stone'][1], verts=12)
+    cyl(uid('pole'), 0.025, 2.6, (0, 0, 1.35), pm('fp_pole', '#e8ecf0', rough=0.3, metal=0.6), verts=10, r2=0.018)
+    ball(uid('knob'), 0.04, (0, 0, 2.68), m['brass'], segs=10)
+    with anim_group('swayZ_flag', (0, 0, 2.4)):
+        cloth = pm('fp_flag', '#2f8a4a', '#f0c020', scale=4, kind='wave', stretch=(4, 1, 1))
+        for k in range(6):
+            x = 0.05 + k * 0.08
+            obox(uid('flag'), (x, 0, 2.43 + math.sin(k * 0.9) * 0.02), ((1, 0, 0), (0, 1, 0.3 * math.cos(k * 0.9)), (0, -0.3 * math.cos(k * 0.9), 1)), (0.085, 0.01, 0.3), cloth, bev=0)
+    tufts(m, [(0.3, -0.3), (-0.3, 0.3)], 56)
+    finish('flag_pole', tex=512)
+
+
+def ice_cream_cart():
+    m = std()
+    white, pink = pm('ic_white', '#f8f6f0'), pm('ic_pink', '#f07aa8')
+    box(uid('box'), (0.5, 0.3, 0.3), (0, 0, 0.35), white, bev=0.04)
+    box(uid('stripe'), (0.51, 0.31, 0.06), (0, 0, 0.3), pink, bev=0.02)
+    for sx in (-1, 1):
+        cyl(uid('wheel'), 0.1, 0.03, (sx * 0.2, 0.17, 0.12), pm('ic_tyre', '#2a2a2a'), verts=18, rot=(R90, 0, 0))
+    cyl(uid('umbrella_pole'), 0.012, 0.6, (0, 0, 0.8), m['metal'], verts=6)
+    cyl(uid('umbrella'), 0.35, 0.15, (0, 0, 1.12), pm('ic_umb', '#f07aa8', '#ffffff', scale=6, kind='wave'), verts=12, r2=0.02)
+    for k, c in enumerate(('#f8e8c8', '#6a3a1e', '#f07aa8')):
+        ball(uid('scoop'), 0.05, (-0.12 + k * 0.12, 0, 0.53), pm(f'ic_s{k}', c), segs=10)
+    cyl(uid('cone'), 0.035, 0.12, (0.28, -0.1, 0.62), pm('ic_cone', '#d8a060'), verts=8, r2=0.0, rot=(math.pi, 0, 0))
+    ball(uid('topscoop'), 0.04, (0.28, -0.1, 0.7), pm('ic_s0', '#f8e8c8'), segs=10)
+    box(uid('handle'), (0.04, 0.3, 0.03), (-0.3, 0, 0.55), m['metal'], bev=0.005)
+    finish('ice_cream_cart', tex=512)
+
+
+def pumpkin_carriage():
+    m = std()
+    orange = pm('pc_orange', '#e8701a', '#f08a2a', scale=12)
+    gold = m['brass']
+    # the pumpkin body with ribs, a door and little windows
+    for k in range(10):
+        a = k * math.pi / 5
+        ball(uid('rib'), 0.42, (math.cos(a) * 0.12, math.sin(a) * 0.12, 0.75), orange, scale=(0.55, 0.55, 0.85), segs=16)
+    cyl(uid('stem'), 0.05, 0.16, (0, 0, 1.2), pm('pc_stem', '#5a7a2a'), verts=8, r2=0.03, rot=(0.2, 0, 0))
+    ball(uid('leaf'), 0.12, (0.1, 0.05, 1.2), m['leaf'], scale=(1, 0.6, 0.15), segs=10)
+    box(uid('door'), (0.26, 0.04, 0.36), (0, -0.5, 0.72), gold, bev=0.02)
+    box(uid('win'), (0.18, 0.02, 0.18), (0, -0.53, 0.8), pm('pc_glass', '#bfe4f0', rough=0.1), bev=0.004)
+    torus(uid('frame'), 0.46, 0.02, (0, 0, 0.4), gold, segs=28, rsegs=5)
+    for sx in (-1, 1):
+        for sy in (-1, 1):
+            wheel('wheel', (sx * 0.52, sy * 0.35, 0.3), 0.28, 0.02, gold, spokes=8, axis='x')
+    for sx in (-1, 1):
+        obox(uid('curl'), (sx * 0.3, -0.62, 0.35), ((0, 1, 0.3), (1, 0, 0), (0, -0.3, 1)), (0.35, 0.02, 0.02), gold, bev=0)
+    lantern(0.35, -0.6, 0.6, m, light=1.4)
+    finish('pumpkin_carriage', tex=1024, glow=('lamp',))
+
+
 MODELS = {name: fn for name, fn in [
     ('garden_gnome', garden_gnome), ('wheelbarrow', wheelbarrow), ('rain_barrel', rain_barrel), ('flower_cart', flower_cart),
     ('compost_bin', compost_bin), ('mushroom_ring', mushroom_ring), ('stone_lantern', stone_lantern), ('bamboo_grove', bamboo_grove),
     ('fairy_house', fairy_house), ('snowman', snowman), ('sandcastle', sandcastle), ('seesaw', seesaw), ('outdoor_oven', outdoor_oven),
     ('telescope', telescope), ('obelisk', obelisk), ('hammock', hammock), ('water_wheel', water_wheel), ('koi_pond', koi_pond),
     ('camping_tent', camping_tent), ('beach_hut', beach_hut), ('log_cabin', log_cabin), ('playground_slide', playground_slide),
-    ('pagoda', pagoda), ('chapel', chapel), ('observatory', observatory), ('ferris_wheel', ferris_wheel)]}
+    ('pagoda', pagoda), ('chapel', chapel), ('observatory', observatory), ('ferris_wheel', ferris_wheel),
+    ('hay_stack', hay_stack), ('picnic_table', picnic_table), ('lemonade_stand', lemonade_stand), ('insect_hotel', insect_hotel),
+    ('weathervane', weathervane), ('rock_garden', rock_garden), ('veggie_stand', veggie_stand), ('windchime', windchime),
+    ('dovecote', dovecote), ('flag_pole', flag_pole), ('ice_cream_cart', ice_cream_cart), ('pumpkin_carriage', pumpkin_carriage)]}
 
 if __name__ == '__main__':
     main(MODELS)

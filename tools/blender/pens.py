@@ -562,13 +562,13 @@ def tall_grass(m, n=10, seed=1):
 
 # ---------------------------------------------------------------- the pen table
 
-WHITE = {'sheepfold', 'stable', 'alpaca_ranch', 'peacock_garden', 'rabbit_hutch', 'pony_paddock', 'black_sheepfold', 'merino_fold',
+WHITE = {'guernsey_pasture', 'palomino_stable', 'dutch_hutch', 'sheepfold', 'stable', 'alpaca_ranch', 'peacock_garden', 'rabbit_hutch', 'pony_paddock', 'black_sheepfold', 'merino_fold',
          'jacob_fold', 'silkie_coop', 'suffolk_fold', 'saanen_yard', 'valais_fold', 'charolais_pasture', 'appaloosa_stable', 'clydesdale_stable', 'angora_hutch', 'deer_park', 'chinchilla_hutch'}
-LOG = {'longhorn_ranch', 'elk_woods', 'mule_paddock', 'reindeer_lodge', 'bison_range', 'moose_woods', 'musk_ox_range', 'yak_pasture', 'beaver_pond'}
+LOG = {'shetland_fold', 'karakul_fold', 'alpine_yard', 'longhorn_ranch', 'elk_woods', 'mule_paddock', 'reindeer_lodge', 'bison_range', 'moose_woods', 'musk_ox_range', 'yak_pasture', 'beaver_pond'}
 STONE = {'highland_pasture', 'galloway_pasture'}
 BAMBOO = {'parrot_aviary', 'silk_house', 'kiwi_burrow', 'crane_marsh', 'flamingo_lagoon', 'heron_marsh'}
 NO_TROUGH = {'beehive', 'duck_pond', 'goose_pen', 'peacock_garden', 'swan_lake', 'flamingo_lagoon', 'golden_nest', 'mandarin_pond',
-             'black_swan_lake', 'silk_house', 'parrot_aviary', 'owl_barn', 'kiwi_burrow', 'squirrel_grove', 'crane_marsh', 'heron_marsh', 'pekin_pond', 'toulouse_pen', 'runner_pen', 'white_peacock_garden'}
+             'black_swan_lake', 'silk_house', 'parrot_aviary', 'owl_barn', 'kiwi_burrow', 'squirrel_grove', 'crane_marsh', 'heron_marsh', 'pekin_pond', 'toulouse_pen', 'runner_pen', 'white_peacock_garden', 'campbell_pond', 'call_duck_pond', 'emden_pen'}
 
 # id: (w, h, roof color, wall color, shelter)
 PENS = {
@@ -624,6 +624,22 @@ PENS = {
     'longhorn_ranch': (3, 3, '#8a3a1a', None, 'open'),
     'clydesdale_stable': (3, 3, '#2e4a6a', '#c86a48', 'stable'),
     'elk_woods': (3, 3, '#4a3424', None, 'pines'),
+    'leghorn_coop': (2, 2, '#c0392b', '#f0e2c0', 'coop'),
+    'campbell_pond': (3, 3, '#2e6aa8', '#f0e2c0', 'duck'),
+    'dutch_hutch': (2, 2, '#34495e', '#d9b27a', 'hutch'),
+    'rhode_coop': (2, 2, '#8a2a14', '#e3c27a', 'coop'),
+    'guernsey_pasture': (3, 3, '#c8843a', None, 'open'),
+    'shetland_fold': (3, 3, '#6b4226', None, 'open'),
+    'call_duck_pond': (3, 3, '#3a78c0', '#f0e2c0', 'duck'),
+    'alpine_yard': (3, 3, '#1e1c1c', None, 'goat'),
+    'wyandotte_coop': (2, 2, '#5a5a6a', '#e0cc98', 'coop'),
+    'swiss_pasture': (3, 3, '#6a5a4a', None, 'open'),
+    'emden_pen': (2, 2, '#3a78c0', '#f0e2c0', 'goose'),
+    'karakul_fold': (3, 3, '#2a2624', None, 'open'),
+    'palomino_stable': (3, 3, '#d8a848', '#b86038', 'stable'),
+    'marans_coop': (2, 2, '#6a3a1e', '#e8cf94', 'coop'),
+    'dexter_pasture': (3, 3, '#2a2a2e', None, 'open'),
+    'friesian_stable': (3, 3, '#1e1c1e', '#8a5a3a', 'stable'),
 }
 
 

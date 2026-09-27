@@ -111,8 +111,8 @@ const mule = () => horseLike({
 
 // ---------------------------------------------------------------- rabbits
 
-function rabbitLike(fur: string, belly: string, lop: boolean, fluffy: boolean): CreatureParts {
-  const paint = (x: number, y: number, z: number) => (z > 0.02 && y < 0.1 && Math.abs(x) < 0.04 ? belly : shade(fur, mixHex(fur, '#ffffff', 0.2), 0.03, 0.14)(x, y));
+function rabbitLike(fur: string, belly: string, lop: boolean, fluffy: boolean, coat?: (x: number, y: number, z: number) => string | null): CreatureParts {
+  const paint = (x: number, y: number, z: number) => coat?.(x, y, z) ?? (z > 0.02 && y < 0.1 && Math.abs(x) < 0.04 ? belly : shade(fur, mixHex(fur, '#ffffff', 0.2), 0.03, 0.14)(x, y));
   const b = new Sculpt()
     .add(ellipsoid(0, 0.085, -0.02, 0.065, 0.072, 0.085), paint)
     .add(sphere(0.042, 0.065, -0.045, 0.048), paint, 0.03)
@@ -241,6 +241,48 @@ function whitePeacock(): CreatureParts {
   return { toon: true, eye: eyeOn(0.03, 0.62, 0.25, 0.34, 0.85), body, head, headAt: [0, 0.34, 0.09], leg: birdLeg(0.12, 0.02, '#c8c0b8'), legs: [[-0.028, 0], [0.028, 0]], legLen: 0.12, tail: null, tailAt: [0, 0, 0] };
 }
 
+// ---------------------------------------------------------------- third wave breeds
+
+const leghorn = () => henLike({ body: '#fbfaf4', comb: '#e02a24', tail: '#f4f2ea', legC: '#f0c030' });
+const rhodeIslandRed = () => henLike({ body: shade('#8a2a14', '#a83a1e', 0.12, 0.26), comb: '#e02a24', tail: '#1a2a22', legC: '#f0c030' });
+const wyandotte = () => henLike({
+  body: (x, _y, z) => (Math.sin(x * 90) * Math.sin(z * 90) > 0.25 ? '#1e1c1e' : '#f4f2ec'), neck: '#f4f2ec', comb: '#d8302a', tail: '#1e1c1e', legC: '#f0c030', fluffy: true,
+});
+const marans = () => henLike({ body: '#1e1c1c', neck: (_x, y) => (y > 0.2 ? '#b8641a' : '#1e1c1c'), comb: '#d8302a', tail: '#1a2420', legC: '#e8d8b8', feathered: '#2a2626' });
+const khakiCampbell = () => duckLike('#b89a6a', '#3a5a3a');
+const callDuck = () => duckLike('#f8f6ee', '#f5a023');
+const emdenGoose = () => gooseLike('#f6f4ee', '#ffffff', '#f08a24');
+const dutchRabbit = () => rabbitLike('#1e1c1e', '#ffffff', false, false, (_x, y, z) => (z > -0.01 || y < 0.03 ? '#fbfaf6' : null));
+const guernsey = () => cattle({
+  coat: (x, y, z) => patches(x, y, z, 0.55, '#f6f0e6', '#c8843a'), face: (x, _y, z) => (Math.abs(x) < 0.03 && z > 0.02 ? '#f6f0e6' : '#c8843a'), muzzle: '#e8c0a8',
+  ear: '#c8843a', leg: (y) => (y < -0.1 ? '#f6f0e6' : '#c8843a'), tail: '#c8843a',
+  horns: { pts: [[0.05, 0.1, -0.01], [0.075, 0.14, -0.02], [0.08, 0.16, 0.0]], r0: 0.015, r1: 0.007, color: '#f3e6c4' },
+});
+const brownSwiss = () => cattle({
+  coat: shade('#6a5a4a', '#7e6c5a', 0.2, 0.45), face: '#6a5a4a', muzzle: '#2a2626', ear: '#6a5a4a', earLen: 0.07, leg: '#5a4a3a', tail: '#6a5a4a',
+  extraHead: (h, k) => h.add(ellipsoid(0, -0.05 * k, 0.12 * k, 0.095 * k, 0.066 * k, 0.05 * k), '#e8e0d0', 0.02),
+});
+const dexter = () => cattle({ coat: shade('#1e1c1c', '#2a2626', 0.2, 0.45), face: '#1e1c1c', muzzle: '#2a2626', ear: '#1e1c1c', leg: '#1e1c1c', legLen: 0.13, slim: 0.9, tail: '#1e1c1c',
+  horns: { pts: [[0.05, 0.1, -0.01], [0.08, 0.14, 0.0], [0.08, 0.17, 0.03]], r0: 0.014, r1: 0.006, color: '#e8dcc0' } });
+const shetlandSheep = () => smallRuminant({
+  coat: '#6a4a30', face: '#6a4a30', muzzle: '#4a3020', legColor: '#6a4a30', ear: '#6a4a30',
+  wool: (x, y, z) => mixHex('#5a3e28', '#8a6444', smooth(0.14, 0.36, y + (noise3(x * 26, y * 26, z * 26) - 0.5) * 0.06)),
+});
+const karakul = () => smallRuminant({
+  coat: '#2a2624', face: '#1a1818', muzzle: '#1a1818', legColor: '#1a1818', ear: '#1a1818', woolSize: 0.038,
+  wool: (x, y, z) => mixHex('#1e1a1a', '#3e3634', noise3(x * 50, y * 50, z * 50)),
+});
+const alpineGoat = () => smallRuminant({
+  coat: (_x, _y, z) => (z > 0.0 ? '#f0e2c8' : '#1e1c1c'), face: (x, _y, z) => (Math.abs(x) > 0.02 && z > 0.02 ? '#1e1c1c' : '#f0e2c8'), muzzle: '#d8b0a8',
+  legColor: '#1e1c1c', beard: '#8a7a68',
+  horns: [{ pts: [[0.026, 0.05, 0.0], [0.04, 0.1, -0.04], [0.045, 0.13, -0.09]], r0: 0.012, r1: 0.005, color: '#6a5a48' }],
+});
+const palomino = () => horseLike({
+  coat: shade('#d8a848', '#e8bc60', 0.34, 0.56), mane: '#f8f0dc',
+  face: (x, y, z) => (Math.abs(x) < 0.016 + z * 0.08 && z > 0.02 && y > -0.03 ? '#fbf6ee' : '#d8a848'), leg: (y) => (y < -0.22 ? '#fbf6ee' : '#d8a848'),
+});
+const friesian = () => horseLike({ coat: shade('#161416', '#221e20', 0.34, 0.56), mane: '#0e0c0e', feather: '#161416', leg: '#161416' });
+
 void ears;
 
 export const toonMakers3: Record<string, () => CreatureParts> = {
@@ -248,4 +290,7 @@ export const toonMakers3: Record<string, () => CreatureParts> = {
   pygmy_goat: pygmyGoat, clydesdale, appaloosa, mule, lop_rabbit: lopRabbit, angora_rabbit: angoraRabbit, orpington,
   brahma_chicken: brahmaChicken, polish_chicken: polishChicken, pekin_duck: pekinDuck, indian_runner: indianRunner,
   toulouse_goose: toulouseGoose, white_peacock: whitePeacock,
+  leghorn, rhode_island_red: rhodeIslandRed, wyandotte, marans, khaki_campbell: khakiCampbell, call_duck: callDuck, emden_goose: emdenGoose,
+  dutch_rabbit: dutchRabbit, guernsey, brown_swiss: brownSwiss, dexter, shetland_sheep: shetlandSheep, karakul, alpine_goat: alpineGoat,
+  palomino, friesian,
 };

@@ -104,6 +104,136 @@ function raceme(k: Kit, color: string, top: V3, n: number, r: number, len: numbe
 function wave2(cd: CropDef, plant: Kit, fruit: Kit): boolean {
   const L = cd.leaf, dark = shade(L, -0.1);
   switch (cd.id) {
+    // ---------------------------------------------------------------- third wave
+    case 'swiss_chard': {
+      // big crinkled dark leaves on thick glowing stalks
+      for (let i = 0; i < 8; i++) {
+        const a = (i / 8) * TAU, tilt = 0.3 + (i % 3) * 0.12;
+        fruit.addMatrix(cylinder(0.006, 0.01, 7), i % 2 ? W : '#e0e0e0', frame([0, 0, 0], a, tilt).multiply(S(1, 0.13, 1)));
+        ruff(plant, shade(L, (r(i, 1) - 0.5) * 0.12 - 0.05), end([0, 0, 0], a, tilt, 0.12), a, tilt + 0.3, 0.07, 0.15, 0.05, 900 + i);
+      }
+      return true;
+    }
+    case 'watercress': {
+      // a low, dense mat of little round leaflets on trailing stems
+      for (let i = 0; i < 16; i++) {
+        const a = (i / 16) * TAU + r(i, 1) * 0.4, base: V3 = [0, 0.01, 0];
+        const tilt = 1.1 + r(i, 2) * 0.3;
+        stem(plant, shade(L, 0.1), base, a, tilt, 0.14, 0.0018);
+        for (let j = 0; j < 5; j++) {
+          const q = end(base, a, tilt, 0.03 + j * 0.025);
+          for (const o of [-1, 1]) oval(j > 2 ? fruit : plant, j > 2 ? W : shade(L, (r(i, j) - 0.5) * 0.12), [q[0], q[1] + 0.01, q[2]], a + o * 1.2, 1.3, 0.016, 0.014, 0.003);
+        }
+      }
+      return true;
+    }
+    case 'radicchio': {
+      // a tight wine red head with white ribs, cupped by loose green outer leaves
+      for (let i = 0; i < 7; i++) ruff(plant, shade(L, (r(i, 1) - 0.5) * 0.1), [0, 0.01, 0], (i / 7) * TAU, 1.15, 0.09, 0.14, 0.06, 910 + i);
+      fruit.add(lump(920, 0.1, 18), W, [0, 0.06, 0], [0, 0, 0], [0.058, 0.055, 0.058]);
+      for (let i = 0; i < 6; i++) ruff(fruit, '#e8e8e8', [0, 0.02, 0], (i / 6) * TAU + 0.3, 0.3, 0.05, 0.08, 0.04, 925 + i);
+      return true;
+    }
+    case 'sorrel': {
+      // upright arrow shaped leaves and a few rusty red seed spikes
+      for (let i = 0; i < 12; i++) {
+        const a = (i / 12) * TAU, tilt = 0.35 + (i % 3) * 0.12;
+        const q = stem(plant, shade(L, 0.1), [0, 0, 0], a, tilt, 0.07, 0.002);
+        oval(i % 2 ? fruit : plant, i % 2 ? W : shade(L, (r(i, 1) - 0.5) * 0.12), q, a, tilt, 0.13, 0.035, 0.004);
+      }
+      for (let s = 0; s < 3; s++) {
+        const c = stem(plant, '#8a3a2a', [0, 0, 0], s * 2.1, 0.12, 0.3, 0.0025);
+        for (let j = 0; j < 8; j++) ball(plant, '#a83a2a', [c[0], c[1] - j * 0.012, c[2]], 0.005);
+      }
+      return true;
+    }
+    case 'sweet_pea': {
+      // a tripod of canes twined with tendrils and frilly, scented pea flowers
+      for (let i = 0; i < 3; i++) {
+        const a = (i / 3) * TAU, base: V3 = [Math.cos(a) * 0.1, 0, Math.sin(a) * 0.1];
+        stem(plant, '#a88a5a', base, -a - Math.PI / 2, 0.2, 0.44, 0.004);
+        for (let j = 0; j < 7; j++) {
+          const q = end(base, -a - Math.PI / 2, 0.2, 0.05 + j * 0.055);
+          oval(plant, shade(L, (r(i, j) - 0.5) * 0.12), q, a + j * 1.9, 1.2, 0.035, 0.018);
+          if (j % 2) {
+            const p: V3 = [q[0] * 1.35, q[1], q[2] * 1.35];
+            petals(fruit, W, p, a, 1.2, 2, 0.022, 0.02, 0.2, j);
+            petals(fruit, '#e8e8e8', [p[0], p[1] + 0.004, p[2]], a, 1.4, 1, 0.018, 0.015, 0.6, j);
+          }
+        }
+      }
+      return true;
+    }
+    case 'endive': {
+      // frisee: a mop of very fine, curly leaves round a pale yellow heart
+      for (let i = 0; i < 40; i++) {
+        const a = i * 2.4, tilt = 0.5 + (i % 5) * 0.15;
+        const heart = i > 28;
+        ruff(heart ? fruit : plant, heart ? W : shade(L, (r(i, 1) - 0.5) * 0.14), [0, 0.01, 0], a, heart ? 0.3 : tilt, 0.018, heart ? 0.06 : 0.12, 0.02, 930 + (i % 9));
+      }
+      return true;
+    }
+    case 'zinnia':
+    case 'cosmos': {
+      // zinnias: stiff stems with layered, rounded blooms; cosmos: airy stems and wide eight petalled faces
+      const cos = cd.id === 'cosmos';
+      for (const { p, yaw, tilt } of stalks(plant, L, cos ? 9 : 6, cos ? 0.3 : 0.24, cos ? 0.4 : 0.3, 0.07, 0.15, 31, cos ? 0.002 : 0.0035, cos ? 0.04 : 0.07)) {
+        if (cos) {
+          petals(fruit, W, p, yaw, tilt * 0.6, 8, 0.03, 0.014, 0.15, r(p[0] * 20, 3));
+          ball(plant, '#f0c020', p, [0.008, 0.005, 0.008]);
+          for (let j = 0; j < 6; j++) stem(plant, shade(L, 0.05), end(p, yaw, tilt, -0.12 - j * 0.02), yaw + j * 1.1, 1.1, 0.04, 0.0006);
+        } else {
+          for (let ring = 0; ring < 3; ring++) petals(fruit, ring % 2 ? '#e8e8e8' : W, [p[0], p[1] + ring * 0.005, p[2]], yaw, tilt * 0.5, 12 - ring * 2, 0.03 - ring * 0.006, 0.012, 0.2 + ring * 0.35, ring * 0.3);
+          ball(plant, '#e8a020', [p[0], p[1] + 0.012, p[2]], 0.007);
+          for (let j = 0; j < 2; j++) oval(plant, dark, end(p, yaw, tilt, -0.1 - j * 0.06), yaw + j * Math.PI, 1.2, 0.05, 0.018);
+        }
+      }
+      return true;
+    }
+    case 'sunchoke': {
+      // tall rough stalks with little yellow sunflowers; knobbly tubers at the foot
+      for (const { p, yaw, tilt } of stalks(plant, L, 4, 0.4, 0.48, 0.05, 0.08, 32, 0.006, 0.12)) {
+        petals(plant, '#f0c020', p, yaw, 1.0, 12, 0.03, 0.01, 0.15, 1);
+        ball(plant, '#7a4a1a', [p[0], p[1] + 0.004, p[2]], [0.014, 0.006, 0.014]);
+        for (let j = 0; j < 3; j++) oval(plant, dark, end(p, yaw, tilt, -0.1 - j * 0.1), yaw + j * 2.1, 1.0, 0.08, 0.035);
+      }
+      for (let i = 0; i < 5; i++) fruit.add(lump(940 + i, 0.35, 10), W, [Math.cos(i * 1.3) * 0.06, 0.01, Math.sin(i * 1.3) * 0.06], [0, i, 0.4], [0.025, 0.02, 0.02]);
+      return true;
+    }
+    case 'snapdragon':
+    case 'lupin': {
+      // tall spikes packed with flowers (snapdragons: plump lipped bells; lupins: pea flowers on a
+      // cone), over a mound of leaves (lupins: hand shaped)
+      const lup = cd.id === 'lupin';
+      if (lup) for (let i = 0; i < 6; i++) {
+        const a = (i / 6) * TAU, q = stem(plant, shade(L, 0.1), [0, 0, 0], a, 0.9, 0.08, 0.002);
+        palmate(plant, L, q, a, 1.4, 9, 0.045, 0.008);
+      }
+      else for (let i = 0; i < 8; i++) oval(plant, shade(L, (r(i, 1) - 0.5) * 0.1), [0, 0.02, 0], (i / 8) * TAU, 1.0, 0.07, 0.016);
+      for (let s = 0; s < (lup ? 4 : 5); s++) {
+        const a = (s / (lup ? 4 : 5)) * TAU, tilt = 0.08 + r(s, 2) * 0.1, base: V3 = [Math.cos(a) * 0.03, 0, Math.sin(a) * 0.03];
+        const h = 0.3 + r(s, 3) * 0.06;
+        stem(plant, shade(L, 0.05), base, a, tilt, h, 0.003);
+        const n = lup ? 16 : 9;
+        for (let j = 0; j < n; j++) {
+          const u = j / n, q = end(base, a, tilt, h * (0.45 + u * 0.55));
+          const rr = lup ? 0.02 * (1 - u) + 0.006 : 0.012;
+          const b = j * 2.4;
+          fruit.add(lump(950 + (j % 5), 0.25, 8), j % 3 ? W : '#e8e8e8', [q[0] + Math.cos(b) * rr, q[1], q[2] + Math.sin(b) * rr], [0, b, 0], lup ? 0.009 : 0.013);
+        }
+      }
+      return true;
+    }
+    case 'salsify': {
+      // grass like blue green leaves, a purple flower or two and the pale root top
+      for (let i = 0; i < 12; i++) sword(plant, shade('#7a9a8a', (r(i, 1) - 0.5) * 0.1), [0, 0.02, 0], (i / 12) * TAU, 0.3 + r(i, 2) * 0.4, 0.24, 0.01, 0.6);
+      for (let k = 0; k < 2; k++) {
+        const c = stem(plant, '#7a9a8a', [0, 0, 0], k * 3, 0.15, 0.3, 0.0025);
+        petals(plant, '#8a4ab8', c, k * 3, 0.2, 10, 0.02, 0.006, 0.3);
+      }
+      fruit.add(cylinder(0.022, 0.014, 10), W, [0, -0.06, 0], [0, 0, 0], [1, 0.1, 1]);
+      return true;
+    }
     case 'celery': {
       // a bunch of thick ribbed stalks fanning out, leafy at the tips
       for (let i = 0; i < 10; i++) {
