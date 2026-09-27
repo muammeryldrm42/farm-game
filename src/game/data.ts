@@ -316,6 +316,118 @@ item('soy_milk', 'Soy Milk', '@soy_milk', 'barn', 95, 8);
 item('salmon_roll', 'Salmon Roll', '@salmon_roll', 'barn', 240, 13);
 item('crab_cake', 'Crab Cakes', '@crab_cake', 'barn', 260, 14);
 
+// ---- levels 19 to 200: every level brings something new (crops, fruit, dishes, animal goods)
+item('rye', 'Rye', '🌾', 'silo', 73, 25);
+item('tangerine', 'Tangerine', '🍊', 'silo', 62, 29);
+item('cherry_tomato', 'Cherry Tomatoes', '🍅', 'silo', 89, 32);
+item('cherry_tomato_pizza', 'Cherry Tomato Pizza', '🍕', 'barn', 432, 35);
+item('kale', 'Kale', '🥬', 'silo', 100, 37);
+item('nectarine', 'Nectarine', '🍑', 'silo', 76, 42);
+item('nectarine_sorbet', 'Nectarine Sorbet', '🍨', 'barn', 293, 44);
+item('farm_butter', 'Farm Butter', '🧈', 'barn', 150, 45);
+item('peanut', 'Peanuts', '🥜', 'silo', 124, 48);
+item('chestnut', 'Chestnut', '🌰', 'silo', 86, 51);
+item('cantaloupe', 'Cantaloupe', '🍈', 'silo', 137, 54);
+item('cantaloupe_juice', 'Cantaloupe Juice', '🧃', 'barn', 441, 55);
+item('basil', 'Basil', '🌿', 'silo', 144, 57);
+item('papaya', 'Papaya', '🍈', 'silo', 97, 61);
+item('papaya_jam', 'Papaya Jam', '🫙', 'barn', 325, 62);
+item('suffolk_wool', 'Suffolk Wool', '🧶', 'barn', 188, 64);
+item('marigold', 'Marigold', '🌼', 'silo', 161, 65);
+item('kumquat', 'Kumquat', '🍊', 'silo', 103, 66);
+item('ginger', 'Ginger', '🫚', 'silo', 172, 70);
+item('grilled_ginger', 'Grilled Ginger', '🍢', 'barn', 600, 73);
+item('quinoa', 'Quinoa', '🌾', 'silo', 181, 74);
+item('guava', 'Guava', '🍐', 'silo', 115, 77);
+item('guava_juice', 'Guava Juice', '🧃', 'barn', 377, 78);
+item('bronze_feather', 'Bronze Feather', '🪶', 'barn', 218, 79);
+item('jalapeno', 'Jalapeno', '🌶️', 'silo', 197, 81);
+item('pistachio', 'Pistachio', '🥜', 'silo', 121, 83);
+item('green_bean', 'Green Beans', '🫛', 'silo', 210, 87);
+item('green_bean_pizza', 'Green Bean Pizza', '🍕', 'barn', 783, 88);
+item('mint', 'Mint', '🌿', 'silo', 214, 89);
+item('elderberry', 'Elderberry', '🫐', 'silo', 130, 91);
+item('elderberry_sorbet', 'Elderberry Sorbet', '🍨', 'barn', 450, 93);
+item('saanen_milk', 'Saanen Milk', '🥛', 'barn', 248, 94);
+item('cauliflower', 'Cauliflower', '🥦', 'silo', 227, 95);
+item('dragon_fruit', 'Dragon Fruit', '🐉', 'silo', 137, 97);
+item('chamomile', 'Chamomile', '🌼', 'silo', 238, 100);
+item('chamomile_wreath', 'Chamomile Wreath', '💐', 'barn', 766, 101);
+item('parsnip', 'Parsnip', '🥕', 'silo', 243, 102);
+item('pecan', 'Pecan', '🌰', 'silo', 146, 105);
+item('pecan_pie', 'Pecan Pie', '🥧', 'barn', 447, 106);
+item('black_egg', 'Black Egg', '🥚', 'barn', 274, 107);
+item('honeydew', 'Honeydew', '🍈', 'silo', 256, 108);
+item('blood_orange', 'Blood Orange', '🍊', 'silo', 150, 109);
+item('leek', 'Leek', '🧅', 'silo', 263, 111);
+item('grilled_leek', 'Grilled Leek', '🍢', 'barn', 864, 113);
+item('sorghum', 'Sorghum', '🌾', 'silo', 269, 114);
+item('jackfruit', 'Jackfruit', '🍈', 'silo', 158, 116);
+item('jackfruit_juice', 'Jackfruit Juice', '🧃', 'barn', 502, 117);
+item('heron_plume', 'Heron Plume', '🪶', 'barn', 298, 119);
+item('chickpea', 'Chickpeas', '🫘', 'silo', 285, 121);
+item('macadamia', 'Macadamia', '🥜', 'silo', 164, 122);
+item('hibiscus', 'Hibiscus', '🌺', 'silo', 291, 124);
+item('hibiscus_wreath', 'Hibiscus Wreath', '💐', 'barn', 919, 125);
+item('bok_choy', 'Bok Choy', '🥬', 'silo', 296, 126);
+item('yuzu', 'Yuzu', '🍋', 'silo', 172, 129);
+item('yuzu_sorbet', 'Yuzu Sorbet', '🍨', 'barn', 571, 130);
+item('butternut', 'Butternut Squash', '🎃', 'silo', 307, 131);
+item('passion_fruit', 'Passion Fruit', '🟣', 'silo', 176, 133);
+item('flax', 'Flax', '🌾', 'silo', 315, 135);
+item('flax_linen', 'Flax Linen', '🧵', 'barn', 914, 137);
+item('cranberry', 'Cranberries', '🍒', 'silo', 322, 138);
+item('cashew', 'Cashew', '🥜', 'silo', 184, 140);
+item('cashew_pie', 'Cashew Pie', '🥧', 'barn', 557, 141);
+item('shallot', 'Shallots', '🧅', 'silo', 331, 142);
+item('white_peach', 'White Peach', '🍑', 'silo', 187, 143);
+item('saffron', 'Saffron', '🪻', 'silo', 340, 146);
+item('saffron_wreath', 'Saffron Wreath', '💐', 'barn', 1061, 147);
+item('lentil', 'Lentils', '🫘', 'silo', 344, 148);
+item('loquat', 'Loquat', '🍑', 'silo', 195, 150);
+item('loquat_juice', 'Loquat Juice', '🧃', 'barn', 609, 151);
+item('romanesco', 'Romanesco', '🥦', 'silo', 353, 152);
+item('crabapple', 'Crabapple', '🍎', 'silo', 198, 153);
+item('tea', 'Tea Leaves', '🍵', 'silo', 362, 156);
+item('green_yogurt', 'Green Yogurt', '🥛', 'barn', 1108, 157);
+item('gooseberry', 'Gooseberries', '🫐', 'silo', 366, 158);
+item('cinnamon', 'Cinnamon', '🟤', 'silo', 206, 160);
+item('cinnamon_tea', 'Cinnamon Tea', '🍵', 'barn', 641, 161);
+item('peony', 'Peony', '🌸', 'silo', 375, 162);
+item('mangosteen', 'Mangosteen', '🟣', 'silo', 209, 163);
+item('turmeric', 'Turmeric', '🫚', 'silo', 379, 164);
+item('turmeric_salad', 'Turmeric Salad', '🥗', 'barn', 1116, 166);
+item('millet', 'Millet', '🌾', 'silo', 386, 167);
+item('durian', 'Durian', '🌰', 'silo', 216, 169);
+item('durian_jam', 'Durian Jam', '🫙', 'barn', 670, 170);
+item('vanilla', 'Vanilla', '🌿', 'silo', 395, 171);
+item('black_cherry', 'Black Cherry', '🍒', 'silo', 219, 172);
+item('okra', 'Okra', '🥒', 'silo', 399, 173);
+item('grilled_okra', 'Grilled Okra', '🍢', 'barn', 1259, 174);
+item('orchid', 'Orchid', '🌸', 'silo', 403, 175);
+item('silver_pear', 'Silver Pear', '🍐', 'silo', 224, 176);
+item('silver_pear_juice', 'Silver Pear Juice', '🧃', 'barn', 693, 177);
+item('hops', 'Hops', '🌿', 'silo', 410, 178);
+item('artichoke', 'Artichoke', '🥦', 'silo', 412, 179);
+item('artichoke_pizza', 'Artichoke Pizza', '🍕', 'barn', 1369, 180);
+item('goji', 'Goji Berries', '🍒', 'silo', 417, 181);
+item('goji_sorbet', 'Goji Sorbet', '🍨', 'barn', 1282, 183);
+item('dahlia', 'Dahlia', '🌺', 'silo', 423, 184);
+item('wasabi', 'Wasabi', '🌿', 'silo', 425, 185);
+item('wasabi_salad', 'Wasabi Salad', '🥗', 'barn', 1250, 186);
+item('black_bean', 'Black Beans', '🫘', 'silo', 430, 187);
+item('black_bean_pie', 'Black Bean Pie', '🥧', 'barn', 1270, 188);
+item('lotus', 'Lotus', '🪷', 'silo', 434, 189);
+item('aloe', 'Aloe Vera', '🌵', 'silo', 436, 190);
+item('aloe_yogurt', 'Aloe Yogurt', '🥛', 'barn', 1322, 191);
+item('aloe_tea', 'Aloe Tea', '🍵', 'barn', 1308, 192);
+item('lotus_wreath', 'Lotus Wreath', '💐', 'barn', 1334, 193);
+item('lotus_bouquet', 'Lotus Bouquet', '💐', 'barn', 1314, 194);
+item('black_bean_oil', 'Black Bean Oil', '🫙', 'barn', 1247, 196);
+item('black_bean_brittle', 'Black Bean Brittle', '🍬', 'barn', 1334, 197);
+item('grilled_wasabi', 'Grilled Wasabi', '🍢', 'barn', 1334, 198);
+item('wasabi_pizza', 'Wasabi Pizza', '🍕', 'barn', 1406, 199);
+
 export const ITEMS: Record<string, ItemDef> = Object.fromEntries(ITEM_LIST.map((i) => [i.id, i]));
 
 // ---------------------------------------------------------------- crops
@@ -359,6 +471,51 @@ export const CROPS: CropDef[] = [
   { id: 'rose', time: 400, xp: 8, seedCost: 14, level: 11, shape: 'flower', leaf: '#3f7f32', fruit: '#c8102e' },
   { id: 'lavender', time: 460, xp: 9, seedCost: 15, level: 12, shape: 'flower', leaf: '#7a9a6a', fruit: '#8a6ad0' },
   { id: 'coffee_bean', time: 1020, xp: 16, seedCost: 28, level: 17, shape: 'bush', leaf: '#2f6f35', fruit: '#b0282a' },
+  // late game crops, one after another up to level 200
+  { id: 'rye', time: 1178, xp: 21, seedCost: 38, level: 25, shape: 'grain', leaf: '#8ab848', fruit: '#d8b860' },
+  { id: 'cherry_tomato', time: 1276, xp: 25, seedCost: 47, level: 32, shape: 'bush', leaf: '#3f8f37', fruit: '#e8302e' },
+  { id: 'kale', time: 1346, xp: 28, seedCost: 53, level: 37, shape: 'leafy', leaf: '#2f6f3a', fruit: '#3a7a44' },
+  { id: 'peanut', time: 1500, xp: 35, seedCost: 66, level: 48, shape: 'bush', leaf: '#5a9a3a', fruit: '#c89a5a' },
+  { id: 'cantaloupe', time: 1584, xp: 39, seedCost: 73, level: 54, shape: 'vine', leaf: '#4d9a3c', fruit: '#e8b060' },
+  { id: 'basil', time: 1626, xp: 40, seedCost: 77, level: 57, shape: 'leafy', leaf: '#3a9a3a', fruit: '#4aaa44' },
+  { id: 'marigold', time: 1738, xp: 45, seedCost: 86, level: 65, shape: 'flower', leaf: '#4f9e36', fruit: '#f5a01a' },
+  { id: 'ginger', time: 1808, xp: 48, seedCost: 92, level: 70, shape: 'root', leaf: '#5a9a3a', fruit: '#d8b070' },
+  { id: 'quinoa', time: 1864, xp: 51, seedCost: 97, level: 74, shape: 'grain', leaf: '#7aa844', fruit: '#c8603a' },
+  { id: 'jalapeno', time: 1962, xp: 55, seedCost: 106, level: 81, shape: 'bush', leaf: '#3f8f37', fruit: '#2f8a2a' },
+  { id: 'green_bean', time: 2046, xp: 58, seedCost: 113, level: 87, shape: 'trellis', leaf: '#5aa83a', fruit: '#5ab83a' },
+  { id: 'mint', time: 2074, xp: 60, seedCost: 115, level: 89, shape: 'leafy', leaf: '#3fa84a', fruit: '#5ac05a' },
+  { id: 'cauliflower', time: 2158, xp: 63, seedCost: 122, level: 95, shape: 'head', leaf: '#6a9a5a', fruit: '#f4f0e0' },
+  { id: 'chamomile', time: 2228, xp: 66, seedCost: 128, level: 100, shape: 'flower', leaf: '#6aa84a', fruit: '#ffffff' },
+  { id: 'parsnip', time: 2256, xp: 67, seedCost: 131, level: 102, shape: 'root', leaf: '#5a9a3a', fruit: '#f0e0b0' },
+  { id: 'honeydew', time: 2340, xp: 71, seedCost: 138, level: 108, shape: 'vine', leaf: '#4d9a3c', fruit: '#c8e090' },
+  { id: 'leek', time: 2382, xp: 73, seedCost: 142, level: 111, shape: 'bulb', leaf: '#5a9a4a', fruit: '#e8f0d0' },
+  { id: 'sorghum', time: 2424, xp: 75, seedCost: 145, level: 114, shape: 'grain', leaf: '#8a9a44', fruit: '#a83a2a' },
+  { id: 'chickpea', time: 2522, xp: 79, seedCost: 154, level: 121, shape: 'bush', leaf: '#6aa84a', fruit: '#e0c890' },
+  { id: 'hibiscus', time: 2564, xp: 81, seedCost: 157, level: 124, shape: 'flower', leaf: '#3f8a3a', fruit: '#e8304a' },
+  { id: 'bok_choy', time: 2592, xp: 82, seedCost: 160, level: 126, shape: 'leafy', leaf: '#6ab84a', fruit: '#e8f4d8' },
+  { id: 'butternut', time: 2662, xp: 85, seedCost: 166, level: 131, shape: 'vine', leaf: '#4d9a3c', fruit: '#e8a850' },
+  { id: 'flax', time: 2718, xp: 87, seedCost: 170, level: 135, shape: 'grain', leaf: '#6a9a5a', fruit: '#6a8ad8' },
+  { id: 'cranberry', time: 2760, xp: 89, seedCost: 174, level: 138, shape: 'bush', leaf: '#3a7a3a', fruit: '#b0102a' },
+  { id: 'shallot', time: 2816, xp: 91, seedCost: 179, level: 142, shape: 'bulb', leaf: '#6cb84a', fruit: '#b85a6a' },
+  { id: 'saffron', time: 2872, xp: 94, seedCost: 184, level: 146, shape: 'flower', leaf: '#6a9a4a', fruit: '#8a5ad8' },
+  { id: 'lentil', time: 2900, xp: 95, seedCost: 186, level: 148, shape: 'bush', leaf: '#6aa84a', fruit: '#c8702a' },
+  { id: 'romanesco', time: 2956, xp: 97, seedCost: 191, level: 152, shape: 'head', leaf: '#5a8a4a', fruit: '#9ad05a' },
+  { id: 'tea', time: 3012, xp: 100, seedCost: 196, level: 156, shape: 'bush', leaf: '#2f7a35', fruit: '#4a9a3a' },
+  { id: 'gooseberry', time: 3040, xp: 101, seedCost: 198, level: 158, shape: 'bush', leaf: '#3f8a3a', fruit: '#9ad06a' },
+  { id: 'peony', time: 3096, xp: 103, seedCost: 203, level: 162, shape: 'flower', leaf: '#3f8a3a', fruit: '#f080a8' },
+  { id: 'turmeric', time: 3124, xp: 105, seedCost: 205, level: 164, shape: 'root', leaf: '#5a9a3a', fruit: '#f0a020' },
+  { id: 'millet', time: 3166, xp: 106, seedCost: 209, level: 167, shape: 'grain', leaf: '#8ab848', fruit: '#e8d890' },
+  { id: 'vanilla', time: 3222, xp: 109, seedCost: 214, level: 171, shape: 'trellis', leaf: '#3a8a3a', fruit: '#f0e6c0' },
+  { id: 'okra', time: 3250, xp: 110, seedCost: 216, level: 173, shape: 'bush', leaf: '#4a9a3a', fruit: '#6ac04a' },
+  { id: 'orchid', time: 3278, xp: 111, seedCost: 218, level: 175, shape: 'flower', leaf: '#3a8a3a', fruit: '#c870d8' },
+  { id: 'hops', time: 3320, xp: 113, seedCost: 222, level: 178, shape: 'trellis', leaf: '#5aa83a', fruit: '#b8d870' },
+  { id: 'artichoke', time: 3334, xp: 114, seedCost: 223, level: 179, shape: 'head', leaf: '#6a9a7a', fruit: '#6a9a6a' },
+  { id: 'goji', time: 3362, xp: 115, seedCost: 226, level: 181, shape: 'bush', leaf: '#4a8a3a', fruit: '#e0401a' },
+  { id: 'dahlia', time: 3404, xp: 117, seedCost: 229, level: 184, shape: 'flower', leaf: '#3f8a3a', fruit: '#d8304a' },
+  { id: 'wasabi', time: 3418, xp: 117, seedCost: 230, level: 185, shape: 'root', leaf: '#4a9a3a', fruit: '#9ad08a' },
+  { id: 'black_bean', time: 3446, xp: 118, seedCost: 233, level: 187, shape: 'bush', leaf: '#4a8a3a', fruit: '#2a2a30' },
+  { id: 'lotus', time: 3474, xp: 120, seedCost: 235, level: 189, shape: 'flower', leaf: '#4a9a4a', fruit: '#f8a0c0' },
+  { id: 'aloe', time: 3488, xp: 120, seedCost: 236, level: 190, shape: 'rosette', leaf: '#6a9a6a', fruit: '#8ac080' },
 ];
 export const CROP: Record<string, CropDef> = Object.fromEntries(CROPS.map((c) => [c.id, c]));
 
@@ -467,6 +624,44 @@ recipe('lobster_roll', 'sushi_bar', { lobster: 1, bread: 1, butter: 1 }, 360, 18
 
 export const RECIPE: Record<string, RecipeDef> = Object.fromEntries(RECIPES.map((r) => [r.id, r]));
 
+// late game dishes from the new crops and fruit
+recipe('cherry_tomato_pizza', 'pizzeria', { cherry_tomato: 2, cheese: 1, bread: 1 }, 950, 18, 35);
+recipe('nectarine_sorbet', 'ice_cream', { nectarine: 2, cream: 1 }, 1040, 22, 44);
+recipe('cantaloupe_juice', 'juice_press', { cantaloupe: 2, sugar: 1 }, 1150, 28, 55);
+recipe('papaya_jam', 'jam_maker', { papaya: 2, sugar: 1 }, 1220, 31, 62);
+recipe('grilled_ginger', 'bbq_grill', { ginger: 2, butter: 1 }, 1330, 36, 73);
+recipe('guava_juice', 'juice_press', { guava: 2, sugar: 1 }, 1380, 39, 78);
+recipe('green_bean_pizza', 'pizzeria', { green_bean: 2, cheese: 1, bread: 1 }, 1480, 44, 88);
+recipe('elderberry_sorbet', 'ice_cream', { elderberry: 2, cream: 1 }, 1530, 46, 93);
+recipe('chamomile_wreath', 'florist', { chamomile: 2, tulip: 2 }, 1610, 50, 101);
+recipe('pecan_pie', 'bakery', { pecan: 2, wheat: 2, egg: 1 }, 1660, 53, 106);
+recipe('grilled_leek', 'bbq_grill', { leek: 2, butter: 1 }, 1730, 56, 113);
+recipe('jackfruit_juice', 'juice_press', { jackfruit: 2, sugar: 1 }, 1770, 58, 117);
+recipe('hibiscus_wreath', 'florist', { hibiscus: 2, tulip: 2 }, 1850, 62, 125);
+recipe('yuzu_sorbet', 'ice_cream', { yuzu: 2, cream: 1 }, 1900, 65, 130);
+recipe('flax_linen', 'loom', { flax: 2 }, 1970, 68, 137);
+recipe('cashew_pie', 'bakery', { cashew: 2, wheat: 2, egg: 1 }, 2010, 70, 141);
+recipe('saffron_wreath', 'florist', { saffron: 2, tulip: 2 }, 2070, 74, 147);
+recipe('loquat_juice', 'juice_press', { loquat: 2, sugar: 1 }, 2110, 76, 151);
+recipe('green_yogurt', 'dairy', { tea: 2, milk: 2 }, 2170, 78, 157);
+recipe('cinnamon_tea', 'coffee_kiosk', { cinnamon: 2, sugar: 1 }, 2210, 80, 161);
+recipe('turmeric_salad', 'salad_bar', { turmeric: 2, lettuce: 1 }, 2260, 83, 166);
+recipe('durian_jam', 'jam_maker', { durian: 2, sugar: 1 }, 2300, 85, 170);
+recipe('grilled_okra', 'bbq_grill', { okra: 2, butter: 1 }, 2340, 87, 174);
+recipe('silver_pear_juice', 'juice_press', { silver_pear: 2, sugar: 1 }, 2370, 88, 177);
+recipe('artichoke_pizza', 'pizzeria', { artichoke: 2, cheese: 1, bread: 1 }, 2400, 90, 180);
+recipe('goji_sorbet', 'ice_cream', { goji: 2, cream: 1 }, 2430, 92, 183);
+recipe('wasabi_salad', 'salad_bar', { wasabi: 2, lettuce: 1 }, 2460, 93, 186);
+recipe('black_bean_pie', 'bakery', { black_bean: 2, wheat: 2, egg: 1 }, 2480, 94, 188);
+recipe('aloe_yogurt', 'dairy', { aloe: 2, milk: 2 }, 2510, 96, 191);
+recipe('aloe_tea', 'coffee_kiosk', { aloe: 2, sugar: 1 }, 2520, 96, 192);
+recipe('lotus_wreath', 'florist', { lotus: 2, tulip: 2 }, 2530, 96, 193);
+recipe('lotus_bouquet', 'florist', { lotus: 2, rose: 1 }, 2540, 97, 194);
+recipe('black_bean_oil', 'oil_press', { black_bean: 2 }, 2560, 98, 196);
+recipe('black_bean_brittle', 'sugar_mill', { black_bean: 2, sugar: 2 }, 2570, 98, 197);
+recipe('grilled_wasabi', 'bbq_grill', { wasabi: 2, butter: 1 }, 2580, 99, 198);
+recipe('wasabi_pizza', 'pizzeria', { wasabi: 2, cheese: 1, bread: 1 }, 2590, 100, 199);
+
 // ---------------------------------------------------------------- animals
 
 export const ANIMALS: AnimalDef[] = [
@@ -528,6 +723,12 @@ export const ANIMALS: AnimalDef[] = [
   { id: 'kiwi_bird', name: 'Kiwi Bird', icon: '@kiwi_bird', house: 'kiwi_burrow', feed: 'chicken_feed', product: 'kiwi_egg', time: 956, xp: 42, cost: 4950, level: 168 },
   { id: 'vicuna', name: 'Vicuna', icon: '@vicuna', house: 'vicuna_ranch', feed: 'wheat', product: 'vicuna_wool', time: 1019, xp: 45, cost: 5350, level: 182 },
   { id: 'golden_goose', name: 'Golden Goose', icon: '@golden_goose', house: 'golden_nest', feed: 'corn', product: 'golden_egg', time: 1200, xp: 50, cost: 6000, level: 200 },
+  { id: 'hereford', name: 'Hereford Cow', icon: '🐄', house: 'hereford_ranch', feed: 'cow_feed', product: 'farm_butter', time: 735, xp: 11, cost: 1260, level: 45 },
+  { id: 'suffolk_sheep', name: 'Suffolk Sheep', icon: '🐑', house: 'suffolk_fold', feed: 'sheep_feed', product: 'suffolk_wool', time: 792, xp: 16, cost: 1792, level: 64 },
+  { id: 'bronze_turkey', name: 'Bronze Turkey', icon: '🦃', house: 'turkey_run', feed: 'chicken_feed', product: 'bronze_feather', time: 837, xp: 20, cost: 2212, level: 79 },
+  { id: 'saanen_goat', name: 'Saanen Goat', icon: '🐐', house: 'saanen_yard', feed: 'goat_feed', product: 'saanen_milk', time: 882, xp: 24, cost: 2632, level: 94 },
+  { id: 'ayam_cemani', name: 'Ayam Cemani', icon: '🐓', house: 'cemani_coop', feed: 'chicken_feed', product: 'black_egg', time: 921, xp: 27, cost: 2996, level: 107 },
+  { id: 'grey_heron', name: 'Grey Heron', icon: '🪿', house: 'heron_marsh', feed: 'duck_feed', product: 'heron_plume', time: 957, xp: 30, cost: 3332, level: 119 },
 ];
 export const ANIMAL: Record<string, AnimalDef> = Object.fromEntries(ANIMALS.map((a) => [a.id, a]));
 
@@ -690,6 +891,56 @@ export const BUILDINGS: BuildingDef[] = [
   b({ id: 'tree_obs', name: 'Old Tree', icon: '🌳', kind: 'obstacle', buyable: false, height: 64, clearCost: 20, xp: 5, desc: 'Clear it to free up space.' }),
   b({ id: 'rock_obs', name: 'Rock', icon: '🪨', kind: 'obstacle', buyable: false, height: 24, clearCost: 30, xp: 6, desc: 'Clear it to free up space.' }),
   b({ id: 'bush_obs', name: 'Bush', icon: '🌿', kind: 'obstacle', buyable: false, height: 22, clearCost: 8, xp: 3, desc: 'Clear it to free up space.' }),
+  b({ id: 'tangerine_tree', name: 'Tangerine Tree', icon: '🍊', kind: 'tree', cost: 2610, level: 29, max: 8, xp: 13, height: 64, sellable: true, fruit: 'tangerine', growTime: 1374, desc: 'Gives 2 tangerines again and again.' }),
+  b({ id: 'sundial', name: 'Sundial', icon: '☀️', kind: 'deco', w: 1, h: 1, cost: 1860, level: 31, max: 4, xp: 9, height: 34, sellable: true, desc: 'Tells the time by the sun.' }),
+  b({ id: 'bird_feeder', name: 'Bird Feeder', icon: '🐦', kind: 'deco', w: 1, h: 1, cost: 2400, level: 40, max: 4, xp: 12, height: 60, sellable: true, desc: 'Little birds drop by for seeds.' }),
+  b({ id: 'nectarine_tree', name: 'Nectarine Tree', icon: '🍑', kind: 'tree', cost: 3780, level: 42, max: 8, xp: 19, height: 64, sellable: true, fruit: 'nectarine', growTime: 1452, desc: 'Gives 2 nectarines again and again.' }),
+  b({ id: 'hereford_ranch', name: 'Hereford Ranch', icon: '🐄', kind: 'pen', w: 3, h: 3, cost: 9000, level: 45, xp: 68, height: 26, wall: '#8fc45a', roof: '#8a4a2a', animal: 'hereford', capacity: 5, desc: 'Home for up to 5 hereford cows.' }),
+  b({ id: 'chestnut_tree', name: 'Chestnut Tree', icon: '🌰', kind: 'tree', cost: 4590, level: 51, max: 8, xp: 23, height: 64, sellable: true, fruit: 'chestnut', growTime: 1506, desc: 'Gives 2 chestnuts again and again.' }),
+  b({ id: 'garden_swing', name: 'Garden Swing', icon: '🪢', kind: 'deco', w: 1, h: 1, cost: 3120, level: 52, max: 4, xp: 16, height: 54, sellable: true, desc: 'A wooden swing under a little frame.' }),
+  b({ id: 'bonfire', name: 'Bonfire', icon: '🔥', kind: 'deco', w: 1, h: 1, cost: 3540, level: 59, max: 4, xp: 18, height: 24, sellable: true, desc: 'A crackling campfire ringed with stones.' }),
+  b({ id: 'papaya_tree', name: 'Papaya Tree', icon: '🍈', kind: 'tree', cost: 5490, level: 61, max: 8, xp: 27, height: 64, sellable: true, fruit: 'papaya', growTime: 1566, desc: 'Gives 2 papayas again and again.' }),
+  b({ id: 'suffolk_fold', name: 'Suffolk Fold', icon: '🐑', kind: 'pen', w: 3, h: 3, cost: 12800, level: 64, xp: 96, height: 26, wall: '#8fc45a', roof: '#8a4a2a', animal: 'suffolk_sheep', capacity: 5, desc: 'Home for up to 5 suffolk sheep.' }),
+  b({ id: 'kumquat_tree', name: 'Kumquat Tree', icon: '🍊', kind: 'tree', cost: 5940, level: 66, max: 8, xp: 30, height: 64, sellable: true, fruit: 'kumquat', growTime: 1596, desc: 'Gives 2 kumquats again and again.' }),
+  b({ id: 'totem_pole', name: 'Totem Pole', icon: '🗿', kind: 'deco', w: 1, h: 1, cost: 4140, level: 69, max: 4, xp: 21, height: 100, sellable: true, desc: 'Carved and painted by hand.' }),
+  b({ id: 'picnic_spot', name: 'Picnic Spot', icon: '🧺', kind: 'deco', w: 1, h: 1, cost: 4500, level: 75, max: 4, xp: 22, height: 14, sellable: true, desc: 'A checked blanket and a basket of treats.' }),
+  b({ id: 'guava_tree', name: 'Guava Tree', icon: '🍐', kind: 'tree', cost: 6930, level: 77, max: 8, xp: 35, height: 64, sellable: true, fruit: 'guava', growTime: 1662, desc: 'Gives 2 guavas again and again.' }),
+  b({ id: 'turkey_run', name: 'Turkey Run', icon: '🦃', kind: 'pen', w: 2, h: 2, cost: 15800, level: 79, xp: 118, height: 26, wall: '#8fc45a', roof: '#8a4a2a', animal: 'bronze_turkey', capacity: 6, desc: 'Home for up to 6 bronze turkeys.' }),
+  b({ id: 'pistachio_tree', name: 'Pistachio Tree', icon: '🥜', kind: 'tree', cost: 7470, level: 83, max: 8, xp: 37, height: 64, sellable: true, fruit: 'pistachio', growTime: 1698, desc: 'Gives 2 pistachios again and again.' }),
+  b({ id: 'wind_turbine', name: 'Wind Turbine', icon: '🌬️', kind: 'deco', w: 1, h: 1, cost: 5100, level: 85, max: 4, xp: 26, height: 170, sellable: true, desc: 'Clean power from the breeze.' }),
+  b({ id: 'stone_bridge', name: 'Stone Bridge', icon: '🌉', kind: 'deco', w: 2, h: 1, cost: 5400, level: 90, max: 2, xp: 27, height: 24, sellable: true, desc: 'An arched bridge over a little brook.' }),
+  b({ id: 'elderberry_tree', name: 'Elderberry Tree', icon: '🫐', kind: 'tree', cost: 8190, level: 91, max: 8, xp: 41, height: 64, sellable: true, fruit: 'elderberry', growTime: 1746, desc: 'Gives 2 elderberrys again and again.' }),
+  b({ id: 'saanen_yard', name: 'Saanen Yard', icon: '🐐', kind: 'pen', w: 3, h: 3, cost: 18800, level: 94, xp: 141, height: 26, wall: '#8fc45a', roof: '#8a4a2a', animal: 'saanen_goat', capacity: 5, desc: 'Home for up to 5 saanen goats.' }),
+  b({ id: 'dragon_fruit_tree', name: 'Dragon Fruit Tree', icon: '🐉', kind: 'tree', cost: 8730, level: 97, max: 8, xp: 44, height: 64, sellable: true, fruit: 'dragon_fruit', growTime: 1782, desc: 'Gives 2 dragon fruits again and again.' }),
+  b({ id: 'pergola', name: 'Pergola', icon: '🏛️', kind: 'deco', w: 2, h: 2, cost: 5940, level: 99, max: 2, xp: 30, height: 72, sellable: true, desc: 'Vines climbing over white beams.' }),
+  b({ id: 'horse_statue', name: 'Horse Statue', icon: '🐎', kind: 'deco', w: 1, h: 1, cost: 6180, level: 103, max: 4, xp: 31, height: 68, sellable: true, desc: 'A bronze horse on a stone plinth.' }),
+  b({ id: 'pecan_tree', name: 'Pecan Tree', icon: '🌰', kind: 'tree', cost: 9450, level: 105, max: 8, xp: 47, height: 64, sellable: true, fruit: 'pecan', growTime: 1830, desc: 'Gives 2 pecans again and again.' }),
+  b({ id: 'cemani_coop', name: 'Cemani Coop', icon: '🐓', kind: 'pen', w: 2, h: 2, cost: 21400, level: 107, xp: 160, height: 26, wall: '#8fc45a', roof: '#8a4a2a', animal: 'ayam_cemani', capacity: 6, desc: 'Home for up to 6 ayam cemani hens.' }),
+  b({ id: 'blood_orange_tree', name: 'Blood Orange Tree', icon: '🍊', kind: 'tree', cost: 9810, level: 109, max: 8, xp: 49, height: 64, sellable: true, fruit: 'blood_orange', growTime: 1854, desc: 'Gives 2 blood oranges again and again.' }),
+  b({ id: 'torii_gate', name: 'Torii Gate', icon: '⛩️', kind: 'deco', w: 2, h: 1, cost: 6600, level: 110, max: 2, xp: 33, height: 80, sellable: true, desc: 'A red gate from a faraway garden.' }),
+  b({ id: 'zen_garden', name: 'Zen Garden', icon: '🪨', kind: 'deco', w: 2, h: 2, cost: 6900, level: 115, max: 2, xp: 34, height: 16, sellable: true, desc: 'Raked sand and quiet stones.' }),
+  b({ id: 'jackfruit_tree', name: 'Jackfruit Tree', icon: '🍈', kind: 'tree', cost: 10440, level: 116, max: 8, xp: 52, height: 64, sellable: true, fruit: 'jackfruit', growTime: 1896, desc: 'Gives 2 jackfruits again and again.' }),
+  b({ id: 'heron_marsh', name: 'Heron Marsh', icon: '🪿', kind: 'pen', w: 3, h: 3, cost: 23800, level: 119, xp: 178, height: 26, wall: '#8fc45a', roof: '#8a4a2a', animal: 'grey_heron', capacity: 4, desc: 'Home for up to 4 grey herons.' }),
+  b({ id: 'macadamia_tree', name: 'Macadamia Tree', icon: '🥜', kind: 'tree', cost: 10980, level: 122, max: 8, xp: 55, height: 64, sellable: true, fruit: 'macadamia', growTime: 1932, desc: 'Gives 2 macadamias again and again.' }),
+  b({ id: 'treehouse', name: 'Treehouse', icon: '🏡', kind: 'deco', w: 2, h: 2, cost: 7380, level: 123, max: 2, xp: 37, height: 130, sellable: true, desc: 'A little house up in an old oak.' }),
+  b({ id: 'greenhouse', name: 'Greenhouse', icon: '🪴', kind: 'deco', w: 2, h: 2, cost: 7620, level: 127, max: 2, xp: 38, height: 64, sellable: true, desc: 'Glass walls full of green.' }),
+  b({ id: 'yuzu_tree', name: 'Yuzu Tree', icon: '🍋', kind: 'tree', cost: 11610, level: 129, max: 8, xp: 58, height: 64, sellable: true, fruit: 'yuzu', growTime: 1974, desc: 'Gives 2 yuzus again and again.' }),
+  b({ id: 'passion_fruit_tree', name: 'Passion Fruit Tree', icon: '🟣', kind: 'tree', cost: 11970, level: 133, max: 8, xp: 60, height: 64, sellable: true, fruit: 'passion_fruit', growTime: 1998, desc: 'Gives 2 passion fruits again and again.' }),
+  b({ id: 'water_tower', name: 'Water Tower', icon: '🗼', kind: 'deco', w: 2, h: 2, cost: 8040, level: 134, max: 2, xp: 40, height: 145, sellable: true, desc: 'A tall wooden tank on stilts.' }),
+  b({ id: 'carousel', name: 'Carousel', icon: '🎠', kind: 'deco', w: 2, h: 2, cost: 8340, level: 139, max: 2, xp: 42, height: 90, sellable: true, desc: 'Painted horses going round and round.' }),
+  b({ id: 'cashew_tree', name: 'Cashew Tree', icon: '🥜', kind: 'tree', cost: 12600, level: 140, max: 8, xp: 63, height: 64, sellable: true, fruit: 'cashew', growTime: 2040, desc: 'Gives 2 cashews again and again.' }),
+  b({ id: 'white_peach_tree', name: 'White Peach Tree', icon: '🍑', kind: 'tree', cost: 12870, level: 143, max: 8, xp: 64, height: 64, sellable: true, fruit: 'white_peach', growTime: 2058, desc: 'Gives 2 white peachs again and again.' }),
+  b({ id: 'lighthouse', name: 'Lighthouse', icon: '🗼', kind: 'deco', w: 2, h: 2, cost: 8640, level: 144, max: 2, xp: 43, height: 165, sellable: true, desc: 'Its lamp sweeps the sea at night.' }),
+  b({ id: 'clock_tower', name: 'Clock Tower', icon: '🕰️', kind: 'deco', w: 2, h: 2, cost: 8940, level: 149, max: 2, xp: 45, height: 185, sellable: true, desc: 'Rings in every new hour.' }),
+  b({ id: 'loquat_tree', name: 'Loquat Tree', icon: '🍑', kind: 'tree', cost: 13500, level: 150, max: 8, xp: 68, height: 64, sellable: true, fruit: 'loquat', growTime: 2100, desc: 'Gives 2 loquats again and again.' }),
+  b({ id: 'crabapple_tree', name: 'Crabapple Tree', icon: '🍎', kind: 'tree', cost: 13770, level: 153, max: 8, xp: 69, height: 64, sellable: true, fruit: 'crabapple', growTime: 2118, desc: 'Gives 2 crabapples again and again.' }),
+  b({ id: 'hot_air_balloon', name: 'Hot Air Balloon', icon: '🎈', kind: 'deco', w: 2, h: 2, cost: 9240, level: 154, max: 2, xp: 46, height: 130, sellable: true, desc: 'Tethered and ready for a ride.' }),
+  b({ id: 'golden_farmer', name: 'Golden Farmer Statue', icon: '🏆', kind: 'deco', w: 1, h: 1, cost: 9540, level: 159, max: 4, xp: 48, height: 72, sellable: true, desc: 'For the farmer who did it all.' }),
+  b({ id: 'cinnamon_tree', name: 'Cinnamon Tree', icon: '🟤', kind: 'tree', cost: 14400, level: 160, max: 8, xp: 72, height: 64, sellable: true, fruit: 'cinnamon', growTime: 2160, desc: 'Gives 2 cinnamons again and again.' }),
+  b({ id: 'mangosteen_tree', name: 'Mangosteen Tree', icon: '🟣', kind: 'tree', cost: 14670, level: 163, max: 8, xp: 73, height: 64, sellable: true, fruit: 'mangosteen', growTime: 2178, desc: 'Gives 2 mangosteens again and again.' }),
+  b({ id: 'durian_tree', name: 'Durian Tree', icon: '🌰', kind: 'tree', cost: 15210, level: 169, max: 8, xp: 76, height: 64, sellable: true, fruit: 'durian', growTime: 2214, desc: 'Gives 2 durians again and again.' }),
+  b({ id: 'black_cherry_tree', name: 'Black Cherry Tree', icon: '🍒', kind: 'tree', cost: 15480, level: 172, max: 8, xp: 77, height: 64, sellable: true, fruit: 'black_cherry', growTime: 2232, desc: 'Gives 2 black cherrys again and again.' }),
+  b({ id: 'silver_pear_tree', name: 'Silver Pear Tree', icon: '🍐', kind: 'tree', cost: 15840, level: 176, max: 8, xp: 79, height: 64, sellable: true, fruit: 'silver_pear', growTime: 2256, desc: 'Gives 2 silver pears again and again.' }),
 ];
 export const BUILDING: Record<string, BuildingDef> = Object.fromEntries(BUILDINGS.map((x) => [x.id, x]));
 

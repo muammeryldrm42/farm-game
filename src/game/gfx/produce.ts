@@ -275,6 +275,16 @@ function onion() {
   return lathe([[0, -0.75], [0.55, -0.7], [0.95, -0.25], [0.95, 0.15], [0.55, 0.62], [0.18, 0.9], [0.08, 1.2], [0, 1.2]], 22, (x, y, z) => C.setScalar(0.85 + (Math.sin(Math.atan2(z, x) * 14) > 0.7 ? 0.15 : 0) + noise3(x * 6, y * 6, z * 6) * 0.08).clone());
 }
 
+function shallot() {
+  // a slim teardrop bulb, a little pointed at the neck
+  return lathe([[0, -0.9], [0.45, -0.8], [0.7, -0.35], [0.66, 0.2], [0.36, 0.7], [0.12, 1.05], [0, 1.1]], 20, (x, y, z) => C.setScalar(0.86 + (Math.sin(Math.atan2(z, x) * 12) > 0.75 ? 0.12 : 0) + noise3(x * 6, y * 6, z * 6) * 0.08).clone());
+}
+
+function leek() {
+  // a long pale shank with a hint of roots at the base
+  return lathe([[0, -1.0], [0.3, -0.95], [0.34, -0.8], [0.3, 0.2], [0.26, 1.0], [0, 1.05]], 16, (x, y, z) => C.setScalar(0.95 - Math.max(0, y) * 0.25 + noise3(x * 8, y * 3, z * 8) * 0.05).clone());
+}
+
 function radish() {
   // round red root with a white tail
   const g = lathe([[0, -0.8], [0.4, -0.55], [0.9, -0.1], [0.92, 0.3], [0.6, 0.72], [0, 0.8]], 20, (x, y, z) => C.setScalar(0.9 + noise3(x * 5, y * 5, z * 5) * 0.15).clone());
@@ -545,7 +555,7 @@ const makers: Record<string, () => THREE.BufferGeometry> = {
   apricot, lime, fig, olive, walnut, garlic, beet, pea: peaPod, zucchini, sweet_potato: sweetPotato,
   apple, cherry, orange, peach, lemon, coconut, tomato, strawberry, chili,
   pear, plum, mango, avocado, pomegranate, banana,
-  bell_pepper: bellPepper, eggplant, raspberry, cucumber, grape: grapes, pineapple, onion, radish, cabbage, broccoli: floret,
+  bell_pepper: bellPepper, eggplant, raspberry, cucumber, grape: grapes, pineapple, onion, radish, shallot, leek, cabbage, broccoli: floret,
 };
 const cache = new Map<string, THREE.BufferGeometry>();
 export function produceGeo(kind: string) {

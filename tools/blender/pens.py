@@ -560,12 +560,12 @@ def tall_grass(m, n=10, seed=1):
 # ---------------------------------------------------------------- the pen table
 
 WHITE = {'sheepfold', 'stable', 'alpaca_ranch', 'peacock_garden', 'rabbit_hutch', 'pony_paddock', 'black_sheepfold', 'merino_fold',
-         'jacob_fold', 'silkie_coop', 'deer_park', 'chinchilla_hutch'}
+         'jacob_fold', 'silkie_coop', 'suffolk_fold', 'saanen_yard', 'deer_park', 'chinchilla_hutch'}
 LOG = {'reindeer_lodge', 'bison_range', 'moose_woods', 'musk_ox_range', 'yak_pasture', 'beaver_pond'}
 STONE = {'highland_pasture', 'galloway_pasture'}
-BAMBOO = {'parrot_aviary', 'silk_house', 'kiwi_burrow', 'crane_marsh', 'flamingo_lagoon'}
+BAMBOO = {'parrot_aviary', 'silk_house', 'kiwi_burrow', 'crane_marsh', 'flamingo_lagoon', 'heron_marsh'}
 NO_TROUGH = {'beehive', 'duck_pond', 'goose_pen', 'peacock_garden', 'swan_lake', 'flamingo_lagoon', 'golden_nest', 'mandarin_pond',
-             'black_swan_lake', 'silk_house', 'parrot_aviary', 'owl_barn', 'kiwi_burrow', 'squirrel_grove', 'crane_marsh'}
+             'black_swan_lake', 'silk_house', 'parrot_aviary', 'owl_barn', 'kiwi_burrow', 'squirrel_grove', 'crane_marsh', 'heron_marsh'}
 
 # id: (w, h, roof color, wall color, shelter)
 PENS = {
@@ -598,6 +598,9 @@ PENS = {
     'cassowary_ranch': (3, 3, '#2a6a8a', None, 'thatch_grass'), 'watusi_ranch': (3, 3, '#8a3a2a', None, 'thatch'),
     'owl_barn': (2, 2, '#8a5a34', None, 'owl'), 'kiwi_burrow': (2, 2, '#6b4226', None, 'kiwi'),
     'vicuna_ranch': (3, 3, '#c0392b', None, 'open'), 'golden_nest': (2, 2, '#d4a020', None, 'nest'),
+    'hereford_ranch': (3, 3, '#8a3a2a', None, 'open'), 'suffolk_fold': (3, 3, '#2e4a6a', None, 'open'),
+    'turkey_run': (2, 2, '#8e4a2b', '#c9a46a', 'coop'), 'saanen_yard': (3, 3, '#6b4226', None, 'goat'),
+    'cemani_coop': (2, 2, '#2a2a34', '#d8c090', 'coop'), 'heron_marsh': (3, 3, '#5a7a8a', None, 'marsh'),
 }
 
 
