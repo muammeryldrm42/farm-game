@@ -3707,17 +3707,19 @@ function buildDeco(e: Entry, d: BuildingDef) {
         bxT(g, w, 0.12, d, 'planks', '#b07a42', x, 0, z, 3);
       }
       bx(g, 0.72, 0.1, 0.72, '#4a2e18', 0.5, 0, 0.5, false);
-      for (let i = 0; i < 14; i++) {
-        const r = 0.07 + hash(i, 10, 5) * 0.04;
-        mk(g, G.ball, M(i % 3 ? '#3f932c' : '#4ea536'), r, r * 0.8, r, 0.2 + hash(i, 1, 5) * 0.6, 0.09, 0.2 + hash(i, 2, 5) * 0.6, false);
+      // leafy clumps that fill the bed, and a tidy 4 by 4 planting of short stemmed flowers
+      const leaf = toonLeafMat('#3f932c');
+      for (let i = 0; i < 9; i++) {
+        const lx = 0.26 + (i % 3) * 0.24 + (hash(i, 1, 5) - 0.5) * 0.06, lz = 0.26 + Math.floor(i / 3) * 0.24 + (hash(i, 2, 5) - 0.5) * 0.06;
+        mk(g, toonCrown(i, 0.035), leaf, 0.2, 0.16, 0.2, lx, 0.0, lz, false);
       }
       const cols = ['#ff5f86', '#ffd23a', '#ffffff', '#a97cff', '#ff8a3d', '#ff3b4f'];
       const kinds: FlowerKind[] = ['tulip', 'daisy', 'rose'];
       const seed = Math.abs(e.id);
-      for (let i = 0; i < 9; i++) {
-        const x = 0.24 + (i % 3) * 0.26 + (hash(i, 3, 5) - 0.5) * 0.08, z = 0.24 + Math.floor(i / 3) * 0.26 + (hash(i, 4, 5) - 0.5) * 0.08;
-        const f = mk(g, flowerKit(kinds[(i + seed) % 3], cols[(i * 5 + seed) % cols.length], 0.15 + hash(i, 6, 5) * 0.05), FLOWER_KIT_MAT, 1, 1, 1, x, 0.1, z, false);
-        f.rotation.set((hash(i, 7, 5) - 0.5) * 0.3, hash(i, 8, 5) * 6, (hash(i, 9, 5) - 0.5) * 0.3);
+      for (let i = 0; i < 16; i++) {
+        const x = 0.23 + (i % 4) * 0.18 + (hash(i, 3, 5) - 0.5) * 0.04, z = 0.23 + Math.floor(i / 4) * 0.18 + (hash(i, 4, 5) - 0.5) * 0.04;
+        const f = mk(g, flowerKit(kinds[(i + seed) % 3], cols[(i * 5 + seed) % cols.length], 0.1 + hash(i, 6, 5) * 0.03), FLOWER_KIT_MAT, 1.25, 1.25, 1.25, x, 0.1, z, false);
+        f.rotation.set((hash(i, 7, 5) - 0.5) * 0.2, hash(i, 8, 5) * 6, (hash(i, 9, 5) - 0.5) * 0.2);
       }
       break;
     }
