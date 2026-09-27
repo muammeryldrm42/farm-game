@@ -2175,7 +2175,15 @@ function mergeStatic(root: THREE.Object3D) {
 // Blender animals (tools/blender/animals.py): a body plus `head`, `leg0..3` and `tail` parts
 // already sitting on their pivots. Until a kind's model has loaded (or if it cannot load) the
 // sculpt stands in; pens rebuild their herd when a model arrives.
-const ANIMAL_MODELS = new Set(['cow', 'sheep', 'horse', 'chicken']);
+const ANIMAL_MODELS = new Set([
+  'alpaca', 'angora_goat', 'bactrian_camel', 'barn_owl', 'beaver', 'belted_galloway', 'bison', 'black_sheep',
+  'black_swan', 'buffalo', 'camel', 'cashmere_goat', 'cassowary', 'chicken', 'chinchilla', 'cow',
+  'crane', 'donkey', 'duck', 'emu', 'flamingo', 'goat', 'gobbler', 'golden_goose', 'goose',
+  'guinea_fowl', 'highland_cow', 'horse', 'jacob_sheep', 'jersey_cow', 'kiwi_bird', 'llama', 'mandarin_duck',
+  'merino_sheep', 'moose', 'muscovy_duck', 'musk_ox', 'nubian_goat', 'ostrich', 'parrot', 'peacock',
+  'pheasant', 'pony', 'quail', 'rabbit', 'reindeer', 'rhea', 'sheep', 'silkie_chicken', 'silkworm',
+  'spotted_deer', 'squirrel', 'swan', 'vicuna', 'watusi', 'yak', 'zebu',
+]);
 const animalSrc = new Map<string, THREE.Object3D>();
 let animalVer = 0;
 function animalModel(kind: string) {
