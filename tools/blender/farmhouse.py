@@ -8,31 +8,31 @@ import random
 import sys
 sys.path.insert(0, os.path.dirname(__file__))
 from common import (reset, mat, mat_paint, box, cyl, sphere, gable_wall, join_all, shingled_roof,  # noqa: E402
-                    bake_and_export, preview)
+                    bake_and_export, preview, debug_false_colors)
 
 HERE = os.path.dirname(__file__)
 OUT = os.path.join(HERE, '..', '..', 'public', 'models', 'farmhouse.glb')
 random.seed(7)
 reset()
 
-white = mat_paint('siding', '#ece6da', '#fbf8f2', scale=30, stretch=(1, 1, 8), kind='wave')
+white = mat_paint('siding', '#f2ede2', '#fffdf8', scale=30, stretch=(1, 1, 8), kind='wave')
 trim = mat('trim', '#fdfcf8', 0.6)
-stones = [mat_paint(f'stone{i}', c1, c2, scale=18) for i, (c1, c2) in enumerate([('#8f8a80', '#b3ada2'), ('#9d9488', '#c2baad'), ('#857f76', '#a59f95')])]
-mortar = mat('mortar', '#6f6a62', 0.95)
-shingles = [mat_paint(f'sh{i}', c1, c2, scale=40) for i, (c1, c2) in enumerate([('#7a3f22', '#9a5530'), ('#8a4a28', '#a8603a'), ('#6e3620', '#8c4a2c'), ('#94542e', '#b06a40')])]
-roofbase = mat('roofbase', '#4a2616', 0.9)
-bricks = [mat_paint(f'brick{i}', c1, c2, scale=24) for i, (c1, c2) in enumerate([('#a2442e', '#c05a40'), ('#8e3a28', '#ac4c36'), ('#b45038', '#cc684c')])]
-wood = mat_paint('wood', '#a8703e', '#c88a52', scale=6, kind='wave', stretch=(1, 8, 1))
-wood_dark = mat_paint('wood_dark', '#7a4a26', '#9a6036', scale=6, kind='wave', stretch=(1, 8, 1))
-door_m = mat_paint('door', '#8a3a2c', '#a84a38', scale=5, kind='wave', stretch=(8, 1, 1))
-shutter = mat_paint('shutter', '#2f6a4a', '#3f8a5e', scale=10)
-glass = mat('glass', '#9fd0ea', 0.1)
-glass_hi = mat('glass_hi', '#e4f6ff', 0.1)
+stones = [mat_paint(f'stone{i}', c1, c2, scale=18) for i, (c1, c2) in enumerate([('#a39c90', '#c8c0b2'), ('#b0a698', '#d6cdbd'), ('#968f84', '#bab3a6')])]
+mortar = mat('mortar', '#7f786e', 0.95)
+shingles = [mat_paint(f'sh{i}', c1, c2, scale=40) for i, (c1, c2) in enumerate([('#b8482a', '#d8603a'), ('#c85a30', '#e8764a'), ('#a83e24', '#c85436'), ('#d06a38', '#f08450')])]
+roofbase = mat('roofbase', '#5a2a18', 0.9)
+bricks = [mat_paint(f'brick{i}', c1, c2, scale=24) for i, (c1, c2) in enumerate([('#c0442a', '#e05a3e'), ('#a83a26', '#c84c34'), ('#d0543a', '#ec6c50')])]
+wood = mat_paint('wood', '#c8843e', '#e8a458', scale=6, kind='wave', stretch=(1, 8, 1))
+wood_dark = mat_paint('wood_dark', '#9a5a2a', '#b87038', scale=6, kind='wave', stretch=(1, 8, 1))
+door_m = mat_paint('door', '#c0392b', '#e0503a', scale=5, kind='wave', stretch=(8, 1, 1))
+shutter = mat_paint('shutter', '#1f8a4a', '#34b060', scale=10)
+glass = mat('glass', '#8fd4f4', 0.1)
+glass_hi = mat('glass_hi', '#e8f8ff', 0.1)
 soil = mat('soil', '#5a3a22', 0.95)
-leaf = mat_paint('leaf', '#3f8a2a', '#6ab83e', scale=30)
-flowers = [mat('f1', '#ff5f86', 0.5), mat('f2', '#ffd23a', 0.5), mat('f3', '#ffffff', 0.5), mat('f4', '#b58cff', 0.5)]
+leaf = mat_paint('leaf', '#3a9a2a', '#72d040', scale=30)
+flowers = [mat('f1', '#ff3d7f', 0.5), mat('f2', '#ffd000', 0.5), mat('f3', '#ffffff', 0.5), mat('f4', '#a060ff', 0.5)]
 brass = mat('brass', '#e8b84a', 0.35, 0.7)
-pot = mat_paint('pot', '#b8603a', '#d07a4e', scale=12)
+pot = mat_paint('pot', '#d0643a', '#ec8050', scale=12)
 lamp = mat('lamp', '#fff0b8', 0.3, emit=2.0)
 
 W, D, H, B = 1.5, 1.3, 1.05, 0.14  # wall width (x), depth (y), wall height, foundation height
@@ -63,16 +63,18 @@ for face in range(4):
 # ---- walls: a core and overlapping clapboards
 box('walls', (W, D, H), (0, 0, B + H / 2), white, bev=0.01)
 rows = 12
+TOPGAP = 0.07  # boards and corner trims stop short of the roof so none pierce the shingles
+bh = (H - TOPGAP) / rows
 for k in range(rows):
-    z = B + (k + 0.55) * H / rows
+    z = B + (k + 0.5) * bh
     tilt = math.radians(8)
     for face, (sx, sy, lx, ly, rot) in enumerate([
         (W + 0.02, 0.022, 0, FRONT - 0.008, (tilt, 0, 0)), (W + 0.02, 0.022, 0, D / 2 + 0.008, (-tilt, 0, 0)),
         (0.022, D + 0.02, -W / 2 - 0.008, 0, (0, -tilt, 0)), (0.022, D + 0.02, W / 2 + 0.008, 0, (0, tilt, 0))]):
-        box(f'cb{face}_{k}', (sx, sy, H / rows * 1.05), (lx, ly, z), white, rot=rot, bev=0.006)
+        box(f'cb{face}_{k}', (sx, sy, bh * 1.05), (lx, ly, z), white, rot=rot, bev=0.006)
 for cx in (-1, 1):
     for cy in (-1, 1):
-        box(f'corner{cx}{cy}', (0.075, 0.075, H + 0.02), (cx * (W / 2 + 0.01), cy * (D / 2 + 0.01), B + H / 2), trim, bev=0.015)
+        box(f'corner{cx}{cy}', (0.075, 0.075, H - TOPGAP), (cx * (W / 2 + 0.01), cy * (D / 2 + 0.01), B + (H - TOPGAP) / 2), trim, bev=0.015)
 
 # ---- roof: attic, a dark base slab and staggered rows of individual shingles
 rise, over = 0.78, 0.17
@@ -146,9 +148,10 @@ window('wr', W / 2 + 0.01, 0, B + 0.58, 'r')
 for dx in (-0.4, 0.4):
     yz = -D * 0.26
     zb = Z + rise * (1 - abs(yz) / (D / 2)) - 0.14
-    box(f'dorm{dx}', (0.34, 0.4, 0.3), (dx, yz + 0.05, zb + 0.15), white, bev=0.012)
+    # the dormer body reaches down into the main roof so no gap shows under its front corners
+    box(f'dorm{dx}', (0.34, 0.4, 0.5), (dx, yz + 0.05, zb + 0.05), white, bev=0.012)
     gable_wall(f'dormg{dx}', dx, yz + 0.05, zb + 0.3, 0.4, 0.34, 0.17, white, axis='y')
-    shingled_roof(f'dr{dx}', dx, yz + 0.05, zb + 0.3, 0.4, 0.34, 0.17, 0.05, shingles, roofbase, trim, axis='y', rows=4, sw=0.1, base_thick=0.03, seed=int(dx * 10) + 20)
+    shingled_roof(f'dr{dx}', dx, yz + 0.05, zb + 0.3, 0.4, 0.34, 0.17, 0.05, shingles, roofbase, trim, axis='y', rows=4, sw=0.1, base_thick=0.03, seed=int(dx * 10) + 20, rake_ends=(-1,), eave_trim=False)
     box(f'dtrim{dx}', (0.28, 0.03, 0.26), (dx, yz - 0.155, zb + 0.15), trim, bev=0.01)
     box(f'dglass{dx}', (0.2, 0.035, 0.19), (dx, yz - 0.16, zb + 0.15), glass, bev=0.004)
     box(f'dbar{dx}', (0.02, 0.04, 0.19), (dx, yz - 0.165, zb + 0.15), trim, bev=0)
@@ -173,7 +176,7 @@ for pzz in (0.17, 0.45):
         box(f'dp{pzz}{px}', (0.1, 0.03, 0.2), (dxp + px, FRONT - 0.06, B + pzz), door_m, bev=0.015)
 box('dwin', (0.2, 0.03, 0.08), (dxp, FRONT - 0.062, B + 0.58), glass, bev=0.01)
 sphere('knob', 0.02, (dxp + 0.1, FRONT - 0.08, B + 0.32), brass, segs=12)
-box('mat', (0.3, 0.16, 0.012), (dxp, FRONT - 0.17, B + 0.012), mat_paint('matm', '#a8402c', '#c85a3e', scale=40), bev=0.004)
+box('mat', (0.3, 0.16, 0.012), (dxp, FRONT - 0.17, B + 0.012), mat_paint('matm', '#c8402c', '#e85a40', scale=40), bev=0.004)
 # a lantern beside the door, potted plants on the step
 box('lampbk', (0.05, 0.02, 0.1), (dxp + 0.28, FRONT - 0.02, B + 0.52), wood_dark, bev=0.005)
 box('lampb', (0.07, 0.07, 0.1), (dxp + 0.28, FRONT - 0.07, B + 0.52), lamp, bev=0.01)
@@ -185,7 +188,14 @@ for sx in (-1, 1):
         sphere(f'pl{sx}{i}', 0.04, (dxp + sx * 0.42 + math.cos(a) * 0.035, FRONT - 0.24 + math.sin(a) * 0.035, 0.19 + (i % 2) * 0.02), leaf, segs=10)
     sphere(f'pf{sx}', 0.03, (dxp + sx * 0.42, FRONT - 0.24, 0.24), flowers[0 if sx < 0 else 1], segs=10)
 
+if os.environ.get('DEBUG'):
+    # trace stray specks: trim red, siding blue, glass yellow and orange, white flowers magenta
+    debug_false_colors(os.path.join(HERE, 'farmhouse_debug.png'),
+                       {'trim': (1, 0, 0), 'siding': (0, 0, 1), 'glass_hi': (1, 1, 0), 'glass': (1, 0.5, 0), 'f3': (1, 0, 1)},
+                       cam_loc=(-1.6, -3.0, 1.6), target=(0, -0.5, 0.8))
+    sys.exit(0)
 ob = join_all('farmhouse')
-bake_and_export(ob, OUT, tex_size=2048)
+bake_and_export(ob, OUT, tex_size=2048, glow=('glass', 'glass_hi', 'lamp'))
 preview(os.path.join(HERE, 'farmhouse_preview.png'), cam_loc=(3.0, -3.6, 2.8), target=(0, 0, 0.8))
+preview(os.path.join(HERE, 'farmhouse_front.png'), cam_loc=(-1.6, -3.0, 1.6), target=(0, -0.5, 0.8))
 print('done', os.path.abspath(OUT))

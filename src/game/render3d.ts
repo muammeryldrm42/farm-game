@@ -520,6 +520,8 @@ export class Renderer {
     this.scene.add(this.fishing.root);
     this.life = new Life(this.scene);
     this.sel = this.buildSelection();
+    // start fetching the Blender models right away, so they are usually in before the farm shows
+    if (artStyle() === 'toon') loadModel('farmhouse').catch(() => {});
     this.farmer = actor(FARM_C.x - 0.5, FARM_C.y + 0.5, buildFarmer());
     this.dog = actor(FARM_C.x + 0.5, FARM_C.y + 0.5, buildDog());
     this.cat = actor(FARM_C.x + 1.5, FARM_C.y + 1.5, buildCat());
@@ -1146,6 +1148,7 @@ export class Renderer {
     (this.scene.fog as THREE.Fog).color.copy(this.skyHor);
 
     WIN.emissiveIntensity = n > 0.15 ? n * 2.6 : 0;
+    for (const m of MODEL_GLOW) m.emissiveIntensity = WIN.emissiveIntensity * 0.8;
     LAMP.emissiveIntensity = 0.3 + n * 4.5;
     GLOW.opacity = n * 0.55;
     if (this.post) {
@@ -2529,18 +2532,27 @@ function smoke(g: THREE.Group, x: number, y: number, z: number) {
 }
 
 // ------------------------------------------------------------------ Blender models
-// Hand built models made in Blender (see tools/blender) and loaded from public/models. Each file
-// is fetched once and cloned for every copy; until it arrives the entry simply stays empty.
-// models are Draco compressed; the decoder lives in public/draco
+// Hand built models made in Blender (see tools/blender), loaded from public/models. They are Draco
+// compressed (the decoder lives in public/draco); each file is fetched once and cloned per copy.
 const gltfLoader = new GLTFLoader().setDRACOLoader(new DRACOLoader().setDecoderPath('/draco/'));
 const modelCache = new Map<string, Promise<THREE.Object3D>>();
+// model materials with a baked emission mask (windows, lamps), lit up at night like WIN
+const MODEL_GLOW = new Set<THREE.MeshStandardMaterial>();
 function loadModel(name: string) {
   let p = modelCache.get(name);
   if (!p) {
     p = gltfLoader.loadAsync(`/models/${name}.glb`).then((gl) => {
       gl.scene.traverse((o) => {
         const m = o as THREE.Mesh;
-        if (m.isMesh) { m.castShadow = true; m.receiveShadow = true; }
+        if (!m.isMesh) return;
+        m.castShadow = true;
+        m.receiveShadow = true;
+        const mat = m.material as THREE.MeshStandardMaterial;
+        if (mat.emissiveMap) {
+          mat.emissive.set('#ffc766');
+          mat.emissiveIntensity = WIN.emissiveIntensity;
+          MODEL_GLOW.add(mat);
+        }
       });
       return gl.scene;
     });
@@ -2548,21 +2560,24 @@ function loadModel(name: string) {
   }
   return p;
 }
-function attachModel(e: Entry, name: string, x: number, z: number, scale = 1) {
+
+// The procedural building stands in until its model has loaded and is then swapped out; if the
+// model cannot load, the procedural building simply stays. Placement ghosts keep the procedural
+// look, since their see through styling is applied once when they are built.
+function swapInModel(e: Entry, name: string, x: number, z: number, scale: number, onSwap?: () => void) {
+  if (e.id < 0) return;
+  const standIn = [...e.root.children];
   loadModel(name).then((src) => {
     const m = src.clone();
     m.position.set(x, 0, z);
     m.scale.setScalar(scale);
+    for (const c of standIn) e.root.remove(c);
     e.root.add(m);
-  }).catch(() => { /* model missing: the lot stays empty */ });
+    onSwap?.();
+  }).catch(() => { /* keep the procedural building */ });
 }
 
 function buildHouse(e: Entry, d: BuildingDef) {
-  if (d.id === 'house' && artStyle() === 'toon') {
-    attachModel(e, 'farmhouse', d.w / 2, d.h / 2 + 0.1, 0.95);
-    e.top = 2.6;
-    return;
-  }
   const g = e.root;
   const w = d.w, h = d.h, H = d.height * ZU;
   const cx = w / 2, cz = h / 2, ww = w - 0.5, dd = h - 0.5, y0 = 0.08;
@@ -2759,6 +2774,14 @@ function buildHouse(e: Entry, d: BuildingDef) {
     // while working the building chugs along with a gentle rhythm
     if (busy && t - beat > 1400) { beat = t; bump(e, 'work'); }
   };
+  if (d.id === 'house' && artStyle() === 'toon') {
+    swapInModel(e, 'farmhouse', cx, cz + 0.1, 0.95, () => {
+      // the model's chimney smokes; the stand in's smoke went away with it
+      const chimney = smoke(g, cx + 0.38, 2.3, cz - 0.15);
+      e.top = 2.35;
+      e.update = (_o, _now, t) => chimney(true, t);
+    });
+  }
 }
 
 // a framed window with a cross mullion, sill, shutters and an optional flower box.

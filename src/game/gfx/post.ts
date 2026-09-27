@@ -10,17 +10,19 @@ import { ShaderPass } from 'three/examples/jsm/postprocessing/ShaderPass.js';
 import { HorizontalTiltShiftShader } from 'three/examples/jsm/shaders/HorizontalTiltShiftShader.js';
 import { VerticalTiltShiftShader } from 'three/examples/jsm/shaders/VerticalTiltShiftShader.js';
 
-// Final color grade in display space: a little extra saturation and warmth, lifted shadows
-// and a soft vignette, for the bright storybook look of mobile farm games.
+// Final color grade in display space: extra saturation and warmth, vibrance that lifts the
+// muted colors (roofs, wood, stone) without pushing the already bright grass further, lifted
+// shadows and a soft vignette, for the bright storybook look of mobile farm games.
 const Grade = {
-  uniforms: { tDiffuse: { value: null }, uSat: { value: 1.12 }, uWarm: { value: 0.03 }, uVig: { value: 0.28 } },
+  uniforms: { tDiffuse: { value: null }, uSat: { value: 1.12 }, uVib: { value: 0.45 }, uWarm: { value: 0.03 }, uVig: { value: 0.28 } },
   vertexShader: `varying vec2 vUv; void main() { vUv = uv; gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0); }`,
   fragmentShader: `
-    uniform sampler2D tDiffuse; uniform float uSat; uniform float uWarm; uniform float uVig; varying vec2 vUv;
+    uniform sampler2D tDiffuse; uniform float uSat; uniform float uVib; uniform float uWarm; uniform float uVig; varying vec2 vUv;
     void main() {
       vec4 c = texture2D(tDiffuse, vUv);
       float l = dot(c.rgb, vec3(0.299, 0.587, 0.114));
-      c.rgb = mix(vec3(l), c.rgb, uSat);
+      float chroma = max(c.r, max(c.g, c.b)) - min(c.r, min(c.g, c.b));
+      c.rgb = mix(vec3(l), c.rgb, uSat + uVib * (1.0 - smoothstep(0.08, 0.55, chroma)));
       c.rgb += vec3(uWarm, uWarm * 0.4, -uWarm * 0.6);
       c.rgb = c.rgb * 0.97 + 0.03 * (1.0 - c.rgb) * c.rgb * 2.0;
       vec2 d = vUv - 0.5;

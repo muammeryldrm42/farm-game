@@ -115,7 +115,7 @@ def finish_and_export(path):
 
 
 def preview(path, size=640, cam_loc=(3.2, -3.6, 3.0), target=(0, 0, 0.6), lens=45):
-    """Render a quick Cycles preview with a sun and soft sky."""
+    """Render a quick Cycles preview with a sun and soft sky. Can be called again for more angles."""
     scn = bpy.context.scene
     scn.render.engine = 'CYCLES'
     scn.cycles.samples = 48
@@ -123,24 +123,26 @@ def preview(path, size=640, cam_loc=(3.2, -3.6, 3.0), target=(0, 0, 0.6), lens=4
     scn.render.resolution_x = size
     scn.render.resolution_y = size
     scn.render.filepath = path
-    world = bpy.data.worlds.new('w')
-    scn.world = world
-    world.use_nodes = True
-    world.node_tree.nodes['Background'].inputs['Color'].default_value = (0.55, 0.72, 0.9, 1)
-    world.node_tree.nodes['Background'].inputs['Strength'].default_value = 0.8
-    bpy.ops.object.light_add(type='SUN', rotation=(math.radians(50), math.radians(10), math.radians(35)))
-    bpy.context.active_object.data.energy = 3.5
-    bpy.ops.mesh.primitive_plane_add(size=12, location=(0, 0, 0))
-    g = bpy.context.active_object
-    g.data.materials.append(mat('ground', '#7cc043', 0.9))
-    bpy.ops.object.camera_add(location=cam_loc)
-    cam = bpy.context.active_object
+    cam = bpy.data.objects.get('preview_cam')
+    if cam is None:
+        world = bpy.data.worlds.new('w')
+        scn.world = world
+        world.use_nodes = True
+        world.node_tree.nodes['Background'].inputs['Color'].default_value = (0.55, 0.72, 0.9, 1)
+        world.node_tree.nodes['Background'].inputs['Strength'].default_value = 0.8
+        bpy.ops.object.light_add(type='SUN', rotation=(math.radians(50), math.radians(10), math.radians(35)))
+        bpy.context.active_object.data.energy = 3.5
+        bpy.ops.mesh.primitive_plane_add(size=12, location=(0, 0, 0))
+        bpy.context.active_object.data.materials.append(mat('ground', '#7cc043', 0.9))
+        bpy.ops.object.camera_add()
+        cam = bpy.context.active_object
+        cam.name = 'preview_cam'
+        scn.camera = cam
+    cam.location = cam_loc
     cam.data.lens = lens
     d = [target[i] - cam_loc[i] for i in range(3)]
     cam.rotation_euler = (math.atan2(math.hypot(d[0], d[1]), -d[2]), 0, math.atan2(d[1], d[0]) - math.pi / 2)
-    scn.camera = cam
     bpy.ops.render.render(write_still=True)
-
 
 def slab(name, corners, thick, material):
     """A flat quad (4 corners, counter clockwise seen from outside) given thickness along its normal."""
@@ -281,10 +283,12 @@ def join_all(name='model'):
     return ob
 
 
-def bake_and_export(ob, path, tex_size=2048, ao_samples=96, ao_dist=0.35, ao_min=0.42, jpeg=True):
+def bake_and_export(ob, path, tex_size=2048, ao_samples=96, ao_dist=0.35, ao_min=0.5, vivid=1.28, glow=(), jpeg=True):
     """Unwrap, bake the painted colors and ambient occlusion into one texture, then export the
     model with a single textured material. The baked soft contact shadows are what give hand
-    made game art its solid look."""
+    made game art its solid look. `vivid` boosts saturation so colors stay bright in the game,
+    and the materials named in `glow` (windows, lamps) are baked into an emission mask that the
+    game lights up at night."""
     import numpy as np
     scn = bpy.context.scene
     scn.render.engine = 'CYCLES'
@@ -299,7 +303,10 @@ def bake_and_export(ob, path, tex_size=2048, ao_samples=96, ao_dist=0.35, ao_min
     bpy.context.view_layer.objects.active = ob
     bpy.ops.object.mode_set(mode='EDIT')
     bpy.ops.mesh.select_all(action='SELECT')
-    bpy.ops.uv.smart_project(angle_limit=math.radians(60), island_margin=0.0015, scale_to_bounds=False)
+    bpy.ops.uv.smart_project(angle_limit=math.radians(60), island_margin=0.004, scale_to_bounds=False)
+    # even texel density everywhere, then a roomy pack so no island samples its neighbor
+    bpy.ops.uv.average_islands_scale()
+    bpy.ops.uv.pack_islands(margin=0.004, rotate=True)
     bpy.ops.object.mode_set(mode='OBJECT')
     imgs = {}
     for kind in ('albedo', 'ao'):
@@ -314,28 +321,50 @@ def bake_and_export(ob, path, tex_size=2048, ao_samples=96, ao_dist=0.35, ao_min
             nt.nodes.active = node
     target(imgs['albedo'])
     scn.cycles.samples = 4
-    bpy.ops.object.bake(type='DIFFUSE', pass_filter={'COLOR'}, margin=6, use_clear=True)
+    bpy.ops.object.bake(type='DIFFUSE', pass_filter={'COLOR'}, margin=12, margin_type='EXTEND', use_clear=True)
     target(imgs['ao'])
     scn.cycles.samples = ao_samples
     scn.world = scn.world or bpy.data.worlds.new('w')
     scn.world.light_settings.distance = ao_dist
-    bpy.ops.object.bake(type='AO', margin=6, use_clear=True)
+    bpy.ops.object.bake(type='AO', margin=12, margin_type='EXTEND', use_clear=True)
     a = np.array(imgs['albedo'].pixels[:]).reshape(-1, 4)
     o = np.array(imgs['ao'].pixels[:]).reshape(-1, 4)[:, :1]
     shade = ao_min + (1 - ao_min) * np.clip(o, 0, 1) ** 0.8
+    rgb = a[:, :3]
+    lum = (rgb * np.array([0.299, 0.587, 0.114])).sum(axis=1, keepdims=True)
+    rgb = lum + (rgb - lum) * vivid
     out = a.copy()
-    out[:, :3] = np.clip(a[:, :3] * shade, 0, 1)
+    out[:, :3] = np.clip(rgb * shade, 0, 1)
     final = bpy.data.images.new(f'{ob.name}_color', tex_size, tex_size, alpha=False)
     final.pixels[:] = out.ravel()
     final.file_format = 'JPEG' if jpeg else 'PNG'
-    # one material with the baked texture
+    mask = None
+    if glow:
+        # emission mask: white where the glowing materials are, black elsewhere
+        mask = bpy.data.images.new(f'{ob.name}_glow', tex_size // 2, tex_size // 2, alpha=False)
+        mask.file_format = 'JPEG' if jpeg else 'PNG'
+        for slot in ob.material_slots:
+            b = slot.material.node_tree.nodes['Principled BSDF']
+            on = slot.material.name in glow
+            b.inputs['Emission Color'].default_value = (1, 1, 1, 1) if on else (0, 0, 0, 1)
+            b.inputs['Emission Strength'].default_value = 1.0
+        target(mask)
+        scn.cycles.samples = 1
+        bpy.ops.object.bake(type='EMIT', margin=8, margin_type='EXTEND', use_clear=True)
+    # one material with the baked textures
     m = bpy.data.materials.new(f'{ob.name}_baked')
     m.use_nodes = True
     nt = m.node_tree
+    bsdf = nt.nodes['Principled BSDF']
     tn = nt.nodes.new('ShaderNodeTexImage')
     tn.image = final
-    nt.links.new(tn.outputs['Color'], nt.nodes['Principled BSDF'].inputs['Base Color'])
-    nt.nodes['Principled BSDF'].inputs['Roughness'].default_value = 0.8
+    nt.links.new(tn.outputs['Color'], bsdf.inputs['Base Color'])
+    bsdf.inputs['Roughness'].default_value = 0.8
+    if mask:
+        mn = nt.nodes.new('ShaderNodeTexImage')
+        mn.image = mask
+        nt.links.new(mn.outputs['Color'], bsdf.inputs['Emission Color'])
+        bsdf.inputs['Emission Strength'].default_value = 1.0
     ob.data.materials.clear()
     ob.data.materials.append(m)
     bpy.data.objects.remove(ground)
@@ -374,7 +403,7 @@ def obox(name, center, axes, dims, material, bev=0.006):
 
 
 def shingled_roof(name, cx, cy, z, length, span, rise, over, shingle_mats, base_mat, trim_mat=None, axis='x',
-                  rows=10, sw=0.13, base_thick=0.04, seed=1):
+                  rows=10, sw=0.13, base_thick=0.04, seed=1, rake_ends=(-1, 1), eave_trim=True):
     """A gable roof covered in staggered individual shingles. The ridge runs along `axis`; eaves sit
     at height z over a footprint `length` (along the ridge) by `span`, overhanging by `over`."""
     import random as _r
@@ -416,12 +445,27 @@ def shingled_roof(name, cx, cy, z, length, span, rise, over, shingle_mats, base_
                 x += w
                 i += 1
         if trim_mat:
-            fe = [eave[k] + u[k] * 0.02 + n[k] * 0.0 for k in range(3)]
-            obox(f'{name}eave{s}', fe, (ra, u, n), (2 * L + 0.02, 0.06, 0.07), trim_mat, bev=0.015)
-            for sx in (-1, 1):
+            if eave_trim:
+                fe = [eave[k] + u[k] * 0.02 + n[k] * 0.0 for k in range(3)]
+                obox(f'{name}eave{s}', fe, (ra, u, n), (2 * L + 0.02, 0.06, 0.07), trim_mat, bev=0.015)
+            for sx in rake_ends:
                 rc = [eave[k] + ra[k] * sx * (L + 0.01) + u[k] * run / 2 + n[k] * 0.01 for k in range(3)]
                 obox(f'{name}rake{s}{sx}', rc, (ra, u, n), (0.05, run + 0.02, 0.08), trim_mat, bev=0.015)
     # ridge cap
     top = [cx, cy, z + rise + 0.035]
     rc = V(0, 1, 0)
     obox(f'{name}ridge', top, (ra, rc, (0, 0, 1)), (2 * L + 0.04, 0.09, 0.07), shingle_mats[0], bev=0.02)
+
+
+def debug_false_colors(path, colors, cam_loc, target):
+    """Debug render: recolor the named materials in flat loud colors, so a stray speck on the model
+    can be traced to the part it belongs to. `colors` maps material name to an (r, g, b) tuple."""
+    for nm, col in colors.items():
+        m = bpy.data.materials.get(nm)
+        if not m:
+            continue
+        for n in list(m.node_tree.nodes):
+            if n.type in ('TEX_NOISE', 'TEX_WAVE', 'VALTORGB', 'MAPPING', 'TEX_COORD'):
+                m.node_tree.nodes.remove(n)
+        m.node_tree.nodes['Principled BSDF'].inputs['Base Color'].default_value = (*col, 1)
+    preview(path, cam_loc=cam_loc, target=target)
