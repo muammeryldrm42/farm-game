@@ -21,7 +21,7 @@ import { SCULPT_MAT, TOON_MAT, TOON_WOOL, WOOL_MAT } from './gfx/sdf';
 import { leafShell, leafTexture, meterBox, meterHip, meterRoof, surface, surfaceMat, type SurfaceKind } from './gfx/textures';
 import { ANIMAL, BUILDING, CROP, ITEMS, type BuildingDef, type CropDef } from './data';
 import {
-  CHUNK, FISH_SPOT, GRAZE, GRID, MAP_OFF, NCH, animalReady, fishingInfo, boatState, canFulfill, chunkState, grazePhase, penInfo, plotProgress, prodInfo, treeInfo,
+  CHUNK, FARM_OFF, FISH_SPOT, GRAZE, GRID, MAP_OFF2, NCH, animalReady, fishingInfo, boatState, canFulfill, chunkState, grazePhase, penInfo, plotProgress, prodInfo, treeInfo,
   type Animal, type FarmObject, type GameStore,
 } from './state';
 
@@ -406,11 +406,11 @@ function dropDown(src: THREE.Object3D, delay = 0) {
 
 const HIT_MAT = new THREE.MeshBasicMaterial({ visible: false });
 // middle of the starting farm
-const FARM_C = { x: 13.5 + MAP_OFF, y: 11.5 + MAP_OFF };
+const FARM_C = { x: 13.5 + FARM_OFF, y: 11.5 + FARM_OFF };
 // the beach round the island reaches BEACH tiles out; on the west side the turtle cove bulges
 // out much further, an ellipse centred at (x, z) with half widths rx, rz
 const BEACH = 1.2;
-const COVE = { x: -0.4, z: 15, rx: 4.4, rz: 8 };
+const COVE = { x: -0.4, z: 15 + MAP_OFF2, rx: 4.4, rz: 8 };
 // x of the cove's waterline at depth z (0 where there is no cove)
 function coveEdge(z: number) {
   const u = (z - COVE.z) / COVE.rz;
@@ -705,8 +705,10 @@ export class Renderer {
   }
 
   clampCam() {
-    this.target.x = clamp(this.target.x, -1, GRID + 1);
-    this.target.z = clamp(this.target.z, -1, GRID + 1);
+    // a little past the shore all round, further on the west for the turtle cove and on the
+    // south for the fishing jetty
+    this.target.x = clamp(this.target.x, -COVE.rx - 1, GRID + 1);
+    this.target.z = clamp(this.target.z, -1, GRID + 3);
   }
 
   panStart(sx: number, sy: number) {
@@ -3438,6 +3440,7 @@ function buildPen(e: Entry, d: BuildingDef) {
     keep(bxT(g, w - 0.1, 0.04, h - 0.1, dirt ? 'soil' : 'grass', PEN_GROUND[d.id] ?? d.wall, w / 2, 0, h / 2, dirt ? 1.5 : 0.8, false));
   }
   if (d.id !== 'beehive') fence(g, w, h, WHITE_FENCE.has(d.id));
+  const firstScenery = g.children.length;
   e.top = 0.9;
   switch (d.id) {
     case 'coop': case 'orpington_coop': case 'brahma_coop': case 'polish_coop': case 'leghorn_coop': case 'rhode_coop': case 'wyandotte_coop': case 'marans_coop':
@@ -3645,6 +3648,15 @@ function buildPen(e: Entry, d: BuildingDef) {
       bxT(g, 0.5, 0.25, 0.35, 'thatch', '#e2c15a', 0.55, 0.04, 0.5, 3);
     }
   }
+  // the wide pens are 3 x 2: their shelters, ponds and props are laid out as for 3 x 3 and pressed
+  // into the shallower yard, like the Blender models
+  if (w === 3 && h === 2) {
+    for (let i = firstScenery; i < g.children.length; i++) {
+      const c = g.children[i];
+      c.position.z *= h / 3;
+      c.scale.z *= h / 3;
+    }
+  }
   if (!['beehive', 'duck_pond', 'goose_pen', 'peacock_garden', 'swan_lake', 'flamingo_lagoon', 'golden_nest', 'mandarin_pond', 'black_swan_lake', 'silk_house', 'parrot_aviary', 'owl_barn', 'kiwi_burrow', 'squirrel_grove', 'crane_marsh', 'heron_marsh', 'pekin_pond', 'toulouse_pen', 'runner_pen', 'white_peacock_garden', 'campbell_pond', 'call_duck_pond', 'emden_pen'].includes(d.id)) {
     bx(g, 0.55, 0.12, 0.18, '#8a5a2b', w - 0.55, 0.04, h - 0.35);
     bx(g, 0.47, 0.03, 0.12, '#e2c15a', w - 0.55, 0.14, h - 0.35, false);
@@ -3737,7 +3749,7 @@ function buildPen(e: Entry, d: BuildingDef) {
         const u = hash(id, 1, 3);
         const ang = t / (4200 + u * 2000) + id * 1.7;
         const r = 0.3 + u * 0.35;
-        m.position.set(1.7 + Math.cos(ang) * r, 0.08 + Math.sin(t / 400 + id) * 0.01 + jump * 0.5, 1.7 + Math.sin(ang) * r);
+        m.position.set(1.7 + Math.cos(ang) * r, 0.08 + Math.sin(t / 400 + id) * 0.01 + jump * 0.5, (1.7 + Math.sin(ang) * r) * (d.h / 3));
         m.rotation.y = Math.atan2(-Math.sin(ang), Math.cos(ang));
         m.rotation.z = Math.sin(t / 520 + id) * 0.06;
         blink(m, t, id);

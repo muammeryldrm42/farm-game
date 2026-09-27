@@ -31,6 +31,7 @@ import {
   storageUsed,
   todayKey,
   upgradeCost,
+  upgradeStep,
   NAP_MS,
   restBonus,
   waterInfo,
@@ -1023,7 +1024,7 @@ function StorageModal() {
           <Bar p={used / cap} color={used >= cap ? '#e0533d' : used / cap > 0.8 ? '#f5b92b' : '#5cb82e'} />
         </div>
         <button className="btn btn-wood" onClick={() => store.upgradeStorage(k)} disabled={s.coins < cost}>
-          Upgrade +25 <Coins n={cost} />
+          Upgrade +{upgradeStep(lvl)} <Coins n={cost} />
         </button>
       </div>
       {items.length === 0 ? (

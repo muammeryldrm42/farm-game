@@ -2,9 +2,13 @@
 import { ANIMAL, BUILDING, BUILDINGS, CATCHES, CROP, ITEMS, ITEM_LIST, RECIPE, type BuildingDef } from './data';
 import { isRaining } from './weather';
 
-export const GRID = 44;
-// older saves were made on a 28 tile map; their farm is moved by this many tiles to the new center
+export const GRID = 60;
+// the map grew twice, from 28 to 44 tiles and then to 60; each time older farms are moved by
+// this many tiles so they stay in the middle
 export const MAP_OFF = 8;
+export const MAP_OFF2 = 8;
+// where the starting layout (written for the first 28 tile map) sits on today's map
+export const FARM_OFF = MAP_OFF + MAP_OFF2;
 export const CHUNK = 4;
 export const NCH = GRID / CHUNK;
 export const SAVE_KEY = 'talons-farm-save-v1';
@@ -75,10 +79,15 @@ export interface GameState {
 // ---------------------------------------------------------------- helpers
 
 export const xpNeed = (level: number) => Math.floor(15 * Math.pow(level, 1.6)) + 5;
-export const siloCap = (s: GameState) => 50 + s.siloLevel * 25;
-export const barnCap = (s: GameState) => 50 + s.barnLevel * 25;
+// Each storage upgrade adds more room than the one before (+25, +30, +35 ...), so a well
+// upgraded silo keeps up with the hundreds of goods the later levels bring.
+export const upgradeStep = (lvl: number) => 25 + 5 * lvl;
+export const capAt = (lvl: number) => 50 + 25 * lvl + (5 * lvl * (lvl - 1)) / 2;
+export const siloCap = (s: GameState) => capAt(s.siloLevel);
+export const barnCap = (s: GameState) => capAt(s.barnLevel);
 export const storageCap = (s: GameState, k: 'silo' | 'barn') => (k === 'silo' ? siloCap(s) : barnCap(s));
-export const upgradeCost = (lvl: number) => Math.round((150 * Math.pow(1.55, lvl)) / 10) * 10;
+// the price climbs steeply at first, then steadily, so big storage stays in reach late in the game
+export const upgradeCost = (lvl: number) => Math.round((150 * Math.pow(1.5, Math.min(lvl, 12)) + Math.max(0, lvl - 12) * 30000) / 10) * 10;
 export const gemCost = (ms: number) => Math.max(1, Math.ceil(ms / 60000));
 export const slotCost = (slots: number) => 4 + (slots - 3) * 3;
 export const MAX_SLOTS = 7;
@@ -427,7 +436,7 @@ export function newGame(): GameState {
   for (let i = 0; i < orderCount(1); i++) s.orders.push(genOrder(s, now));
   // first order is always doable with starting wheat, for the tutorial
   s.orders[0] = { ...s.orders[0], items: [{ id: 'wheat', qty: 6 }], coins: 30, xp: 5, gems: 0 };
-  shiftMap(s);
+  shiftMap(s, FARM_OFF, 3);
   return s;
 }
 
@@ -457,14 +466,14 @@ function dropRemoved(s: GameState) {
 }
 
 // Moves a farm laid out on the old 28 tile map to the middle of the current map.
-function shiftMap(s: GameState) {
-  const cs = MAP_OFF / CHUNK;
-  s.objects = s.objects.map((o) => ({ ...o, x: o.x + MAP_OFF, y: o.y + MAP_OFF }));
+function shiftMap(s: GameState, off: number, v: number) {
+  const cs = off / CHUNK;
+  s.objects = s.objects.map((o) => ({ ...o, x: o.x + off, y: o.y + off }));
   s.chunks = s.chunks.map((k) => {
     const [x, y] = k.split(',').map(Number);
     return `${x + cs},${y + cs}`;
   });
-  s.mapV = 2;
+  s.mapV = v;
 }
 
 export function loadGame(): GameState {
@@ -504,7 +513,8 @@ function migrate(d: Partial<GameState>): GameState {
   // saves from before the tutorial existed skip it
   s.tutorial = typeof d.tutorial === 'number' ? d.tutorial : TUTORIAL_DONE;
   if (!Array.isArray(s.objects) || !Array.isArray(s.chunks)) return base;
-  if ((d.mapV ?? 1) < 2) shiftMap(s);
+  if ((d.mapV ?? 1) < 2) shiftMap(s, MAP_OFF, 2);
+  if ((s.mapV ?? 1) < 3) shiftMap(s, MAP_OFF2, 3);
   dropRemoved(s);
   s.objects = s.objects.filter((o) => BUILDING[o.type]);
   return s;

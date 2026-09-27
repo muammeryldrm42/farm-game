@@ -11,7 +11,9 @@ By Talons Protocol.
 - Wind blown instanced grass and wild flowers, animated water with shallows and surf, gradient sky with stars
 - ACES tone mapping, soft shadows, ambient occlusion (GTAO) and bloom for night lights
 - Harvest, planting, production, animal and tree animations
-- A bigger 44 x 44 island (older saves are moved to the middle automatically)
+- A bigger 60 x 60 island with room for every workshop, pen and tree (older saves are moved to the middle automatically)
+- Storage upgrades that grow as you go: each silo or barn upgrade adds 5 more room than the one before
+- Compact 3 x 2 pens for the big animals
 - Fishing spot off the south shore: cast a line, wait for a bite, reel in fish and lobsters
 - Manor for the farmer; tap free land to walk the farmer and dog there, at night they go home to sleep
 - Butterflies, gulls, leaping fish and a sailboat on the horizon
