@@ -8,6 +8,7 @@ uniform float uTime;
 uniform vec3 uShallow;
 uniform vec3 uDeep;
 uniform vec4 uRect;
+uniform vec4 uCove;
 uniform float uSea;
 uniform float uScale;
 varying vec3 vWPos;
@@ -38,7 +39,7 @@ float sdRect(vec2 p, vec4 r) {
 }
 `;
 
-export interface WaterOpts { sea?: boolean; shallow?: string; deep?: string; rect?: [number, number, number, number]; scale?: number }
+export interface WaterOpts { sea?: boolean; shallow?: string; deep?: string; rect?: [number, number, number, number]; cove?: [number, number, number, number]; scale?: number }
 
 export function makeWater(o: WaterOpts = {}) {
   const m = new THREE.MeshStandardMaterial({ color: '#ffffff', roughness: 0.14, metalness: 0.0, envMapIntensity: 1.15 });
@@ -47,6 +48,7 @@ export function makeWater(o: WaterOpts = {}) {
     uShallow: { value: new THREE.Color(o.shallow ?? '#5fd4d0') },
     uDeep: { value: new THREE.Color(o.deep ?? '#2a86c9') },
     uRect: { value: new THREE.Vector4(...(o.rect ?? [0, 0, 1, 1])) },
+    uCove: { value: new THREE.Vector4(...(o.cove ?? [0, 0, 0.001, 0.001])) },
     uSea: { value: o.sea ? 1 : 0 },
     uScale: { value: o.scale ?? 1 },
   };
@@ -74,6 +76,8 @@ float foam = 0.0;
 float wt = uTime;
 if (uSea > 0.5) {
   float d = sdRect(vWPos.xz, uRect);
+  // the turtle cove: an elliptical sandy bay off the west shore
+  d = min(d, (length((vWPos.xz - uCove.xy) / uCove.zw) - 1.0) * min(uCove.z, uCove.w) * 0.55);
   float shallow = exp(-max(d, 0.0) * 0.42);
   vec3 wcol = mix(uDeep, uShallow, shallow);
   float n = wNoise(vWPos.xz * 1.3 + wt * 0.2);

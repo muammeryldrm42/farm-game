@@ -407,6 +407,24 @@ function dropDown(src: THREE.Object3D, delay = 0) {
 const HIT_MAT = new THREE.MeshBasicMaterial({ visible: false });
 // middle of the starting farm
 const FARM_C = { x: 13.5 + MAP_OFF, y: 11.5 + MAP_OFF };
+// the beach round the island reaches BEACH tiles out; on the west side the turtle cove bulges
+// out much further, an ellipse centred at (x, z) with half widths rx, rz
+const BEACH = 1.2;
+const COVE = { x: -0.4, z: 15, rx: 4.4, rz: 8 };
+// x of the cove's waterline at depth z (0 where there is no cove)
+function coveEdge(z: number) {
+  const u = (z - COVE.z) / COVE.rz;
+  return Math.abs(u) >= 1 ? -BEACH : Math.min(-BEACH, COVE.x - COVE.rx * Math.sqrt(1 - u * u));
+}
+// height of the sand in the cove: level with the beach up top, sloping gently into the sea
+function sandY(x: number, z: number) {
+  const e = Math.hypot((x - COVE.x) / COVE.rx, (z - COVE.z) / COVE.rz);
+  if (x > -BEACH + 0.1) return -0.21;
+  const top = -0.21, water = -0.52;
+  if (e < 1) return lerpN(top, water, Math.pow(Math.max(0, (e - 0.3) / 0.7), 1.4));
+  return lerpN(water, -0.8, (e - 1) * 4);
+}
+
 // where the fruit hangs on trees whose crown is not the usual round one: crown centre height and
 // radius, or a ring round the trunk (papaya, jackfruit), plus the fruit size
 const TREE_FORM: Record<string, { cy: number; r: number; h?: number; trunk?: boolean; size?: number }> = {
@@ -468,6 +486,7 @@ export class Renderer {
   private sea!: THREE.Mesh;
   private fishing!: ReturnType<typeof buildFishingSpot>;
   private life!: Life;
+  private turtles!: TurtleBeach;
   private fishBubble: THREE.Sprite | null = null;
   private sky = new Sky();
   private foliage = new Foliage();
@@ -522,6 +541,7 @@ export class Renderer {
     this.fishing = buildFishingSpot();
     this.scene.add(this.fishing.root);
     this.life = new Life(this.scene);
+    this.turtles = new TurtleBeach(this.scene);
     this.sel = this.buildSelection();
     // start fetching the Blender models right away, so they are usually in before the farm shows
     if (artStyle() === 'toon') {
@@ -728,7 +748,7 @@ export class Renderer {
 
   private buildSea() {
     // island rectangle including the beach, used for shallow water and surf
-    const seaMat = makeWater({ sea: true, rect: [-0.75, -0.75, GRID + 0.75, GRID + 0.75], shallow: '#62d9d2', deep: '#1f78c2' });
+    const seaMat = makeWater({ sea: true, rect: [-BEACH, -BEACH, GRID + BEACH, GRID + BEACH], shallow: '#62d9d2', deep: '#1f78c2', cove: [COVE.x, COVE.z, COVE.rx, COVE.rz] });
     // finely divided near the island so the swell can move the surface, flat far away
     this.sea = new THREE.Mesh(new THREE.PlaneGeometry(GRID + 60, GRID + 60, 180, 180), seaMat);
     this.sea.rotation.x = -Math.PI / 2;
@@ -747,13 +767,14 @@ export class Renderer {
     soil.receiveShadow = true;
     isl.add(soil);
     const sand = surfaceMat('sand', '#ecd49a', 1.5, 0.95);
-    for (const [w, h, y] of [[GRID + 1.4, 0.34, -0.72], [GRID + 0.9, 0.2, -0.4]] as const) {
+    for (const [w, h, y] of [[GRID + BEACH * 2 - 0.1, 0.34, -0.72], [GRID + BEACH * 2 - 0.9, 0.2, -0.4]] as const) {
       const m = new THREE.Mesh(meterBox(w, h, w), sand);
       m.position.set(GRID / 2, y + h / 2, GRID / 2);
       m.receiveShadow = true;
       isl.add(m);
     }
 
+    this.buildCove(sand);
     this.buildShore();
 
     const grass = new THREE.MeshStandardMaterial({ color: '#ffffff', roughness: 0.95, ...surface('grass') });
@@ -806,10 +827,10 @@ export class Renderer {
     const edge = (i: number, k: number) => {
       // walk the four sides of the island
       const side = i % 4, t = hash(i, 1, 21) * (GRID + 1.2) - 0.6;
-      const out = 0.35 + hash(i, 2, 21) * k;
+      const out = BEACH - 0.4 + hash(i, 2, 21) * k;
       if (side === 0) return [t, -out];
       if (side === 1) return [t, GRID + out];
-      if (side === 2) return [-out, t];
+      if (side === 2) return [coveEdge(t) < -BEACH - 0.5 ? coveEdge(t) - 0.7 - hash(i, 2, 21) * k * 1.5 : -out, t];
       return [GRID + out, t];
     };
     for (let i = 0; i < 150; i++) {
@@ -851,6 +872,53 @@ export class Renderer {
       sm.rotation.y = hash(i, 9, 21) * 6;
       sm.receiveShadow = true;
       this.land.add(sm);
+    }
+  }
+
+  // The turtle beach: a wide sandy cove bulging out of the west shore, dry and pale up top and
+  // darker where the waves wet it. Sea turtles come up here to nest (see TurtleBeach).
+  private buildCove(sand: THREE.Material) {
+    const x0 = COVE.x - COVE.rx - 1.6, x1 = 0.2, z0 = COVE.z - COVE.rz - 1.2, z1 = COVE.z + COVE.rz + 1.2;
+    const geo = new THREE.PlaneGeometry(x1 - x0, z1 - z0, 70, 120);
+    geo.rotateX(-Math.PI / 2);
+    geo.translate((x0 + x1) / 2, 0, (z0 + z1) / 2);
+    const pos = geo.getAttribute('position') as THREE.BufferAttribute;
+    const col = new Float32Array(pos.count * 3);
+    for (let i = 0; i < pos.count; i++) {
+      const x = pos.getX(i), z = pos.getZ(i);
+      const y = sandY(x, z);
+      pos.setY(i, y);
+      // wet sand from just above the waterline down
+      const wet = THREE.MathUtils.smoothstep(-y, 0.43, 0.5);
+      const k = 1 - wet * 0.22 + (hash(Math.floor(x * 9), Math.floor(z * 9), 5) - 0.5) * 0.04;
+      col[i * 3] = k; col[i * 3 + 1] = k * (1 - wet * 0.03); col[i * 3 + 2] = k * (1 - wet * 0.06);
+    }
+    geo.setAttribute('color', new THREE.BufferAttribute(col, 3));
+    geo.computeVertexNormals();
+    const mat = (sand as THREE.MeshStandardMaterial).clone();
+    mat.vertexColors = true;
+    const m = new THREE.Mesh(geo, mat);
+    m.receiveShadow = true;
+    this.land.add(m);
+    // driftwood, shells and a few dune grass tufts up by the grass line
+    const drift = surfaceMat('bark', '#a89478', 3);
+    for (let i = 0; i < 4; i++) {
+      const z = COVE.z + (hash(i, 1, 33) - 0.5) * COVE.rz * 1.3, x = coveEdge(z) * (0.35 + hash(i, 2, 33) * 0.25);
+      const d = mk(this.land, cylGeo(0.055, 0.07, 7), drift, 1, 0.5 + hash(i, 3, 33) * 0.4, 1, x, sandY(x, z) + 0.03, z);
+      d.rotation.set(Math.PI / 2, 0, hash(i, 4, 33) * 3);
+    }
+    for (let i = 0; i < 18; i++) {
+      const z = COVE.z + (hash(i, 5, 33) - 0.5) * COVE.rz * 1.6, x = coveEdge(z) * (0.2 + hash(i, 6, 33) * 0.6);
+      mk(this.land, G.ball, M(['#f4e6d4', '#f2c6b0', '#e8d0e0'][i % 3]), 0.025, 0.012, 0.03, x, sandY(x, z) + 0.006, z, false);
+    }
+    const tuft = M('#8aa84a');
+    for (let i = 0; i < 26; i++) {
+      const z = COVE.z + (hash(i, 7, 33) - 0.5) * COVE.rz * 1.7, x = -1.1 - hash(i, 8, 33) * 1.2;
+      if (x < coveEdge(z) + 1) continue;
+      for (let k = 0; k < 4; k++) {
+        const b = mk(this.land, cylGeo(0, 0.012, 4), tuft, 1, 0.16 + hash(i, k, 34) * 0.1, 1, x + k * 0.02, sandY(x, z), z + (k % 2) * 0.02, false);
+        b.rotation.set((k - 1.5) * 0.3, 0, (k % 2 - 0.5) * 0.4);
+      }
     }
   }
 
@@ -1148,6 +1216,7 @@ export class Renderer {
     this.updateClouds(dt);
     this.updateFishing(t, now);
     this.life.update(dt, t, this.nightNow(now), this.target);
+    this.turtles.update(t);
     this.followSun();
     const wk = this.updateWeather(dt, now);
     this.updateLight(now, t, wk);
@@ -4671,6 +4740,181 @@ function buildManor(e: Entry, d: BuildingDef) {
 }
 
 // ------------------------------------------------------------------ ambient life
+// ------------------------------------------------------------------ turtle beach
+// Loggerhead sea turtles (Blender models, tools/blender/turtle.py) nest in the cove on their own:
+// a mother swims in, hauls herself up the sand, digs a pit, lays her eggs, covers them and goes
+// back to the sea. Later the hatchlings dig out and scramble down to the water. Nobody tends
+// them; everything is a pure function of time, like the rest of the scenery.
+const TURTLE_CYCLE = 270; // seconds between one mother's visits
+const TURTLE_MOTHERS = 3;
+const lerpN = (a: number, b: number, u: number) => a + (b - a) * Math.max(0, Math.min(1, u));
+const ease = (u: number) => { const k = Math.max(0, Math.min(1, u)); return k * k * (3 - 2 * k); };
+
+interface TurtleRig { g: THREE.Group; body: THREE.Group; head?: THREE.Object3D; flips: THREE.Object3D[] }
+function turtleRig(kind: 'sea_turtle' | 'turtle_hatchling', scale: number): TurtleRig {
+  const g = new THREE.Group();
+  const body = new THREE.Group();
+  g.add(body);
+  const rig: TurtleRig = { g, body, flips: [] };
+  // a simple stand in until the Blender model is in
+  const shell = kind === 'sea_turtle' ? '#9a4a20' : '#4a3a2e', skin = kind === 'sea_turtle' ? '#c08a44' : '#4e4034';
+  mk(body, G.ball, M(shell), 0.15, 0.06, 0.19, 0, 0.08, 0);
+  mk(body, G.ball, M(skin), 0.05, 0.04, 0.06, 0, 0.08, 0.22);
+  for (const [x, z] of [[-0.18, 0.1], [0.18, 0.1], [-0.12, -0.14], [0.12, -0.14]]) {
+    const f = group(body, x * 0.6, 0.06, z);
+    mk(f, G.ball, M(skin), 0.1, 0.015, 0.035, x * 0.5, 0, 0);
+    rig.flips.push(f);
+  }
+  body.scale.setScalar(scale);
+  if (artStyle() === 'toon') {
+    loadModel(kind).then((m) => {
+      const c = m.clone();
+      body.clear();
+      body.add(c);
+      rig.head = c.getObjectByName('head') ?? undefined;
+      rig.flips = [0, 1, 2, 3].map((i) => c.getObjectByName(`flip${i}`)).filter((o): o is THREE.Object3D => !!o);
+    }).catch(() => {});
+  }
+  return rig;
+}
+
+// animate the flippers: `mode` swim (front paddles beat together) or crawl (diagonal pairs row)
+function turtleStroke(r: TurtleRig, mode: 'swim' | 'crawl' | 'dig' | 'rest', ph: number, amt = 1) {
+  const s = Math.sin(ph);
+  r.flips.forEach((f, i) => {
+    const side = i % 2 ? 1 : -1, front = i < 2;
+    f.rotation.set(0, 0, 0);
+    if (mode === 'swim') {
+      if (front) { f.rotation.z = side * s * 0.55 * amt; f.rotation.y = -side * Math.cos(ph) * 0.25 * amt; }
+      else f.rotation.y = side * s * 0.25 * amt;
+    } else if (mode === 'crawl') {
+      const pair = (i === 0 || i === 3) ? 1 : -1;
+      f.rotation.y = side * pair * s * 0.45 * amt;
+    } else if (mode === 'dig') {
+      if (!front) { f.rotation.y = side * Math.sin(ph + (side > 0 ? Math.PI : 0)) * 0.7; f.rotation.z = side * 0.3; }
+    }
+  });
+}
+
+class TurtleBeach {
+  private mothers: { rig: TurtleRig; nest: THREE.Group; eggs: THREE.Mesh[]; pit: THREE.Mesh; mound: THREE.Mesh; spray: THREE.Mesh[]; babies: TurtleRig[] }[] = [];
+
+  constructor(scene: THREE.Scene) {
+    const egg = M('#f6f2e8'), pitM = M('#b89a62'), moundM = M('#e2c88a');
+    for (let i = 0; i < TURTLE_MOTHERS; i++) {
+      const rig = turtleRig('sea_turtle', 1.3);
+      const nest = new THREE.Group();
+      const pit = mk(nest, cylGeo(0.13, 0.1, 14), pitM, 1, 0.01, 1, 0, 0.004, 0, false);
+      const eggs: THREE.Mesh[] = [];
+      for (let k = 0; k < 14; k++) {
+        const a = k * 2.4, r = Math.sqrt((k + 0.5) / 14) * 0.08;
+        eggs.push(mk(nest, G.ball, egg, 0.022, 0.022, 0.022, Math.cos(a) * r, 0.01 + (k % 3) * 0.01, Math.sin(a) * r, false));
+      }
+      const mound = mk(nest, G.ball, moundM, 0.2, 0.05, 0.2, 0, 0, 0, false);
+      const spray: THREE.Mesh[] = [];
+      for (let k = 0; k < 8; k++) spray.push(mk(nest, G.ball, moundM, 0.012, 0.012, 0.012, 0, 0, 0, false));
+      const babies: TurtleRig[] = [];
+      for (let k = 0; k < 9; k++) { const b = turtleRig('turtle_hatchling', 0.32); babies.push(b); scene.add(b.g); }
+      scene.add(rig.g, nest);
+      this.mothers.push({ rig, nest, eggs, pit, mound, spray, babies });
+    }
+  }
+
+  update(t: number) {
+    const now = t / 1000;
+    this.mothers.forEach((mo, i) => {
+      const cyc = now / TURTLE_CYCLE + i / TURTLE_MOTHERS;
+      const n = Math.floor(cyc), p = (cyc - n) * TURTLE_CYCLE;
+      // this visit's nest site on the dry upper beach, and where she meets the water
+      const nz = COVE.z + (hash(i, n, 71) - 0.5) * COVE.rz * 1.1;
+      const edge = coveEdge(nz);
+      const nx = lerpN(-1.2, edge, 0.4 + hash(n, i, 72) * 0.15);
+      const wx = edge - 0.25, far = edge - 4.5;
+      const place = (r: TurtleRig, x: number, z: number, heading: number, sink = 0) => {
+        r.g.position.set(x, Math.max(sandY(x, z), -0.6) - sink, z);
+        r.g.rotation.set(0, heading, 0);
+      };
+      const toLand = Math.PI / 2, toSea = -Math.PI / 2;
+      const m = mo.rig;
+      m.g.visible = p < 140;
+      m.body.rotation.set(0, 0, 0);
+      if (p < 18) {
+        // swimming in: shell awash, front flippers beating
+        const x = lerpN(far, wx, p / 18);
+        place(m, x, nz + Math.sin(p * 0.3) * 0.2, toLand);
+        m.g.position.y = -0.6;
+        turtleStroke(m, 'swim', now * 3);
+      } else if (p < 48) {
+        // hauling herself up the sand in heavy lurches, pausing to rest
+        const u = (p - 18) / 30, lurch = u + Math.sin(u * 40) * 0.006;
+        place(m, lerpN(wx, nx, lurch), nz, toLand);
+        turtleStroke(m, Math.sin(p * 0.7) > -0.6 ? 'crawl' : 'rest', now * 2.6);
+      } else if (p < 92) {
+        // digging the pit with her rear flippers, laying, then sweeping sand back over it
+        place(m, nx, nz, toLand);
+        m.body.rotation.x = -0.12;
+        turtleStroke(m, p < 60 || p > 80 ? 'dig' : 'rest', now * 3);
+      } else if (p < 96) {
+        place(m, nx, nz, lerpN(toLand, toLand + Math.PI, (p - 92) / 4));
+        turtleStroke(m, 'crawl', now * 2.6);
+      } else if (p < 124) {
+        const u = (p - 96) / 28;
+        place(m, lerpN(nx, wx, u + Math.sin(u * 40) * 0.006), nz, toSea);
+        turtleStroke(m, Math.sin(p * 0.7) > -0.6 ? 'crawl' : 'rest', now * 2.6);
+      } else {
+        const u = (p - 124) / 16;
+        place(m, lerpN(wx, far, u), nz, toSea);
+        m.g.position.y = -0.6 - ease(u) * 0.3;
+        turtleStroke(m, 'swim', now * 3);
+      }
+      if (m.head) m.head.rotation.x = p > 48 && p < 92 ? 0.15 + Math.sin(now * 0.8) * 0.05 : Math.sin(now * 1.3) * 0.08;
+
+      // the nest: the pit and her eggs while she lays, a smooth mound after, a crater once hatched
+      const nestP = p;
+      const hatchAt = 205;
+      mo.nest.visible = nestP > 56 && nestP < 255;
+      const ny = sandY(nx, nz);
+      mo.nest.position.set(nx, ny, nz - 0.0);
+      const behind = -0.4; // the nest sits just behind her tail
+      mo.nest.position.x = nx + behind;
+      const laid = Math.floor(ease((nestP - 62) / 16) * mo.eggs.length);
+      mo.eggs.forEach((e, k) => { e.visible = nestP < 84 && k < laid; });
+      mo.pit.visible = nestP < 86 || nestP > hatchAt;
+      mo.mound.visible = nestP >= 84 && nestP < hatchAt + 6;
+      mo.mound.scale.y = 0.05 * (nestP < hatchAt ? 1 : 1 - (nestP - hatchAt) / 6);
+      mo.spray.forEach((s, k) => {
+        const on = (nestP > 56 && nestP < 62) || (nestP > 80 && nestP < 92) || (nestP > hatchAt - 3 && nestP < hatchAt + 2);
+        s.visible = on;
+        if (!on) return;
+        const u = ((now * 1.7 + k * 0.13) % 1);
+        const a = k * 0.8 + (k % 2) * Math.PI;
+        s.position.set(Math.cos(a) * u * 0.3 - 0.05, Math.sin(u * Math.PI) * 0.15, Math.sin(a) * u * 0.3);
+      });
+
+      // hatchlings: out of the sand one after another, racing down to the surf and swimming off
+      mo.babies.forEach((b, k) => {
+        const t0 = hatchAt + k * 1.2 + hash(k, n, 73) * 2;
+        const q = nestP - t0;
+        b.g.visible = q > 0 && q < 26;
+        if (!b.g.visible) return;
+        const dz = (hash(k, n, 74) - 0.5) * 1.2, wob = Math.sin(q * 3 + k) * 0.08;
+        const sx = nx + behind, sz = nz;
+        const run = Math.min(1, q / (12 + hash(k, n, 75) * 4));
+        const x = lerpN(sx, wx - 0.3, run), z = sz + dz * run + wob * (run < 1 ? 1 : 0);
+        const heading = toSea + Math.atan2(dz, Math.abs(wx - sx)) * -1 + wob * 1.5;
+        if (q < 1) { place(b, sx, sz, heading, 0.05 * (1 - q)); turtleStroke(b, 'dig', now * 8); }
+        else if (run < 1) { place(b, x, z, heading); turtleStroke(b, 'crawl', now * 9); }
+        else {
+          const u = (q - 12 - hash(k, n, 75) * 4) / 8;
+          place(b, lerpN(wx - 0.3, wx - 2.5, u), z, heading);
+          b.g.position.y = -0.58 - Math.max(0, u - 0.5) * 0.3;
+          turtleStroke(b, 'swim', now * 10);
+        }
+      });
+    });
+  }
+}
+
 // Butterflies over the grass, gulls circling above the shore, fish leaping in the sea and a
 // sailboat drifting on the horizon. Purely cosmetic.
 
