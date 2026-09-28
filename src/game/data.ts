@@ -1056,8 +1056,8 @@ recipe('hot_chili', 'bbq_grill', { chili: 3, tomato: 2, potato: 1 }, 300, 16, 15
 
 recipe('fish', 'fishing_pier', { corn: 2 }, 120, 5, 7);
 
-recipe('quill', 'workshop', { gobbler_feather: 2 }, 240, 11, 10);
-recipe('soap', 'workshop', { donkey_milk: 1, lemon: 1 }, 300, 13, 13);
+recipe('quill', 'loom', { gobbler_feather: 2 }, 240, 11, 10);
+recipe('soap', 'dairy', { donkey_milk: 1, lemon: 1 }, 300, 13, 13);
 recipe('feather_fan', 'workshop', { peacock_feather: 2, cotton: 1 }, 360, 17, 17);
 recipe('mozzarella', 'dairy', { buffalo_milk: 2 }, 270, 13, 15);
 recipe('big_omelette', 'bbq_grill', { ostrich_egg: 1, onion: 1, bell_pepper: 1 }, 330, 18, 19);
@@ -1079,10 +1079,10 @@ recipe('roast_veggies', 'bbq_grill', { zucchini: 1, sweet_potato: 1, beet: 1 }, 
 recipe('quail_quiche', 'bakery', { quail_egg: 3, spinach: 1, wheat: 1 }, 240, 12, 9);
 recipe('yak_blanket', 'loom', { yak_wool: 2 }, 390, 19, 18);
 recipe('camel_cheese', 'dairy', { camel_milk: 2 }, 360, 19, 20);
-recipe('bouquet', 'florist', { rose: 2, tulip: 2, sunflower: 1 }, 240, 12, 11);
-recipe('lavender_sachet', 'florist', { lavender: 2, cotton: 1 }, 270, 13, 12);
+recipe('bouquet', 'florist', { rose: 3, tulip: 2 }, 240, 12, 11);
+recipe('lavender_sachet', 'florist', { lavender: 2, wool: 1 }, 270, 13, 12);
 recipe('flower_crown', 'florist', { rose: 1, lavender: 1, tulip: 2 }, 330, 16, 13);
-recipe('oat_cookie', 'bakery', { oat: 3, sugar: 1 }, 120, 6, 4);
+recipe('oat_cookie', 'bakery', { oat: 3, egg: 1 }, 120, 6, 4);
 recipe('barley_bread', 'bakery', { barley: 3 }, 150, 7, 6);
 recipe('soy_milk', 'dairy', { soybean: 3 }, 150, 8, 8);
 recipe('salmon_roll', 'sushi_bar', { salmon: 1, rice: 2 }, 300, 15, 13);

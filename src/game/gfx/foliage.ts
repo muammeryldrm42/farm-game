@@ -91,6 +91,100 @@ function tuftGeometry(seed: number) {
 
 export interface Spot { x: number; z: number; open: boolean }
 
+// One map wide instanced batch drawn a block of land at a time. A plain batch is drawn whole
+// whenever any bit of it is on screen; here the instances are sorted into square blocks and only
+// the blocks in view are packed to the front and drawn, still in a single draw call. The packing
+// is redone only when the set of blocks in view changes.
+export class BlockBatch {
+  private src: Float32Array;
+  private srcCol: Float32Array | null;
+  private blocks: { start: number; n: number; sphere: THREE.Sphere }[] = [];
+  private shown: Uint8Array;
+
+  constructor(readonly mesh: THREE.InstancedMesh, size = 12) {
+    const n = mesh.count, a = mesh.instanceMatrix.array as Float32Array;
+    const col = mesh.instanceColor ? (mesh.instanceColor.array as Float32Array) : null;
+    const key = (i: number) => (Math.floor(a[i * 16 + 12] / size) + 64) * 256 + Math.floor(a[i * 16 + 14] / size) + 64;
+    const order = Array.from({ length: n }, (_, i) => i).sort((x, y) => key(x) - key(y));
+    this.src = new Float32Array(n * 16);
+    this.srcCol = col ? new Float32Array(n * 3) : null;
+    const g = mesh.geometry;
+    if (!g.boundingSphere) g.computeBoundingSphere();
+    const r0 = g.boundingSphere!.radius + g.boundingSphere!.center.length();
+    const box = new THREE.Box3(), p = new THREE.Vector3();
+    let start = 0, reach = 0;
+    order.forEach((from, i) => {
+      this.src.set(a.subarray(from * 16, from * 16 + 16), i * 16);
+      if (col && this.srcCol) this.srcCol.set(col.subarray(from * 3, from * 3 + 3), i * 3);
+      const e = a.subarray(from * 16, from * 16 + 16);
+      reach = Math.max(reach, Math.hypot(e[0], e[1], e[2]), Math.hypot(e[4], e[5], e[6]), Math.hypot(e[8], e[9], e[10]));
+      box.expandByPoint(p.set(e[12], e[13], e[14]));
+      if (i === n - 1 || key(order[i + 1]) !== key(from)) {
+        const sphere = box.getBoundingSphere(new THREE.Sphere());
+        sphere.radius += r0 * reach;
+        this.blocks.push({ start, n: i + 1 - start, sphere });
+        start = i + 1; reach = 0; box.makeEmpty();
+      }
+    });
+    this.shown = new Uint8Array(this.blocks.length);
+    (mesh.instanceMatrix.array as Float32Array).set(this.src);
+    if (col && this.srcCol) col.set(this.srcCol);
+    this.shown.fill(1);
+    // the blocks are culled here, so the batch as a whole never is
+    mesh.frustumCulled = false;
+  }
+
+  cull(view: THREE.Frustum) {
+    const blocks = this.blocks;
+    let changed = false;
+    for (let b = 0; b < blocks.length; b++) {
+      const on = view.intersectsSphere(blocks[b].sphere) ? 1 : 0;
+      if (on !== this.shown[b]) { this.shown[b] = on; changed = true; }
+    }
+    if (!changed) return;
+    const m = this.mesh.instanceMatrix.array as Float32Array;
+    const c = this.mesh.instanceColor ? (this.mesh.instanceColor.array as Float32Array) : null;
+    let o = 0;
+    for (let b = 0; b < blocks.length; b++) {
+      if (!this.shown[b]) continue;
+      const { start, n } = blocks[b];
+      m.set(this.src.subarray(start * 16, (start + n) * 16), o * 16);
+      if (c && this.srcCol) c.set(this.srcCol.subarray(start * 3, (start + n) * 3), o * 3);
+      o += n;
+    }
+    this.mesh.count = o;
+    this.mesh.visible = o > 0;
+    this.mesh.instanceMatrix.needsUpdate = true;
+    if (this.mesh.instanceColor) this.mesh.instanceColor.needsUpdate = true;
+  }
+}
+
+export interface Culled { cull(view: THREE.Frustum, shadow: THREE.Frustum | null): void }
+
+// Culls a big batch (already added to its parent) by blocks. A batch that casts shadow gets a
+// twin on layer 2, which only the sun's shadow camera sees: the twin draws the blocks inside the
+// shadow box, the batch itself only the blocks on screen. Light batches cost less drawn whole.
+export function blockBatch(im: THREE.InstancedMesh): Culled | null {
+  const g = im.geometry;
+  const tris = ((g.index ? g.index.count : g.getAttribute('position').count) / 3) * im.count;
+  if (tris < 100000) return null;
+  if (!im.castShadow || !im.parent) {
+    const b = new BlockBatch(im);
+    return { cull: (view) => b.cull(view) };
+  }
+  const twin = new THREE.InstancedMesh(im.geometry, im.material, im.count);
+  (twin.instanceMatrix.array as Float32Array).set(im.instanceMatrix.array as Float32Array);
+  twin.layers.set(2);
+  twin.castShadow = true;
+  twin.receiveShadow = false;
+  im.castShadow = false;
+  im.parent.add(twin);
+  const main = new BlockBatch(im), caster = new BlockBatch(twin);
+  return { cull: (view, shadow) => { main.cull(view); if (shadow) caster.cull(shadow); } };
+}
+
+const PEBBLE = new THREE.DodecahedronGeometry(1, 1);
+
 const SPIKE_COLORS = ['#9a6ad8', '#b78af0', '#e8c23a'];
 const BUSH_COLORS = ['#5cb83a', '#4fa834', '#6cc444'];
 const FLOWER_COLORS = ['#ffffff', '#ffd23a', '#ff8fb0', '#b58cff', '#ff6b6b', '#8fd3ff'];
@@ -100,14 +194,27 @@ export class Foliage {
   private grassGeos: THREE.BufferGeometry[] = [];
   private grassMat = windify(new THREE.MeshStandardMaterial({ vertexColors: true, side: THREE.DoubleSide, roughness: 0.95 }), 0.25, 1);
   private flowerMat = windify(new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.6 }), 0.18, 0.8);
-  private meshes: THREE.InstancedMesh[] = [];
   private bushMat = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.75 });
   private pebbleMat = new THREE.MeshStandardMaterial({ color: '#b7b3aa', roughness: 0.9, flatShading: true });
 
+  private batches: Culled[] = [];
+
+  private keep(im: THREE.InstancedMesh) {
+    this.group.add(im);
+    const b = blockBatch(im);
+    if (b) this.batches.push(b);
+  }
+
+  // draw only the grass and flowers on the land in view
+  cull(view: THREE.Frustum, shadow: THREE.Frustum | null) {
+    for (const b of this.batches) b.cull(view, shadow);
+  }
+
   // tiles: every free tile the grass may grow on; density: tufts per open tile
   rebuild(tiles: Spot[], density: number) {
-    for (const m of this.meshes) { this.group.remove(m); m.dispose(); }
-    this.meshes = [];
+    // everything in the group goes, shadow twins of the batches included
+    for (const m of [...this.group.children]) { this.group.remove(m); (m as THREE.InstancedMesh).dispose(); }
+    this.batches = [];
     if (density <= 0 || !tiles.length) return;
     if (!this.grassGeos.length) for (let v = 0; v < 3; v++) this.grassGeos.push(tuftGeometry(100 + v * 31));
 
@@ -154,8 +261,7 @@ export class Foliage {
       });
       im.receiveShadow = true;
       im.castShadow = false;
-      this.meshes.push(im);
-      this.group.add(im);
+      this.keep(im);
     });
     if (bushes.length) {
       const im = new THREE.InstancedMesh(toonCrown(4, 0.035), this.bushMat, bushes.length);
@@ -168,8 +274,7 @@ export class Foliage {
       });
       im.castShadow = true;
       im.receiveShadow = true;
-      this.meshes.push(im);
-      this.group.add(im);
+      this.keep(im);
     }
     SPIKE_COLORS.forEach((sc, ci) => {
       const list = spikes.filter(([, , , c]) => Math.floor(c * SPIKE_COLORS.length) === ci);
@@ -181,11 +286,10 @@ export class Foliage {
         im.setMatrixAt(i, m4);
       });
       im.receiveShadow = true;
-      this.meshes.push(im);
-      this.group.add(im);
+      this.keep(im);
     });
     if (pebbles.length) {
-      const im = new THREE.InstancedMesh(new THREE.DodecahedronGeometry(1, 1), this.pebbleMat, pebbles.length);
+      const im = new THREE.InstancedMesh(PEBBLE, this.pebbleMat, pebbles.length);
       pebbles.forEach(([x, z, s], i) => {
         q.setFromAxisAngle(up, rnd(i, 65) * 6);
         m4.compose(pv.set(x, s * 0.2, z), q, sv.set(s, s * 0.6, s * 0.8));
@@ -193,8 +297,7 @@ export class Foliage {
       });
       im.castShadow = true;
       im.receiveShadow = true;
-      this.meshes.push(im);
-      this.group.add(im);
+      this.keep(im);
     }
     // wild flowers in little clumps: one instanced batch per color, each a real daisy or tulip
     FLOWER_COLORS.forEach((fc, ci) => {
@@ -207,8 +310,7 @@ export class Foliage {
         im.setMatrixAt(i, m4);
       });
       im.receiveShadow = true;
-      this.meshes.push(im);
-      this.group.add(im);
+      this.keep(im);
     });
   }
 }

@@ -10,7 +10,7 @@ import { U } from './gfx/shared';
 import { Sky } from './gfx/sky';
 import { makeWater } from './gfx/water';
 import { seasonOf, weatherAt, type Season } from './weather';
-import { FLOWER_KIT_MAT, Foliage, flowerKit, windify, type FlowerKind, type Spot } from './gfx/foliage';
+import { FLOWER_KIT_MAT, Foliage, blockBatch, flowerKit, windify, type Culled, type FlowerKind, type Spot } from './gfx/foliage';
 import { Post } from './gfx/post';
 import { PLANT_MAT, cropGeo } from './gfx/crops';
 import { PRODUCE_MAT, produceGeo } from './gfx/produce';
@@ -243,6 +243,41 @@ function sparkTex() {
     c.fillStyle = 'rgba(255,255,255,0.8)';
     c.fillRect(30, 4, 4, 56); c.fillRect(4, 30, 56, 4);
   });
+}
+
+// a white speech bubble with a tail, the words wrapped on up to three lines
+function speechTex(text: string) {
+  const cv = document.createElement('canvas');
+  const c = cv.getContext('2d') as CanvasRenderingContext2D;
+  const font = '800 40px ui-rounded, "Trebuchet MS", system-ui, sans-serif';
+  c.font = font;
+  const words = text.split(/\s+/);
+  const lines: string[] = [];
+  let cur = '';
+  for (const w of words) {
+    const next = cur ? `${cur} ${w}` : w;
+    if (cur && c.measureText(next).width > 460) { lines.push(cur); cur = w; } else cur = next;
+  }
+  if (cur) lines.push(cur);
+  if (lines.length > 3) { lines.length = 3; lines[2] += '...'; }
+  const tw = Math.max(...lines.map((l) => c.measureText(l).width));
+  const W = Math.ceil(Math.min(540, tw + 60)), LH = 48, H = lines.length * LH + 44 + 26;
+  cv.width = W; cv.height = H;
+  c.font = font;
+  const r = 30, bh = H - 26;
+  c.lineWidth = 7; c.strokeStyle = '#5d3a1f'; c.fillStyle = '#ffffff'; c.lineJoin = 'round';
+  c.beginPath();
+  c.moveTo(r + 4, 4); c.lineTo(W - r - 4, 4); c.quadraticCurveTo(W - 4, 4, W - 4, r + 4);
+  c.lineTo(W - 4, bh - r); c.quadraticCurveTo(W - 4, bh, W - r - 4, bh);
+  c.lineTo(W / 2 + 18, bh); c.lineTo(W / 2, H - 4); c.lineTo(W / 2 - 18, bh);
+  c.lineTo(r + 4, bh); c.quadraticCurveTo(4, bh, 4, bh - r);
+  c.lineTo(4, r + 4); c.quadraticCurveTo(4, 4, r + 4, 4);
+  c.closePath(); c.fill(); c.stroke();
+  c.fillStyle = '#4a2e14'; c.textAlign = 'center'; c.textBaseline = 'middle';
+  lines.forEach((l, i) => fillRich(c, l, W / 2, 26 + LH / 2 + i * LH, 42, false));
+  const t = new THREE.CanvasTexture(cv);
+  t.colorSpace = THREE.SRGBColorSpace;
+  return { t, aspect: H / W, w: W };
 }
 
 function textTex(text: string, color: string) {
@@ -761,14 +796,17 @@ export class Renderer {
 
   // ------------------------------------------------ picking
 
-  pick(sx: number, sy: number): { obj?: FarmObject; tile: { x: number; y: number }; spot?: 'fishing' } {
+  pick(sx: number, sy: number): { obj?: FarmObject; tile: { x: number; y: number }; spot?: 'fishing' | 'visitor' } {
     const tile = this.gridAt(sx, sy);
     const moveId = this.store.ui.placing?.moveId;
     const hits: THREE.Object3D[] = [this.fishing.hit];
+    const v = this.visitor;
+    if (v && v.g.visible) hits.push(v.hit);
     for (const e of this.entries.values()) if (e.id !== moveId) hits.push(e.hit);
     const r = this.rayAt(sx, sy).intersectObjects(hits, false);
     if (r.length) {
       if (r[0].object === this.fishing.hit) return { tile, spot: 'fishing' };
+      if (v && r[0].object === v.hit) return { tile, spot: 'visitor' };
       const id = r[0].object.userData.objId as number;
       const obj = this.store.obj(id);
       if (obj) return { obj, tile };
@@ -1004,6 +1042,7 @@ export class Renderer {
     this.land.remove(this.dynLand);
     this.dynLand.traverse((o) => { if ((o as THREE.InstancedMesh).isInstancedMesh) (o as THREE.InstancedMesh).dispose(); });
     this.dynLand = new THREE.Group();
+    this.forest = [];
     this.signs = [];
     const pines: [number, number, number][] = [];
     const rounds: [number, number, number][] = [];
@@ -1035,7 +1074,7 @@ export class Renderer {
         });
         im.castShadow = true;
         im.receiveShadow = true;
-        this.dynLand.add(im);
+        this.addForest(im);
       }
       this.land.add(this.dynLand);
       return;
@@ -1074,8 +1113,29 @@ export class Renderer {
       shell.setColorAt(i, col.offsetHSL(0, 0, 0.05));
       crown.setColorAt(i, col.offsetHSL(0, 0, -0.15));
     }
-    for (const im of [trunks, pineA, pineB, crown, shell]) { im.castShadow = true; im.receiveShadow = true; this.dynLand.add(im); }
+    for (const im of [trunks, pineA, pineB, crown, shell]) { im.castShadow = true; im.receiveShadow = true; this.addForest(im); }
     this.land.add(this.dynLand);
+  }
+
+  private forest: Culled[] = [];
+  private addForest(im: THREE.InstancedMesh) {
+    this.dynLand.add(im);
+    const b = blockBatch(im);
+    if (b) this.forest.push(b);
+  }
+
+  // big instanced batches (forest, meadow flowers) draw only the blocks of land in view, and
+  // cast shadow only from the blocks inside the sun's shadow box
+  private cullBlocks() {
+    let shadow: THREE.Frustum | null = null;
+    if (this.gl.shadowMap.enabled && this.sun.castShadow) {
+      this.sun.updateMatrixWorld();
+      this.sun.target.updateMatrixWorld();
+      this.sun.shadow.updateMatrices(this.sun);
+      shadow = this.sun.shadow.getFrustum();
+    }
+    this.foliage.cull(this.frustum, shadow);
+    for (const b of this.forest) b.cull(this.frustum, shadow);
   }
 
   private signs: THREE.Group[] = [];
@@ -1250,6 +1310,7 @@ export class Renderer {
     this.life.update(dt, t, this.nightNow(now), this.target);
     this.turtles.update(t);
     this.followSun();
+    this.cullBlocks();
     const wk = this.updateWeather(dt, now);
     this.updateLight(now, t, wk);
 
@@ -1665,6 +1726,136 @@ export class Renderer {
   private nightMode = false;
   private zzz: THREE.Sprite | null = null;
 
+  // the farmer's speech bubble: story news and hints from the store
+  private speech: THREE.Sprite | null = null;
+  private speechText = '';
+
+  // The story's teller comes to visit: they stroll about near the farmhouse with a mark over
+  // their head ("!" for a chapter in progress, a gift when it is done) until the chapter ends.
+  private visitor: (Actor & { who: string; hit: THREE.Mesh; mark: THREE.Sprite; home: { x: number; y: number }; next: number }) | null = null;
+  private visitorLoading = '';
+  private updateVisitor(dt: number, t: number, now: number) {
+    const store = this.store;
+    const want = store.storyOn() && artStyle() === 'toon' ? store.chapter().who : '';
+    if (this.visitor && this.visitor.who !== want) { this.world.remove(this.visitor.g); this.visitor = null; }
+    if (!want) { this.visitorLoading = ''; return; }
+    if (!this.visitor) {
+      if (this.visitorLoading === want) return;
+      this.visitorLoading = want;
+      loadModel(`villager_${want}`).then((m) => {
+        if (this.visitorLoading !== want || this.visitor) return;
+        const g = farmerFromModel(m);
+        const h = this.homeDoor();
+        const base = h ? { x: Math.floor(h.door.x) + 2, y: Math.floor(h.door.y) + 1 } : { x: Math.floor(FARM_C.x) + 2, y: Math.floor(FARM_C.y) + 2 };
+        this.rebuildNav();
+        const n = this.nearestFree(base.x, base.y, 10) ?? base;
+        const hit = new THREE.Mesh(G.box, HIT_MAT);
+        hit.scale.set(0.55, 1.1, 0.55);
+        hit.position.y = 0.55;
+        g.add(hit);
+        const mark = new THREE.Sprite(new THREE.SpriteMaterial({ transparent: true, depthTest: false }));
+        mark.center.set(0.5, 0);
+        mark.renderOrder = 11;
+        this.fxLayer.add(mark);
+        this.world.add(g);
+        this.visitor = { ...actor(n.x + 0.5, n.y + 0.5, g), who: want, hit, mark, home: n, next: now + 3000 };
+      }).catch(() => {});
+      return;
+    }
+    const v = this.visitor;
+    // off home for the night, back in the morning
+    v.fade = clamp(v.fade + (this.nightMode ? -dt * 2 : dt * 2), 0, 1);
+    v.g.visible = v.fade > 0.01;
+    v.g.scale.setScalar(0.3 + v.fade * 0.7);
+    const tx = Math.floor(v.x), ty = Math.floor(v.y);
+    if (!this.free(tx, ty)) {
+      const n = this.nearestFree(tx, ty);
+      if (n) { v.x = n.x + 0.5; v.y = n.y + 0.5; v.path = []; }
+    }
+    // a short stroll now and then, never far from the house
+    if (!this.nightMode && !v.path.length && now > v.next) {
+      for (let k = 0; k < 6; k++) {
+        const x = v.home.x + Math.round((Math.random() - 0.5) * 6), y = v.home.y + Math.round((Math.random() - 0.5) * 5);
+        if (this.free(x, y) && this.send(v, x, y)) break;
+      }
+      v.next = now + 7000 + Math.random() * 9000;
+    }
+    this.step(v, 0.8, dt);
+    v.phase += dt * (v.moving ? 9 : 0);
+    const f = this.farmer;
+    const fd = Math.hypot(f.x - v.x, f.y - v.y);
+    // standing still: faces the farmer when close, otherwise the camera
+    if (!v.moving) v.heading = fd < 4 && !f.inside ? Math.atan2(f.x - v.x, f.y - v.y) : this.az;
+    let diff = v.heading - v.g.rotation.y;
+    while (diff > Math.PI) diff -= Math.PI * 2;
+    while (diff < -Math.PI) diff += Math.PI * 2;
+    v.g.rotation.y += diff * Math.min(1, dt * 6);
+    v.g.position.set(v.x, v.moving ? Math.abs(Math.sin(v.phase)) * 0.03 : 0, v.y);
+    animateLegs(v.g, v.moving ? Math.sin(v.phase) * 0.7 : 0);
+    blink(v.g, t, 11);
+    const body = v.g.userData.body as THREE.Object3D | undefined;
+    if (body) body.position.y = v.moving ? 0 : Math.sin(t / 700) * 0.005;
+    const arms = v.g.userData.arms as THREE.Object3D[] | undefined;
+    if (arms?.[1]) {
+      // waves at the farmer
+      const w = !v.moving && fd < 4 ? Math.max(0, Math.sin(t / 1800) - 0.6) * 4 : 0;
+      arms[1].rotation.x = -w * 2.2;
+      arms[1].rotation.z = 0.16 + w * 0.4 + Math.sin(t / 90) * 0.2 * w;
+    }
+    // the mark over their head
+    const ready = store.chapterReady();
+    const key = ready ? 'gift' : 'news';
+    if (v.mark.userData.key !== key) {
+      v.mark.userData.key = key;
+      v.mark.material.map = canvasTex(`visitor|${key}`, 128, 150, (c) => {
+        c.fillStyle = ready ? '#5cb82e' : '#ffd23a';
+        c.strokeStyle = '#5d3a1f'; c.lineWidth = 8;
+        c.beginPath(); c.arc(64, 60, 52, 0, Math.PI * 2); c.fill(); c.stroke();
+        c.beginPath(); c.moveTo(48, 104); c.lineTo(64, 144); c.lineTo(80, 104); c.closePath(); c.fillStyle = ready ? '#5cb82e' : '#ffd23a'; c.fill();
+        c.stroke();
+        c.fillStyle = ready ? '#5cb82e' : '#ffd23a'; c.fillRect(46, 96, 36, 14);
+        c.textAlign = 'center'; c.textBaseline = 'middle';
+        if (ready) { c.font = `64px ${EF}`; c.fillText('🎁', 64, 64); }
+        else { c.fillStyle = '#5d3a1f'; c.font = '900 84px ui-rounded, "Trebuchet MS", system-ui, sans-serif'; c.fillText('!', 64, 64); }
+      });
+      v.mark.material.needsUpdate = true;
+    }
+    const sc = 0.42 * clamp(1.3 / this.cam.zoom, 0.8, 1.8) * v.fade;
+    v.mark.scale.set(sc, sc * 150 / 128, 1);
+    v.mark.position.set(v.x, 1.1 + Math.abs(Math.sin(t / 300)) * 0.06, v.y);
+    v.mark.visible = v.g.visible && !this.store.ui.story;
+  }
+  private speechAt = 0;
+  private updateSpeech(now: number) {
+    const f = this.farmer, say = this.store.ui.say;
+    const on = !!say && now < say.until && !f.inside && f.fade > 0.5 && !this.store.ui.story;
+    if (!on) { if (this.speech) this.speech.visible = false; return; }
+    if (!this.speech) {
+      this.speech = new THREE.Sprite(new THREE.SpriteMaterial({ transparent: true, depthTest: false, depthWrite: false }));
+      this.speech.center.set(0.5, 0);
+      this.speech.renderOrder = 12;
+      this.fxLayer.add(this.speech);
+    }
+    const b = this.speech, m = b.material;
+    if (say.text !== this.speechText) {
+      this.speechText = say.text;
+      this.speechAt = now;
+      m.map?.dispose();
+      const bt = speechTex(say.text);
+      m.map = bt.t;
+      m.needsUpdate = true;
+      b.userData.aspect = bt.aspect;
+      b.userData.w = bt.w / 540;
+    }
+    // pops in, stays a little bigger when zoomed out so it can still be read
+    const k = Math.min(1, (now - this.speechAt) / 180);
+    const w = 2.1 * (b.userData.w as number) * clamp(1.3 / this.cam.zoom, 0.8, 1.9) * (0.6 + 0.4 * k);
+    b.scale.set(w, w * (b.userData.aspect as number), 1);
+    b.position.set(f.x, 1.05 + Math.sin(now / 400) * 0.02, f.y);
+    m.opacity = Math.min(1, (say.until - now) / 350);
+    b.visible = true;
+  }
+
   // blossoms for the bees: flower beds and arches, flowering crops, fruit trees
   private flowerKey = '';
   private flowerList: { x: number; y: number }[] = [];
@@ -1701,16 +1892,23 @@ export class Renderer {
         if (o.type === 'plot') fieldTiles.add(o.y * GRID + o.x);
         continue;
       }
+      // animal homes, decorations, trees and clutter only slow the farmer down: he steps over
+      // the fences and between the benches. Buildings with walls stay in the way.
+      const v = SOFT_KINDS.has(d.kind) ? 2 : 1;
       for (let j = 0; j < d.h; j++) for (let i = 0; i < d.w; i++) {
         const x = o.x + i, y = o.y + j;
-        if (x >= 0 && y >= 0 && x < GRID && y < GRID) this.nav[y * GRID + x] = 1;
+        if (x >= 0 && y >= 0 && x < GRID && y < GRID) this.nav[y * GRID + x] = Math.max(this.nav[y * GRID + x], v);
       }
     }
     return true;
   }
 
+  // `roam`: planning for the farmer and his dog, who may cross the soft tiles
+  private roam = false;
   private free(x: number, y: number) {
-    return x >= 0 && y >= 0 && x < GRID && y < GRID && !this.nav[y * GRID + x];
+    if (x < 0 || y < 0 || x >= GRID || y >= GRID) return false;
+    const v = this.nav[y * GRID + x];
+    return v === 0 || (v === 2 && this.roam);
   }
 
   // nearest walkable tile to (x, y), searching outward in rings
@@ -1756,7 +1954,8 @@ export class Renderer {
         if (dx && dy && (!this.free(cx + dx, cy) || !this.free(cx, cy + dy))) continue;
         const ni = ny * GRID + nx;
         if (closed[ni]) continue;
-        const ng = gs[cur] + (dx && dy ? 1.414 : 1);
+        // crossing a pen or a flower bed costs more, so open ground is taken when there is some
+        const ng = gs[cur] + (dx && dy ? 1.414 : 1) + (this.nav[ni] === 2 ? 2.5 : 0);
         if (ng < gs[ni]) {
           gs[ni] = ng; fs[ni] = ng + hh(ni); from[ni] = cur;
           if (!inOpen[ni]) { open.push(ni); inOpen[ni] = 1; }
@@ -1794,11 +1993,14 @@ export class Renderer {
     const f = this.farmer, g = this.dog;
     f.inside = false;
     g.sleeping = false;
+    this.roam = true;
     const goal = this.send(f, tx, ty) ? { x: tx, y: ty } : this.sendNear(f, tx, ty);
-    if (!goal) return;
-    const ds = this.dogSpot(goal.x, goal.y);
-    if (ds) this.send(g, ds.x, ds.y);
-    this.showMarker(goal.x + 0.5, goal.y + 0.5);
+    if (goal) {
+      const ds = this.dogSpot(goal.x, goal.y);
+      if (ds) this.send(g, ds.x, ds.y);
+      this.showMarker(goal.x + 0.5, goal.y + 0.5);
+    }
+    this.roam = false;
   }
 
   // walk up to a building: to the free tile nearest the middle of its front
@@ -1850,6 +2052,7 @@ export class Renderer {
   private updateActors(dt: number, t: number, now: number) {
     const f = this.farmer, g = this.dog;
     this.rebuildNav();
+    this.roam = true;
     // placed a building on top of them: hop to the nearest free tile
     for (const a of [f, g]) {
       if (a.inside || a.sleeping) continue;
@@ -1874,12 +2077,14 @@ export class Renderer {
       if (nightNow && h) {
         const d = this.free(h.door.x, h.door.y) ? h.door : this.nearestFree(h.door.x, h.door.y, 4);
         const walking = d ? this.send(f, d.x, d.y) : false;
-        if (walking && d === h.door && h.step && this.free(Math.floor(h.step.x), Math.floor(h.step.y))) f.path.push(h.step);
+        // walled in on every side: he still walks to the door, straight over whatever is there
+        if (!walking && !f.inside) f.path = [{ x: h.door.x + 0.5, y: h.door.y + 0.5 }];
+        if (d === h.door && h.step) f.path.push(h.step);
         f.goHome = true;
-        // no way to the door (fenced in): step straight inside
-        if (!walking) f.path = [];
         const ds = h.kennel ? this.nearestFree(Math.floor(h.kennel.x), Math.floor(h.kennel.y + 0.6), 3) : d ? this.dogSpot(d.x, d.y) : null;
         if (ds) { this.send(g, ds.x, ds.y); g.goHome = true; }
+      } else if (nightNow) {
+        f.inside = true;
       } else if (!nightNow) {
         if (f.inside) { f.inside = false; }
         g.sleeping = false;
@@ -1890,6 +2095,8 @@ export class Renderer {
     this.step(f, 1.3, dt);
     this.step(g, 2.0, dt);
     if (f.goHome && !f.path.length) { f.goHome = false; if (this.nightMode) f.inside = true; }
+    // a nap starts counting once the farmer is through the door
+    if (f.inside && this.store.ui.napping && !this.store.ui.napAt) this.store.homeArrived();
     if (g.goHome && !g.path.length) {
       g.goHome = false;
       if (this.nightMode) {
@@ -1959,6 +2166,10 @@ export class Renderer {
         }
       }
     }
+
+    this.roam = false;
+    this.updateSpeech(now);
+    this.updateVisitor(dt, t, now);
 
     // sleepy Z z z above the dog
     if (!this.zzz) {
@@ -3902,10 +4113,12 @@ function palmTree(g: P, leaf: string) {
     mk(crown, cylGeo(0.07 - t * 0.02, 0.07 - t * 0.02, 10), M('#7a5634'), 1, 0.02, 1, nx, ny - 0.01, z);
     x = nx;
   }
+  // the fruit hangs in a kept group; the fronds go when the Blender crown takes their place
   const top = keep(group(crown, x, segs * 0.15, z));
+  const fronds = group(crown, x, segs * 0.15, z);
   for (let i = 0; i < 9; i++) {
     const a = (i / 9) * Math.PI * 2 + (i % 2) * 0.2;
-    const f = group(top);
+    const f = group(fronds);
     f.rotation.y = a;
     // each frond is a row of leaflets drooping further toward the tip
     for (let k = 0; k < 7; k++) {
@@ -3918,7 +4131,7 @@ function palmTree(g: P, leaf: string) {
       mk(f, G.ball, M(shade(leaf, -0.14)), 0.05, 0.012, 0.012, px, py + 0.004, 0, false);
     }
   }
-  return { crown, top };
+  return { crown, top, fronds };
 }
 
 function buildFruitTree(e: Entry, d: BuildingDef) {
@@ -4015,7 +4228,7 @@ function buildBanana(e: Entry, leaf: string, kind = 'banana') {
 
 function buildPalm(e: Entry, d: BuildingDef, leaf: string) {
   const g = e.root;
-  const { crown, top } = palmTree(g, leaf);
+  const { crown, top, fronds } = palmTree(g, leaf);
   const nut = PRODUCE_MAT;
   const fruit = [0, 1, 2, 3, 4].map((i) => {
     const a = (i / 5) * Math.PI * 2;
@@ -4037,7 +4250,7 @@ function buildPalm(e: Entry, d: BuildingDef, leaf: string) {
     const u = (t - shake) / 900;
     const wobble = u >= 0 && u < 1 ? Math.sin(u * Math.PI * 7) * (1 - u) * 0.08 : 0;
     crown.rotation.z = Math.sin(t / 1500 + o.id) * 0.025 + wobble;
-    top.children.forEach((f, i) => { f.rotation.z = Math.sin(t / 700 + i + o.id) * 0.06; });
+    if (fronds.parent) fronds.children.forEach((f, i) => { f.rotation.z = Math.sin(t / 700 + i + o.id) * 0.06; });
   };
 }
 
@@ -4184,6 +4397,7 @@ function groundGlow(g: P, x: number, z: number, size: number) {
 const pathTiles = new Set<number>();
 // tiles people can walk over: paths, and fields (the farmer and the dog step between the rows)
 const WALKABLE = new Set(['dirt_path', 'stone_path', 'plot']);
+const SOFT_KINDS = new Set<BuildingDef['kind']>(['pen', 'deco', 'tree', 'obstacle']);
 // fields are walkable but no place to graze
 const fieldTiles = new Set<number>();
 // One material per neighbor mask (north 1, east 2, south 4, west 8): a round center plus arms
