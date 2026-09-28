@@ -3854,6 +3854,8 @@ function seaSpot(o: FarmObject, d: BuildingDef, id: number): P2 {
     const x = along(cx) + (along(cx) < FISH_SPOT.x ? -4 : 4);
     return { x: Math.max(2, Math.min(GRID - 2, x)), y: GRID + out };
   }
+  // on the west side the turtle cove's sand bulges out to sea: wade off its shore instead
+  if (e === 0) { const y = along(cy); return { x: Math.min(-out, coveEdge(y) - 0.5 - hash(id, 4, 9) * 0.6), y }; }
   return e === 0 ? { x: -out, y: along(cy) } : e === 1 ? { x: GRID + out, y: along(cy) } : e === 2 ? { x: along(cx), y: -out } : { x: along(cx), y: GRID + out };
 }
 function flyPose(o: FarmObject, d: BuildingDef, a: Animal, kind: string, now: number) {
