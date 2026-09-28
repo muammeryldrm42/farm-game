@@ -1550,8 +1550,8 @@ export const BUILDINGS: BuildingDef[] = [
 
   b({ id: 'house', name: 'Farmhouse', icon: '🏡', kind: 'house', w: 2, h: 2, buyable: false, height: 58, wall: '#f7f4ee', roof: '#7a4a2e', desc: 'Your home. Open it to see your goals.' }),
   b({ id: 'manor', name: 'Manor', icon: '🏰', kind: 'house', w: 3, h: 3, cost: 4000, level: 8, xp: 80, height: 92, wall: '#f4ead8', roof: '#3f5f8a', desc: 'A grand home for your farmer, who rests here at night.' }),
-  b({ id: 'barn', name: 'Barn', icon: '🏚️', kind: 'barn', w: 2, h: 2, buyable: false, height: 64, wall: '#c0392b', roof: '#5d3a1f', desc: 'Stores goods and animal products.' }),
-  b({ id: 'silo', name: 'Silo', icon: '🌾', kind: 'silo', buyable: false, height: 88, wall: '#d7dbe0', roof: '#c0392b', desc: 'Stores crops.' }),
+  b({ id: 'barn', name: 'Barn', icon: '🏚️', kind: 'barn', w: 2, h: 2, cost: 5000, level: 8, xp: 60, height: 64, wall: '#c0392b', roof: '#5d3a1f', desc: 'Stores goods and animal products. Each extra barn adds half your barn space again.' }),
+  b({ id: 'silo', name: 'Silo', icon: '🌾', kind: 'silo', cost: 5000, level: 8, xp: 60, height: 88, wall: '#d7dbe0', roof: '#c0392b', desc: 'Stores crops. Each extra silo adds half your silo space again.' }),
   b({ id: 'board', name: 'Order Board', icon: '📋', kind: 'board', buyable: false, height: 50, wall: '#a0692f', roof: '#6b4226', desc: 'Deliver orders for coins and XP.' }),
 
   b({ id: 'bakery', name: 'Bakery', icon: '🍞', kind: 'production', w: 2, h: 2, cost: 60, level: 1, xp: 10, height: 56, wall: '#f3d9a4', roof: '#c0392b', desc: 'Bakes bread, muffins, cookies and pies.' }),

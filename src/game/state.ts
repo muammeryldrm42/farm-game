@@ -57,6 +57,7 @@ export interface FarmObject {
   prod?: ProdData;
   pen?: PenData;
   tree?: TreeData;
+  rot?: number; // quarter turns (0..3); oblong things only turn half way round, keeping their footprint
 }
 
 export interface OrderItem { id: string; qty: number }
@@ -104,8 +105,10 @@ export const xpNeed = (level: number) => Math.floor(15 * Math.pow(level, 1.6)) +
 // upgraded silo keeps up with the hundreds of goods the later levels bring.
 export const upgradeStep = (lvl: number) => 25 + 5 * lvl;
 export const capAt = (lvl: number) => 50 + 25 * lvl + (5 * lvl * (lvl - 1)) / 2;
-export const siloCap = (s: GameState) => capAt(s.siloLevel);
-export const barnCap = (s: GameState) => capAt(s.barnLevel);
+// every extra silo (or barn) bought in the shop adds half the upgraded capacity again
+const extraStores = (s: GameState, type: 'silo' | 'barn') => Math.max(0, s.objects.filter((o) => o.type === type).length - 1);
+export const siloCap = (s: GameState) => capAt(s.siloLevel) + extraStores(s, 'silo') * Math.round(capAt(s.siloLevel) / 2);
+export const barnCap = (s: GameState) => capAt(s.barnLevel) + extraStores(s, 'barn') * Math.round(capAt(s.barnLevel) / 2);
 export const storageCap = (s: GameState, k: 'silo' | 'barn') => (k === 'silo' ? siloCap(s) : barnCap(s));
 // the price climbs steeply at first, then steadily, so big storage stays in reach late in the game
 export const upgradeCost = (lvl: number) => Math.round((150 * Math.pow(1.5, Math.min(lvl, 12)) + Math.max(0, lvl - 12) * 30000) / 10) * 10;
@@ -225,7 +228,7 @@ export const STALL_SLOTS = 4;
 export const emptySlot = (): StallSlot => ({ item: null, qty: 0, price: 0, listedAt: 0, soldAt: 0 });
 export const stallValue = (item: string, qty: number) => ITEMS[item].sell * qty;
 
-const LIMITED = new Set<BuildingDef['kind']>(['stall', 'house', 'dock', 'barn', 'silo', 'board', 'obstacle']);
+const LIMITED = new Set<BuildingDef['kind']>(['stall', 'house', 'dock', 'board', 'obstacle']);
 
 export function boatState(s: GameState, now: number): 'none' | 'docked' | 'away' {
   if (!s.boat) return 'none';
@@ -594,6 +597,7 @@ export interface UIState {
   story: { ch: number; part: 'intro' | 'outro'; i: number } | null; // a story chapter being told
   say: { text: string; until: number } | null; // the farmer's speech bubble
   fishSpot?: FishSpot; // which fishing spot the fishing panel is about
+  panelObj?: number; // the building whose panel is open (storage, orders, home, stall)
 }
 
 export class GameStore {
@@ -804,8 +808,10 @@ export class GameStore {
     this.emit(false);
   }
 
-  openPanel(p: Panel) {
+  // `obj`: the building the panel belongs to, when it was opened by tapping one
+  openPanel(p: Panel, obj?: number) {
     this.ui.panel = p;
+    this.ui.panelObj = obj;
     this.ui.selectedId = null;
     this.ui.tool = null;
     this.sound('click');
@@ -847,15 +853,15 @@ export class GameStore {
         this.select(o.id);
         return;
       }
-      case 'barn': this.ui.storageTab = 'barn'; this.openPanel('storage'); return;
-      case 'silo': this.ui.storageTab = 'silo'; this.openPanel('storage'); return;
-      case 'board': this.openPanel('orders'); return;
-      case 'house': this.openPanel('home'); return;
+      case 'barn': this.ui.storageTab = 'barn'; this.openPanel('storage', o.id); return;
+      case 'silo': this.ui.storageTab = 'silo'; this.openPanel('storage', o.id); return;
+      case 'board': this.openPanel('orders', o.id); return;
+      case 'house': this.openPanel('home', o.id); return;
       case 'tree':
         if (treeInfo(o, now).ready) this.collectTree(o);
         this.select(o.id);
         return;
-      case 'stall': this.openPanel('stall'); return;
+      case 'stall': this.openPanel('stall', o.id); return;
       case 'dock': this.openPanel('boat'); return;
       default:
         if (o.type === 'well') this.fillBucket(o);
@@ -1273,19 +1279,48 @@ export class GameStore {
     this.emit(false);
   }
 
+  // what an object sells for: half its price, and half the price of the animals in a pen
+  sellValue(o: FarmObject) {
+    const d = BUILDING[o.type];
+    if (d.kind === 'plot') return 0;
+    const an = d.animal ? ANIMAL[d.animal] : undefined;
+    return Math.floor(d.cost / 2) + (an ? (o.pen?.animals.length ?? 0) * Math.floor(an.cost / 2) : 0);
+  }
+
+  // anything may be sold but the farmhouse, the farm's own order board and its last silo or barn
+  canSell(o: FarmObject) {
+    const d = BUILDING[o.type];
+    if (d.kind === 'obstacle' || d.kind === 'board') return false;
+    if (d.kind === 'house' && !d.buyable) return false;
+    if ((d.kind === 'silo' || d.kind === 'barn') && this.countType(o.type) <= 1) return false;
+    return true;
+  }
+
   removeObject(id: number) {
     const o = this.obj(id);
     if (!o) return;
     const d = BUILDING[o.type];
     if (d.kind === 'plot' && o.plot?.crop) { this.toast('Harvest the field before removing it.', 'bad'); return; }
-    if (d.kind !== 'plot' && !d.sellable) return;
-    const refund = d.kind === 'plot' ? 0 : Math.floor(d.cost / 2);
+    if (!this.canSell(o)) { this.toast(d.kind === 'silo' || d.kind === 'barn' ? `Your last ${d.name.toLowerCase()} has to stay.` : `The ${d.name} cannot be sold.`, 'bad'); return; }
+    const refund = this.sellValue(o);
     this.s.coins += refund;
     this.s.objects = this.s.objects.filter((x) => x.id !== id);
     this.ui.selectedId = null;
+    if (this.ui.panelObj === id) { this.ui.panelObj = undefined; this.ui.panel = null; }
     this.objVersion++;
     this.sound('coin');
     if (refund) this.toast(`Sold ${d.name} for ${refund} coins.`, 'good');
+    this.emit();
+  }
+
+  // turn a thing on its spot: a quarter turn if it is square, a half turn if it is oblong
+  rotateObject(id: number) {
+    const o = this.obj(id);
+    if (!o) return;
+    const d = BUILDING[o.type];
+    o.rot = ((o.rot ?? 0) + (d.w === d.h ? 1 : 2)) % 4;
+    this.objVersion++;
+    this.sound('click');
     this.emit();
   }
 
