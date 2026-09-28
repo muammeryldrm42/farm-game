@@ -3,6 +3,7 @@ import Ico from './Ico';
 import { BUILDING, CROP, ITEMS } from '@/game/data';
 import { TUTORIAL, TUTORIAL_DONE, canFulfill, claimableBadges, claimableQuests, fmtNum, xpNeed } from '@/game/state';
 import { useNow, useStore, useVersion } from './ctx';
+import { CAST, LAST_CHAPTER, taskProgress } from '@/game/story';
 
 export function Coin({ className = '' }: { className?: string }) {
   return <span className={`coin ${className}`} aria-label="coins" />;
@@ -21,7 +22,7 @@ export default function Hud() {
   const need = xpNeed(s.level);
   const sheetOpen = ui.selectedId !== null || ui.panel !== null || ui.placing !== null || ui.expand !== null || ui.daily || ui.levelUp !== null;
   const deliverable = s.orders.filter((o) => canFulfill(s, o, now)).length;
-  const claimable = claimableQuests(s).length + claimableBadges(s).length;
+  const claimable = claimableQuests(s).length + claimableBadges(s).length + (store.chapterReady() ? 1 : 0);
   const tut = s.tutorial < TUTORIAL.length && s.tutorial !== TUTORIAL_DONE ? TUTORIAL[s.tutorial] : null;
 
   return (
@@ -77,6 +78,9 @@ export default function Hud() {
         </div>
         </div>
       )}
+
+      {/* story tracker */}
+      {!tut && !ui.placing && !ui.story && <StoryCard />}
 
       {/* toasts */}
       <div className={`absolute left-1/2 flex w-[92%] max-w-sm -translate-x-1/2 flex-col items-center gap-2 ${tut ? "top-36" : "top-20"}`}>
@@ -209,5 +213,49 @@ function PlacingBar() {
         ✓
       </button>
     </div>
+  );
+}
+
+// the story chapter on now, in a corner: who tells it and how far along its tasks are
+function StoryCard() {
+  const store = useStore();
+  const s = store.s;
+  const st = s.story;
+  if (!st || st.ch > LAST_CHAPTER) return null;
+  const ch = store.chapter();
+  const who = CAST[ch.who];
+  const on = s.level >= ch.n;
+  const ready = store.chapterReady();
+  return (
+    <button
+      className={`pointer-events-auto absolute left-2 top-[4.6rem] flex w-44 flex-col gap-1 rounded-2xl border-[3px] border-[#5d3a1f] bg-[#fff6df]/95 p-1.5 text-left text-[#5a3a1a] shadow-[0_3px_0_#5d3a1f] sm:left-3 sm:top-20 sm:w-56 ${ready ? 'animate-bob ring-4 ring-[#5cb82e]' : ''}`}
+      onClick={() => store.openPanel('quests')}
+      aria-label="Story"
+    >
+      <div className="flex items-center gap-1.5">
+        <span className="emoji grid h-8 w-8 shrink-0 place-items-center rounded-full border-2 bg-white text-lg" style={{ borderColor: who.color }}>{who.icon}</span>
+        <div className="min-w-0 leading-tight">
+          <div className="text-[9px] font-bold uppercase tracking-wide text-[#a8733f]">Chapter {ch.n}</div>
+          <div className="truncate text-xs font-bold">{ch.title}</div>
+        </div>
+      </div>
+      {!on ? (
+        <div className="text-[10px] font-bold text-[#8a6a44]">Next chapter at level {ch.n}</div>
+      ) : ready ? (
+        <div className="text-center text-xs font-bold text-[#2d5e14]">Chapter done! Tap for reward 🎉</div>
+      ) : (
+        ch.tasks.map((t) => {
+          const p = Math.min(t.target, taskProgress(t, s));
+          const done = p >= t.target;
+          return (
+            <div key={t.id} className={`flex items-center gap-1 text-[10px] font-bold leading-tight sm:text-[11px] ${done ? 'text-[#3a7d1a] line-through opacity-70' : ''}`}>
+              <span className="emoji shrink-0 text-sm"><Ico i={t.icon} /></span>
+              <span className="min-w-0 flex-1 truncate">{t.text}</span>
+              <span className="shrink-0">{done ? '✅' : `${p}/${t.target}`}</span>
+            </div>
+          );
+        })
+      )}
+    </button>
   );
 }

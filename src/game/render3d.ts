@@ -245,6 +245,41 @@ function sparkTex() {
   });
 }
 
+// a white speech bubble with a tail, the words wrapped on up to three lines
+function speechTex(text: string) {
+  const cv = document.createElement('canvas');
+  const c = cv.getContext('2d') as CanvasRenderingContext2D;
+  const font = '800 40px ui-rounded, "Trebuchet MS", system-ui, sans-serif';
+  c.font = font;
+  const words = text.split(/\s+/);
+  const lines: string[] = [];
+  let cur = '';
+  for (const w of words) {
+    const next = cur ? `${cur} ${w}` : w;
+    if (cur && c.measureText(next).width > 460) { lines.push(cur); cur = w; } else cur = next;
+  }
+  if (cur) lines.push(cur);
+  if (lines.length > 3) { lines.length = 3; lines[2] += '...'; }
+  const tw = Math.max(...lines.map((l) => c.measureText(l).width));
+  const W = Math.ceil(Math.min(540, tw + 60)), LH = 48, H = lines.length * LH + 44 + 26;
+  cv.width = W; cv.height = H;
+  c.font = font;
+  const r = 30, bh = H - 26;
+  c.lineWidth = 7; c.strokeStyle = '#5d3a1f'; c.fillStyle = '#ffffff'; c.lineJoin = 'round';
+  c.beginPath();
+  c.moveTo(r + 4, 4); c.lineTo(W - r - 4, 4); c.quadraticCurveTo(W - 4, 4, W - 4, r + 4);
+  c.lineTo(W - 4, bh - r); c.quadraticCurveTo(W - 4, bh, W - r - 4, bh);
+  c.lineTo(W / 2 + 18, bh); c.lineTo(W / 2, H - 4); c.lineTo(W / 2 - 18, bh);
+  c.lineTo(r + 4, bh); c.quadraticCurveTo(4, bh, 4, bh - r);
+  c.lineTo(4, r + 4); c.quadraticCurveTo(4, 4, r + 4, 4);
+  c.closePath(); c.fill(); c.stroke();
+  c.fillStyle = '#4a2e14'; c.textAlign = 'center'; c.textBaseline = 'middle';
+  lines.forEach((l, i) => fillRich(c, l, W / 2, 26 + LH / 2 + i * LH, 42, false));
+  const t = new THREE.CanvasTexture(cv);
+  t.colorSpace = THREE.SRGBColorSpace;
+  return { t, aspect: H / W, w: W };
+}
+
 function textTex(text: string, color: string) {
   return canvasTex(`t|${text}|${color}`, 512, 96, (c) => {
     c.font = '900 54px ui-rounded, "Trebuchet MS", system-ui, sans-serif';
@@ -1688,6 +1723,40 @@ export class Renderer {
   private nightMode = false;
   private zzz: THREE.Sprite | null = null;
 
+  // the farmer's speech bubble: story news and hints from the store
+  private speech: THREE.Sprite | null = null;
+  private speechText = '';
+  private speechAt = 0;
+  private updateSpeech(now: number) {
+    const f = this.farmer, say = this.store.ui.say;
+    const on = !!say && now < say.until && !f.inside && f.fade > 0.5 && !this.store.ui.story;
+    if (!on) { if (this.speech) this.speech.visible = false; return; }
+    if (!this.speech) {
+      this.speech = new THREE.Sprite(new THREE.SpriteMaterial({ transparent: true, depthTest: false, depthWrite: false }));
+      this.speech.center.set(0.5, 0);
+      this.speech.renderOrder = 12;
+      this.fxLayer.add(this.speech);
+    }
+    const b = this.speech, m = b.material;
+    if (say.text !== this.speechText) {
+      this.speechText = say.text;
+      this.speechAt = now;
+      m.map?.dispose();
+      const bt = speechTex(say.text);
+      m.map = bt.t;
+      m.needsUpdate = true;
+      b.userData.aspect = bt.aspect;
+      b.userData.w = bt.w / 540;
+    }
+    // pops in, stays a little bigger when zoomed out so it can still be read
+    const k = Math.min(1, (now - this.speechAt) / 180);
+    const w = 2.1 * (b.userData.w as number) * clamp(1.3 / this.cam.zoom, 0.8, 1.9) * (0.6 + 0.4 * k);
+    b.scale.set(w, w * (b.userData.aspect as number), 1);
+    b.position.set(f.x, 1.05 + Math.sin(now / 400) * 0.02, f.y);
+    m.opacity = Math.min(1, (say.until - now) / 350);
+    b.visible = true;
+  }
+
   // blossoms for the bees: flower beds and arches, flowering crops, fruit trees
   private flowerKey = '';
   private flowerList: { x: number; y: number }[] = [];
@@ -1982,6 +2051,8 @@ export class Renderer {
         }
       }
     }
+
+    this.updateSpeech(now);
 
     // sleepy Z z z above the dog
     if (!this.zzz) {

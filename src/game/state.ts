@@ -1,6 +1,7 @@
 // Talons Farm - game state, persistence and all player actions
 import { ANIMAL, BUILDING, BUILDINGS, CATCHES, CROP, ITEMS, ITEM_LIST, RECIPE, type BuildingDef } from './data';
 import { isRaining } from './weather';
+import { LAST_CHAPTER, chapterAt, taskProgress, type StoryState } from './story';
 
 export const GRID = 60;
 // the map grew twice, from 28 to 44 tiles and then to 60; each time older farms are moved by
@@ -74,6 +75,7 @@ export interface GameState {
   restedOn?: string; // day key of the last nap that earned the rested bonus
   water?: { n: number; at: number }; // the bucket: waterings left, and when it was last filled
   starterWell?: boolean; // the free well every farm gets has been handed out
+  story?: StoryState; // the story chapter on now, where its counters stood when it began, and the last one told
 }
 
 // ---------------------------------------------------------------- helpers
@@ -367,6 +369,9 @@ export const TUTORIAL: { icon: string; text: string; done: (s: GameState) => boo
   { icon: '🍞', text: 'Tap the Bakery, bake Bread, then collect it.', done: (s) => st(s, 'make:bread') >= 1 },
 ];
 
+// finishing a story chapter: coins and XP that grow with the level, and gems on every tenth
+export const storyReward = (n: number) => ({ coins: 60 + n * 30, xp: Math.round(xpNeed(n) * 0.15), gems: n % 10 === 0 ? 5 : 1 });
+
 export const activeQuests = (s: GameState) => QUESTS.filter((q) => !s.quests.includes(q.id)).slice(0, 4);
 export const claimableQuests = (s: GameState) => activeQuests(s).filter((q) => q.progress(s) >= q.target);
 
@@ -410,6 +415,7 @@ export function newGame(): GameState {
     boat: null,
     achievements: {},
     tutorial: 0,
+    story: { ch: 1, started: 0, base: {}, seen: 0 },
   };
   for (let cx = 2; cx <= 4; cx++) for (let cy = 2; cy <= 4; cy++) s.chunks.push(`${cx},${cy}`);
   const add = (type: string, x: number, y: number, extra: Partial<FarmObject> = {}) => {
@@ -512,6 +518,8 @@ function migrate(d: Partial<GameState>): GameState {
   s.stall = Array.isArray(d.stall) && d.stall.length === STALL_SLOTS ? d.stall : Array.from({ length: STALL_SLOTS }, emptySlot);
   s.boat = d.boat ?? null;
   s.starterWell = d.starterWell;
+  // farms from before the story pick it up at the chapter of their level
+  s.story = d.story ?? { ch: Math.min(LAST_CHAPTER + 1, Math.max(1, s.level ?? 1)), started: 0, base: {}, seen: 0 };
   // saves from before the tutorial existed skip it
   s.tutorial = typeof d.tutorial === 'number' ? d.tutorial : TUTORIAL_DONE;
   if (!Array.isArray(s.objects) || !Array.isArray(s.chunks)) return base;
@@ -550,6 +558,8 @@ export interface UIState {
   daily: boolean;
   napping: boolean; // the farmer is asleep at home
   napAt: number;
+  story: { ch: number; part: 'intro' | 'outro'; i: number } | null; // a story chapter being told
+  say: { text: string; until: number } | null; // the farmer's speech bubble
 }
 
 export class GameStore {
@@ -569,7 +579,7 @@ export class GameStore {
 
   constructor(s: GameState) {
     this.s = s;
-    this.ui = { selectedId: null, placing: null, tool: null, panel: null, storageTab: 'silo', expand: null, levelUp: null, daily: false, napping: false, napAt: 0 };
+    this.ui = { selectedId: null, placing: null, tool: null, panel: null, storageTab: 'silo', expand: null, levelUp: null, daily: false, napping: false, napAt: 0, story: null, say: null };
     this.ensureOrders();
     this.ui.daily = this.canDaily();
     this.giveStarterWell();
@@ -590,6 +600,7 @@ export class GameStore {
 
   emit(save = true) {
     this.checkTutorial();
+    if (this.checkStory()) save = true;
     this.version++;
     this.listeners.forEach((l) => l());
     if (save) this.scheduleSave();
@@ -1500,6 +1511,7 @@ export class GameStore {
   tick() {
     const now = Date.now();
     if (this.settleGrazing(now)) this.emit();
+    this.storyTick(now);
     // rain and sprinklers water thirsty fields for free
     const thirsty = this.s.objects.filter((o) => o.type === 'plot' && needsWater(o, now));
     if (thirsty.length) {
@@ -1529,6 +1541,105 @@ export class GameStore {
       }
     }
     this.emit(false);
+  }
+
+  // ------------------------------------------------ story
+
+  chapter() { return chapterAt(this.s.story?.ch ?? 1); }
+  // the chapter on now can be played: the story is not over and the level has caught up with it
+  storyOn() {
+    const st = this.s.story;
+    return !!st && st.ch <= LAST_CHAPTER && this.s.level >= st.ch;
+  }
+  chapterReady() { return this.storyOn() && this.chapter().tasks.every((t) => taskProgress(t, this.s) >= t.target); }
+
+  // begins the chapter on now (counters start from here) and tells it once no window is open
+  private checkStory() {
+    const st = this.s.story;
+    if (!st || !this.storyOn()) return false;
+    let changed = false;
+    if (st.started !== st.ch) {
+      st.started = st.ch;
+      st.base = {};
+      for (const t of chapterAt(st.ch).tasks) if (t.kind === 'stat') st.base[t.key] = this.s.stats[t.key] ?? 0;
+      changed = true;
+    }
+    const ui = this.ui;
+    if (st.seen < st.ch && !ui.story && ui.levelUp === null && !ui.daily && !ui.panel && !ui.placing && !ui.tool && !ui.expand && !ui.napping && ui.selectedId === null) {
+      st.seen = st.ch;
+      ui.story = { ch: st.ch, part: 'intro', i: 0 };
+      changed = true;
+    }
+    return changed;
+  }
+
+  storyNext() {
+    const d = this.ui.story;
+    if (!d) return;
+    const ch = chapterAt(d.ch);
+    const lines = d.part === 'intro' ? ch.intro : [ch.outro];
+    this.sound('click');
+    if (d.i + 1 < lines.length) { d.i++; this.emit(false); return; }
+    this.ui.story = null;
+    if (d.part === 'intro') {
+      const t = ch.tasks.find((x) => taskProgress(x, this.s) < x.target);
+      if (t) { this.say(`${t.icon} ${t.text}`, 5000); this.hintAt = Date.now() + 60e3; }
+    }
+    this.emit(false);
+  }
+
+  replayStory() {
+    if (!this.storyOn()) return;
+    this.ui.panel = null;
+    this.ui.story = { ch: this.chapter().n, part: 'intro', i: 0 };
+    this.sound('click');
+    this.emit(false);
+  }
+
+  finishChapter() {
+    if (!this.chapterReady()) return;
+    const st = this.s.story!;
+    const n = st.ch;
+    const r = storyReward(n);
+    st.ch = n + 1;
+    this.earn(r.coins);
+    this.s.gems += r.gems;
+    this.stat('chapters');
+    this.ui.panel = null;
+    this.ui.say = null;
+    this.ui.story = { ch: n, part: 'outro', i: 0 };
+    this.toast(`Chapter ${n} complete! +${fmtNum(r.coins)} coins${r.gems ? `, +${r.gems} gems` : ''}`, 'good');
+    this.sound('levelup');
+    this.addXp(r.xp);
+    this.emit();
+  }
+
+  // the farmer says something in a speech bubble over their head
+  say(text: string, ms = 4500) {
+    this.ui.say = { text, until: Date.now() + ms };
+  }
+
+  // cheers when a task gets done, and now and then a reminder of what the story asks for next
+  private told = new Set<string>();
+  private toldReady = false;
+  private hintAt = 0;
+  private storyTick(now: number) {
+    if (!this.storyOn() || this.ui.story) return;
+    const ch = this.chapter();
+    const done = ch.tasks.filter((t) => taskProgress(t, this.s) >= t.target);
+    if (!this.toldReady) { for (const t of done) this.told.add(t.id); this.toldReady = true; this.hintAt = now + 25e3; return; }
+    for (const t of done) {
+      if (this.told.has(t.id)) continue;
+      this.told.add(t.id);
+      this.say(`✅ ${t.text}`, 4000);
+      this.toast(`Story task done: ${t.text}`, 'good');
+      this.hintAt = now + 30e3;
+    }
+    if (now < this.hintAt || this.ui.napping) return;
+    const next = ch.tasks.find((t) => taskProgress(t, this.s) < t.target);
+    if (next) this.say(`${next.icon} ${next.text}  ${taskProgress(next, this.s)}/${next.target}`, 5000);
+    else this.say(`📖 Chapter ${ch.n} is done! Open Goals for your reward.`, 5000);
+    this.hintAt = now + 90e3;
   }
 
   // ------------------------------------------------ badges and tutorial
@@ -1592,7 +1703,7 @@ export class GameStore {
 
   private replace(s: GameState) {
     this.s = s;
-    this.ui = { selectedId: null, placing: null, tool: null, panel: null, storageTab: 'silo', expand: null, levelUp: null, daily: this.canDaily(), napping: false, napAt: 0 };
+    this.ui = { selectedId: null, placing: null, tool: null, panel: null, storageTab: 'silo', expand: null, levelUp: null, daily: this.canDaily(), napping: false, napAt: 0, story: null, say: null };
     this.ensureOrders();
     this.giveStarterWell();
     this.objVersion++;

@@ -36,8 +36,10 @@ import {
   restBonus,
   waterInfo,
   grazePhase,
+  storyReward,
   type FarmObject,
 } from '@/game/state';
+import { CAST, LAST_CHAPTER, chapterAt, taskProgress, type Chapter } from '@/game/story';
 import { getQuality, setQuality, type Quality } from '@/game/quality';
 import { artStyle, setArtStyle, type ArtStyle } from '@/game/gfx/creatures';
 import { Coin } from './Hud';
@@ -142,6 +144,7 @@ export default function Panels() {
       {ui.expand && <ExpandModal />}
       {ui.daily && ui.levelUp === null && <DailyModal />}
       {ui.levelUp !== null && <LevelUpModal level={ui.levelUp} />}
+      {ui.story && ui.levelUp === null && !ui.daily && <StoryDialog />}
     </>
   );
 }
@@ -1064,11 +1067,15 @@ function StorageModal() {
 function QuestsModal() {
   const store = useStore();
   const s = store.s;
-  const [tab, setTab] = useState<'goals' | 'badges'>('goals');
+  const [tab, setTab] = useState<'story' | 'goals' | 'badges'>('story');
   const badgeCount = claimableBadges(s).length;
   return (
-    <Modal title={tab === 'goals' ? 'Farm Goals' : 'Badges'} icon={tab === 'goals' ? '🏆' : '🎖️'} onClose={() => store.openPanel(null)}>
+    <Modal title={tab === 'story' ? 'Farm Story' : tab === 'goals' ? 'Farm Goals' : 'Badges'} icon={tab === 'story' ? '📖' : tab === 'goals' ? '🏆' : '🎖️'} onClose={() => store.openPanel(null)}>
       <div className="mb-3 flex gap-1.5">
+        <button className={`btn relative ${tab === 'story' ? 'btn-yellow' : 'btn-ghost'}`} onClick={() => setTab('story')}>
+          Story
+          {store.chapterReady() && <span className="badge">1</span>}
+        </button>
         <button className={`btn ${tab === 'goals' ? 'btn-yellow' : 'btn-ghost'}`} onClick={() => setTab('goals')}>
           Goals
         </button>
@@ -1077,7 +1084,7 @@ function QuestsModal() {
           {badgeCount > 0 && <span className="badge">{badgeCount}</span>}
         </button>
       </div>
-      {tab === 'goals' ? <GoalsList /> : <BadgesList />}
+      {tab === 'story' ? <StoryPage /> : tab === 'goals' ? <GoalsList /> : <BadgesList />}
     </Modal>
   );
 }
@@ -1446,3 +1453,150 @@ function ExpandModal() {
   );
 }
 
+
+// ------------------------------------------------------------------ story
+
+function Portrait({ who, size = 'h-20 w-20 text-5xl' }: { who: keyof typeof CAST; size?: string }) {
+  const c = CAST[who];
+  return (
+    <div className={`emoji grid shrink-0 place-items-center rounded-full border-4 bg-[#fff6df] shadow-[0_4px_0_#5d3a1f] ${size}`} style={{ borderColor: c.color }}>
+      {c.icon}
+    </div>
+  );
+}
+
+function TaskRow({ ch, i }: { ch: Chapter; i: number }) {
+  const store = useStore();
+  const t = ch.tasks[i];
+  const p = Math.min(t.target, taskProgress(t, store.s));
+  const done = p >= t.target;
+  return (
+    <div className={`card flex items-center gap-2 p-2 ${done ? 'ring-2 ring-[#5cb82e]' : ''}`}>
+      <span className="emoji text-2xl"><Ico i={t.icon} /></span>
+      <div className="min-w-0 flex-1">
+        <div className="flex items-center justify-between gap-2 text-sm font-bold">
+          <span className="truncate">{t.text}</span>
+          <span className="shrink-0 text-xs">{done ? '✅' : `${p}/${t.target}`}</span>
+        </div>
+        <div className="mt-1"><Bar p={p / t.target} /></div>
+      </div>
+    </div>
+  );
+}
+
+// A chapter told in speech bubbles: the teller's portrait, their words typed out, and the tasks
+// on the last bubble. Tap anywhere to go on.
+function StoryDialog() {
+  const store = useStore();
+  const d = store.ui.story!;
+  const ch = chapterAt(d.ch);
+  const lines = d.part === 'intro' ? ch.intro : [ch.outro];
+  const text = lines[Math.min(d.i, lines.length - 1)] ?? '';
+  const last = d.i >= lines.length - 1;
+  const who = CAST[ch.who];
+  const [shown, setShown] = useState(0);
+  useEffect(() => {
+    setShown(0);
+    const t = setInterval(() => setShown((n) => (n >= text.length ? n : n + 2)), 22);
+    return () => clearInterval(t);
+  }, [text]);
+  const typing = shown < text.length;
+  const next = () => (typing ? setShown(text.length) : store.storyNext());
+  const r = storyReward(ch.n);
+  return (
+    <div className="pointer-events-auto fixed inset-0 z-40 flex flex-col justify-end bg-black/35 p-3 pb-6 font-game sm:items-center" onPointerDown={next}>
+      <div className="w-full max-w-xl animate-pop">
+        {d.i === 0 && (
+          <div className="mb-2 flex justify-center">
+            <span className="rounded-full border-[3px] border-[#5d3a1f] bg-[#ffd23a] px-4 py-1 text-sm font-bold text-[#5a3a1a] shadow-[0_3px_0_#5d3a1f]">
+              {d.part === 'intro' ? `Chapter ${ch.n}: ${ch.title}` : `Chapter ${ch.n} complete!`}
+            </span>
+          </div>
+        )}
+        <div className="flex items-end gap-2">
+          <div className="flex flex-col items-center">
+            <div className="animate-bob"><Portrait who={ch.who} /></div>
+            <span className="mt-1 whitespace-nowrap rounded-full px-2 py-0.5 text-[11px] font-bold text-white" style={{ background: who.color }}>{who.name}</span>
+          </div>
+          <div className="relative mb-6 min-w-0 flex-1 rounded-3xl border-[3px] border-[#5d3a1f] bg-white px-4 py-3 text-[#4a2e14] shadow-[0_5px_0_#5d3a1f]">
+            {/* the bubble's tail points at the speaker */}
+            <span className="absolute -left-[13px] bottom-5 h-5 w-5 rotate-45 border-b-[3px] border-l-[3px] border-[#5d3a1f] bg-white" />
+            <p className="relative min-h-[3rem] text-base font-bold leading-snug sm:text-lg">
+              {text.slice(0, shown)}
+              <span className="opacity-0">{text.slice(shown)}</span>
+            </p>
+            {last && !typing && d.part === 'intro' && (
+              <div className="relative mt-2 flex flex-col gap-1.5">
+                {ch.tasks.map((_, i) => <TaskRow key={i} ch={ch} i={i} />)}
+              </div>
+            )}
+            {last && !typing && d.part === 'outro' && (
+              <div className="relative mt-2 flex items-center justify-center gap-4 text-base font-bold">
+                <Coins n={r.coins} />
+                {r.gems > 0 && <Gems n={r.gems} />}
+                <span className="text-[#2f8fd0]">+{fmtNum(r.xp)} XP</span>
+              </div>
+            )}
+            <div className="relative mt-2 flex justify-end">
+              <span className={`text-xs font-bold text-[#a8733f] ${typing ? 'opacity-0' : 'animate-bob'}`}>
+                {last ? (d.part === 'intro' ? "Let's go! ▶" : 'Thanks! ▶') : 'Tap ▶'}
+              </span>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function StoryPage() {
+  const store = useStore();
+  const s = store.s;
+  const st = s.story;
+  if (!st || st.ch > LAST_CHAPTER) {
+    return <p className="py-6 text-center text-sm text-[#8a6a44]">The story of Talon Valley is complete. The Golden Nest is yours! 🪺✨</p>;
+  }
+  const ch = chapterAt(st.ch);
+  const who = CAST[ch.who];
+  if (s.level < ch.n) {
+    return (
+      <div className="flex flex-col items-center gap-3 py-4 text-center">
+        <Portrait who={ch.who} />
+        <p className="text-sm font-bold">{who.name} has something new for you at level {ch.n}.</p>
+        <p className="text-xs text-[#8a6a44]">Keep farming to reach the next chapter. Chapters finished: {st.ch - 1} / {LAST_CHAPTER}</p>
+      </div>
+    );
+  }
+  const ready = store.chapterReady();
+  const r = storyReward(ch.n);
+  return (
+    <div className="flex flex-col gap-3">
+      <div className="flex items-center gap-3">
+        <Portrait who={ch.who} size="h-16 w-16 text-4xl" />
+        <div className="min-w-0 flex-1">
+          <div className="text-xs font-bold uppercase tracking-wide text-[#a8733f]">Chapter {ch.n} of {LAST_CHAPTER}</div>
+          <div className="text-lg font-bold leading-tight">{ch.title}</div>
+          <div className="text-xs text-[#8a6a44]">told by {who.name}</div>
+        </div>
+        <button className="btn btn-ghost shrink-0 px-3 py-1.5 text-sm" onClick={() => store.replayStory()}>
+          💬 Replay
+        </button>
+      </div>
+      <div className="relative rounded-2xl border-2 border-[#e2cc9c] bg-white px-3 py-2 text-sm italic text-[#5a3a1a]">
+        “{ch.intro[ch.intro.length - 1]}”
+      </div>
+      <div className="flex flex-col gap-1.5">
+        {ch.tasks.map((_, i) => <TaskRow key={i} ch={ch} i={i} />)}
+      </div>
+      <div className="flex items-center gap-3 text-sm font-bold">
+        <Coins n={r.coins} />
+        {r.gems > 0 && <Gems n={r.gems} />}
+        <span className="text-[#2f8fd0]">+{fmtNum(r.xp)} XP</span>
+        <button className={`btn btn-green ml-auto ${ready ? 'animate-bob' : ''}`} disabled={!ready} onClick={() => store.finishChapter()}>
+          Finish chapter
+        </button>
+      </div>
+      <p className="text-center text-xs text-[#8a6a44]">Chapters finished: {st.ch - 1} / {LAST_CHAPTER}</p>
+    </div>
+  );
+}
