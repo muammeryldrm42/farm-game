@@ -1330,10 +1330,16 @@ export class GameStore {
   sleep() {
     if (this.ui.napping) return;
     this.ui.napping = true;
-    this.ui.napAt = Date.now();
+    // the nap clock starts when the farmer has walked home and gone in (homeArrived)
+    this.ui.napAt = 0;
     this.ui.panel = null;
     this.ui.selectedId = null;
     this.sound('click');
+    this.emit(false);
+  }
+  homeArrived() {
+    if (!this.ui.napping || this.ui.napAt) return;
+    this.ui.napAt = Date.now();
     this.emit(false);
   }
   // the first nap of each day that lasts NAP_MS earns a small rested bonus
@@ -1342,7 +1348,7 @@ export class GameStore {
     this.ui.napping = false;
     const s = this.s;
     if (this.canRest()) {
-      if (Date.now() - this.ui.napAt >= NAP_MS) {
+      if (this.ui.napAt && Date.now() - this.ui.napAt >= NAP_MS) {
         s.restedOn = todayKey();
         const coins = restBonus(s.level);
         this.earn(coins);

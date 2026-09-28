@@ -684,16 +684,17 @@ function SleepOverlay() {
     const id = setInterval(() => tick((n) => n + 1), 500);
     return () => clearInterval(id);
   }, []);
+  const home = store.ui.napAt > 0;
   const left = Math.max(0, Math.ceil((store.ui.napAt + NAP_MS - Date.now()) / 1000));
   const rest = store.canRest();
   return (
     <>
       <div className="pointer-events-none fixed inset-0 z-10 bg-[#0b1a3a]/25" />
       <div className="panel pointer-events-auto fixed left-1/2 top-16 z-20 flex -translate-x-1/2 items-center gap-3 px-4 py-2 text-[#5a3a1a]">
-        <span className="emoji animate-bob text-2xl">😴</span>
+        <span className="emoji animate-bob text-2xl">{home ? '😴' : '🚶'}</span>
         <div className="flex flex-col text-left leading-tight">
-          <span className="font-bold">Sleeping... z Z z</span>
-          {rest && <span className="text-xs">{left > 0 ? `Well rested in ${left}s` : 'Well rested! Wake up for your bonus.'}</span>}
+          <span className="font-bold">{home ? 'Sleeping... z Z z' : 'Walking home to bed...'}</span>
+          {rest && home && <span className="text-xs">{left > 0 ? `Well rested in ${left}s` : 'Well rested! Wake up for your bonus.'}</span>}
         </div>
         <button className="btn btn-green px-4 py-1 text-sm" onClick={() => store.wake()}>Wake up</button>
       </div>

@@ -1892,16 +1892,23 @@ export class Renderer {
         if (o.type === 'plot') fieldTiles.add(o.y * GRID + o.x);
         continue;
       }
+      // animal homes, decorations, trees and clutter only slow the farmer down: he steps over
+      // the fences and between the benches. Buildings with walls stay in the way.
+      const v = SOFT_KINDS.has(d.kind) ? 2 : 1;
       for (let j = 0; j < d.h; j++) for (let i = 0; i < d.w; i++) {
         const x = o.x + i, y = o.y + j;
-        if (x >= 0 && y >= 0 && x < GRID && y < GRID) this.nav[y * GRID + x] = 1;
+        if (x >= 0 && y >= 0 && x < GRID && y < GRID) this.nav[y * GRID + x] = Math.max(this.nav[y * GRID + x], v);
       }
     }
     return true;
   }
 
+  // `roam`: planning for the farmer and his dog, who may cross the soft tiles
+  private roam = false;
   private free(x: number, y: number) {
-    return x >= 0 && y >= 0 && x < GRID && y < GRID && !this.nav[y * GRID + x];
+    if (x < 0 || y < 0 || x >= GRID || y >= GRID) return false;
+    const v = this.nav[y * GRID + x];
+    return v === 0 || (v === 2 && this.roam);
   }
 
   // nearest walkable tile to (x, y), searching outward in rings
@@ -1947,7 +1954,8 @@ export class Renderer {
         if (dx && dy && (!this.free(cx + dx, cy) || !this.free(cx, cy + dy))) continue;
         const ni = ny * GRID + nx;
         if (closed[ni]) continue;
-        const ng = gs[cur] + (dx && dy ? 1.414 : 1);
+        // crossing a pen or a flower bed costs more, so open ground is taken when there is some
+        const ng = gs[cur] + (dx && dy ? 1.414 : 1) + (this.nav[ni] === 2 ? 2.5 : 0);
         if (ng < gs[ni]) {
           gs[ni] = ng; fs[ni] = ng + hh(ni); from[ni] = cur;
           if (!inOpen[ni]) { open.push(ni); inOpen[ni] = 1; }
@@ -1985,11 +1993,14 @@ export class Renderer {
     const f = this.farmer, g = this.dog;
     f.inside = false;
     g.sleeping = false;
+    this.roam = true;
     const goal = this.send(f, tx, ty) ? { x: tx, y: ty } : this.sendNear(f, tx, ty);
-    if (!goal) return;
-    const ds = this.dogSpot(goal.x, goal.y);
-    if (ds) this.send(g, ds.x, ds.y);
-    this.showMarker(goal.x + 0.5, goal.y + 0.5);
+    if (goal) {
+      const ds = this.dogSpot(goal.x, goal.y);
+      if (ds) this.send(g, ds.x, ds.y);
+      this.showMarker(goal.x + 0.5, goal.y + 0.5);
+    }
+    this.roam = false;
   }
 
   // walk up to a building: to the free tile nearest the middle of its front
@@ -2041,6 +2052,7 @@ export class Renderer {
   private updateActors(dt: number, t: number, now: number) {
     const f = this.farmer, g = this.dog;
     this.rebuildNav();
+    this.roam = true;
     // placed a building on top of them: hop to the nearest free tile
     for (const a of [f, g]) {
       if (a.inside || a.sleeping) continue;
@@ -2065,12 +2077,14 @@ export class Renderer {
       if (nightNow && h) {
         const d = this.free(h.door.x, h.door.y) ? h.door : this.nearestFree(h.door.x, h.door.y, 4);
         const walking = d ? this.send(f, d.x, d.y) : false;
-        if (walking && d === h.door && h.step && this.free(Math.floor(h.step.x), Math.floor(h.step.y))) f.path.push(h.step);
+        // walled in on every side: he still walks to the door, straight over whatever is there
+        if (!walking && !f.inside) f.path = [{ x: h.door.x + 0.5, y: h.door.y + 0.5 }];
+        if (d === h.door && h.step) f.path.push(h.step);
         f.goHome = true;
-        // no way to the door (fenced in): step straight inside
-        if (!walking) f.path = [];
         const ds = h.kennel ? this.nearestFree(Math.floor(h.kennel.x), Math.floor(h.kennel.y + 0.6), 3) : d ? this.dogSpot(d.x, d.y) : null;
         if (ds) { this.send(g, ds.x, ds.y); g.goHome = true; }
+      } else if (nightNow) {
+        f.inside = true;
       } else if (!nightNow) {
         if (f.inside) { f.inside = false; }
         g.sleeping = false;
@@ -2081,6 +2095,8 @@ export class Renderer {
     this.step(f, 1.3, dt);
     this.step(g, 2.0, dt);
     if (f.goHome && !f.path.length) { f.goHome = false; if (this.nightMode) f.inside = true; }
+    // a nap starts counting once the farmer is through the door
+    if (f.inside && this.store.ui.napping && !this.store.ui.napAt) this.store.homeArrived();
     if (g.goHome && !g.path.length) {
       g.goHome = false;
       if (this.nightMode) {
@@ -2151,6 +2167,7 @@ export class Renderer {
       }
     }
 
+    this.roam = false;
     this.updateSpeech(now);
     this.updateVisitor(dt, t, now);
 
@@ -4380,6 +4397,7 @@ function groundGlow(g: P, x: number, z: number, size: number) {
 const pathTiles = new Set<number>();
 // tiles people can walk over: paths, and fields (the farmer and the dog step between the rows)
 const WALKABLE = new Set(['dirt_path', 'stone_path', 'plot']);
+const SOFT_KINDS = new Set<BuildingDef['kind']>(['pen', 'deco', 'tree', 'obstacle']);
 // fields are walkable but no place to graze
 const fieldTiles = new Set<number>();
 // One material per neighbor mask (north 1, east 2, south 4, west 8): a round center plus arms
