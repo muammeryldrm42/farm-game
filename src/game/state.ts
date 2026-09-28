@@ -18,9 +18,9 @@ export const isBeachChunk = (cx: number, cy: number) => cx === 0 || cy === 0 || 
 export const isBeachTile = (x: number, y: number) => isBeachChunk(Math.floor(x / CHUNK), Math.floor(y / CHUNK));
 // a natural lake on the east side, part of the land: never for sale and never built on. Its
 // chunks hold the water and a grassy bank round it.
-// it lies inland in the north east woods, well back from the beach
-export const LAKE = { x: 52, z: 18, rx: 3.2, rz: 4.5 };
-export const isLakeChunk = (cx: number, cy: number) => cx >= 12 && cx <= 13 && cy >= 3 && cy <= 5;
+// it lies inland in the north east woods, up past the pastures and well back from the beach
+export const LAKE = { x: 44, z: 14, rx: 3.2, rz: 4.5 };
+export const isLakeChunk = (cx: number, cy: number) => cx >= 10 && cx <= 11 && cy >= 2 && cy <= 4;
 export const isLakeTile = (x: number, y: number) => isLakeChunk(Math.floor(x / CHUNK), Math.floor(y / CHUNK));
 export const lakeE = (x: number, z: number) => Math.hypot((x - LAKE.x) / LAKE.rx, (z - LAKE.z) / LAKE.rz);
 // the tiles under water (their middles inside the waterline, with a little room for the bank)
@@ -88,7 +88,7 @@ export interface GameState {
   restedOn?: string; // day key of the last nap that earned the rested bonus
   water?: { n: number; at: number }; // the bucket: waterings left, and when it was last filled
   starterWell?: boolean; // the free well every farm gets has been handed out
-  lake?: boolean | number; // which lake site was cleared of anything built there (2: the inland one)
+  lake?: boolean | number; // which lake site was cleared of anything built there (3: the current one)
   story?: StoryState; // the story chapter on now, where its counters stood when it began, and the last one told
 }
 
@@ -432,7 +432,7 @@ export function newGame(): GameState {
     achievements: {},
     tutorial: 0,
     story: { ch: 1, started: 0, base: {}, seen: 0 },
-    lake: 2,
+    lake: 3,
   };
   for (let cx = 2; cx <= 4; cx++) for (let cy = 2; cy <= 4; cy++) s.chunks.push(`${cx},${cy}`);
   const add = (type: string, x: number, y: number, extra: Partial<FarmObject> = {}) => {
@@ -615,8 +615,8 @@ export class GameStore {
   // back, and anything standing on it moves to a free spot (or is sold, if there is none).
   private makeRoomForLake() {
     const s = this.s;
-    if (s.lake === 2) return;
-    s.lake = 2;
+    if (s.lake === 3) return;
+    s.lake = 3;
     const before = s.chunks.length;
     s.chunks = s.chunks.filter((k) => { const [cx, cy] = k.split(',').map(Number); return !isLakeChunk(cx, cy); });
     if (s.chunks.length < before) s.coins += (before - s.chunks.length) * 2000;
