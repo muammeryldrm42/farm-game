@@ -1381,6 +1381,7 @@ export class Renderer {
     // objects outside the view only animate now and then; their state is time based, so they
     // look right again the moment they scroll into view
     this.frameNo++;
+    EYES_FAR = this.cam.zoom < 0.8;
     resetSculptBudget();
     this.projM.multiplyMatrices(this.camera.projectionMatrix, this.camera.matrixWorldInverse);
     this.frustum.setFromProjectionMatrix(this.projM);
@@ -2655,6 +2656,7 @@ function eyes(p: P, spread: number, y: number, z: number, r: number, white = tru
 }
 
 // quick blink every few seconds, each creature on its own rhythm
+let EYES_FAR = false;
 function blink(m: THREE.Object3D, t: number, id: number) {
   const head = (m.userData.head as THREE.Object3D | undefined) ?? m;
   const list = head.userData.eyes as THREE.Object3D[] | undefined;
@@ -2662,7 +2664,8 @@ function blink(m: THREE.Object3D, t: number, id: number) {
   const period = 3200 + (id % 7) * 450;
   const ph = (t + id * 997) % period;
   const k = ph < 140 ? 0.12 : 1;
-  for (const e of list) e.scale.y = k;
+  // from far out eyes are a pixel: not drawn at all
+  for (const e of list) { e.scale.y = k; e.visible = !EYES_FAR; }
 }
 
 function legPivot(g: THREE.Group, x: number, y: number, z: number, len: number, th: number, color: string, list: THREE.Object3D[], foot?: string) {
@@ -3242,6 +3245,9 @@ function assembleModel(src: THREE.Object3D) {
     }
     g.add(c);
   }
+  // only the body casts a sun shadow: the thin legs, head and tail add a draw each for a
+  // shadow that the soft contact shadow already gives
+  for (const part of [...legs, g.userData.head, g.userData.tail]) (part as THREE.Object3D | undefined)?.traverse((m) => { m.castShadow = false; });
   g.userData.legs = legs;
   g.userData.signs = legs.length === 4 ? [1, -1, -1, 1] : [1, -1];
   g.userData.model = true;
@@ -3265,7 +3271,7 @@ function assemble(kind: string) {
   if (!cp) return g;
   const add = (p: P, geo: THREE.BufferGeometry, mat: THREE.Material, part: LodPart) => {
     const m = new THREE.Mesh(geo, mat);
-    m.castShadow = true;
+    m.castShadow = part === 'body';
     m.receiveShadow = true;
     lodMesh(m, kind, part);
     p.add(m);
