@@ -2857,11 +2857,13 @@ function waterSpotOf(list: { x: number; y: number; r: number; surf: number }[], 
   const lakeFar = Math.hypot(LAKE.x - cx, LAKE.z - cy) > 34;
   if (ponds.length && (lakeFar || hash(id, 51, 2) < 0.55)) {
     const p = ponds[Math.floor(hash(id, 52, 3) * Math.min(2, ponds.length))].p;
-    return { x: p.x, y: p.y, rx: p.r, rz: p.r, surf: p.surf };
+    // each bird keeps to its own side of the pond, so they do not paddle through each other
+    const a = hash(id, 55, 6) * Math.PI * 2, r = p.r * (0.3 + hash(id, 56, 7) * 0.3);
+    return { x: p.x + Math.cos(a) * r, y: p.y + Math.sin(a) * r, rx: p.r * 0.35, rz: p.r * 0.35, surf: p.surf };
   }
-  // somewhere on the lake, clear of the bank
-  const a = hash(id, 53, 4) * Math.PI * 2, r = hash(id, 54, 5) * 0.45;
-  return { x: LAKE.x + Math.cos(a) * LAKE.rx * r, y: LAKE.z + Math.sin(a) * LAKE.rz * r, rx: 1.4, rz: 1.8, surf: LAKE_Y };
+  // somewhere on the lake, clear of the bank, spread over the whole water
+  const a = hash(id, 53, 4) * Math.PI * 2, r = Math.sqrt(hash(id, 54, 5)) * 0.68;
+  return { x: LAKE.x + Math.cos(a) * LAKE.rx * r, y: LAKE.z + Math.sin(a) * LAKE.rz * r, rx: 1.3, rz: 1.6, surf: LAKE_Y };
 }
 // a tree crown near the pen for a tree bird: one of the few closest, picked by the bird
 function treePerch(o: FarmObject, d: BuildingDef, id: number) {
@@ -3020,6 +3022,38 @@ function fishCycle(herd: THREE.Object3D, m: THREE.Object3D, head: THREE.Object3D
   }
 }
 
+// a swimming bird's legs are under water: hidden, and the body sat down into the water
+function legsShown(m: THREE.Object3D, on: boolean) {
+  const legs = m.userData.legs as THREE.Object3D[] | undefined;
+  if (legs && legs[0] && legs[0].visible !== on) for (const l of legs) l.visible = on;
+}
+// how far below its feet a bird's origin goes for its body to float a third deep
+function floatDrop(m: THREE.Object3D) {
+  let v = m.userData.floatDrop as number | undefined;
+  if (v !== undefined) return v;
+  const legs = new Set((m.userData.legs as THREE.Object3D[] | undefined) ?? []);
+  const skip = new Set<THREE.Object3D>([m.userData.shadow, m.userData.fish, ...((m.userData.wings as THREE.Object3D[] | undefined) ?? [])].filter(Boolean));
+  m.updateWorldMatrix(true, true);
+  const inv = new THREE.Matrix4().copy(m.matrixWorld).invert();
+  const box = new THREE.Box3(), mb = new THREE.Box3(), mm = new THREE.Matrix4();
+  const walk = (o: THREE.Object3D) => {
+    if (legs.has(o) || skip.has(o)) return;
+    const mesh = o as THREE.Mesh;
+    if (mesh.isMesh && mesh.geometry) {
+      if (!mesh.geometry.boundingBox) mesh.geometry.computeBoundingBox();
+      mb.copy(mesh.geometry.boundingBox!).applyMatrix4(mm.multiplyMatrices(inv, mesh.matrixWorld));
+      box.union(mb);
+    }
+    for (const c of o.children) walk(c);
+  };
+  for (const c of m.children) walk(c);
+  const k = m.scale.y || 1;
+  // body bottom above the feet, plus a third of the body's depth (the neck and head not counted)
+  v = box.isEmpty() ? 0.03 : Math.max(0, box.min.y) * k + Math.min((box.max.y - box.min.y) * 0.35, 0.3) * k * 0.4;
+  m.userData.floatDrop = v;
+  return v;
+}
+
 // the ring mesh a bird uses for ripples, beside the herd (whose children are the animals)
 function rippleOf(herd: THREE.Object3D, m: THREE.Object3D) {
   let r = m.userData.ripple as THREE.Mesh | undefined;
@@ -3039,7 +3073,7 @@ function waterRing(herd: THREE.Object3D, m: THREE.Object3D, wy: number, after: n
   const k = splash >= 0 ? splash : ((t / 2600 + hash(id, 7, 2)) % 1);
   r.visible = true;
   r.position.set(m.position.x, wy + 0.005, m.position.z);
-  r.scale.setScalar(splash >= 0 ? 0.06 + k * 0.42 : 0.08 + k * 0.22);
+  r.scale.setScalar(splash >= 0 ? 0.05 + k * 0.28 : 0.06 + k * 0.16);
   (r.material as THREE.MeshBasicMaterial).opacity = (1 - k) * (splash >= 0 ? 0.75 : 0.25);
 }
 
@@ -4217,7 +4251,7 @@ function grazePose(o: FarmObject, d: BuildingDef, a: Animal, now: number): { x: 
 // A flying bird's trip: it takes off at the pen, flies straight out to its feeding ground and
 // lands, feeds, and flies home at the end. Land birds feed on the grass spots a walker would
 // use; water birds fly to the sea shallows nearest the pen and fish there.
-const FLY_SPEED = 2.4 / 1000; // tiles per ms
+const FLY_SPEED = 1.5 / 1000; // tiles per ms
 function seaSpot(o: FarmObject, d: BuildingDef, id: number): P2 {
   const cx = o.x + d.w / 2, cy = o.y + d.h / 2;
   const edges = [cx, GRID - cx, cy, GRID - cy];
@@ -4253,9 +4287,31 @@ function flyPose(o: FarmObject, d: BuildingDef, a: Animal, kind: string, now: nu
   const up0 = perch ? perch.h - 0.04 : pool ? pool.surf - 0.04 : 0;
   const water = sea ? -0.55 : pool ? pool.surf : undefined;
   // one hop through the air: up, across and down again (or onto a branch), over at most `budget` ms
+  // a fishing or swimming bird at a moment of its feeding time: a few slow strokes (or steps)
+  // to a spot of its own, then still there a while to hunt or dabble; spots change each round
+  const S = 4600 + hash(a.id, 41, 2) * 2200, off = hash(a.id, 42, 3) * S;
+  const sx = pool ? pool.rx : 1.3, sz = pool ? pool.rz : 1.1;
+  const pt = (k: number) => ({ x: ground.x + (hash(a.id, k, 43) - 0.5) * sx, y: ground.y + (hash(a.id, k, 44) - 0.5) * sz });
+  const feedAt = (time: number) => {
+    const n = Math.floor((time + off) / S), u = ((time + off) % S) / S;
+    const p0 = pt(n - 1), p1 = pt(n);
+    const wk = Math.min(1, u / 0.32), ease = wk * wk * (3 - 2 * wk);
+    return { x: p0.x + (p1.x - p0.x) * ease, y: p0.y + (p1.y - p0.y) * ease, heading: Math.atan2(p1.x - p0.x, p1.y - p0.y), n, u };
+  };
+  // where it lands and where it takes off from: exactly where its feeding starts and ends
+  const onWaterFeed = !!(sea || pool);
+  const feedPose = (time: number) => {
+    const f = feedAt(time);
+    return {
+      x: f.x, y: f.y, h: 0, fly: false,
+      heading: f.heading, sea, water, pool: !!pool, feeding: true, moving: f.u < 0.32,
+      stand: f.u < 0.32 ? -1 : (f.u - 0.32) / 0.68, round: f.n,
+    };
+  };
+  const land = onWaterFeed ? feedAt(g.at + walkMs) : ground;
   const hopAt = (from: P2, to: P2, t: number, budget: number, late: boolean, h0 = 0, h1 = 0) => {
     const dist = Math.hypot(to.x - from.x, to.y - from.y);
-    const dur = Math.min(budget, Math.max(900, dist / FLY_SPEED));
+    const dur = Math.min(budget, Math.max(2600, dist / FLY_SPEED));
     const t0 = late ? budget - dur : 0;
     const u = Math.max(0, Math.min(1, (t - t0) / dur));
     const up = Math.min(2.2, 0.6 + dist * 0.12);
@@ -4264,7 +4320,7 @@ function flyPose(o: FarmObject, d: BuildingDef, a: Animal, kind: string, now: nu
     return { x: from.x + (to.x - from.x) * e, y: from.y + (to.y - from.y) * e, h: h0 + (h1 - h0) * e + Math.sin(e * Math.PI) * up, fly: u > 0 && u < 1, heading: Math.atan2(to.x - from.x, to.y - from.y), u, after: t - t0 - dur };
   };
   if (gp.phase === 'leaving') {
-    const r = hopAt(home, ground, gp.k * walkMs, walkMs, false, 0, up0);
+    const r = hopAt(home, land, gp.k * walkMs, walkMs, false, 0, up0);
     // touched down on the water: swimming (or wading) from the first moment
     if (water !== undefined && r.u >= 1) r.h = 0;
     return { ...r, sea, water, pool: !!pool, feeding: false };
@@ -4277,29 +4333,25 @@ function flyPose(o: FarmObject, d: BuildingDef, a: Animal, kind: string, now: nu
   }
   if (gp.phase === 'eating') {
     if (sea || pool) {
-      // a few slow deliberate steps (or strokes, for swans and ducks) to a new spot, then
-      // standing still to hunt or dabble there; each spot is picked by the bird and the round
-      const S = 4600 + hash(a.id, 41, 2) * 2200, off = hash(a.id, 42, 3) * S;
-      const n = Math.floor((now + off) / S), u = ((now + off) % S) / S;
-      const sx = pool ? pool.rx : 1.3, sz = pool ? pool.rz : 1.1;
-      const pt = (k: number) => ({ x: ground.x + (hash(a.id, k, 43) - 0.5) * sx, y: ground.y + (hash(a.id, k, 44) - 0.5) * sz });
-      const p0 = pt(n - 1), p1 = pt(n);
-      const wk = Math.min(1, u / 0.32), ease = wk * wk * (3 - 2 * wk);
-      return {
-        x: p0.x + (p1.x - p0.x) * ease, y: p0.y + (p1.y - p0.y) * ease, h: 0, fly: false,
-        heading: Math.atan2(p1.x - p0.x, p1.y - p0.y), sea, water, pool: !!pool, feeding: true, moving: u < 0.32,
-        stand: u < 0.32 ? -1 : (u - 0.32) / 0.68, round: n,
-      };
+      return feedPose(now);
     }
     const gz = grazePose(o, d, a, now);
     return gz ? { x: gz.x, y: gz.y, h: 0, fly: false, heading: gz.heading, sea, feeding: !gz.moving, moving: gz.moving } : null;
   }
   // flying home: from the feeding ground, or from wherever it was when called back
-  let from = sea || perch || pool ? ground : tr ? along(tr.eat[1], 1) : ground;
+  // a water bird goes on fishing or paddling about until the moment it takes off
+  let fromAt = g.at + walkMs + eatMs;
+  if (onWaterFeed && g.back === undefined) {
+    const f0 = feedAt(fromAt);
+    const dur = Math.min(walkMs, Math.max(2600, Math.hypot(home2.x - f0.x, home2.y - f0.y) / FLY_SPEED));
+    fromAt += walkMs - dur;
+    if (now < fromAt) return feedPose(now);
+  }
+  let from = onWaterFeed ? feedAt(fromAt) : perch ? ground : tr ? along(tr.eat[1], 1) : ground;
   let fromH = up0;
   if (g.back !== undefined) {
     const at = flyPose(o, d, { ...a, graze: { at: g.at } }, kind, g.back);
-    if (at) { from = { x: at.x, y: at.y }; fromH = at.h; }
+    if (at) { from = { x: at.x, y: at.y }; fromH = !at.fly && at.h === 0 && water !== undefined ? up0 : at.h; }
   }
   const back = hopAt(from, home2, gp.k * walkMs, walkMs, true, fromH, 0);
   // still on the water until it takes off
@@ -4656,7 +4708,8 @@ function buildPen(e: Entry, d: BuildingDef) {
         const fw = fp as { water?: number; pool?: boolean };
         const swim = SWIMMERS.has(an!.id) || !!fw.pool;
         const onWater = fw.water !== undefined && !fp.fly && fp.h === 0;
-        const base = onWater ? (swim ? fw.water! - 0.015 + Math.sin(t / 800 + id) * 0.006 : fw.water! - (WADE[an!.id] ?? 0.18) * m.scale.x) : 0.04;
+        legsShown(m, !(onWater && swim));
+        const base = onWater ? (swim ? fw.water! - floatDrop(m) + Math.sin(t / 800 + id) * 0.006 : fw.water! - (WADE[an!.id] ?? 0.18) * m.scale.x) : 0.04;
         m.position.set(fp.x - o.x, base + fp.h, fp.y - o.y);
         // turning toward a new spot takes a moment rather than a snap
         if (fp.fly) m.rotation.y = fp.heading;
@@ -4693,6 +4746,7 @@ function buildPen(e: Entry, d: BuildingDef) {
       }
       flap(m, false, t, id);
       hideCatch(m);
+      legsShown(m, true);
       m.rotation.x = 0;
       if (m.userData.shadow) (m.userData.shadow as THREE.Object3D).visible = true;
       const gz = a?.graze ? grazePose(o, d, a, now) : null;
