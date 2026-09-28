@@ -1423,6 +1423,7 @@ export class Renderer {
     this.updateLight(now, t, wk);
 
     this.sky.mesh.position.copy(this.camera.position);
+    drawBlobs(this.scene);
     if (this.post) this.post.render();
     else this.gl.render(this.scene, this.camera);
   }
@@ -3099,14 +3100,48 @@ function contactShadow(p: P, w: number, d: number) {
     });
     blobMat = new THREE.MeshBasicMaterial({ map: tex, transparent: true, depthWrite: false, color: '#ffffff' });
   }
-  const m = new THREE.Mesh(G.plane, blobMat);
+  // a placeholder that moves and hides with its creature; the blobs of all creatures are
+  // drawn together in one instanced batch (see drawBlobs)
+  const m = new THREE.Object3D();
   m.rotation.x = -Math.PI / 2;
   m.scale.set(w, d, 1);
   m.position.y = 0.006;
-  m.renderOrder = 1;
   p.add(m);
+  BLOBS.add(m);
   return m;
 }
+const BLOBS = new Set<THREE.Object3D>();
+let blobBatch: THREE.InstancedMesh | null = null;
+// every contact shadow in the scene in a single draw: those still on a creature in the scene
+// and shown, at their creature's place this frame
+function drawBlobs(scene: THREE.Scene) {
+  if (!blobMat) return;
+  if (!blobBatch || blobBatch.instanceMatrix.count < BLOBS.size) {
+    if (blobBatch) { scene.remove(blobBatch); blobBatch.dispose(); }
+    blobBatch = new THREE.InstancedMesh(G.plane, blobMat, Math.max(64, BLOBS.size * 2));
+    blobBatch.renderOrder = 1;
+    blobBatch.frustumCulled = false;
+    scene.add(blobBatch);
+  }
+  let n = 0;
+  for (const b of BLOBS) {
+    let o: THREE.Object3D | null = b, shown = true;
+    while (o && o !== scene) { if (!o.visible) shown = false; o = o.parent; }
+    // out of the scene: kept a while in case it comes back, then forgotten (a herd rebuilt)
+    if (!o) {
+      const lost = (b.userData.lostAt as number | undefined) ?? (b.userData.lostAt = performance.now());
+      if (performance.now() - lost > 5000) BLOBS.delete(b);
+      continue;
+    }
+    b.userData.lostAt = undefined;
+    if (!shown) continue;
+    b.updateWorldMatrix(true, false);
+    blobBatch.setMatrixAt(n++, b.matrixWorld);
+  }
+  blobBatch.count = n;
+  blobBatch.instanceMatrix.needsUpdate = true;
+}
+
 
 // Level of detail for sculpted creatures. Every animal starts on the light mesh; once the
 // camera comes close, the fine sculpt for that kind is built in idle time (one kind at a time,
