@@ -873,7 +873,7 @@ function ShopCard({ d }: { d: BuildingDef }) {
           <span className={`text-sm font-bold ${poor ? 'text-[#c0392b]' : ''}`}>
             <Coins n={cost} />
           </span>
-          <span className="text-[11px] text-[#8a6a44]">{full ? 'Max owned' : `Owned ${owned}/${max}`}</span>
+          <span className="text-[11px] text-[#8a6a44]">{full ? 'Max owned' : Number.isFinite(max) ? `Owned ${owned}/${max}` : `Owned ${owned}`}</span>
         </>
       )}
     </button>

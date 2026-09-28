@@ -221,6 +221,8 @@ export const STALL_SLOTS = 4;
 export const emptySlot = (): StallSlot => ({ item: null, qty: 0, price: 0, listedAt: 0, soldAt: 0 });
 export const stallValue = (item: string, qty: number) => ITEMS[item].sell * qty;
 
+const LIMITED = new Set<BuildingDef['kind']>(['stall', 'house', 'dock', 'barn', 'silo', 'board', 'obstacle']);
+
 export function boatState(s: GameState, now: number): 'none' | 'docked' | 'away' {
   if (!s.boat) return 'none';
   if (s.boat.crates.length && now < s.boat.leavesAt) return 'docked';
@@ -328,7 +330,6 @@ export const QUESTS: Quest[] = [
   { id: 'q18', text: 'Collect 30 wool', target: 30, coins: 1500, gems: 5, xp: 80, progress: (s) => st(s, 'collect:wool') },
   { id: 'q20', text: 'Sell 5 things at your stall', target: 5, coins: 400, gems: 2, xp: 30, progress: (s) => st(s, 'stall') },
   { id: 'q21', text: 'Pick 20 apples', target: 20, coins: 500, gems: 2, xp: 40, progress: (s) => st(s, 'harvest:apple') },
-  { id: 'q22', text: 'Send 3 boats', target: 3, coins: 900, gems: 4, xp: 60, progress: (s) => st(s, 'boat') },
   { id: 'q23', text: 'Catch 15 fish', target: 15, coins: 700, gems: 3, xp: 50, progress: (s) => st(s, 'make:fish') },
   { id: 'q19', text: 'Reach level 20', target: 20, coins: 3000, gems: 10, xp: 0, progress: (s) => s.level },
   { id: 'q24', text: 'Make 10 sushi', target: 10, coins: 2500, gems: 6, xp: 120, progress: (s) => st(s, 'make:sushi') },
@@ -364,7 +365,6 @@ export const ACHIEVEMENTS: Achievement[] = [
   { id: 'orchard', name: 'Orchard Keeper', icon: '🍎', unit: 'fruit picked', tiers: [50, 500, 2000], progress: (s) => st(s, 'fruit') },
   { id: 'fisher', name: 'Angler', icon: '🎣', unit: 'catches', tiers: [20, 200, 1000], progress: (s) => st(s, 'make:fish') + st(s, 'make:lobster') },
   { id: 'trader', name: 'Order Hero', icon: '📋', unit: 'orders delivered', tiers: [25, 200, 1000], progress: (s) => st(s, 'orders') },
-  { id: 'captain', name: 'Captain', icon: '⛵', unit: 'boats completed', tiers: [5, 30, 100], progress: (s) => st(s, 'boat') },
   { id: 'merchant', name: 'Merchant', icon: '🏪', unit: 'stall sales', tiers: [10, 100, 500], progress: (s) => st(s, 'stall') },
   { id: 'tycoon', name: 'Tycoon', icon: '💰', unit: 'coins earned', tiers: [10000, 100000, 1000000], progress: (s) => st(s, 'earned') },
   { id: 'baron', name: 'Land Baron', icon: '🪧', unit: 'land expansions', tiers: [3, 10, 30], progress: (s) => st(s, 'expand') },
@@ -472,6 +472,8 @@ const REMOVED_BUILDING: Record<string, { cost: number; animal: number }> = {
   pigpen: { cost: 1000, animal: 160 }, unicorn_meadow: { cost: 32000, animal: 4000 },
   // decorations taken out later: paid back in full
   chapel: { cost: 10860, animal: 0 }, pagoda: { cost: 10320, animal: 0 }, torii_gate: { cost: 6600, animal: 0 }, totem_pole: { cost: 4140, animal: 0 },
+  // the boat dock and its cargo boat were taken out
+  dock: { cost: 500, animal: 0 },
 };
 function dropRemoved(s: GameState) {
   for (const o of s.objects) {
@@ -488,7 +490,8 @@ function dropRemoved(s: GameState) {
     s.coins += (REMOVED_VALUE[x.item] ?? 0) * x.qty;
     return emptySlot();
   });
-  if (s.boat) for (const c of s.boat.crates) if (!ITEMS[c.item]) { c.item = 'egg'; }
+  // no dock, no cargo boat
+  if (!s.objects.some((o) => BUILDING[o.type]?.kind === 'dock')) s.boat = null;
   const now = Date.now();
   s.orders = s.orders.map((o) => (o.items.every((it) => ITEMS[it.id]) ? o : genOrder(s, now)));
   for (const o of s.objects) if (o.prod) o.prod.queue = o.prod.queue.filter((e) => RECIPE[e.recipe]);
@@ -729,7 +732,10 @@ export class GameStore {
 
   countType(type: string) { return this.s.objects.filter((o) => o.type === type).length; }
 
-  maxOf(d: BuildingDef) { return d.kind === 'plot' ? maxPlots(this.s.level) : d.max; }
+
+  // no buying limit in the shop, but for the Home & Trade things (the stall, the homes) and
+  // the farm's own fixed buildings
+  maxOf(d: BuildingDef) { return LIMITED.has(d.kind) ? d.max : Infinity; }
 
   costOf(d: BuildingDef) {
     if (d.kind === 'plot') return Math.round(10 * Math.pow(1.1, Math.max(0, this.countType('plot') - 6)));
