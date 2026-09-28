@@ -3202,8 +3202,8 @@ const MODELS: Record<string, ModelSpec> = {
 };
 for (const id of ['hay_bale', 'picket_fence', 'bird_house', 'pumpkin_pile', 'birdbath', 'topiary', 'well', 'flower_arch',
   'hay_wagon', 'tractor', 'bench', 'lamp', 'scarecrow', 'windmill', 'pond', 'mailbox', 'gazebo', 'fountain',
-  'sundial', 'bird_feeder', 'garden_swing', 'bonfire', 'totem_pole', 'picnic_spot', 'wind_turbine', 'stone_bridge', 'pergola', 'horse_statue', 'torii_gate', 'zen_garden', 'treehouse', 'greenhouse', 'water_tower', 'carousel', 'lighthouse', 'clock_tower', 'hot_air_balloon', 'golden_farmer',
-  'garden_gnome', 'wheelbarrow', 'rain_barrel', 'flower_cart', 'compost_bin', 'mushroom_ring', 'stone_lantern', 'bamboo_grove', 'fairy_house', 'snowman', 'sandcastle', 'seesaw', 'outdoor_oven', 'telescope', 'obelisk', 'hammock', 'water_wheel', 'koi_pond', 'camping_tent', 'beach_hut', 'log_cabin', 'playground_slide', 'pagoda', 'chapel', 'observatory', 'ferris_wheel',
+  'sundial', 'bird_feeder', 'garden_swing', 'bonfire', 'picnic_spot', 'wind_turbine', 'stone_bridge', 'pergola', 'horse_statue', 'zen_garden', 'treehouse', 'greenhouse', 'water_tower', 'carousel', 'lighthouse', 'clock_tower', 'hot_air_balloon', 'golden_farmer',
+  'garden_gnome', 'wheelbarrow', 'rain_barrel', 'flower_cart', 'compost_bin', 'mushroom_ring', 'stone_lantern', 'bamboo_grove', 'fairy_house', 'snowman', 'sandcastle', 'seesaw', 'outdoor_oven', 'telescope', 'obelisk', 'hammock', 'water_wheel', 'koi_pond', 'camping_tent', 'beach_hut', 'log_cabin', 'playground_slide', 'observatory', 'ferris_wheel',
   'hay_stack', 'picnic_table', 'lemonade_stand', 'insect_hotel', 'weathervane', 'rock_garden', 'veggie_stand', 'windchime', 'dovecote', 'flag_pole', 'ice_cream_cart', 'pumpkin_carriage']) MODELS[id] = {};
 for (const d of Object.values(BUILDING)) if (d.kind === 'pen') MODELS[d.id] = {};
 for (const d of Object.values(BUILDING)) if (d.kind === 'tree') MODELS[d.id] = {};

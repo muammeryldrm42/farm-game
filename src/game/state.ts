@@ -450,7 +450,11 @@ export function newGame(): GameState {
 // Pigs and unicorns, and their goods, were taken out of the game. Saves that still hold them are paid back in
 // coins, and orders, stall slots, boat crates and queues that mention them are cleaned up.
 const REMOVED_VALUE: Record<string, number> = { bacon: 50, pig_feed: 14, rainbow_mane: 520 };
-const REMOVED_BUILDING: Record<string, { cost: number; animal: number }> = { pigpen: { cost: 1000, animal: 160 }, unicorn_meadow: { cost: 32000, animal: 4000 } };
+const REMOVED_BUILDING: Record<string, { cost: number; animal: number }> = {
+  pigpen: { cost: 1000, animal: 160 }, unicorn_meadow: { cost: 32000, animal: 4000 },
+  // decorations taken out later: paid back in full
+  chapel: { cost: 10860, animal: 0 }, pagoda: { cost: 10320, animal: 0 }, torii_gate: { cost: 6600, animal: 0 }, totem_pole: { cost: 4140, animal: 0 },
+};
 function dropRemoved(s: GameState) {
   for (const o of s.objects) {
     const r = REMOVED_BUILDING[o.type];

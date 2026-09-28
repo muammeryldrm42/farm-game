@@ -863,6 +863,10 @@ item('cornflower_body_mist', 'Cornflower Body Mist', '🧴', 'barn', 1292, 198);
 item('lotus_perfume', 'Lotus Perfume', '🧴', 'barn', 1833, 198);
 item('nutmeg_spice_rub', 'Nutmeg Spice Rub', '🧂', 'barn', 727, 199);
 item('wasabi_powder', 'Wasabi Powder', '🧂', 'barn', 1795, 200);
+// fill ins for the levels that lost a decoration
+item('honey_cake', 'Honey Cake', '🍰', 'barn', 420, 69);
+item('fruit_basket', 'Fruit Basket', '🧺', 'barn', 900, 172);
+item('butter_cookies', 'Butter Cookies', '🍪', 'barn', 820, 181);
 
 export const ITEMS: Record<string, ItemDef> = Object.fromEntries(ITEM_LIST.map((i) => [i.id, i]));
 
@@ -1400,6 +1404,9 @@ recipe('cornflower_body_mist', 'perfumery', { cornflower: 2, lemon: 1 }, 2580, 9
 recipe('lotus_perfume', 'perfumery', { lotus: 3 }, 2580, 99, 198);
 recipe('nutmeg_spice_rub', 'spice_mill', { nutmeg: 2, garlic: 1 }, 2590, 100, 199);
 recipe('wasabi_powder', 'spice_mill', { wasabi: 3 }, 2600, 100, 200);
+recipe('honey_cake', 'bakery', { honey: 2, wheat: 2, egg: 1 }, 1290, 34, 69);
+recipe('fruit_basket', 'florist', { apple: 3, pear: 2, peach: 2 }, 2320, 86, 172);
+recipe('butter_cookies', 'bakery', { butter: 2, wheat: 3, sugar: 2 }, 2410, 90, 181);
 
 export const RECIPE: Record<string, RecipeDef> = Object.fromEntries(RECIPES.map((r) => [r.id, r]));
 
@@ -1681,7 +1688,6 @@ export const BUILDINGS: BuildingDef[] = [
   b({ id: 'papaya_tree', name: 'Papaya Tree', icon: '🍈', kind: 'tree', cost: 5490, level: 61, max: 8, xp: 27, height: 64, sellable: true, fruit: 'papaya', growTime: 1566, desc: 'Gives 2 papayas again and again.' }),
   b({ id: 'suffolk_fold', name: 'Suffolk Fold', icon: '🐑', kind: 'pen', w: 3, h: 2, cost: 12800, level: 64, xp: 96, height: 26, wall: '#8fc45a', roof: '#8a4a2a', animal: 'suffolk_sheep', capacity: 5, desc: 'Home for up to 5 suffolk sheep.' }),
   b({ id: 'kumquat_tree', name: 'Kumquat Tree', icon: '🍊', kind: 'tree', cost: 5940, level: 66, max: 8, xp: 30, height: 64, sellable: true, fruit: 'kumquat', growTime: 1596, desc: 'Gives 2 kumquats again and again.' }),
-  b({ id: 'totem_pole', name: 'Totem Pole', icon: '🗿', kind: 'deco', w: 1, h: 1, cost: 4140, level: 69, max: 4, xp: 21, height: 100, sellable: true, desc: 'Carved and painted by hand.' }),
   b({ id: 'picnic_spot', name: 'Picnic Spot', icon: '🧺', kind: 'deco', w: 1, h: 1, cost: 4500, level: 75, max: 4, xp: 22, height: 14, sellable: true, desc: 'A checked blanket and a basket of treats.' }),
   b({ id: 'guava_tree', name: 'Guava Tree', icon: '🍐', kind: 'tree', cost: 6930, level: 77, max: 8, xp: 35, height: 64, sellable: true, fruit: 'guava', growTime: 1662, desc: 'Gives 2 guavas again and again.' }),
   b({ id: 'turkey_run', name: 'Bronze Gobbler Run', icon: '🦃', kind: 'pen', w: 2, h: 2, cost: 15800, level: 79, xp: 118, height: 26, wall: '#8fc45a', roof: '#8a4a2a', animal: 'bronze_turkey', capacity: 6, desc: 'Home for up to 6 bronze gobblers.' }),
@@ -1696,8 +1702,7 @@ export const BUILDINGS: BuildingDef[] = [
   b({ id: 'pecan_tree', name: 'Pecan Tree', icon: '🌰', kind: 'tree', cost: 9450, level: 105, max: 8, xp: 47, height: 64, sellable: true, fruit: 'pecan', growTime: 1830, desc: 'Gives 2 pecans again and again.' }),
   b({ id: 'cemani_coop', name: 'Cemani Coop', icon: '🐓', kind: 'pen', w: 2, h: 2, cost: 21400, level: 107, xp: 160, height: 26, wall: '#8fc45a', roof: '#8a4a2a', animal: 'ayam_cemani', capacity: 6, desc: 'Home for up to 6 ayam cemani hens.' }),
   b({ id: 'blood_orange_tree', name: 'Blood Orange Tree', icon: '🍊', kind: 'tree', cost: 9810, level: 109, max: 8, xp: 49, height: 64, sellable: true, fruit: 'blood_orange', growTime: 1854, desc: 'Gives 2 blood oranges again and again.' }),
-  b({ id: 'torii_gate', name: 'Torii Gate', icon: '⛩️', kind: 'deco', w: 2, h: 1, cost: 6600, level: 110, max: 2, xp: 33, height: 80, sellable: true, desc: 'A red gate from a faraway garden.' }),
-  b({ id: 'zen_garden', name: 'Zen Garden', icon: '🪨', kind: 'deco', w: 2, h: 2, cost: 6900, level: 115, max: 2, xp: 34, height: 16, sellable: true, desc: 'Raked sand and quiet stones.' }),
+  b({ id: 'zen_garden', name: 'Rock Garden', icon: '🪨', kind: 'deco', w: 2, h: 2, cost: 6900, level: 115, max: 2, xp: 34, height: 16, sellable: true, desc: 'Raked sand and quiet stones.' }),
   b({ id: 'jackfruit_tree', name: 'Jackfruit Tree', icon: '🍈', kind: 'tree', cost: 10440, level: 116, max: 8, xp: 52, height: 64, sellable: true, fruit: 'jackfruit', growTime: 1896, desc: 'Gives 2 jackfruits again and again.' }),
   b({ id: 'heron_marsh', name: 'Heron Marsh', icon: '🪿', kind: 'pen', w: 3, h: 2, cost: 23800, level: 119, xp: 178, height: 26, wall: '#8fc45a', roof: '#8a4a2a', animal: 'grey_heron', capacity: 4, desc: 'Home for up to 4 grey herons.' }),
   b({ id: 'macadamia_tree', name: 'Macadamia Tree', icon: '🥜', kind: 'tree', cost: 10980, level: 122, max: 8, xp: 55, height: 64, sellable: true, fruit: 'macadamia', growTime: 1932, desc: 'Gives 2 macadamias again and again.' }),
@@ -1789,11 +1794,9 @@ export const BUILDINGS: BuildingDef[] = [
   b({ id: 'mule_paddock', name: 'Mule Paddock', icon: '🫏', kind: 'pen', w: 3, h: 2, cost: 29700, level: 165, xp: 248, height: 26, wall: '#8fc45a', roof: '#8a4a2a', animal: 'mule', capacity: 5, desc: 'Home for up to 5 mules.' }),
   b({ id: 'playground_slide', name: 'Playground', icon: '🛝', kind: 'deco', w: 2, h: 2, cost: 9960, level: 166, max: 2, xp: 50, height: 60, sellable: true, desc: 'A slide, a ladder and a swing.' }),
   b({ id: 'breadfruit_tree', name: 'Breadfruit Tree', icon: '🟢', kind: 'tree', cost: 15210, level: 169, max: 8, xp: 76, height: 66, sellable: true, fruit: 'breadfruit', growTime: 2214, desc: 'Gives 2 breadfruits again and again.' }),
-  b({ id: 'pagoda', name: 'Pagoda', icon: '🏯', kind: 'deco', w: 2, h: 2, cost: 10320, level: 172, max: 2, xp: 52, height: 140, sellable: true, desc: 'Five tiers of curling roofs.' }),
   b({ id: 'cherimoya_tree', name: 'Cherimoya Tree', icon: '🟢', kind: 'tree', cost: 15750, level: 175, max: 8, xp: 79, height: 66, sellable: true, fruit: 'cherimoya', growTime: 2250, desc: 'Gives 2 cherimoyas again and again.' }),
   b({ id: 'longhorn_ranch', name: 'Longhorn Ranch', icon: '🐂', kind: 'pen', w: 3, h: 2, cost: 31680, level: 176, xp: 264, height: 26, wall: '#8fc45a', roof: '#8a4a2a', animal: 'texas_longhorn', capacity: 5, desc: 'Home for up to 5 texas longhorns.' }),
   b({ id: 'mamey_tree', name: 'Mamey Tree', icon: '🟤', kind: 'tree', cost: 16200, level: 180, max: 8, xp: 81, height: 66, sellable: true, fruit: 'mamey', growTime: 2280, desc: 'Gives 2 mameys again and again.' }),
-  b({ id: 'chapel', name: 'Chapel', icon: '⛪', kind: 'deco', w: 2, h: 2, cost: 10860, level: 181, max: 2, xp: 54, height: 150, sellable: true, desc: 'A white chapel with a little bell.' }),
   b({ id: 'clydesdale_stable', name: 'Clydesdale Stable', icon: '🐴', kind: 'pen', w: 3, h: 2, cost: 33120, level: 184, xp: 276, height: 26, wall: '#8fc45a', roof: '#8a4a2a', animal: 'clydesdale', capacity: 5, desc: 'Home for up to 5 clydesdales.' }),
   b({ id: 'salak_tree', name: 'Snake Fruit Tree', icon: '🟤', kind: 'tree', cost: 16740, level: 186, max: 8, xp: 84, height: 66, sellable: true, fruit: 'salak', growTime: 2316, desc: 'Gives 2 snake fruits again and again.' }),
   b({ id: 'observatory', name: 'Observatory', icon: '🔭', kind: 'deco', w: 2, h: 2, cost: 11340, level: 189, max: 2, xp: 57, height: 110, sellable: true, desc: 'Its dome opens to the night sky.' }),

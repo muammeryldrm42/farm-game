@@ -1,7 +1,7 @@
 # Second wave decorations: garden gnome, wheelbarrow, rain barrel, flower cart, compost bin,
 # mushroom ring, stone lantern, bamboo grove, fairy house, snowman, sandcastle, seesaw, outdoor
 # oven, telescope, obelisk, hammock, water wheel, koi pond, camping tent, beach hut, log cabin,
-# playground, pagoda, chapel, observatory and a ferris wheel.
+# playground, observatory and a ferris wheel.
 # Run: python3 tools/blender/deco3.py [names...]   (see kit.main)
 import math
 import os
@@ -541,69 +541,6 @@ def playground_slide():
     finish('playground_slide', tex=1024)
 
 
-def pagoda():
-    m = std()
-    red = pm('pa_red', '#b8281c', '#c83a2a', scale=12)
-    roof = pm('pa_roof', '#2a4a3a', '#3a5a48', scale=20)
-    box(uid('base'), (1.4, 1.4, 0.16), (0, 0, 0.08), m['stone'][1], bev=0.02)
-    z = 0.16
-    for tier in range(5):
-        s = 1.0 - tier * 0.14
-        h = 0.28
-        box(uid('wall'), (s * 0.8, s * 0.8, h), (0, 0, z + h / 2), red, bev=0.01)
-        for sx in (-1, 1):
-            box(uid('win'), (0.1, 0.02, 0.12), (sx * 0.15 * s, -s * 0.4, z + h / 2), m['lamp'], bev=0)
-        z += h
-        # a curling roof: four sloped planes flaring out at the corners
-        rw = s * 1.25
-        for k in range(4):
-            a = k * R90
-            d = (math.sin(a), -math.cos(a), 0)
-            c = (d[0] * rw * 0.3, d[1] * rw * 0.3, z + 0.06)
-            obox(uid('roof'), c, ((math.cos(a), math.sin(a), 0), (d[0], d[1], -0.45), (-d[0] * 0.45, -d[1] * 0.45, 1)), (rw, rw * 0.55, 0.04), roof, bev=0.006)
-        for sx in (-1, 1):
-            for sy in (-1, 1):
-                cyl(uid('tip'), 0.02, 0.1, (sx * rw * 0.5, sy * rw * 0.5, z + 0.04), roof, verts=6, r2=0.0, rot=(-sy * 0.8, sx * 0.8, 0))
-        z += 0.14
-    cyl(uid('spire'), 0.03, 0.5, (0, 0, z + 0.25), m['brass'], verts=8)
-    for k in range(5):
-        torus(uid('ring'), 0.05, 0.012, (0, 0, z + 0.1 + k * 0.07), m['brass'], segs=12, rsegs=4)
-    glow(0, -0.6, 1.8)
-    finish('pagoda', tex=1024, glow=('lamp',))
-
-
-def chapel():
-    m = std()
-    white = pm('ch_white', '#f4f1ea', '#fbfaf6', scale=10)
-    roof = pm('ch_roof', '#5a3a2a', '#6a4a36', scale=20)
-    box(uid('found'), (1.0, 1.5, 0.1), (0, 0.1, 0.05), m['stone'][0], bev=0.015)
-    box(uid('nave'), (0.9, 1.3, 0.8), (0, 0.1, 0.5), white, bev=0.01)
-    for sx in (-1, 1):
-        obox(uid('roof'), (sx * 0.24, 0.1, 1.08), ((0, 1, 0), (math.cos(0.75), 0, -sx * math.sin(0.75)), (sx * math.sin(0.75), 0, math.cos(0.75))), (1.4, 0.7, 0.05), roof, bev=0.01)
-    # the two gable ends, stepped up to the ridge
-    for yy in (-0.55, 0.75):
-        for k in range(8):
-            u = (k + 0.5) / 8
-            w = 0.9 * (1 - u)
-            box(uid('gab'), (w, 0.04, 0.45 / 8), (0, yy, 0.9 + u * 0.45), white, bev=0)
-    box(uid('tower'), (0.4, 0.4, 0.6), (0, -0.45, 1.2), white, bev=0.01)
-    box(uid('belfry'), (0.3, 0.3, 0.2), (0, -0.45, 1.6), pm('ch_dark', '#3a3030'), bev=0)
-    for sx in (-1, 1):
-        for sy in (-1, 1):
-            box(uid('bcol'), (0.06, 0.06, 0.22), (sx * 0.16, -0.45 + sy * 0.16, 1.6), white, bev=0.006)
-    ball(uid('bell'), 0.08, (0, -0.45, 1.6), m['brass'], scale=(1, 1, 1.1), segs=12)
-    cyl(uid('spire'), 0.3, 0.7, (0, -0.45, 2.05), roof, verts=4, r2=0.0, rot=(0, 0, math.radians(45)), bev=0)
-    cyl(uid('cross_v'), 0.012, 0.2, (0, -0.45, 2.5), m['brass'], verts=6)
-    box(uid('cross_h'), (0.1, 0.02, 0.02), (0, -0.45, 2.54), m['brass'], bev=0)
-    box(uid('door'), (0.26, 0.03, 0.44), (0, -0.66, 0.34), m['wood_dark'], bev=0.01)
-    ball(uid('arch'), 0.13, (0, -0.66, 0.56), m['wood_dark'], scale=(1, 0.25, 0.6), segs=10)
-    for y in (-0.2, 0.2, 0.55):
-        for sx in (-1, 1):
-            box(uid('win'), (0.03, 0.14, 0.34), (sx * 0.46, y, 0.55), pm('ch_glass', '#6a8ad8', rough=0.1), bev=0.004)
-    for k in range(4):
-        box(uid('step'), (0.4, 0.1, 0.03), (0, -0.72 - k * 0.08, 0.1 - k * 0.025), m['stone'][1], bev=0.005)
-    glow(0, -0.9, 1.6)
-    finish('chapel', tex=1024, glow=('ch_glass',))
 
 
 def observatory():
@@ -891,7 +828,7 @@ MODELS = {name: fn for name, fn in [
     ('fairy_house', fairy_house), ('snowman', snowman), ('sandcastle', sandcastle), ('seesaw', seesaw), ('outdoor_oven', outdoor_oven),
     ('telescope', telescope), ('obelisk', obelisk), ('hammock', hammock), ('water_wheel', water_wheel), ('koi_pond', koi_pond),
     ('camping_tent', camping_tent), ('beach_hut', beach_hut), ('log_cabin', log_cabin), ('playground_slide', playground_slide),
-    ('pagoda', pagoda), ('chapel', chapel), ('observatory', observatory), ('ferris_wheel', ferris_wheel),
+    ('observatory', observatory), ('ferris_wheel', ferris_wheel),
     ('hay_stack', hay_stack), ('picnic_table', picnic_table), ('lemonade_stand', lemonade_stand), ('insect_hotel', insect_hotel),
     ('weathervane', weathervane), ('rock_garden', rock_garden), ('veggie_stand', veggie_stand), ('windchime', windchime),
     ('dovecote', dovecote), ('flag_pole', flag_pole), ('ice_cream_cart', ice_cream_cart), ('pumpkin_carriage', pumpkin_carriage)]}
