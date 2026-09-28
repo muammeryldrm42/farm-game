@@ -1239,7 +1239,7 @@ export class Renderer {
       this.sun.shadow.updateMatrices(this.sun);
       shadow = this.sun.shadow.getFrustum();
     }
-    this.foliage.cull(this.frustum, shadow);
+    this.foliage.cull(this.frustum, shadow, this.cam.zoom < 0.8);
     for (const b of this.forest) b.cull(this.frustum, shadow);
   }
 
@@ -1394,8 +1394,7 @@ export class Renderer {
       const seen = this.frustum.intersectsSphere(this.cullSphere);
       // animals out of their pen (grazing, flying, fishing at sea) keep moving even when the pen
       // itself is off screen, or they would stand frozen out there
-      const away = !!o.pen && o.pen.animals.some((a) => a.graze);
-      if (seen || away || (this.frameNo + o.id) % 24 === 0) e.update?.(o, now, t, dt);
+      if (seen || (!!o.pen && o.pen.animals.some((a) => a.graze)) || (this.frameNo + o.id) % 24 === 0) e.update?.(o, now, t, dt);
       if (e.bounce || e.root.scale.x !== 1) this.applyBounce(e, o, dt);
     }
     tickAnims(dt);
