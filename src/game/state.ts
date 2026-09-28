@@ -16,6 +16,14 @@ export const NCH = GRID / CHUNK;
 // the outer ring of chunks is the beach: always open, but only beach things stand on the sand
 export const isBeachChunk = (cx: number, cy: number) => cx === 0 || cy === 0 || cx === NCH - 1 || cy === NCH - 1;
 export const isBeachTile = (x: number, y: number) => isBeachChunk(Math.floor(x / CHUNK), Math.floor(y / CHUNK));
+// a natural lake on the east side, part of the land: never for sale and never built on. Its
+// chunks hold the water and a grassy bank round it.
+export const LAKE = { x: GRID - 8, z: GRID / 2, rx: 3.2, rz: 4.5 };
+export const isLakeChunk = (cx: number, cy: number) => cx >= NCH - 3 && cx <= NCH - 2 && cy >= 7 && cy <= 9;
+export const isLakeTile = (x: number, y: number) => isLakeChunk(Math.floor(x / CHUNK), Math.floor(y / CHUNK));
+export const lakeE = (x: number, z: number) => Math.hypot((x - LAKE.x) / LAKE.rx, (z - LAKE.z) / LAKE.rz);
+// the tiles under water (their middles inside the waterline, with a little room for the bank)
+export const inLakeWater = (x: number, y: number) => lakeE(x + 0.5, y + 0.5) < 1.08;
 export const SAVE_KEY = 'talons-farm-save-v1';
 
 export interface FishingData { open: boolean; castAt: number | null; catchAt: number | null }
@@ -79,6 +87,7 @@ export interface GameState {
   restedOn?: string; // day key of the last nap that earned the rested bonus
   water?: { n: number; at: number }; // the bucket: waterings left, and when it was last filled
   starterWell?: boolean; // the free well every farm gets has been handed out
+  lake?: boolean; // the lake's land was cleared of anything built there before it existed
   story?: StoryState; // the story chapter on now, where its counters stood when it began, and the last one told
 }
 
@@ -243,9 +252,10 @@ export function canFulfill(s: GameState, o: Order, now: number) {
   return o.readyAt <= now && o.items.every((it) => (s.inv[it.id] ?? 0) >= it.qty);
 }
 
-export function chunkState(s: GameState, cx: number, cy: number): 'open' | 'buyable' | 'locked' | 'beach' {
+export function chunkState(s: GameState, cx: number, cy: number): 'open' | 'buyable' | 'locked' | 'beach' | 'lake' {
   if (cx < 0 || cy < 0 || cx >= NCH || cy >= NCH) return 'locked';
   if (isBeachChunk(cx, cy)) return 'beach';
+  if (isLakeChunk(cx, cy)) return 'lake';
   if (s.chunks.includes(`${cx},${cy}`)) return 'open';
   const n = [[1, 0], [-1, 0], [0, 1], [0, -1]];
   return n.some(([dx, dy]) => s.chunks.includes(`${cx + dx},${cy + dy}`)) ? 'buyable' : 'locked';
@@ -421,6 +431,7 @@ export function newGame(): GameState {
     achievements: {},
     tutorial: 0,
     story: { ch: 1, started: 0, base: {}, seen: 0 },
+    lake: true,
   };
   for (let cx = 2; cx <= 4; cx++) for (let cy = 2; cy <= 4; cy++) s.chunks.push(`${cx},${cy}`);
   const add = (type: string, x: number, y: number, extra: Partial<FarmObject> = {}) => {
@@ -596,6 +607,29 @@ export class GameStore {
     this.ensureOrders();
     this.ui.daily = this.canDaily();
     this.giveStarterWell();
+    this.makeRoomForLake();
+  }
+
+  // farms from before the lake: its land goes back to nature. Bought chunks there are paid
+  // back, and anything standing on it moves to a free spot (or is sold, if there is none).
+  private makeRoomForLake() {
+    const s = this.s;
+    if (s.lake) return;
+    s.lake = true;
+    const before = s.chunks.length;
+    s.chunks = s.chunks.filter((k) => { const [cx, cy] = k.split(',').map(Number); return !isLakeChunk(cx, cy); });
+    if (s.chunks.length < before) s.coins += (before - s.chunks.length) * 2000;
+    const on = (o: FarmObject) => {
+      const d = BUILDING[o.type];
+      for (let i = 0; i < d.w; i++) for (let j = 0; j < d.h; j++) if (isLakeTile(o.x + i, o.y + j)) return true;
+      return false;
+    };
+    for (const o of [...s.objects]) {
+      if (!on(o)) continue;
+      const sp = this.findSpot(o.type, LAKE.x - 12, LAKE.z, o.id);
+      if (sp.ok) { o.x = sp.x; o.y = sp.y; } else { s.objects = s.objects.filter((x) => x !== o); s.coins += BUILDING[o.type].cost; }
+    }
+    this.objVersion++;
   }
 
   // farms from before the bucket get their free well beside the fields, once
@@ -708,13 +742,13 @@ export class GameStore {
     if (x < 0 || y < 0 || x >= GRID || y >= GRID) return false;
     const c = this.s.chunks;
     if (c !== this.chunkSrc || c.length !== this.chunkN) { this.chunkSet = new Set(c); this.chunkSrc = c; this.chunkN = c.length; }
-    return isBeachTile(x, y) || this.chunkSet.has(`${Math.floor(x / CHUNK)},${Math.floor(y / CHUNK)}`);
+    return isBeachTile(x, y) || isLakeTile(x, y) || this.chunkSet.has(`${Math.floor(x / CHUNK)},${Math.floor(y / CHUNK)}`);
   }
 
   canPlace(type: string, x: number, y: number, ignoreId?: number) {
     const d = BUILDING[type];
     for (let i = 0; i < d.w; i++) for (let j = 0; j < d.h; j++) {
-      if (!this.isUnlocked(x + i, y + j)) return false;
+      if (!this.isUnlocked(x + i, y + j) || isLakeTile(x + i, y + j)) return false;
       // the sand takes beach things only: deck chairs, sandcastles, palms...
       if (isBeachTile(x + i, y + j) && !d.beach) return false;
       const o = this.objectAt(x + i, y + j);
@@ -1735,6 +1769,7 @@ export class GameStore {
     this.ui = { selectedId: null, placing: null, tool: null, panel: null, storageTab: 'silo', expand: null, levelUp: null, daily: this.canDaily(), napping: false, napAt: 0, story: null, say: null };
     this.ensureOrders();
     this.giveStarterWell();
+    this.makeRoomForLake();
     this.objVersion++;
     this.emit();
     this.saveNow();
