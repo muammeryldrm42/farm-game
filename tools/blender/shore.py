@@ -291,33 +291,22 @@ def ledge(name, rx, ry, top, loc, dry, wet, seed):
 
 def sea_rock():
     """A haul out ledge off the shore: a few broad, low slabs of grey stone just clear of the
-    water, flat enough on top for seals to lie on, with a dark wet band at the tide line crusted
-    with barnacles and fringed with wrack, and a few gull droppings and lichen on the dry top.
+    water, flat enough on top for seals to lie on, with a dark wet band at the tide line fringed
+    with wrack.
     Blender coordinates: z up, z 0 the sea surface."""
     import random
     dry = pm('sr_dry', '#8a8680', '#a09a92', scale=5)
     wet = pm('sr_wet', '#4a4a48', '#5a5854', scale=8)
-    barn = pm('sr_barn', '#d8d2c4', '#e8e2d4', scale=60)
     weed = pm('sr_weed', '#4a5a22', '#5a6a2a', scale=40)
-    lichen = pm('sr_lichen', '#d8a040')
-    guano = pm('sr_guano', '#f2efe6')
     ledge(uid('slab'), 0.95, 0.62, 0.16, (0, 0, -0.1), dry, wet, 3)
     ledge(uid('slab'), 0.55, 0.42, 0.1, (0.72, 0.3, -0.12), dry, wet, 5)
     ledge(uid('slab'), 0.48, 0.36, 0.07, (-0.7, -0.34, -0.14), dry, wet, 7)
     rnd = random.Random(11)
-    # barnacles and wrack round the tide line
-    for i in range(46):
+    # wrack round the tide line, just under the water
+    for i in range(24):
         a = rnd.uniform(0, math.tau)
         cx, cy, rx, ry = [(0, 0, 0.9, 0.6), (0.72, 0.3, 0.52, 0.4), (-0.7, -0.34, 0.45, 0.34)][i % 3]
-        x, y = cx + math.cos(a) * rx * 0.98, cy + math.sin(a) * ry * 0.98
-        if i % 2:
-            ball(uid('barnacle'), 0.018, (x, y, 0.02 + rnd.uniform(0, 0.03)), barn, scale=(1, 1, 0.7), segs=6)
-        else:
-            ball(uid('weed'), 0.05, (x, y, -0.01), weed, scale=(1.4, 0.8, 0.35), segs=8)
-    # lichen and droppings up top
-    for i in range(10):
-        x, y = rnd.uniform(-0.6, 0.6), rnd.uniform(-0.35, 0.35)
-        ball(uid('spot'), 0.035 if i % 2 else 0.025, (x, y, 0.16), lichen if i % 2 else guano, scale=(1, 1, 0.12), segs=8)
+        ball(uid('weed'), 0.05, (cx + math.cos(a) * rx * 0.98, cy + math.sin(a) * ry * 0.98, -0.02), weed, scale=(1.4, 0.8, 0.35), segs=8)
     finish('sea_rock', tex=1024, vivid=1.0, ao_min=0.6, ao_dist=0.2)
 
 

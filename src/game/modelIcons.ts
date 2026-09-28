@@ -8,8 +8,9 @@ export const MODEL_ICONS = new Set([
   'horse_statue', 'hot_air_balloon', 'ice_cream_cart', 'insect_hotel', 'koi_pond', 'lamp', 'lemonade_stand', 'lifeguard_tower',
   'lighthouse', 'log_cabin', 'mailbox', 'milk_churns', 'mushroom_ring', 'oak', 'obelisk', 'observatory',
   'outdoor_oven', 'pergola', 'picket_fence', 'picnic_spot', 'picnic_table', 'playground_slide', 'pond', 'pumpkin_carriage',
-  'pumpkin_pile', 'rain_barrel', 'rock_garden', 'sandcastle', 'scarecrow', 'seesaw', 'snowman', 'sprinkler',
-  'stone_bridge', 'stone_lantern', 'stone_path', 'sun_lounger', 'sundial', 'sunflower_patch', 'surfboard_rack', 'telescope',
-  'tool_shed', 'topiary', 'tractor', 'treehouse', 'veggie_stand', 'water_tower', 'water_wheel', 'weathervane',
-  'well', 'wheelbarrow', 'wind_turbine', 'windchime', 'windmill', 'zen_garden',
+  'pumpkin_pile', 'rain_barrel', 'rock_garden', 'sand_car', 'sand_crab', 'sand_dolphin', 'sand_octopus', 'sand_pyramid',
+  'sand_serpent', 'sand_starfish', 'sand_tower', 'sand_turtle', 'sand_whale', 'sandcastle', 'scarecrow', 'seesaw',
+  'snowman', 'sprinkler', 'stone_bridge', 'stone_lantern', 'stone_path', 'sun_lounger', 'sundial', 'sunflower_patch',
+  'surfboard_rack', 'telescope', 'tool_shed', 'topiary', 'tractor', 'treehouse', 'veggie_stand', 'water_tower',
+  'water_wheel', 'weathervane', 'well', 'wheelbarrow', 'wind_turbine', 'windchime', 'windmill', 'zen_garden',
 ]);
