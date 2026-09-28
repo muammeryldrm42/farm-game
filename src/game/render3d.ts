@@ -627,6 +627,7 @@ export class Renderer {
       flowers: () => this.flowerSpots(),
       roofs: () => this.roofSpots(),
       roofTop: (id, x, z) => this.roofTop(id, x, z),
+      trees: () => this.treeSpots(),
     };
     // the farmer and pets start as sculpts and take on their Blender models once loaded
     if (artStyle() === 'toon') {
@@ -1919,6 +1920,23 @@ export class Renderer {
     return this.roofList;
   }
 
+  // trees a bird may sit in: fruit trees and the wild trees still standing on the farm
+  private treeKey = '';
+  private treeList: { id: number; x: number; y: number }[] = [];
+  private treeSpots() {
+    const s = this.store.s;
+    const key = `${this.store.objVersion}|${s.objects.length}`;
+    if (key !== this.treeKey) {
+      this.treeKey = key;
+      this.treeList = [];
+      for (const o of s.objects) {
+        const d = BUILDING[o.type];
+        if (d.kind === 'tree' || o.type.startsWith('tree_obs') || o.type === 'oak') this.treeList.push({ id: o.id, x: o.x + d.w / 2, y: o.y + d.h / 2 });
+      }
+    }
+    return this.treeList;
+  }
+
   // the real height of a building's roof at a spot: a ray dropped onto its meshes (the model's
   // own roof, not the rough height used for its bubble), remembered for a few seconds
   private roofCache = new Map<string, { h: number | null; at: number }>();
@@ -2567,6 +2585,19 @@ const FLIERS = new Set(['chicken', 'duck', 'goose', 'gobbler', 'peacock', 'quail
   'pekin_duck', 'orpington', 'brahma_chicken', 'toulouse_goose', 'polish_chicken', 'indian_runner', 'white_peacock', 'leghorn',
   'khaki_campbell', 'rhode_island_red', 'call_duck', 'emden_goose', 'wyandotte', 'marans']);
 const SEA_BIRDS = new Set(['flamingo', 'crane', 'grey_heron', 'swan', 'black_swan']);
+// and the tree birds do not graze either: they fly to a tree nearby and sit in its crown
+const TREE_BIRDS = new Set(['barn_owl', 'parrot']);
+// a tree crown near the pen for a tree bird: one of the few closest, picked by the bird
+function treePerch(o: FarmObject, d: BuildingDef, id: number) {
+  const trees = GRAZE_NAV?.trees() ?? [];
+  const cx = o.x + d.w / 2, cy = o.y + d.h / 2;
+  const near = trees.map((t) => ({ t, k: Math.hypot(t.x - cx, t.y - cy) })).filter((q) => q.k < 14).sort((p, q) => p.k - q.k).slice(0, 4);
+  if (!near.length) return null;
+  const t = near[Math.floor(hash(id, 31, 2) * near.length)].t;
+  const x = t.x + (hash(id, 32, 3) - 0.5) * 0.3, y = t.y + (hash(id, 33, 4) - 0.5) * 0.3;
+  const top = GRAZE_NAV?.roofTop(t.id, x, y);
+  return top && top > 0.4 ? { x, y, h: top } : null;
+}
 const WING: Record<string, string> = {
   flamingo: '#f47ea0', crane: '#d8d8d2', grey_heron: '#8c96a0', swan: '#f6f6f2', black_swan: '#26262a', parrot: '#2aa84a',
   barn_owl: '#c8a070', peacock: '#2a6ab8', white_peacock: '#f6f6f2', ayam_cemani: '#1c1c20', gobbler: '#5a3a24', bronze_turkey: '#6a4a2a',
@@ -3757,6 +3788,7 @@ let GRAZE_NAV: {
   flowers: () => P2[];
   roofs: () => { id: number; x: number; y: number; h: number }[];
   roofTop: (id: number, x: number, z: number) => number | null;
+  trees: () => { id: number; x: number; y: number }[];
 } | null = null;
 
 interface Trip { out: P2[]; eat: P2[][]; back: P2[]; recall?: { at: number; path: P2[] } }
@@ -3895,18 +3927,27 @@ function flyPose(o: FarmObject, d: BuildingDef, a: Animal, kind: string, now: nu
   const home = { x: o.x + sp.x, y: o.y + sp.z };
   const sp2 = animalSpot(d, a.id, g.at + 2 * walkMs + eatMs);
   const home2 = { x: o.x + sp2.x, y: o.y + sp2.z };
-  const tr = sea ? null : tripFor(o, d, a);
-  const ground = sea ? seaSpot(o, d, a.id) : tr ? along(tr.eat[0], 0) : home;
-  // one hop through the air: up, across and down again, over at most `budget` ms
-  const hopAt = (from: P2, to: P2, t: number, budget: number, late: boolean) => {
+  // owls and parrots feed up in the trees: a crown near the pen to sit in
+  const perch = TREE_BIRDS.has(kind) ? treePerch(o, d, a.id) : null;
+  const tr = sea || perch ? null : tripFor(o, d, a);
+  const ground = sea ? seaSpot(o, d, a.id) : perch ? { x: perch.x, y: perch.y } : tr ? along(tr.eat[0], 0) : home;
+  const up0 = perch ? perch.h - 0.04 : 0;
+  // one hop through the air: up, across and down again (or onto a branch), over at most `budget` ms
+  const hopAt = (from: P2, to: P2, t: number, budget: number, late: boolean, h0 = 0, h1 = 0) => {
     const dist = Math.hypot(to.x - from.x, to.y - from.y);
     const dur = Math.min(budget, Math.max(900, dist / FLY_SPEED));
     const t0 = late ? budget - dur : 0;
     const u = Math.max(0, Math.min(1, (t - t0) / dur));
     const up = Math.min(2.2, 0.6 + dist * 0.12);
-    return { x: from.x + (to.x - from.x) * u, y: from.y + (to.y - from.y) * u, h: Math.sin(u * Math.PI) * up, fly: u > 0 && u < 1, heading: Math.atan2(to.x - from.x, to.y - from.y) };
+    return { x: from.x + (to.x - from.x) * u, y: from.y + (to.y - from.y) * u, h: h0 + (h1 - h0) * u + Math.sin(u * Math.PI) * up, fly: u > 0 && u < 1, heading: Math.atan2(to.x - from.x, to.y - from.y) };
   };
-  if (gp.phase === 'leaving') return { ...hopAt(home, ground, gp.k * walkMs, walkMs, false), sea, feeding: false };
+  if (gp.phase === 'leaving') return { ...hopAt(home, ground, gp.k * walkMs, walkMs, false, 0, up0), sea, feeding: false };
+  if (gp.phase === 'eating' && perch) {
+    // sitting up in the crown, turning to look about, now and then a short hop along the branch
+    const w = now / 4000 + a.id;
+    const hop = Math.max(0, Math.sin(now / 1900 + a.id * 3) - 0.9) * 0.6;
+    return { x: perch.x + Math.cos(w) * 0.08, y: perch.y + Math.sin(w) * 0.08, h: up0 + hop, fly: false, heading: Math.sin(now / 2600 + a.id) * 2.5, sea, feeding: false, perched: true };
+  }
   if (gp.phase === 'eating') {
     if (sea) {
       // wading (or, for swans, paddling) about the shallows, striking at fish now and then
@@ -3917,12 +3958,13 @@ function flyPose(o: FarmObject, d: BuildingDef, a: Animal, kind: string, now: nu
     return gz ? { x: gz.x, y: gz.y, h: 0, fly: false, heading: gz.heading, sea, feeding: !gz.moving, moving: gz.moving } : null;
   }
   // flying home: from the feeding ground, or from wherever it was when called back
-  let from = sea ? ground : tr ? along(tr.eat[1], 1) : ground;
+  let from = sea || perch ? ground : tr ? along(tr.eat[1], 1) : ground;
+  let fromH = up0;
   if (g.back !== undefined) {
     const at = flyPose(o, d, { ...a, graze: { at: g.at } }, kind, g.back);
-    if (at) from = { x: at.x, y: at.y };
+    if (at) { from = { x: at.x, y: at.y }; fromH = at.h; }
   }
-  return { ...hopAt(from, home2, gp.k * walkMs, walkMs, true), sea, feeding: false };
+  return { ...hopAt(from, home2, gp.k * walkMs, walkMs, true, fromH, 0), sea, feeding: false };
 }
 
 // how far a pen's gate stands open (0 to 1): it swings open as the first animal sets off and
