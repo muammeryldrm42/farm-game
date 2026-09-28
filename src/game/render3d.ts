@@ -2835,9 +2835,25 @@ const TREE_BIRDS = new Set(['barn_owl', 'parrot']);
 // and ducks and geese would rather swim: on a garden pond near their pen, or on the lake
 const WATER_FOWL = new Set(['duck', 'pekin_duck', 'khaki_campbell', 'call_duck', 'indian_runner', 'muscovy_duck', 'mandarin_duck',
   'goose', 'toulouse_goose', 'emden_goose', 'golden_goose']);
+// Where a bird goes depends only on its pen, itself and the spot lists (rebuilt, as new arrays,
+// when the farm changes), so the pick is worked out once per list rather than every frame.
+const SPOT_MEMO = new WeakMap<object, Map<string, unknown>>();
+function memoSpot<T>(list: object, key: string, f: () => T): T {
+  let mm = SPOT_MEMO.get(list);
+  if (!mm) { mm = new Map(); SPOT_MEMO.set(list, mm); }
+  if (mm.has(key)) return mm.get(key) as T;
+  const v = f();
+  mm.set(key, v);
+  return v;
+}
+const NO_SPOTS: never[] = [];
 function waterSpot(o: FarmObject, d: BuildingDef, id: number) {
+  const list = GRAZE_NAV?.ponds() ?? NO_SPOTS;
+  return memoSpot(list, `${o.x}|${o.y}|${o.type}|${id}`, () => waterSpotOf(list, o, d, id));
+}
+function waterSpotOf(list: { x: number; y: number; r: number; surf: number }[], o: FarmObject, d: BuildingDef, id: number) {
   const cx = o.x + d.w / 2, cy = o.y + d.h / 2;
-  const ponds = (GRAZE_NAV?.ponds() ?? []).map((p) => ({ p, k: Math.hypot(p.x - cx, p.y - cy) })).filter((q) => q.k < 16).sort((p, q) => p.k - q.k);
+  const ponds = list.map((p) => ({ p, k: Math.hypot(p.x - cx, p.y - cy) })).filter((q) => q.k < 16).sort((p, q) => p.k - q.k);
   const lakeFar = Math.hypot(LAKE.x - cx, LAKE.z - cy) > 34;
   if (ponds.length && (lakeFar || hash(id, 51, 2) < 0.55)) {
     const p = ponds[Math.floor(hash(id, 52, 3) * Math.min(2, ponds.length))].p;
@@ -2849,13 +2865,17 @@ function waterSpot(o: FarmObject, d: BuildingDef, id: number) {
 }
 // a tree crown near the pen for a tree bird: one of the few closest, picked by the bird
 function treePerch(o: FarmObject, d: BuildingDef, id: number) {
-  const trees = GRAZE_NAV?.trees() ?? [];
-  const cx = o.x + d.w / 2, cy = o.y + d.h / 2;
-  const near = trees.map((t) => ({ t, k: Math.hypot(t.x - cx, t.y - cy) })).filter((q) => q.k < 14).sort((p, q) => p.k - q.k).slice(0, 4);
-  if (!near.length) return null;
-  const t = near[Math.floor(hash(id, 31, 2) * near.length)].t;
-  const x = t.x + (hash(id, 32, 3) - 0.5) * 0.3, y = t.y + (hash(id, 33, 4) - 0.5) * 0.3;
-  const top = GRAZE_NAV?.roofTop(t.id, x, y);
+  const trees = GRAZE_NAV?.trees() ?? NO_SPOTS;
+  const pick = memoSpot(trees, `${o.x}|${o.y}|${o.type}|${id}`, () => {
+    const cx = o.x + d.w / 2, cy = o.y + d.h / 2;
+    const near = trees.map((t) => ({ t, k: Math.hypot(t.x - cx, t.y - cy) })).filter((q) => q.k < 14).sort((p, q) => p.k - q.k).slice(0, 4);
+    if (!near.length) return null;
+    const t = near[Math.floor(hash(id, 31, 2) * near.length)].t;
+    return { id: t.id, x: t.x + (hash(id, 32, 3) - 0.5) * 0.3, y: t.y + (hash(id, 33, 4) - 0.5) * 0.3 };
+  });
+  if (!pick) return null;
+  const { x, y } = pick;
+  const top = GRAZE_NAV?.roofTop(pick.id, x, y);
   return top && top > 0.4 ? { x, y, h: top } : null;
 }
 const WING: Record<string, string> = {
@@ -2886,12 +2906,13 @@ function addWings(g: THREE.Group, kind: string) {
   g.userData.wings = wings;
 }
 // flight pose: wings out and beating (or held for a glide), legs tucked
-function flap(m: THREE.Object3D, on: boolean, t: number, id: number, fast = 1) {
+function flap(m: THREE.Object3D, on: boolean, t: number, id: number, fast = 1, glide = false) {
   const wings = m.userData.wings as THREE.Object3D[] | undefined;
   if (!wings) return;
   for (const [i, wg] of wings.entries()) {
     wg.visible = on;
-    if (on) wg.rotation.z = (i ? -1 : 1) * (0.15 + Math.sin(t / (55 / fast) + id) * 0.75);
+    // gliding: wings held out and just trimming
+    if (on) wg.rotation.z = (i ? -1 : 1) * (glide ? 0.1 + Math.sin(t / 160 + id) * 0.08 : 0.15 + Math.sin(t / (55 / fast) + id) * 0.75);
   }
 }
 
@@ -2981,23 +3002,15 @@ function fishCycle(herd: THREE.Object3D, m: THREE.Object3D, head: THREE.Object3D
     }
   }
   // rings where the beak (or the swan's head) broke the water
-  let r = m.userData.ripple as THREE.Mesh | undefined;
-  if (!r) {
-    r = new THREE.Mesh(RIPPLE_GEO, new THREE.MeshBasicMaterial({ color: '#ffffff', transparent: true, depthWrite: false }));
-    r.renderOrder = 2;
-    r.userData.keep = true;
-    // beside the herd, not in it: the herd's children are the animals
-    (herd.parent ?? herd).add(r);
-    m.userData.ripple = r;
-  }
+  const r = rippleOf(herd, m);
   const rk = dip < 0 ? -1 : dip <= 1 ? dip * 0.3 : 0.3 + (dip - 1) * 0.7;
   r.visible = rk > 0 && rk < 1;
-  // and a soft ring round the legs of a wader while it steps
-  const wake = walking && !swan ? ((now / 900 + id) % 1) : -1;
+  // and a soft ring round the legs of a wader while it steps (a wider, slower wake for a swimmer)
+  const wake = walking ? ((now / (swan ? 1300 : 900) + id) % 1) : -1;
   if (!r.visible && wake >= 0) {
     r.visible = true;
     r.position.set(m.position.x, wy + 0.005, m.position.z);
-    r.scale.setScalar(0.05 + wake * 0.18);
+    r.scale.setScalar(0.05 + wake * (swan ? 0.3 : 0.18));
     (r.material as THREE.MeshBasicMaterial).opacity = (1 - wake) * 0.35;
   } else if (r.visible) {
     const reach = 0.22 * m.scale.x;
@@ -3005,6 +3018,29 @@ function fishCycle(herd: THREE.Object3D, m: THREE.Object3D, head: THREE.Object3D
     r.scale.setScalar(0.04 + rk * 0.3);
     (r.material as THREE.MeshBasicMaterial).opacity = (1 - rk) * 0.8;
   }
+}
+
+// the ring mesh a bird uses for ripples, beside the herd (whose children are the animals)
+function rippleOf(herd: THREE.Object3D, m: THREE.Object3D) {
+  let r = m.userData.ripple as THREE.Mesh | undefined;
+  if (!r) {
+    r = new THREE.Mesh(RIPPLE_GEO, new THREE.MeshBasicMaterial({ color: '#ffffff', transparent: true, depthWrite: false }));
+    r.renderOrder = 2;
+    r.userData.keep = true;
+    (herd.parent ?? herd).add(r);
+    m.userData.ripple = r;
+  }
+  return r;
+}
+// a bird afloat: a wide splash ring just after it touches down, then slow rings as it bobs
+function waterRing(herd: THREE.Object3D, m: THREE.Object3D, wy: number, after: number, t: number, id: number) {
+  const r = rippleOf(herd, m);
+  const splash = after >= 0 && after < 1100 ? after / 1100 : -1;
+  const k = splash >= 0 ? splash : ((t / 2600 + hash(id, 7, 2)) % 1);
+  r.visible = true;
+  r.position.set(m.position.x, wy + 0.005, m.position.z);
+  r.scale.setScalar(splash >= 0 ? 0.06 + k * 0.42 : 0.08 + k * 0.22);
+  (r.material as THREE.MeshBasicMaterial).opacity = (1 - k) * (splash >= 0 ? 0.75 : 0.25);
 }
 
 function buildAnimal(kind: string) {
@@ -4223,7 +4259,9 @@ function flyPose(o: FarmObject, d: BuildingDef, a: Animal, kind: string, now: nu
     const t0 = late ? budget - dur : 0;
     const u = Math.max(0, Math.min(1, (t - t0) / dur));
     const up = Math.min(2.2, 0.6 + dist * 0.12);
-    return { x: from.x + (to.x - from.x) * u, y: from.y + (to.y - from.y) * u, h: h0 + (h1 - h0) * u + Math.sin(u * Math.PI) * up, fly: u > 0 && u < 1, heading: Math.atan2(to.x - from.x, to.y - from.y), u };
+    // slow off the ground, quick across, braking into the landing
+    const e = u * u * (3 - 2 * u);
+    return { x: from.x + (to.x - from.x) * e, y: from.y + (to.y - from.y) * e, h: h0 + (h1 - h0) * e + Math.sin(e * Math.PI) * up, fly: u > 0 && u < 1, heading: Math.atan2(to.x - from.x, to.y - from.y), u, after: t - t0 - dur };
   };
   if (gp.phase === 'leaving') {
     const r = hopAt(home, ground, gp.k * walkMs, walkMs, false, 0, up0);
@@ -4628,9 +4666,12 @@ function buildPen(e: Entry, d: BuildingDef) {
           while (dh < -Math.PI) dh += Math.PI * 2;
           m.rotation.y += dh * Math.min(1, dt * 4);
         }
-        m.rotation.x = fp.fly ? -0.12 : 0;
+        // nose up climbing out, level gliding down, then a flare with the wings spread to land
+        const fu = (fp as { u?: number }).u ?? 0.5;
+        const pitch = !fp.fly ? 0 : fu < 0.35 ? -0.22 : fu > 0.85 ? -0.3 : 0.06;
+        m.rotation.x += (pitch - m.rotation.x) * Math.min(1, dt * 6);
         m.rotation.z = 0;
-        flap(m, fp.fly, t, id, fp.h > 1 ? 0.7 : 1);
+        flap(m, fp.fly, t, id, fp.h > 1 ? 0.7 : 1, fp.fly && fu > 0.55 && fu < 0.85);
         const fishing = fw.water !== undefined && fp.feeding && !fp.fly;
         if (fishing) {
           const fq = fp as { stand?: number; round?: number };
@@ -4638,8 +4679,11 @@ function buildPen(e: Entry, d: BuildingDef) {
         } else {
           hideCatch(m);
           // afloat: legs tucked, a gentle rock on the ripples
-          if (onWater && swim) { animateLegs(m, 0); m.rotation.z = Math.sin(t / 520 + id) * 0.05; }
-          else animateLegs(m, fp.fly ? 0 : (fp as { moving?: boolean }).moving ? Math.sin(t / 110 + id) * 0.3 : 0);
+          if (onWater && swim) {
+            animateLegs(m, 0);
+            m.rotation.z = Math.sin(t / 520 + id) * 0.05;
+            waterRing(herd, m, fw.water!, (fp as { after?: number }).after ?? -1, t, id);
+          } else animateLegs(m, fp.fly ? 0 : (fp as { moving?: boolean }).moving ? Math.sin(t / 110 + id) * 0.3 : 0);
           // feeding on land: pecking the grass
           if (head) head.rotation.x = fp.fly ? -0.2 : fp.feeding ? 0.55 + Math.max(0, Math.sin(t / 260 + id)) * 0.25 : 0;
         }
@@ -4649,6 +4693,7 @@ function buildPen(e: Entry, d: BuildingDef) {
       }
       flap(m, false, t, id);
       hideCatch(m);
+      m.rotation.x = 0;
       if (m.userData.shadow) (m.userData.shadow as THREE.Object3D).visible = true;
       const gz = a?.graze ? grazePose(o, d, a, now) : null;
       if (gz) {
@@ -4686,12 +4731,12 @@ function buildPen(e: Entry, d: BuildingDef) {
       if (cs) cs.position.y = 0.006 - (m.position.y - 0.04);
       if (m.userData.wings && !SWIMMERS.has(an?.id ?? '') && !a?.graze) {
         // some birds now and then fly up to a roof nearby, sit there a while and come back
-        const roofs = GRAZE_NAV?.roofs() ?? [];
+        const roofs = GRAZE_NAV?.roofs() ?? NO_SPOTS;
         const PR = 50000 + hash(id, 9, 4) * 40000;
         const ur = (t + hash(id, 10, 5) * PR) % PR;
         if (roofs.length && hash(id, 8, 3) < 0.45 && ur < 18000) {
           const cx = o.x + d.w / 2, cy = o.y + d.h / 2;
-          const near = roofs.map((r) => ({ r, k: Math.hypot(r.x - cx, r.y - cy) })).filter((q) => q.k < 12).sort((p1, p2) => p1.k - p2.k).slice(0, 3);
+          const near = memoSpot(roofs, `${o.x}|${o.y}|${o.type}`, () => roofs.map((r) => ({ r, k: Math.hypot(r.x - cx, r.y - cy) })).filter((q) => q.k < 12).sort((p1, p2) => p1.k - p2.k).slice(0, 3));
           if (near.length) {
             const r = near[Math.floor(hash(id, 11, 6) * near.length)].r;
             const perch = { x: r.x + (hash(id, 12, 7) - 0.5) * 0.5, y: r.y + (hash(id, 13, 8) - 0.5) * 0.5 };
