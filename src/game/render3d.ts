@@ -2674,54 +2674,74 @@ function hideCatch(m: THREE.Object3D) {
   if (r) r.visible = false;
 }
 
-function fishCycle(herd: THREE.Object3D, m: THREE.Object3D, head: THREE.Object3D | undefined, now: number, id: number, heading: number) {
-  const C = 5200 + hash(id, 21, 4) * 2600;
-  const ph = ((now + hash(id, 22, 5) * C) % C) / C;
-  // wading between strikes, standing still to stalk and strike
-  const wading = ph < 0.42 || ph > 0.9;
-  animateLegs(m, wading ? Math.sin(now / 160 + id) * 0.25 : 0);
-  let hx = 0.2, fishOn = false, swallow = 1;
-  if (ph >= 0.42 && ph < 0.55) hx = 0.2 + (ph - 0.42) / 0.13 * 0.35;           // stalking, head lowering
-  else if (ph >= 0.55 && ph < 0.6) hx = 0.55 + (ph - 0.55) / 0.05 * 0.95;      // the strike
-  else if (ph >= 0.6 && ph < 0.66) hx = 1.5 - (ph - 0.6) / 0.06 * 1.1;         // up with the catch
-  else if (ph >= 0.66 && ph < 0.84) { hx = 0.4 - (ph - 0.66) / 0.18 * 0.2; }     // holding it
-  else if (ph >= 0.84 && ph < 0.9) { hx = 0.2 - (ph - 0.84) / 0.06 * 0.7; swallow = 1 - (ph - 0.84) / 0.06; } // toss and swallow
-  if (ph >= 0.6 && ph < 0.9) fishOn = true;
+// how deep each wader stands in the sea, in its own height units
+const WADE: Record<string, number> = { flamingo: 0.3, crane: 0.24, grey_heron: 0.2 };
+
+// One round of hunting in the shallows. `stand` runs 0 to 1 while the bird stands still at its
+// spot (-1 while it steps to the next one): it stares down, lowers its neck slowly, strikes,
+// and most times comes up with a wriggling fish to toss and swallow. Swans dip their heads for
+// weed instead. Rings spread where the beak goes in.
+function fishCycle(herd: THREE.Object3D, m: THREE.Object3D, head: THREE.Object3D | undefined, now: number, id: number, heading: number, stand: number, round: number, swan: boolean) {
+  const walking = stand < 0;
+  // slow high steps with a little head bob while wading; swans just glide
+  animateLegs(m, walking && !swan ? Math.sin(now / 240 + id) * 0.4 : 0);
+  let hx = walking ? 0.12 + Math.sin(now / 240 + id) * 0.06 : 0.1, fishOn = false, swallow = 1, dip = -1;
+  const caught = hash(id, round, 45) > 0.3;
+  if (!walking && swan) {
+    // dabbling: the head goes under a couple of times
+    const k = stand;
+    if ((k > 0.15 && k < 0.35) || (k > 0.55 && k < 0.75)) { const q = ((k - (k < 0.5 ? 0.15 : 0.55)) / 0.2); hx = 0.2 + Math.sin(q * Math.PI) * 1.2; dip = q; }
+  } else if (!walking) {
+    const k = stand;
+    if (k < 0.3) hx = 0.1 + (k / 0.3) * 0.55;                                  // stalking: the neck lowers slowly
+    else if (k < 0.35) { hx = 0.65 + ((k - 0.3) / 0.05) * 0.9; dip = (k - 0.3) / 0.05; } // the strike
+    else if (k < 0.43) { hx = 1.55 - ((k - 0.35) / 0.08) * 1.25; dip = 1; }   // up again
+    else if (k < 0.7) hx = 0.3 + Math.sin((k - 0.43) * 30) * 0.04;          // holding it
+    else if (k < 0.78) { hx = 0.3 - ((k - 0.7) / 0.08) * 0.75; swallow = 1 - (k - 0.7) / 0.08; } // toss and swallow
+    else hx = -0.45 + ((k - 0.78) / 0.22) * 0.55;                            // head up, looking about
+    fishOn = caught && k >= 0.35 && k < 0.78;
+    if (k >= 0.35 && k < 0.5) dip = 1 + (k - 0.35) / 0.15;
+  }
   if (head) {
     head.rotation.x = hx;
+    head.rotation.y = walking ? 0 : Math.sin(now / 1500 + id) * 0.2 * (stand > 0.78 ? 1 : 0.2);
     let f = m.userData.fish as THREE.Object3D | undefined;
     if (!f) {
       f = new THREE.Group();
       for (const g of FISH_GEO) f.add(new THREE.Mesh(g, FISH_MAT));
-      const b = beakOf(head);
-      f.position.copy(b);
+      f.position.copy(beakOf(head));
       f.rotation.y = Math.PI / 2;
-      // the head may be scaled with the body: keep the fish a fish sized fish
-      f.scale.setScalar(1.6 / Math.max(0.3, m.scale.x));
       head.add(f);
       m.userData.fish = f;
     }
-    f.visible = fishOn && swallow > 0.05;
+    f.visible = fishOn && swallow > 0.05 && !swan;
     if (f.visible) {
       f.rotation.z = Math.sin(now / 45 + id) * 0.5;
       f.scale.setScalar((1.6 / Math.max(0.3, m.scale.x)) * Math.max(0.2, swallow));
     }
   }
-  // ripples from the strike
+  // rings where the beak (or the swan's head) broke the water
   let r = m.userData.ripple as THREE.Mesh | undefined;
   if (!r) {
     r = new THREE.Mesh(RIPPLE_GEO, new THREE.MeshBasicMaterial({ color: '#ffffff', transparent: true, depthWrite: false }));
     r.renderOrder = 2;
-    // beside the herd, not in it: the herd's children are the animals
     r.userData.keep = true;
+    // beside the herd, not in it: the herd's children are the animals
     (herd.parent ?? herd).add(r);
     m.userData.ripple = r;
   }
-  const rk = (ph - 0.57) / 0.3;
+  const rk = dip < 0 ? -1 : dip <= 1 ? dip * 0.3 : 0.3 + (dip - 1) * 0.7;
   r.visible = rk > 0 && rk < 1;
-  if (r.visible) {
+  // and a soft ring round the legs of a wader while it steps
+  const wake = walking && !swan ? ((now / 900 + id) % 1) : -1;
+  if (!r.visible && wake >= 0) {
+    r.visible = true;
+    r.position.set(m.position.x, -0.545, m.position.z);
+    r.scale.setScalar(0.05 + wake * 0.18);
+    (r.material as THREE.MeshBasicMaterial).opacity = (1 - wake) * 0.35;
+  } else if (r.visible) {
     const reach = 0.22 * m.scale.x;
-    r.position.set(m.position.x + Math.sin(heading) * reach, -0.54, m.position.z + Math.cos(heading) * reach);
+    r.position.set(m.position.x + Math.sin(heading) * reach, -0.545, m.position.z + Math.cos(heading) * reach);
     r.scale.setScalar(0.04 + rk * 0.3);
     (r.material as THREE.MeshBasicMaterial).opacity = (1 - rk) * 0.8;
   }
@@ -3950,9 +3970,18 @@ function flyPose(o: FarmObject, d: BuildingDef, a: Animal, kind: string, now: nu
   }
   if (gp.phase === 'eating') {
     if (sea) {
-      // wading (or, for swans, paddling) about the shallows, striking at fish now and then
-      const w = now / 5200 + a.id;
-      return { x: ground.x + Math.cos(w) * 0.5, y: ground.y + Math.sin(w * 1.3) * 0.4, h: 0, fly: false, heading: w + Math.PI / 2, sea, feeding: true };
+      // a few slow deliberate steps (or strokes, for swans) to a new spot, then standing still
+      // to hunt there; each spot is picked by the bird and the round
+      const S = 4600 + hash(a.id, 41, 2) * 2200, off = hash(a.id, 42, 3) * S;
+      const n = Math.floor((now + off) / S), u = ((now + off) % S) / S;
+      const pt = (k: number) => ({ x: ground.x + (hash(a.id, k, 43) - 0.5) * 1.3, y: ground.y + (hash(a.id, k, 44) - 0.5) * 1.1 });
+      const p0 = pt(n - 1), p1 = pt(n);
+      const wk = Math.min(1, u / 0.32), ease = wk * wk * (3 - 2 * wk);
+      return {
+        x: p0.x + (p1.x - p0.x) * ease, y: p0.y + (p1.y - p0.y) * ease, h: 0, fly: false,
+        heading: Math.atan2(p1.x - p0.x, p1.y - p0.y), sea, feeding: true, moving: u < 0.32,
+        stand: u < 0.32 ? -1 : (u - 0.32) / 0.68, round: n,
+      };
     }
     const gz = grazePose(o, d, a, now);
     return gz ? { x: gz.x, y: gz.y, h: 0, fly: false, heading: gz.heading, sea, feeding: !gz.moving, moving: gz.moving } : null;
@@ -4247,7 +4276,7 @@ function buildPen(e: Entry, d: BuildingDef) {
   const an = ANIMAL[d.animal ?? ''];
   const fed = new Map<number, number | null>();
   const hop = new Map<number, number>();
-  e.update = (o, now, t) => {
+  e.update = (o, now, t, dt = 0.016) => {
     const list = o.pen?.animals ?? [];
     // sculpting a new kind takes a moment, so at most one new kind is sculpted per frame;
     // a farm full of pens fills in over a few frames instead of freezing on load
@@ -4312,15 +4341,25 @@ function buildPen(e: Entry, d: BuildingDef) {
       if (fp) {
         const cs = m.userData.shadow as THREE.Object3D | undefined;
         // at sea the bird stands in the shallows; swans float
-        const base = fp.sea && !fp.fly && fp.h === 0 ? (SWIMMERS.has(an!.id) ? -0.5 : -0.47) : 0.04;
+        // at sea waders stand in the water up past their ankles; swans sit on it
+        const swim = SWIMMERS.has(an!.id);
+        const base = fp.sea && !fp.fly && fp.h === 0 ? (swim ? -0.565 + Math.sin(t / 800 + id) * 0.006 : -0.55 - (WADE[an!.id] ?? 0.18) * m.scale.x) : 0.04;
         m.position.set(fp.x - o.x, base + fp.h, fp.y - o.y);
-        m.rotation.y = fp.heading;
+        // turning toward a new spot takes a moment rather than a snap
+        if (fp.fly) m.rotation.y = fp.heading;
+        else {
+          let dh = fp.heading - m.rotation.y;
+          while (dh > Math.PI) dh -= Math.PI * 2;
+          while (dh < -Math.PI) dh += Math.PI * 2;
+          m.rotation.y += dh * Math.min(1, dt * 4);
+        }
         m.rotation.x = fp.fly ? -0.12 : 0;
         m.rotation.z = 0;
         flap(m, fp.fly, t, id, fp.h > 1 ? 0.7 : 1);
         const fishing = fp.sea && fp.feeding && !fp.fly;
         if (fishing) {
-          fishCycle(herd, m, head, now, id, fp.heading);
+          const fq = fp as { stand?: number; round?: number };
+          fishCycle(herd, m, head, now, id, fp.heading, fq.stand ?? -1, fq.round ?? 0, swim);
         } else {
           hideCatch(m);
           animateLegs(m, fp.fly ? 0 : (fp as { moving?: boolean }).moving ? Math.sin(t / 110 + id) * 0.3 : 0);
@@ -5523,7 +5562,7 @@ class TurtleBeach {
       const spray: THREE.Mesh[] = [];
       for (let k = 0; k < 8; k++) spray.push(mk(nest, G.ball, moundM, 0.012, 0.012, 0.012, 0, 0, 0, false));
       const babies: TurtleRig[] = [];
-      for (let k = 0; k < 9; k++) { const b = turtleRig('turtle_hatchling', 0.32); babies.push(b); scene.add(b.g); }
+      for (let k = 0; k < 9; k++) { const b = turtleRig('turtle_hatchling', 0.38); babies.push(b); scene.add(b.g); }
       scene.add(rig.g, nest);
       this.mothers.push({ rig, nest, eggs, pit, mound, spray, babies });
     }
@@ -5632,7 +5671,17 @@ class Life {
   private gulls: { g: THREE.Group; wings: THREE.Object3D[]; cx: number; cz: number; r: number; h: number; sp: number; ph: number }[] = [];
   private fish: { g: THREE.Group; ring: THREE.Mesh; t: number; x: number; z: number; dir: number }[] = [];
   private sail: THREE.Group;
+  private trawler = new THREE.Group();
   private nextFish = 2;
+  // now and then something big shows itself off the shore in view: a pod of dolphins, a whale
+  // coming up to blow, or a shark's fin circling
+  private seaEvent = { kind: '', t: 0, dur: 0, x: 0, z: 0, dx: 0, dz: 1 };
+  private nextSea = 18;
+  private dolphins: THREE.Object3D[] = [];
+  private dolphinRings: THREE.Mesh[] = [];
+  private whale: THREE.Object3D | null = null;
+  private shark: THREE.Object3D | null = null;
+  private spout: THREE.Mesh[] = [];
 
   constructor(scene: THREE.Scene) {
     const wingMat = (c: string) => new THREE.MeshStandardMaterial({ color: c, side: THREE.DoubleSide, roughness: 0.6 });
@@ -5691,7 +5740,127 @@ class Life {
     sailM.scale.set(1, 1.4, 0.7);
     sailM.position.set(0, 0.25, 0.08);
     this.sail.add(sailM);
-    scene.add(this.sail);
+    scene.add(this.sail, this.trawler);
+    for (let i = 0; i < 12; i++) {
+      const m = new THREE.Mesh(G.ball, new THREE.MeshBasicMaterial({ color: '#f4fbff', transparent: true, depthWrite: false }));
+      m.visible = false;
+      scene.add(m);
+      this.spout.push(m);
+    }
+    if (artStyle() !== 'toon') return;
+    // the Blender gulls, yacht, trawler and sea animals (tools/blender/sea.py)
+    loadModel('seagull').then((src) => {
+      for (const gl of this.gulls) {
+        gl.g.clear();
+        const m = src.clone();
+        m.scale.setScalar(0.8);
+        gl.g.add(m);
+        const w0 = m.getObjectByName('wing0'), w1 = m.getObjectByName('wing1');
+        if (w0 && w1) gl.wings = [w0, w1];
+      }
+    }).catch(() => {});
+    loadModel('sailboat').then((src) => { this.sail.clear(); const m = src.clone(); m.position.y = -0.08; this.sail.add(m); }).catch(() => {});
+    loadModel('fishing_boat').then((src) => { const m = src.clone(); m.position.y = -0.1; this.trawler.add(m); }).catch(() => {});
+    loadModel('dolphin').then((src) => {
+      for (let i = 0; i < 3; i++) {
+        const m = src.clone();
+        m.scale.setScalar(0.9 - i * 0.08);
+        m.visible = false;
+        const ring = splashRing();
+        scene.add(m, ring);
+        this.dolphins.push(m);
+        this.dolphinRings.push(ring);
+      }
+    }).catch(() => {});
+    loadModel('whale').then((src) => { this.whale = src.clone(); this.whale.visible = false; scene.add(this.whale); }).catch(() => {});
+    loadModel('shark').then((src) => { this.shark = src.clone(); this.shark.visible = false; scene.add(this.shark); }).catch(() => {});
+  }
+
+  // off the shore nearest the view, a few tiles out to sea, heading along the coast
+  private startSeaEvent(target: THREE.Vector3) {
+    const r = Math.random();
+    const kind = r < 0.5 ? 'dolphins' : r < 0.75 ? 'whale' : 'shark';
+    if ((kind === 'dolphins' && !this.dolphins.length) || (kind === 'whale' && !this.whale) || (kind === 'shark' && !this.shark)) return;
+    const edges = [target.x, GRID - target.x, target.z, GRID - target.z];
+    const e = edges.indexOf(Math.min(...edges));
+    const out = BEACH + (kind === 'whale' ? 7 : 4) + Math.random() * 4;
+    const along = clamp((e < 2 ? target.z : target.x) + (Math.random() - 0.5) * 8, 2, GRID - 2);
+    const x = e === 0 ? -out : e === 1 ? GRID + out : along;
+    const z = e === 2 ? -out : e === 3 ? GRID + out : along;
+    const sgn = Math.random() < 0.5 ? -1 : 1;
+    const dx = e < 2 ? 0 : sgn, dz = e < 2 ? sgn : 0;
+    this.seaEvent = { kind, t: 0, dur: kind === 'dolphins' ? 8 : kind === 'whale' ? 16 : 12, x, z, dx, dz };
+  }
+
+  private updateSeaEvent(dt: number, t: number) {
+    const ev = this.seaEvent;
+    ev.t += dt;
+    const on = ev.kind !== '' && ev.t < ev.dur;
+    for (const d of this.dolphins) d.visible = false;
+    for (const r of this.dolphinRings) r.visible = false;
+    if (this.whale) this.whale.visible = false;
+    if (this.shark) this.shark.visible = false;
+    for (const p of this.spout) p.visible = false;
+    if (!on) { ev.kind = ''; return; }
+    const heading = Math.atan2(ev.dx, ev.dz);
+    if (ev.kind === 'dolphins') {
+      // a pod porpoising along the coast, one after another, in and out of the water
+      this.dolphins.forEach((d, i) => {
+        const lt = ev.t - i * 0.45;
+        if (lt < 0 || lt > ev.dur - 1.2) return;
+        const u = (lt % 1.5) / 1.5;
+        const s = lt * 1.1 - 3;
+        d.visible = true;
+        d.position.set(ev.x + ev.dx * s + ev.dz * (i - 1) * 0.5, -0.85 + Math.sin(u * Math.PI * 2) * 0.55, ev.z + ev.dz * s + ev.dx * (i - 1) * 0.5);
+        d.rotation.set(0, heading, 0);
+        d.rotateX(-Math.cos(u * Math.PI * 2) * 0.8);
+        const tail = d.getObjectByName('tail');
+        if (tail) tail.rotation.x = Math.sin(t / 110 + i) * 0.35;
+        // splashes where they break the surface
+        const ring = this.dolphinRings[i];
+        const rk = u < 0.5 ? u / 0.25 : (u - 0.5) / 0.25;
+        if (rk < 1) {
+          ring.visible = true;
+          ring.position.set(d.position.x, -0.53, d.position.z);
+          ring.scale.setScalar(0.1 + rk * 0.5);
+          (ring.material as THREE.MeshBasicMaterial).opacity = (1 - rk) * 0.7;
+        }
+      });
+    } else if (ev.kind === 'whale' && this.whale) {
+      // up to breathe: the back breaks the surface, two spouts, then a dive with flukes high
+      const w = this.whale, k = ev.t;
+      const rise = Math.min(1, k / 2.5), dive = Math.max(0, (k - 11.5) / 4.5);
+      w.visible = true;
+      w.scale.setScalar(0.9);
+      w.position.set(ev.x + ev.dx * k * 0.25, -1.6 + rise * 0.72 - dive * 0.5 + Math.sin(t / 900) * 0.02, ev.z + ev.dz * k * 0.25);
+      w.rotation.set(0, heading, Math.sin(t / 1700) * 0.04);
+      // nose down and the flukes swing up out of the water before it slips under
+      w.rotateX(Math.sin(Math.min(1, dive) * Math.PI * 0.5) * 1.05);
+      const tail = w.getObjectByName('tail');
+      if (tail) tail.rotation.x = -Math.min(1, dive * 1.4) * 0.7 + Math.sin(t / 700) * 0.08 * (1 - dive);
+      for (const ts of [3.2, 7.6]) {
+        const age = k - ts;
+        if (age < 0 || age > 1.6) continue;
+        const hx = w.position.x + ev.dx * 0.85, hz = w.position.z + ev.dz * 0.85;
+        this.spout.forEach((p, i) => {
+          const a = i / this.spout.length * Math.PI * 2, rr = 0.05 + age * 0.35 * (0.5 + (i % 3) * 0.25);
+          p.visible = true;
+          p.position.set(hx + Math.cos(a) * rr, -0.35 + age * 1.3 - age * age * 0.25, hz + Math.sin(a) * rr);
+          p.scale.setScalar(0.06 + age * 0.08);
+          (p.material as THREE.MeshBasicMaterial).opacity = Math.max(0, 0.85 - age * 0.55);
+        });
+      }
+    } else if (ev.kind === 'shark' && this.shark) {
+      // a fin cutting the water in slow circles
+      const sh = this.shark, a = ev.t * 0.55;
+      const fade = Math.min(1, ev.t / 1.5, (ev.dur - ev.t) / 1.5);
+      sh.visible = true;
+      sh.scale.setScalar(1.3);
+      sh.position.set(ev.x + Math.cos(a) * 1.6, -0.7 - (1 - fade) * 0.3, ev.z + Math.sin(a) * 1.6);
+      sh.rotation.set(0, Math.atan2(-Math.sin(a), Math.cos(a)), 0);
+      const tail = sh.getObjectByName('tail');
+      if (tail) tail.rotation.y = Math.sin(t / 160) * 0.35;
+    }
   }
 
   update(dt: number, t: number, night: number, target: THREE.Vector3) {
@@ -5756,10 +5925,22 @@ class Life {
       f.ring.position.set(f.x + Math.sin(f.dir) * 0.45, -0.53, f.z + Math.cos(f.dir) * 0.45);
       f.ring.scale.setScalar(0.08 + rk * 0.45);
     }
-    // the sailboat circles the island far out
+    // the sailboat circles the island far out, heeling a little in the breeze; a fishing boat
+    // chugs round the other way, closer in
     const a = t / 90000;
     const R = GRID / 2 + 16;
     this.sail.position.set(GRID / 2 + Math.cos(a) * R, -0.5 + Math.sin(t / 900) * 0.03, GRID / 2 + Math.sin(a) * R);
-    this.sail.rotation.set(Math.sin(t / 1300) * 0.03, -a, Math.sin(t / 1100) * 0.04);
+    this.sail.rotation.set(Math.sin(t / 1300) * 0.03, -a, 0.08 + Math.sin(t / 1100) * 0.04);
+    const b = -t / 70000 + 2;
+    const R2 = GRID / 2 + 11;
+    this.trawler.position.set(GRID / 2 + Math.cos(b) * R2, -0.5 + Math.sin(t / 800) * 0.025, GRID / 2 + Math.sin(b) * R2);
+    this.trawler.rotation.set(Math.sin(t / 1000) * 0.04, -b + Math.PI, Math.sin(t / 1200) * 0.05);
+    // the big animals
+    this.nextSea -= dt;
+    if (this.nextSea <= 0 && !this.seaEvent.kind) {
+      this.nextSea = 25 + Math.random() * 35;
+      this.startSeaEvent(target);
+    }
+    this.updateSeaEvent(dt, t);
   }
 }
