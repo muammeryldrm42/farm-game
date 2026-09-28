@@ -31,8 +31,10 @@ def turtle(name, L=0.2, hatchling=False):
     """One turtle, carapace length 2 * L. The mother is reddish brown over a cream shell below and
     yellow brown skin; a hatchling is dark grey brown all over."""
     if hatchling:
-        base, seam, rim = pm('ht_shell', '#4a3a2e', '#5a4636', scale=30), pm('ht_seam', '#2a201a'), pm('ht_rim', '#5e4a3a')
-        skin, skin_d, belly = pm('ht_skin', '#4e4034', '#5a4a3c', scale=40), pm('ht_skin_d', '#362c24'), pm('ht_belly', '#6a5a4a')
+        # loggerhead hatchlings are brown with darker seams and paler flipper edges: lighter than
+        # life here so they read as little turtles on the sand, not as shadows
+        base, seam, rim = pm('ht_shell', '#8a6440', '#a07850', scale=30), pm('ht_seam', '#4a3424'), pm('ht_rim', '#b89068', '#c8a078', scale=30)
+        skin, skin_d, belly = pm('ht_skin', '#9a7a58', '#b08e6a', scale=40), pm('ht_skin_d', '#6a5038'), pm('ht_belly', '#d8c8a8')
     else:
         base, seam, rim = pm('lh_shell', '#94461e', '#b0602e', scale=24), pm('lh_seam', '#4a2410'), pm('lh_rim', '#c08040', '#d49a58', scale=30)
         skin, skin_d, belly = pm('lh_skin', '#b87a3a', '#d4a050', scale=40), pm('lh_skin_d', '#7a4a22'), pm('lh_belly', '#ecd8a0', '#f6e6b8', scale=30)
@@ -82,7 +84,7 @@ def turtle(name, L=0.2, hatchling=False):
     t = Blob(0.004)
     t.cap((0, 0.06 * L / 0.2, -0.95 * L), (0, 0.05 * L / 0.2, -1.15 * L), 0.08 * L, 0.03 * L)
     t.build(skin, 80)
-    finish(name, tex=512, vivid=1.1, ao_min=0.62, ao_dist=0.08)
+    finish(name, tex=512, vivid=1.1, ao_min=0.85 if hatchling else 0.62, ao_dist=0.08)
 
 
 MODELS = {'sea_turtle': lambda: turtle('sea_turtle'), 'turtle_hatchling': lambda: turtle('turtle_hatchling', hatchling=True)}

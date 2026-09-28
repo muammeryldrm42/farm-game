@@ -5523,7 +5523,7 @@ class TurtleBeach {
       const spray: THREE.Mesh[] = [];
       for (let k = 0; k < 8; k++) spray.push(mk(nest, G.ball, moundM, 0.012, 0.012, 0.012, 0, 0, 0, false));
       const babies: TurtleRig[] = [];
-      for (let k = 0; k < 9; k++) { const b = turtleRig('turtle_hatchling', 0.32); babies.push(b); scene.add(b.g); }
+      for (let k = 0; k < 9; k++) { const b = turtleRig('turtle_hatchling', 0.38); babies.push(b); scene.add(b.g); }
       scene.add(rig.g, nest);
       this.mothers.push({ rig, nest, eggs, pit, mound, spray, babies });
     }
@@ -5632,7 +5632,17 @@ class Life {
   private gulls: { g: THREE.Group; wings: THREE.Object3D[]; cx: number; cz: number; r: number; h: number; sp: number; ph: number }[] = [];
   private fish: { g: THREE.Group; ring: THREE.Mesh; t: number; x: number; z: number; dir: number }[] = [];
   private sail: THREE.Group;
+  private trawler = new THREE.Group();
   private nextFish = 2;
+  // now and then something big shows itself off the shore in view: a pod of dolphins, a whale
+  // coming up to blow, or a shark's fin circling
+  private seaEvent = { kind: '', t: 0, dur: 0, x: 0, z: 0, dx: 0, dz: 1 };
+  private nextSea = 18;
+  private dolphins: THREE.Object3D[] = [];
+  private dolphinRings: THREE.Mesh[] = [];
+  private whale: THREE.Object3D | null = null;
+  private shark: THREE.Object3D | null = null;
+  private spout: THREE.Mesh[] = [];
 
   constructor(scene: THREE.Scene) {
     const wingMat = (c: string) => new THREE.MeshStandardMaterial({ color: c, side: THREE.DoubleSide, roughness: 0.6 });
@@ -5691,7 +5701,127 @@ class Life {
     sailM.scale.set(1, 1.4, 0.7);
     sailM.position.set(0, 0.25, 0.08);
     this.sail.add(sailM);
-    scene.add(this.sail);
+    scene.add(this.sail, this.trawler);
+    for (let i = 0; i < 12; i++) {
+      const m = new THREE.Mesh(G.ball, new THREE.MeshBasicMaterial({ color: '#f4fbff', transparent: true, depthWrite: false }));
+      m.visible = false;
+      scene.add(m);
+      this.spout.push(m);
+    }
+    if (artStyle() !== 'toon') return;
+    // the Blender gulls, yacht, trawler and sea animals (tools/blender/sea.py)
+    loadModel('seagull').then((src) => {
+      for (const gl of this.gulls) {
+        gl.g.clear();
+        const m = src.clone();
+        m.scale.setScalar(0.8);
+        gl.g.add(m);
+        const w0 = m.getObjectByName('wing0'), w1 = m.getObjectByName('wing1');
+        if (w0 && w1) gl.wings = [w0, w1];
+      }
+    }).catch(() => {});
+    loadModel('sailboat').then((src) => { this.sail.clear(); const m = src.clone(); m.position.y = -0.08; this.sail.add(m); }).catch(() => {});
+    loadModel('fishing_boat').then((src) => { const m = src.clone(); m.position.y = -0.1; this.trawler.add(m); }).catch(() => {});
+    loadModel('dolphin').then((src) => {
+      for (let i = 0; i < 3; i++) {
+        const m = src.clone();
+        m.scale.setScalar(0.9 - i * 0.08);
+        m.visible = false;
+        const ring = splashRing();
+        scene.add(m, ring);
+        this.dolphins.push(m);
+        this.dolphinRings.push(ring);
+      }
+    }).catch(() => {});
+    loadModel('whale').then((src) => { this.whale = src.clone(); this.whale.visible = false; scene.add(this.whale); }).catch(() => {});
+    loadModel('shark').then((src) => { this.shark = src.clone(); this.shark.visible = false; scene.add(this.shark); }).catch(() => {});
+  }
+
+  // off the shore nearest the view, a few tiles out to sea, heading along the coast
+  private startSeaEvent(target: THREE.Vector3) {
+    const r = Math.random();
+    const kind = r < 0.5 ? 'dolphins' : r < 0.75 ? 'whale' : 'shark';
+    if ((kind === 'dolphins' && !this.dolphins.length) || (kind === 'whale' && !this.whale) || (kind === 'shark' && !this.shark)) return;
+    const edges = [target.x, GRID - target.x, target.z, GRID - target.z];
+    const e = edges.indexOf(Math.min(...edges));
+    const out = BEACH + (kind === 'whale' ? 7 : 4) + Math.random() * 4;
+    const along = clamp((e < 2 ? target.z : target.x) + (Math.random() - 0.5) * 8, 2, GRID - 2);
+    const x = e === 0 ? -out : e === 1 ? GRID + out : along;
+    const z = e === 2 ? -out : e === 3 ? GRID + out : along;
+    const sgn = Math.random() < 0.5 ? -1 : 1;
+    const dx = e < 2 ? 0 : sgn, dz = e < 2 ? sgn : 0;
+    this.seaEvent = { kind, t: 0, dur: kind === 'dolphins' ? 8 : kind === 'whale' ? 16 : 12, x, z, dx, dz };
+  }
+
+  private updateSeaEvent(dt: number, t: number) {
+    const ev = this.seaEvent;
+    ev.t += dt;
+    const on = ev.kind !== '' && ev.t < ev.dur;
+    for (const d of this.dolphins) d.visible = false;
+    for (const r of this.dolphinRings) r.visible = false;
+    if (this.whale) this.whale.visible = false;
+    if (this.shark) this.shark.visible = false;
+    for (const p of this.spout) p.visible = false;
+    if (!on) { ev.kind = ''; return; }
+    const heading = Math.atan2(ev.dx, ev.dz);
+    if (ev.kind === 'dolphins') {
+      // a pod porpoising along the coast, one after another, in and out of the water
+      this.dolphins.forEach((d, i) => {
+        const lt = ev.t - i * 0.45;
+        if (lt < 0 || lt > ev.dur - 1.2) return;
+        const u = (lt % 1.5) / 1.5;
+        const s = lt * 1.1 - 3;
+        d.visible = true;
+        d.position.set(ev.x + ev.dx * s + ev.dz * (i - 1) * 0.5, -0.85 + Math.sin(u * Math.PI * 2) * 0.55, ev.z + ev.dz * s + ev.dx * (i - 1) * 0.5);
+        d.rotation.set(0, heading, 0);
+        d.rotateX(-Math.cos(u * Math.PI * 2) * 0.8);
+        const tail = d.getObjectByName('tail');
+        if (tail) tail.rotation.x = Math.sin(t / 110 + i) * 0.35;
+        // splashes where they break the surface
+        const ring = this.dolphinRings[i];
+        const rk = u < 0.5 ? u / 0.25 : (u - 0.5) / 0.25;
+        if (rk < 1) {
+          ring.visible = true;
+          ring.position.set(d.position.x, -0.53, d.position.z);
+          ring.scale.setScalar(0.1 + rk * 0.5);
+          (ring.material as THREE.MeshBasicMaterial).opacity = (1 - rk) * 0.7;
+        }
+      });
+    } else if (ev.kind === 'whale' && this.whale) {
+      // up to breathe: the back breaks the surface, two spouts, then a dive with flukes high
+      const w = this.whale, k = ev.t;
+      const rise = Math.min(1, k / 2.5), dive = Math.max(0, (k - 11.5) / 4.5);
+      w.visible = true;
+      w.scale.setScalar(0.9);
+      w.position.set(ev.x + ev.dx * k * 0.25, -1.6 + rise * 0.72 - dive * 0.5 + Math.sin(t / 900) * 0.02, ev.z + ev.dz * k * 0.25);
+      w.rotation.set(0, heading, Math.sin(t / 1700) * 0.04);
+      // nose down and the flukes swing up out of the water before it slips under
+      w.rotateX(Math.sin(Math.min(1, dive) * Math.PI * 0.5) * 1.05);
+      const tail = w.getObjectByName('tail');
+      if (tail) tail.rotation.x = -Math.min(1, dive * 1.4) * 0.7 + Math.sin(t / 700) * 0.08 * (1 - dive);
+      for (const ts of [3.2, 7.6]) {
+        const age = k - ts;
+        if (age < 0 || age > 1.6) continue;
+        const hx = w.position.x + ev.dx * 0.85, hz = w.position.z + ev.dz * 0.85;
+        this.spout.forEach((p, i) => {
+          const a = i / this.spout.length * Math.PI * 2, rr = 0.05 + age * 0.35 * (0.5 + (i % 3) * 0.25);
+          p.visible = true;
+          p.position.set(hx + Math.cos(a) * rr, -0.35 + age * 1.3 - age * age * 0.25, hz + Math.sin(a) * rr);
+          p.scale.setScalar(0.06 + age * 0.08);
+          (p.material as THREE.MeshBasicMaterial).opacity = Math.max(0, 0.85 - age * 0.55);
+        });
+      }
+    } else if (ev.kind === 'shark' && this.shark) {
+      // a fin cutting the water in slow circles
+      const sh = this.shark, a = ev.t * 0.55;
+      const fade = Math.min(1, ev.t / 1.5, (ev.dur - ev.t) / 1.5);
+      sh.visible = true;
+      sh.scale.setScalar(1.3);
+      sh.position.set(ev.x + Math.cos(a) * 1.6, -0.7 - (1 - fade) * 0.3, ev.z + Math.sin(a) * 1.6);
+      sh.rotation.set(0, Math.atan2(-Math.sin(a), Math.cos(a)), 0);
+      const tail = sh.getObjectByName('tail');
+      if (tail) tail.rotation.y = Math.sin(t / 160) * 0.35;
+    }
   }
 
   update(dt: number, t: number, night: number, target: THREE.Vector3) {
@@ -5756,10 +5886,22 @@ class Life {
       f.ring.position.set(f.x + Math.sin(f.dir) * 0.45, -0.53, f.z + Math.cos(f.dir) * 0.45);
       f.ring.scale.setScalar(0.08 + rk * 0.45);
     }
-    // the sailboat circles the island far out
+    // the sailboat circles the island far out, heeling a little in the breeze; a fishing boat
+    // chugs round the other way, closer in
     const a = t / 90000;
     const R = GRID / 2 + 16;
     this.sail.position.set(GRID / 2 + Math.cos(a) * R, -0.5 + Math.sin(t / 900) * 0.03, GRID / 2 + Math.sin(a) * R);
-    this.sail.rotation.set(Math.sin(t / 1300) * 0.03, -a, Math.sin(t / 1100) * 0.04);
+    this.sail.rotation.set(Math.sin(t / 1300) * 0.03, -a, 0.08 + Math.sin(t / 1100) * 0.04);
+    const b = -t / 70000 + 2;
+    const R2 = GRID / 2 + 11;
+    this.trawler.position.set(GRID / 2 + Math.cos(b) * R2, -0.5 + Math.sin(t / 800) * 0.025, GRID / 2 + Math.sin(b) * R2);
+    this.trawler.rotation.set(Math.sin(t / 1000) * 0.04, -b + Math.PI, Math.sin(t / 1200) * 0.05);
+    // the big animals
+    this.nextSea -= dt;
+    if (this.nextSea <= 0 && !this.seaEvent.kind) {
+      this.nextSea = 25 + Math.random() * 35;
+      this.startSeaEvent(target);
+    }
+    this.updateSeaEvent(dt, t);
   }
 }
