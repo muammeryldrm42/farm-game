@@ -237,16 +237,55 @@ function PlotSheet({ o }: { o: FarmObject }) {
           );
         })}
       </div>
-      <div className="mt-3 flex justify-center gap-2">
+      <ObjectActions o={o} />
+    </Sheet>
+  );
+}
+
+// Move, Turn and Sell for anything on the farm. Selling asks once more before it happens.
+function ObjectActions({ o, move = true }: { o: FarmObject; move?: boolean }) {
+  const store = useStore();
+  const d = BUILDING[o.type];
+  const [sure, setSure] = useState(false);
+  useEffect(() => {
+    if (!sure) return;
+    const t = setTimeout(() => setSure(false), 6000);
+    return () => clearTimeout(t);
+  }, [sure]);
+  const value = store.sellValue(o);
+  const plot = d.kind === 'plot';
+  return (
+    <div className="mt-3 flex flex-wrap justify-center gap-2">
+      {move && (
         <button className="btn btn-wood" onClick={() => store.startMove(o.id)}>
           Move
         </button>
-        <button className="btn btn-ghost" onClick={() => store.removeObject(o.id)}>
-          Remove field
-        </button>
-      </div>
-    </Sheet>
+      )}
+      <button className="btn btn-wood" onClick={() => store.rotateObject(o.id)} title="Turn it round">
+        <span className="emoji">🔄</span> Rotate
+      </button>
+      {store.canSell(o) && (
+        sure ? (
+          <button className="btn btn-red" onClick={() => { setSure(false); store.removeObject(o.id); }}>
+            {plot ? 'Yes, remove it' : <>Yes, sell for <Coins n={value} /></>}
+          </button>
+        ) : (
+          <button className="btn btn-ghost" onClick={() => setSure(true)}>
+            {plot ? 'Remove field' : <>Sell for <Coins n={value} /></>}
+          </button>
+        )
+      )}
+    </div>
   );
+}
+
+// the Move, Rotate and Sell row for the building whose panel is open (silo, barn, home, stall...)
+function PanelObjectActions() {
+  const store = useStore();
+  const id = store.ui.panelObj;
+  const o = id !== undefined ? store.obj(id) : undefined;
+  if (!o) return null;
+  return <ObjectActions o={o} />;
 }
 
 function ProductionSheet({ o }: { o: FarmObject }) {
@@ -307,10 +346,8 @@ function ProductionSheet({ o }: { o: FarmObject }) {
             Finish now <Gems n={gemCost(info.current.endsAt - now)} />
           </button>
         )}
-        <button className="btn btn-wood ml-auto" onClick={() => store.startMove(o.id)}>
-          Move
-        </button>
       </div>
+      <ObjectActions o={o} />
 
       {/* recipes */}
       <div className="mt-3 grid grid-cols-1 gap-2 sm:grid-cols-2">
@@ -445,10 +482,8 @@ function PenSheet({ o }: { o: FarmObject }) {
             Buy <Ico i={an.icon} /> <Coins n={an.cost} />
           </button>
         )}
-        <button className="btn btn-ghost ml-auto" onClick={() => store.startMove(o.id)}>
-          Move
-        </button>
       </div>
+      <ObjectActions o={o} />
       <p className="mt-2 text-xs text-[#8a6a44]">
         {ITEMS[an.feed].name} in storage: <b>{feedHave}</b>. {feedHint(an.feed)}{' '}
         {an.id === 'bee' ? 'Or send the bees to the flowers: they come back full of nectar.' : 'Or open the gate: they graze on the grass and walk back full.'}
@@ -462,16 +497,7 @@ function DecoSheet({ o }: { o: FarmObject }) {
   const d = BUILDING[o.type];
   return (
     <Sheet title={d.name} icon={d.icon} pic={d.id} sub={d.desc} onClose={() => store.select(null)}>
-      <div className="flex flex-wrap justify-center gap-2">
-        <button className="btn btn-wood" onClick={() => store.startMove(o.id)}>
-          Move
-        </button>
-        {d.sellable && (
-          <button className="btn btn-ghost" onClick={() => store.removeObject(o.id)}>
-            Sell for <Coins n={Math.floor(d.cost / 2)} />
-          </button>
-        )}
-      </div>
+      <ObjectActions o={o} />
     </Sheet>
   );
 }
@@ -521,14 +547,7 @@ function TreeSheet({ o }: { o: FarmObject }) {
           </div>
         </div>
       )}
-      <div className="mt-3 flex justify-center gap-2">
-        <button className="btn btn-wood" onClick={() => store.startMove(o.id)}>
-          Move
-        </button>
-        <button className="btn btn-ghost" onClick={() => store.removeObject(o.id)}>
-          Sell for <Coins n={Math.floor(d.cost / 2)} />
-        </button>
-      </div>
+      <ObjectActions o={o} />
     </Sheet>
   );
 }
@@ -652,6 +671,7 @@ function StallModal() {
           );
         })}
       </div>
+      <PanelObjectActions />
     </Modal>
   );
 }
@@ -679,6 +699,7 @@ function HomeModal() {
           <button className="btn btn-wood px-6 py-2" onClick={() => store.openPanel('quests')}>Goals</button>
         </div>
       </div>
+      <PanelObjectActions />
     </Modal>
   );
 }
@@ -849,7 +870,7 @@ const SHOP_TABS: { id: ShopTab; label: string; icon: string; filter: (d: Buildin
     hint: 'Place fields, then tap one to plant. Seeds come from your harvest; with none left, planting costs the seed price.' },
   { id: 'trees', label: 'Fruit Trees', icon: '🌳', filter: (d) => d.kind === 'tree', hint: 'Trees fruit again and again. Tap a ripe tree to pick it.' },
   { id: 'animals', label: 'Animals', icon: '🐔', filter: (d) => d.kind === 'pen', hint: 'Each pen comes with room for its animals. Feed them to collect their goods.' },
-  { id: 'production', label: 'Production', icon: '🏭', filter: (d) => d.kind === 'production', hint: 'Workshops turn crops and animal goods into products for orders.' },
+  { id: 'production', label: 'Production', icon: '🏭', filter: (d) => d.kind === 'production' || d.kind === 'silo' || d.kind === 'barn', hint: 'Workshops turn crops and animal goods into products for orders. Extra silos and barns add storage room.' },
   { id: 'services', label: 'Home & Trade', icon: '🏰', filter: (d) => d.kind === 'stall' || d.kind === 'dock' || (d.kind === 'house' && d.buyable) },
   { id: 'decor', label: 'Decor', icon: '🌷', filter: (d) => d.kind === 'deco' },
 ];
@@ -999,6 +1020,7 @@ function OrdersModal() {
           );
         })}
       </div>
+      <PanelObjectActions />
     </Modal>
   );
 }
@@ -1014,6 +1036,7 @@ function StorageModal() {
   const lvl = k === 'silo' ? s.siloLevel : s.barnLevel;
   const cost = upgradeCost(lvl);
   const items = ITEM_LIST.filter((i) => i.storage === k && (s.inv[i.id] ?? 0) > 0);
+  const [sure, setSure] = useState<{ id: string; all: boolean } | null>(null);
 
   return (
     <Modal title={k === 'silo' ? 'Silo' : 'Barn'} icon={k === 'silo' ? '🌾' : '🏚️'} onClose={() => store.openPanel(null)} wide>
@@ -1053,6 +1076,12 @@ function StorageModal() {
         <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 md:grid-cols-4">
           {items.map((i) => {
             const n = s.inv[i.id];
+            // a sale waits for a second tap on the same button to confirm it
+            const armed = sure?.id === i.id ? sure.all : null;
+            const sell = (all: boolean) => {
+              if (armed === all) { setSure(null); store.sellItem(i.id, all ? n : 1); }
+              else setSure({ id: i.id, all });
+            };
             return (
               <div key={i.id} className="card flex flex-col items-center gap-1 p-2">
                 <span className="emoji text-3xl"><Ico i={i.icon} /></span>
@@ -1061,11 +1090,11 @@ function StorageModal() {
                   x{n} · <span className="inline-flex items-center gap-0.5">{i.sell} <Coin /></span> each
                 </span>
                 <div className="flex w-full gap-1">
-                  <button className="btn btn-ghost flex-1 px-1 py-1 text-xs" onClick={() => store.sellItem(i.id, 1)}>
-                    Sell 1
+                  <button className={`btn flex-1 px-1 py-1 text-xs ${armed === false ? 'btn-red' : 'btn-ghost'}`} onClick={() => sell(false)}>
+                    {armed === false ? 'Sure?' : 'Sell 1'}
                   </button>
-                  <button className="btn btn-yellow flex-1 px-1 py-1 text-xs" onClick={() => store.sellItem(i.id, n)}>
-                    All {fmtNum(i.sell * n)}
+                  <button className={`btn flex-1 px-1 py-1 text-xs ${armed === true ? 'btn-red' : 'btn-yellow'}`} onClick={() => sell(true)}>
+                    {armed === true ? `Sell all ${fmtNum(i.sell * n)}?` : `All ${fmtNum(i.sell * n)}`}
                   </button>
                 </div>
               </div>
@@ -1073,6 +1102,7 @@ function StorageModal() {
           })}
         </div>
       )}
+      <PanelObjectActions />
     </Modal>
   );
 }

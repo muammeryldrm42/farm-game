@@ -350,6 +350,9 @@ interface Entry {
   id: number;
   type: string;
   root: THREE.Group;
+  // groups placed in farm coordinates (a herd whose animals roam out of the pen): they stay
+  // unturned when the object is rotated
+  counter?: THREE.Object3D[];
   hit: THREE.Mesh;
   top: number;
   update?: Update;
@@ -1340,10 +1343,10 @@ export class Renderer {
         this.entries.set(o.id, e);
         this.world.add(e.root);
         if (!first) e.bounce = { t: 0, kind: 'spawn' };
-      } else if (e.root.position.x !== o.x || e.root.position.z !== o.y) {
+      } else if (e.root.userData.at !== `${o.x},${o.y},${o.rot ?? 0}`) {
         bump(e);
       }
-      e.root.position.set(o.x, 0, o.y);
+      placeRoot(e, o, 1, 1);
     }
     for (const [id, e] of this.entries) if (!seen.has(id)) this.removeEntry(e);
   }
@@ -1369,8 +1372,7 @@ export class Renderer {
       }
       if (k >= 1) { e.bounce = undefined; sx = 1; sy = 1; }
     }
-    e.root.scale.set(sx, sy, sx);
-    e.root.position.set(o.x + (d.w / 2) * (1 - sx), 0, o.y + (d.h / 2) * (1 - sx));
+    placeRoot(e, o, sx, sy);
   }
 
   private removeEntry(e: Entry) {
@@ -1556,7 +1558,13 @@ export class Renderer {
     }
     const ok = this.store.canPlace(p.type, p.x, p.y, p.moveId);
     (this.ghost.foot.material as THREE.MeshBasicMaterial).color.set(ok ? '#5cb82e' : '#e0533d');
-    this.ghost.g.position.set(p.x, 0.06 + Math.abs(Math.sin(t / 260)) * 0.06, p.y);
+    // a thing being moved keeps its turn
+    const real = p.moveId !== undefined ? this.store.obj(p.moveId) : undefined;
+    const gd = BUILDING[p.type];
+    const th = -((real?.rot) ?? 0) * Math.PI / 2;
+    const gc = Math.cos(th), gs = Math.sin(th), hx = gd.w / 2, hz = gd.h / 2;
+    this.ghost.g.rotation.y = th;
+    this.ghost.g.position.set(p.x + hx - (hx * gc + hz * gs), 0.06 + Math.abs(Math.sin(t / 260)) * 0.06, p.y + hz - (-hx * gs + hz * gc));
   }
 
   private buildSelection() {
@@ -3153,7 +3161,7 @@ function rippleOf(herd: THREE.Object3D, m: THREE.Object3D) {
     r = new THREE.Mesh(RIPPLE_GEO, new THREE.MeshBasicMaterial({ color: '#ffffff', transparent: true, depthWrite: false }));
     r.renderOrder = 2;
     r.userData.keep = true;
-    (herd.parent ?? herd).add(r);
+    ((herd.userData.fx as THREE.Object3D | undefined) ?? herd.parent ?? herd).add(r);
     m.userData.ripple = r;
   }
   return r;
@@ -3652,7 +3660,15 @@ function buildHive() {
   return g;
 }
 
-function animalSpot(d: BuildingDef, id: number, t: number) {
+// where an animal wanders in its pen, in the pen's own tiles; a turned pen turns its yard too
+function animalSpot(o: FarmObject, d: BuildingDef, id: number, t: number) {
+  const sp = penSpot(d, id, t);
+  const th = -(o.rot ?? 0) * Math.PI / 2;
+  if (!th) return sp;
+  const c = Math.cos(th), s = Math.sin(th), dx = sp.x - d.w / 2, dz = sp.z - d.h / 2;
+  return { x: d.w / 2 + dx * c + dz * s, z: d.h / 2 - dx * s + dz * c, heading: sp.heading + th };
+}
+function penSpot(d: BuildingDef, id: number, t: number) {
   const u = hash(id, 1, 3), v = hash(id, 2, 5);
   const m = d.w >= 3 ? 0.55 : 0.45;
   let cx = m + u * (d.w - m * 2), cz = m + v * (d.h - m * 2);
@@ -3740,6 +3756,29 @@ function buildStandIn(e: Entry, o: FarmObject, d: BuildingDef, store: GameStore)
     case 'deco': return buildDeco(e, d);
   }
 }
+// Set an object's root on its footprint: turned (o.rot quarter turns) and scaled (sx wide,
+// sy tall) about the middle of the footprint. Its counter groups (a herd) are turned back so
+// they keep working in farm coordinates, offset from the footprint's corner as before.
+function placeRoot(e: Entry, o: FarmObject, sx: number, sy: number) {
+  const d = BUILDING[o.type];
+  const th = -(o.rot ?? 0) * Math.PI / 2;
+  const c = Math.cos(th), s = Math.sin(th);
+  const cx = d.w / 2, cz = d.h / 2;
+  // three.js turns (x, z) by th about y to (x c + z s, -x s + z c)
+  const rx = (cx * c + cz * s) * sx, rz = (-cx * s + cz * c) * sx;
+  e.root.rotation.y = th;
+  e.root.scale.set(sx, sy, sx);
+  e.root.position.set(o.x + cx - rx, 0, o.y + cz - rz);
+  e.root.userData.at = `${o.x},${o.y},${o.rot ?? 0}`;
+  for (const g of e.counter ?? []) {
+    // local position p with R(th) (p + R(-th) q) = q - c + R(th) c for a farm offset q
+    const ic = Math.cos(-th), is = Math.sin(-th);
+    const bx = cx * c + cz * s - cx, bz = -cx * s + cz * c - cz;
+    g.rotation.y = -th;
+    g.position.set(bx * ic + bz * is, 0, -bx * is + bz * ic);
+  }
+}
+
 function buildObject(e: Entry, o: FarmObject, d: BuildingDef, store: GameStore) {
   buildStandIn(e, o, d, store);
   useModel(e, o, d);
@@ -4329,19 +4368,30 @@ function walk(from: P2, to: P2) {
   return p ? [from, ...p, to] : [from, to];
 }
 
+// a point of an object as built, where it is once the object is turned about its middle
+function turnPt(o: FarmObject, d: BuildingDef, p: P2): P2 {
+  const th = -(o.rot ?? 0) * Math.PI / 2;
+  if (!th) return p;
+  const c = Math.cos(th), s = Math.sin(th);
+  const cx = o.x + d.w / 2, cz = o.y + d.h / 2;
+  const dx = p.x - cx, dz = p.y - cz;
+  return { x: cx + dx * c + dz * s, y: cz - dx * s + dz * c };
+}
+
 function tripFor(o: FarmObject, d: BuildingDef, a: Animal): Trip | null {
   if (!a.graze || !GRAZE_NAV) return null;
-  const key = `${o.id}|${o.x},${o.y}|${a.id}|${a.graze.at}`;
+  const key = `${o.id}|${o.x},${o.y},${o.rot ?? 0}|${a.id}|${a.graze.at}`;
   let tr = trips.get(key);
   if (!tr) {
-    const sp = animalSpot(d, a.id, a.graze.at);
+    const sp = animalSpot(o, d, a.id, a.graze.at);
     const home = { x: o.x + sp.x, y: o.y + sp.z };
     // it walks back in to where its usual wander has got to by the time it arrives, so it carries
     // on from there without a jump
-    const sp2 = animalSpot(d, a.id, a.graze.at + 2 * GRAZE.walkMs + GRAZE.eatMs);
+    const sp2 = animalSpot(o, d, a.id, a.graze.at + 2 * GRAZE.walkMs + GRAZE.eatMs);
     const home2 = { x: o.x + sp2.x, y: o.y + sp2.z };
-    const gateIn = { x: o.x + d.w / 2, y: o.y + d.h - 0.3 };
-    const gateOut = { x: o.x + d.w / 2, y: o.y + d.h + 0.45 };
+    // the gate is on the front of the pen as built; a turned pen has it on another side
+    const gateIn = turnPt(o, d, { x: o.x + d.w / 2, y: o.y + d.h - 0.3 });
+    const gateOut = turnPt(o, d, { x: o.x + d.w / 2, y: o.y + d.h + 0.45 });
     const g0 = GRAZE_NAV.nearest(Math.floor(gateOut.x), Math.floor(gateOut.y)) ?? tileOf(gateOut);
     // three grassy spots a few tiles from the gate, picked by the animal and the trip
     const spots: P2[] = [];
@@ -4393,9 +4443,9 @@ function grazePose(o: FarmObject, d: BuildingDef, a: Animal, now: number): { x: 
     // called home early: from wherever it was, the shortest way back through the gate
     if (!tr.recall || tr.recall.at !== a.graze.back) {
       const from = grazePose(o, d, { ...a, graze: { at: a.graze.at } }, a.graze.back) ?? { x: o.x, y: o.y };
-      const sp = animalSpot(d, a.id, a.graze.back + walkMs);
-      const gateOut = { x: o.x + d.w / 2, y: o.y + d.h + 0.45 };
-      tr.recall = { at: a.graze.back, path: [...walk({ x: from.x, y: from.y }, gateOut), { x: o.x + d.w / 2, y: o.y + d.h - 0.3 }, { x: o.x + sp.x, y: o.y + sp.z }] };
+      const sp = animalSpot(o, d, a.id, a.graze.back + walkMs);
+      const gateOut = turnPt(o, d, { x: o.x + d.w / 2, y: o.y + d.h + 0.45 });
+      tr.recall = { at: a.graze.back, path: [...walk({ x: from.x, y: from.y }, gateOut), turnPt(o, d, { x: o.x + d.w / 2, y: o.y + d.h - 0.3 }), { x: o.x + sp.x, y: o.y + sp.z }] };
     }
     leg = walkLeg(tr.recall.path, gp.k * walkMs, walkMs, true);
   } else if (gp.phase === 'returning') leg = walkLeg(tr.back, gp.k * walkMs, walkMs, true);
@@ -4429,9 +4479,9 @@ function flyPose(o: FarmObject, d: BuildingDef, a: Animal, kind: string, now: nu
   if (gp.phase === 'in' || gp.phase === 'home' || gp.phase === 'full') return null;
   const sea = SEA_BIRDS.has(kind);
   const { walkMs, eatMs } = GRAZE;
-  const sp = animalSpot(d, a.id, g.at);
+  const sp = animalSpot(o, d, a.id, g.at);
   const home = { x: o.x + sp.x, y: o.y + sp.z };
-  const sp2 = animalSpot(d, a.id, g.at + 2 * walkMs + eatMs);
+  const sp2 = animalSpot(o, d, a.id, g.at + 2 * walkMs + eatMs);
   const home2 = { x: o.x + sp2.x, y: o.y + sp2.z };
   // owls and parrots feed up in the trees: a crown near the pen to sit in
   const perch = TREE_BIRDS.has(kind) ? treePerch(o, d, a.id) : null;
@@ -4790,6 +4840,10 @@ function buildPen(e: Entry, d: BuildingDef) {
   // everything built so far is scenery: bake it before the (animated) herd joins the pen
   mergeStatic(g);
   const herd = keep(group(g));
+  // ripples and the like beside the animals, in the same (unturned) frame as the herd
+  const herdFx = keep(group(g));
+  herd.userData.fx = herdFx;
+  e.counter = [herd, herdFx];
   let count = -1, ver = animalVer;
   const an = ANIMAL[d.animal ?? ''];
   const fed = new Map<number, number | null>();
@@ -4931,7 +4985,7 @@ function buildPen(e: Entry, d: BuildingDef) {
         if (head) head.rotation.x = Math.max(0, Math.sin(t / 900 + id * 2.3) - 0.85) * 8;
         return;
       }
-      const sp = animalSpot(d, id, t);
+      const sp = animalSpot(o, d, id, t);
       blink(m, t, id);
       const cs = m.userData.shadow as THREE.Object3D | undefined;
       m.position.set(sp.x, 0.04 + jump + Math.abs(Math.sin(t / 110 + id)) * 0.008, sp.z);
