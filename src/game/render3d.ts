@@ -6212,14 +6212,21 @@ class TurtleBeach {
 // spot, stops to pick at the sand with its claws, and now and then a ghost crab ducks into its
 // burrow or a hermit crab pulls into its shell for a while. Every so often one walks down the
 // shore into the surf and is gone under the waves for a while, then comes out of the sea a
-// little way along and climbs back up the beach.
-type CrabKind = 'rock_crab' | 'blue_crab' | 'ghost_crab' | 'hermit_crab';
+// little way along and climbs back up the beach. Fiddler crabs wave their big claw while they
+// feed and dig in like the ghost crabs; Sally Lightfoots dash about; horseshoe crabs plod
+// forward with a sweep of the tail spine.
+type CrabKind = 'rock_crab' | 'blue_crab' | 'ghost_crab' | 'hermit_crab' | 'hermit_moon' | 'fiddler_crab' | 'shore_crab' | 'sally_crab' | 'horseshoe_crab';
 const CRABS: [CrabKind, number, number, number][] = [
   // kind, how many, speed (tiles a second), size
   ['rock_crab', 5, 0.32, 1.25], ['blue_crab', 3, 0.4, 1.2], ['ghost_crab', 4, 1.1, 1.2], ['hermit_crab', 4, 0.12, 1.3],
+  ['hermit_moon', 3, 0.12, 1.3], ['fiddler_crab', 5, 0.5, 1.35], ['shore_crab', 4, 0.36, 1.2], ['sally_crab', 3, 0.9, 1.15],
+  ['horseshoe_crab', 2, 0.1, 1.4],
 ];
+// the ones that walk forward rather than sideways, and the ones that dig into the sand
+const FORWARD_CRABS = new Set<CrabKind>(['hermit_crab', 'hermit_moon', 'horseshoe_crab']);
+const BURROW_CRABS = new Set<CrabKind>(['ghost_crab', 'fiddler_crab']);
 interface Crab {
-  kind: CrabKind; g: THREE.Group; body: THREE.Group; legs: THREE.Object3D[]; claws: THREE.Object3D[];
+  kind: CrabKind; g: THREE.Group; body: THREE.Group; legs: THREE.Object3D[]; claws: THREE.Object3D[]; tail?: THREE.Object3D;
   side: number; speed: number; seed: number;
   x: number; z: number; tx: number; tz: number; wait: number; hide: number; heading: number;
   mode: 'beach' | 'toSea' | 'sea' | 'fromSea';
@@ -6296,6 +6303,7 @@ class ShoreLife {
             body.add(mc);
             c.legs = [0, 1, 2, 3, 4, 5, 6, 7].map((i) => mc.getObjectByName(`leg${i}`)).filter((o): o is THREE.Object3D => !!o);
             c.claws = [0, 1].map((i) => mc.getObjectByName(`claw${i}`)).filter((o): o is THREE.Object3D => !!o);
+            c.tail = mc.getObjectByName('tail') ?? undefined;
             g.visible = true;
           }).catch(() => {});
         }
@@ -6621,8 +6629,8 @@ class ShoreLife {
     this.updateSeals(dt, t);
     this.updateFlocks(dt, t);
     for (const c of this.crabs) {
-      if (!c.g.visible && !c.legs.length) continue;
-      const hermit = c.kind === 'hermit_crab';
+      if (!c.g.visible && !c.legs.length && !c.tail) continue;
+      const hermit = FORWARD_CRABS.has(c.kind);
       // out at sea, under the waves: a while later it comes out a little way along the shore
       if (c.mode === 'sea') {
         c.hide -= dt;
@@ -6640,7 +6648,7 @@ class ShoreLife {
       // tucked away: in its burrow (ghost crab) or inside its shell (hermit crab)
       if (c.hide > 0) {
         c.hide -= dt;
-        if (c.kind === 'ghost_crab') c.g.visible = c.hide <= 0;
+        if (BURROW_CRABS.has(c.kind)) c.g.visible = c.hide <= 0;
         else c.body.position.y = -0.004;
         c.claws.forEach((cl) => { cl.rotation.y = 0; });
         continue;
@@ -6681,7 +6689,7 @@ class ShoreLife {
       c.g.position.set(c.x, shoreY(this.outOf(c)), c.z);
       c.g.rotation.y = c.heading;
       // legs: alternate pairs lift and swing while it runs; a slow shuffle while it feeds
-      const ph = t / (hermit ? 140 : c.kind === 'ghost_crab' ? 45 : 70) + c.seed;
+      const ph = t / (hermit ? 140 : c.kind === 'ghost_crab' || c.kind === 'sally_crab' ? 45 : 70) + c.seed;
       c.legs.forEach((l, i) => {
         const left = hermit ? i < 2 : i < 4;
         const alt = (i % 2 ? 1 : -1) * (left ? 1 : -1);
@@ -6693,7 +6701,10 @@ class ShoreLife {
         const pick = moving ? 0 : Math.max(0, Math.sin(t / 380 + c.seed + i * Math.PI));
         cl.rotation.x = -pick * 0.35;
         cl.rotation.y = (i ? -1 : 1) * (0.05 + Math.sin(t / 600 + c.seed + i) * 0.05);
+        // a fiddler crab waves its big claw up and down to the others while it feeds
+        if (c.kind === 'fiddler_crab' && i === 1 && !moving) cl.rotation.x = -Math.max(0, Math.sin(t / 260 + c.seed)) * 0.9;
       });
+      if (c.tail) c.tail.rotation.y = Math.sin(t / (moving ? 500 : 1400) + c.seed) * (moving ? 0.25 : 0.1);
       c.body.rotation.z = moving ? Math.sin(ph * 2) * 0.03 : 0;
     }
   }

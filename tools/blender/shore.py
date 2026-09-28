@@ -4,7 +4,10 @@
 # rock_crab: a red rock crab, brick red with black tipped claws; blue_crab: an olive backed
 # blue crab with long side spines, blue legs, red tipped claws and paddle hind legs; ghost_crab:
 # a pale sand coloured ghost crab on tall legs with big eyes on stalks; hermit_crab: a small
-# orange hermit crab in a borrowed whelk shell.
+# orange hermit crab in a borrowed whelk shell; hermit_moon: a purple pincher in a moon snail
+# shell; fiddler_crab: a little dark fiddler crab with one huge orange claw; shore_crab: the
+# olive green shore crab; sally_crab: a flat, bright red Sally Lightfoot speckled with blue;
+# horseshoe_crab: a brown horseshoe crab with its long tail spine (`tail`).
 # Built in game coordinates (y up, +z the front) from metaballs like animals.py. Parts the game
 # moves: the walking legs `leg0..leg7` (0..3 on the left, -x, front to back; 4..7 on the right),
 # or `leg0..leg3` for the hermit crab, and the claws `claw0` (left) and `claw1` (right), each
@@ -19,12 +22,13 @@ from animals import B, Blob, noise  # noqa: E402
 from kit import anim_group, ball, finish, main, pm, uid  # noqa: E402
 
 
-def crab(name, top, spot, under, leg, claw, tip, W=0.05, spines=False, ghost=False, paddles=False):
+def crab(name, top, spot, under, leg, claw, tip, W=0.05, spines=False, ghost=False, paddles=False,
+         fiddler=False, dome=1.0, spot_f=70, spot_cut=0.25):
     black = pm('cr_eye', '#141010')
     hi = 0.012 if ghost else 0.0
     # the carapace: a wide oval, domed on top, flatter below, with a notched front edge
     b = Blob(0.0028)
-    b.ell((0, 0.034 + hi, 0), W, 0.02, W * 0.74)
+    b.ell((0, 0.034 + hi, 0), W, 0.02 * dome, W * 0.74)
     b.ell((0, 0.024 + hi, -0.002), W * 0.86, 0.013, W * 0.62)
     for k in range(-2, 3):
         b.ball((k * W * 0.2, 0.036 + hi, W * 0.7), W * 0.1)
@@ -35,8 +39,8 @@ def crab(name, top, spot, under, leg, claw, tip, W=0.05, spines=False, ghost=Fal
     def shell(x, y, z):
         if y < 0.028 + hi:
             return under
-        v = noise(x, y, z, 70)
-        return spot if v > 0.25 else top
+        v = noise(x, y, z, spot_f)
+        return spot if v > spot_cut else top
     b.build(shell, 1100)
 
     # eyes on stalks at the front: tall and bulbous on the ghost crab
@@ -70,6 +74,9 @@ def crab(name, top, spot, under, leg, claw, tip, W=0.05, spines=False, ghost=Fal
     for i, sx in enumerate((-1, 1)):
         pivot = (sx * W * 0.56, 0.03 + hi, W * 0.52)
         big = 1.0 if not ghost else (1.25 if sx > 0 else 0.8)
+        if fiddler:
+            # the male fiddler crab: one huge claw held up in front, the other a tiny picker
+            big = 1.6 if sx > 0 else 0.5
         with anim_group(f'claw{i}', B(*pivot)):
             c = Blob(0.0022)
             palm = (sx * W * 0.86, 0.036 + hi, W * 1.12)
@@ -81,16 +88,53 @@ def crab(name, top, spot, under, leg, claw, tip, W=0.05, spines=False, ghost=Fal
     finish(name, tex=512, vivid=1.05, ao_min=0.8, ao_dist=0.03)
 
 
-def hermit_crab():
-    cream = pm('hc_cream', '#eadcc0', '#f2e8d4', scale=60)
-    band = pm('hc_band', '#a8744a', '#8a5a36', scale=60)
-    lip = pm('hc_lip', '#f4d8c8')
-    body = pm('hc_body', '#d8582c', '#e0703a', scale=80)
-    leg = pm('hc_leg', '#e07a40')
-    ring = pm('hc_ring', '#f0c050')
+def hermit_crab(name='hermit_crab', moon=False):
+    if moon:
+        # a purple pincher in a round moon snail shell: glossy tan with a brown spiral band
+        cream = pm('hm_cream', '#c8a47a', '#d8b890', scale=60, rough=0.4)
+        band = pm('hm_band', '#8a5a3a', '#744a2e', scale=60, rough=0.4)
+        lip = pm('hm_lip', '#efe2cc')
+        body = pm('hm_body', '#7a3f86', '#8c4c98', scale=80)
+        leg = pm('hm_leg', '#c8583a')
+        ring = pm('hm_ring', '#e8a040')
+    else:
+        cream = pm('hc_cream', '#eadcc0', '#f2e8d4', scale=60)
+        band = pm('hc_band', '#a8744a', '#8a5a36', scale=60)
+        lip = pm('hc_lip', '#f4d8c8')
+        body = pm('hc_body', '#d8582c', '#e0703a', scale=80)
+        leg = pm('hc_leg', '#e07a40')
+        ring = pm('hc_ring', '#f0c050')
     tip = pm('hc_tip', '#2a1a14')
     black = pm('hc_eye', '#141010')
+    if moon:
+        moon_shell(cream, band, lip)
+    else:
+        whelk_shell(cream, band, lip)
+    hermit_body(body, leg, ring, tip, black)
+    finish(name, tex=512, vivid=1.05, ao_min=0.8, ao_dist=0.03)
 
+
+def moon_shell(cream, band, lip):
+    # a moon snail: a big round body whorl, a low spire barely showing on top, opening in front
+    s = Blob(0.0026)
+    steps = 36
+    for k in range(steps):
+        t = k / (steps - 1)
+        a = t * 2.6 * 2 * math.pi
+        r = 0.036 * (1 - t) ** 1.3 + 0.004
+        wr = r * 0.35
+        s.ball((math.cos(a) * wr * 0.8, 0.036 + t * 0.022 + math.sin(a) * wr * 0.4, -0.014 - t * 0.02 + math.sin(a) * wr * 0.5), r)
+    s.ell((0, 0.03, 0.006), 0.03, 0.026, 0.02)
+
+    def paint(x, y, z):
+        if z > 0.016:
+            return lip
+        # the spiral band just under the suture of each whorl
+        return band if abs(math.sin(math.atan2(z + 0.014, x) * 1 + y * 110)) > 0.93 else cream
+    s.build(paint, 1300)
+
+
+def whelk_shell(cream, band, lip):
     # a whelk shell: whorls winding up to a point, the opening to the front
     s = Blob(0.0026)
     steps = 48
@@ -112,6 +156,8 @@ def hermit_crab():
         return band if math.sin(math.atan2(y - 0.04, x) * 3 + z * 180) > 0.55 else cream
     s.build(whelk, 1400)
 
+
+def hermit_body(body, leg, ring, tip, black):
     # the crab peeping out of the opening: its head, eyes, legs and claws
     h = Blob(0.0022)
     h.ell((0, 0.03, 0.028), 0.018, 0.012, 0.014)
@@ -143,7 +189,6 @@ def hermit_crab():
             c.ell(palm, 0.01 * big, 0.008 * big, 0.013 * big)
             c.cap((palm[0], palm[1] - 0.002, palm[2] + 0.01 * big), (palm[0] - sx * 0.003, palm[1] - 0.002, palm[2] + 0.022 * big), 0.004 * big, 0.0014)
             c.build(lambda x, y, z, pz=palm[2]: tip if z > pz + 0.016 * big else body, 200)
-    finish('hermit_crab', tex=512, vivid=1.05, ao_min=0.8, ao_dist=0.03)
 
 
 def rock_crab():
@@ -161,6 +206,67 @@ def ghost_crab():
     crab('ghost_crab', pm('gc_top', '#e2d2b0', '#d6c49e', scale=70), pm('gc_spot', '#c4b08a'), pm('gc_under', '#f6f0e2'),
          pm('gc_leg', '#e6d8bc', '#dccaa8', scale=80), pm('gc_claw', '#ecdfc4'), pm('gc_tip', '#f8f2e6'),
          W=0.042, ghost=True)
+
+
+def fiddler_crab():
+    # a small fiddler crab: a dark carapace flecked with turquoise, one big orange claw
+    crab('fiddler_crab', pm('fc_top', '#3c3440', '#463c4a', scale=70), pm('fc_spot', '#4aa8b0'), pm('fc_under', '#e8dcc4'),
+         pm('fc_leg', '#7a5a4a', '#8a6a56', scale=80), pm('fc_claw', '#f0902c', '#f6a844', scale=70), pm('fc_tip', '#f6c890'),
+         W=0.036, fiddler=True, spot_f=140, spot_cut=0.35)
+
+
+def shore_crab():
+    # the green shore crab: dark olive, mottled, with a paler underside and yellowish legs
+    crab('shore_crab', pm('sc_top', '#4c5a2c', '#56642e', scale=70), pm('sc_spot', '#6e7a3a'), pm('sc_under', '#d8c878'),
+         pm('sc_leg', '#6a7234', '#7a8038', scale=80), pm('sc_claw', '#56642e', '#62702e', scale=70), pm('sc_tip', '#241c14'),
+         W=0.046, spot_f=90, spot_cut=0.1)
+
+
+def sally_crab():
+    # a Sally Lightfoot: a flat, bright red carapace speckled with blue, quick orange legs
+    crab('sally_crab', pm('sl_top', '#d0321e', '#e04428', scale=70), pm('sl_spot', '#3a78c0'), pm('sl_under', '#f0c8a0'),
+         pm('sl_leg', '#e8642c', '#f07a34', scale=80), pm('sl_claw', '#d83a22', '#e44c2a', scale=70), pm('sl_tip', '#f4e0c4'),
+         W=0.05, dome=0.7, spot_f=160, spot_cut=0.42)
+
+
+def horseshoe_crab():
+    # a horseshoe crab: a smooth horseshoe shaped front shield, a spiny back plate and a long
+    # tail spine (`tail`); its legs stay hidden under the shell
+    top = pm('hs_top', '#6a5634', '#7c6640', scale=40, rough=0.35)
+    dark = pm('hs_dark', '#4a3c24')
+    under = pm('hs_under', '#b4945e')
+    black = pm('hs_eye', '#141010')
+    b = Blob(0.003)
+    # the front shield: wide and low, sloping down to a thin rim all round
+    b.ell((0, 0.02, 0.035), 0.075, 0.026, 0.06)
+    b.ell((0, 0.008, 0.035), 0.082, 0.01, 0.066)
+    # the keel down the middle and the two side ridges
+    b.ell((0, 0.036, 0.03), 0.012, 0.012, 0.05)
+    for sx in (-1, 1):
+        b.ell((sx * 0.034, 0.03, 0.028), 0.01, 0.01, 0.04)
+    # the back plate, narrower, with short spines along its edges
+    b.ell((0, 0.016, -0.034), 0.046, 0.016, 0.032)
+    for sx in (-1, 1):
+        for k in range(4):
+            z = -0.018 - k * 0.011
+            b.cap((sx * 0.04, 0.012, z), (sx * 0.056, 0.01, z - 0.004), 0.0045, 0.0015)
+
+    def paint(x, y, z):
+        if y < 0.006:
+            return under
+        return dark if abs(x) < 0.003 and y > 0.04 else top
+    b.build(paint, 1600)
+    for sx in (-1, 1):
+        ball(uid('eye'), 0.0055, B(sx * 0.036, 0.04, 0.042), black, scale=(0.8, 1.4, 0.7), segs=10)
+    with anim_group('tail', B(0, 0.012, -0.062)):
+        t = Blob(0.002)
+        t.cap((0, 0.012, -0.062), (0, 0.006, -0.17), 0.0065, 0.0018)
+        t.build(top, 200)
+    finish('horseshoe_crab', tex=512, vivid=1.05, ao_min=0.8, ao_dist=0.03)
+
+
+def hermit_moon():
+    hermit_crab('hermit_moon', moon=True)
 
 
 def sandpiper():
@@ -328,6 +434,8 @@ def sea_rock():
 
 
 MODELS = {'rock_crab': rock_crab, 'blue_crab': blue_crab, 'ghost_crab': ghost_crab, 'hermit_crab': hermit_crab,
+          'fiddler_crab': fiddler_crab, 'shore_crab': shore_crab, 'sally_crab': sally_crab,
+          'horseshoe_crab': horseshoe_crab, 'hermit_moon': hermit_moon,
           'sandpiper': sandpiper, 'harbor_seal': harbor_seal, 'sea_rock': sea_rock}
 
 if __name__ == '__main__':
