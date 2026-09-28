@@ -3306,17 +3306,41 @@ function torus(r: number, t: number, rs: number, ts: number, arc = Math.PI * 2) 
 
 // Realistic eyes: a glossy dark eyeball set into the side of the head with a lid rim and a
 // tiny catch light, turned outward the way prey animals' eyes are.
-const EYE_REAL = new THREE.MeshStandardMaterial({ color: '#140e0a', roughness: 0.05, metalness: 0.1 });
+const EYE_REAL_MERGED = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.08, metalness: 0.08 });
+const EYE_BALL = new THREE.SphereGeometry(1, 12, 9);
+const EYE_GLINT = new THREE.SphereGeometry(1, 7, 5);
+const realEyeCache = new Map<string, THREE.BufferGeometry>();
+function realEyeGeo(r: number, sx: number, lid: string) {
+  const key = `${r.toFixed(4)}|${sx}|${lid}`;
+  let g = realEyeCache.get(key);
+  if (g) return g;
+  const parts: [THREE.BufferGeometry, string, number, number, number, number, number, number][] = [
+    [EYE_BALL, '#140e0a', r, r * 0.9, r * 0.75, 0, 0, 0],
+    [EYE_GLINT, '#ffffff', r * 0.22, r * 0.22, r * 0.12, sx * r * 0.25, r * 0.3, r * 0.68],
+    [torus(1, 0.22, 5, 14), lid, r * 1.02, r * 0.92, r * 1.0, 0, 0, r * 0.1],
+  ];
+  const m = new THREE.Matrix4(), c = new THREE.Color();
+  g = mergeGeometries(parts.map(([geo, col, a, b, d, px, py, pz]) => {
+    const p = geo.index ? geo.toNonIndexed() : geo.clone();
+    p.applyMatrix4(m.makeScale(a, b, d).setPosition(px, py, pz));
+    for (const k of Object.keys(p.attributes)) if (k !== 'position' && k !== 'normal') p.deleteAttribute(k);
+    c.set(col);
+    const n = p.getAttribute('position').count, arr = new Float32Array(n * 3);
+    for (let i = 0; i < n; i++) { arr[i * 3] = c.r; arr[i * 3 + 1] = c.g; arr[i * 3 + 2] = c.b; }
+    p.setAttribute('color', new THREE.BufferAttribute(arr, 3));
+    return p;
+  })) as THREE.BufferGeometry;
+  realEyeCache.set(key, g);
+  return g;
+}
 function realEyes(head: THREE.Object3D, spec: [number, number, number, number, number], lid: string) {
   const [x, y, z, r, yaw] = spec;
   const list: THREE.Object3D[] = (head.userData.eyes as THREE.Object3D[] | undefined) ?? [];
   for (const sx of [-1, 1]) {
     const e = group(head, sx * x, y, z);
     e.rotation.y = sx * yaw;
-    mk(e, G.ball, EYE_REAL, r, r * 0.9, r * 0.75, 0, 0, 0, false);
-    mk(e, G.ball, EYE_W, r * 0.22, r * 0.22, r * 0.12, sx * r * 0.25, r * 0.3, r * 0.68, false);
-    const rim = mk(e, torus(1, 0.22, 6, 18), M(lid), r * 1.02, r * 0.92, r * 1.0, 0, 0, r * 0.1, false);
-    rim.rotation.y = 0;
+    // eyeball, catch light and lid rim baked into one small mesh: one draw per eye, not three
+    mk(e, realEyeGeo(r, sx, lid), EYE_REAL_MERGED, 1, 1, 1, 0, 0, 0, false);
     list.push(e);
   }
   head.userData.eyes = list;
@@ -3332,9 +3356,9 @@ function toonEyeGeo(r: number, sx: number, lid: string) {
   if (g) return g;
   const parts: [THREE.BufferGeometry, string, number, number, number, number, number, number][] = [
     [G.ball, '#ffffff', r, r * 1.12, r * 0.8, 0, 0, 0],
-    [G.ball, '#1a120c', r * 0.58, r * 0.7, r * 0.4, -sx * r * 0.12, -r * 0.05, r * 0.52],
-    [G.ball, '#ffffff', r * 0.2, r * 0.2, r * 0.1, sx * r * 0.1, r * 0.3, r * 0.86],
-    [G.ball, '#ffffff', r * 0.09, r * 0.09, r * 0.05, -sx * r * 0.28, -r * 0.3, r * 0.84],
+    [EYE_BALL, '#1a120c', r * 0.58, r * 0.7, r * 0.4, -sx * r * 0.12, -r * 0.05, r * 0.52],
+    [EYE_GLINT, '#ffffff', r * 0.2, r * 0.2, r * 0.1, sx * r * 0.1, r * 0.3, r * 0.86],
+    [EYE_GLINT, '#ffffff', r * 0.09, r * 0.09, r * 0.05, -sx * r * 0.28, -r * 0.3, r * 0.84],
     [torus(1, 0.1, 6, 20, Math.PI), lid, r * 1.02, r * 1.1, r * 0.8, 0, 0, r * 0.12],
   ];
   const m = new THREE.Matrix4(), c = new THREE.Color();
