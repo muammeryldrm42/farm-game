@@ -370,9 +370,11 @@ interface Actor {
 }
 interface Sparrow {
   g: THREE.Object3D; wings: THREE.Object3D[]; head: THREE.Object3D | null; x: number; y: number; h: number; heading: number;
-  state: 'ground' | 'fly' | 'perch' | 'nest'; until: number; t0: number; dur: number;
-  from: { x: number; y: number; h: number }; to: { x: number; y: number; h: number; kind: 'ground' | 'perch' | 'nest' };
+  state: 'ground' | 'fly' | 'perch' | 'nest' | 'bath'; until: number; t0: number; dur: number;
+  from: { x: number; y: number; h: number }; to: { x: number; y: number; h: number; kind: 'ground' | 'perch' | 'nest' | 'bath' };
   home: number | null; hopAt: number; hop: { x: number; y: number; t0: number } | null;
+  // the middle of the bird bath it sits on the rim of
+  bath?: { x: number; y: number };
 }
 const actor = (x: number, y: number, g: THREE.Group): Actor => ({ x, y, heading: 0, moving: false, g, phase: 0, path: [], goal: null, inside: false, sleeping: false, goHome: false, fade: 1 });
 
@@ -1892,8 +1894,8 @@ export class Renderer {
 
   // Wild house sparrows: a few always about the farm and two more for every bird house. They
   // hop and peck on the grass near the view, fly up to roofs, trees and bird houses to sit a
-  // while, and those with a bird house of their own pop inside it now and then. At night they
-  // are all tucked away.
+  // while, and those with a bird house of their own pop inside it now and then. A bird bath
+  // brings them down to its rim to drink and splash about. At night they are all tucked away.
   private sparrows: Sparrow[] = [];
   private sparrowSrc: THREE.Object3D | null = null;
   private sparrowLoading = false;
@@ -1904,7 +1906,9 @@ export class Renderer {
       return;
     }
     const houses = this.store.s.objects.filter((o) => o.type === 'bird_house');
-    const want = Math.min(12, 3 + houses.length * 2);
+    // a bird bath draws a couple more birds to the farm too
+    const baths = this.store.s.objects.reduce((n, o) => n + (o.type === 'birdbath' ? 1 : 0), 0);
+    const want = Math.min(14, 3 + houses.length * 2 + Math.min(2, baths) * 2);
     while (this.sparrows.length < want) {
       const g = this.sparrowSrc.clone();
       g.scale.setScalar(1.25);
@@ -1939,7 +1943,7 @@ export class Renderer {
         sp.heading = Math.atan2(sp.to.x - sp.from.x, sp.to.y - sp.from.y);
         if (u >= 1) {
           sp.state = sp.to.kind;
-          sp.until = t + (sp.state === 'ground' ? 4000 + Math.random() * 8000 : sp.state === 'perch' ? 3000 + Math.random() * 9000 : 5000 + Math.random() * 10000);
+          sp.until = t + (sp.state === 'ground' ? 4000 + Math.random() * 8000 : sp.state === 'perch' ? 3000 + Math.random() * 9000 : sp.state === 'bath' ? 6000 + Math.random() * 8000 : 5000 + Math.random() * 10000);
           sp.hopAt = t + 400;
         }
       } else if (sp.state === 'ground') {
@@ -1961,19 +1965,28 @@ export class Renderer {
       } else if (sp.state === 'perch') {
         sp.heading += Math.sin(t / 700 + i) * 0.01;
         if (t > sp.until) this.sparrowNext(sp, t, houses);
+      } else if (sp.state === 'bath') {
+        // on the rim facing the water, dipping down to drink and tipping the head back to swallow
+        if (sp.bath) sp.heading = Math.atan2(sp.bath.x - sp.x, sp.bath.y - sp.y);
+        if (t > sp.until) this.sparrowNext(sp, t, houses);
       }
       if (!(sp.state === 'ground' && sp.hop)) sp.g.position.set(sp.x, sp.h + FOOT, sp.y);
       sp.g.rotation.y = sp.heading;
       const flying = sp.state === 'fly';
+      // at the bird bath: now and then a splash, wings half open and shaking the water off
+      const splash = sp.state === 'bath' && Math.sin(t / 1300 + i * 2.1) > 0.55;
       const [w0, w1] = sp.wings;
       if (w0 && w1) {
         // spread and beating in flight, folded back along the body at rest
-        const beat = flying ? Math.sin(t / 38 + i) * 0.9 : 0.15;
-        w0.rotation.set(0, flying ? 0 : -1.35, flying ? beat : 0.15);
-        w1.rotation.set(0, flying ? 0 : 1.35, flying ? -beat : -0.15);
+        const beat = flying ? Math.sin(t / 38 + i) * 0.9 : splash ? Math.sin(t / 30 + i) * 0.5 : 0.15;
+        const fold = flying ? 0 : splash ? 0.7 : 1.35;
+        w0.rotation.set(0, -fold, flying || splash ? beat : 0.15);
+        w1.rotation.set(0, fold, flying || splash ? -beat : -0.15);
       }
-      // pecking at the grass, or bobbing the tail while perched
-      sp.g.rotation.x = sp.state === 'ground' && !sp.hop ? Math.max(0, Math.sin(t / 180 + i * 2)) * 0.5 : 0;
+      // pecking at the grass, bobbing the tail while perched, sipping at the bird bath
+      const sip = Math.sin(t / 520 + i * 1.7);
+      sp.g.rotation.x = sp.state === 'ground' && !sp.hop ? Math.max(0, Math.sin(t / 180 + i * 2)) * 0.5
+        : sp.state === 'bath' ? (splash ? 0.25 : sip > 0.2 ? 0.75 : sip < -0.6 ? -0.35 : 0) : 0;
     });
   }
   // a grassy spot near (x, y) for a sparrow to land on
@@ -1984,7 +1997,7 @@ export class Renderer {
     }
     return { x, y, h: 0 };
   }
-  private sparrowFly(sp: Sparrow, t: number, to: { x: number; y: number; h: number }, kind: 'ground' | 'perch' | 'nest') {
+  private sparrowFly(sp: Sparrow, t: number, to: { x: number; y: number; h: number }, kind: 'ground' | 'perch' | 'nest' | 'bath') {
     sp.from = { x: sp.x, y: sp.y, h: sp.h };
     sp.to = { ...to, kind };
     sp.t0 = t;
@@ -1995,11 +2008,28 @@ export class Renderer {
   // where to next: home to its bird house, up to a roof or a tree nearby, or down to the grass
   private sparrowNext(sp: Sparrow, t: number, houses: FarmObject[]) {
     const r = Math.random();
+    sp.bath = undefined;
     const home = houses.find((o) => o.id === sp.home);
-    if (home && r < 0.25) {
+    if (home && r < 0.22) {
       const top = this.roofTop(home.id, home.x + 0.5, home.y + 0.5) ?? 0.9;
       this.sparrowFly(sp, t, { x: home.x + 0.5, y: home.y + 0.62, h: Math.min(top, 0.86) }, 'nest');
       return;
+    }
+    // a drink and a bath: down onto the rim of a bird bath nearby, a spot of its own round it
+    if (r < 0.45) {
+      const baths = this.store.s.objects.filter((o) => o.type === 'birdbath' && Math.hypot(o.x + 0.5 - sp.x, o.y + 0.5 - sp.y) < 16);
+      const b = baths[Math.floor(Math.random() * baths.length)];
+      if (b) {
+        const cx = b.x + 0.5, cy = b.y + 0.5;
+        const taken = this.sparrows.filter((o) => o !== sp && o.bath && o.bath.x === cx && o.bath.y === cy).map((o) => Math.atan2(o.to.y - cy, o.to.x - cx));
+        let a = Math.random() * Math.PI * 2;
+        for (let k = 0; k < 6 && taken.some((q) => Math.abs(Math.atan2(Math.sin(a - q), Math.cos(a - q))) < 0.9); k++) a += 1.05;
+        const x = cx + Math.cos(a) * 0.22, y = cy + Math.sin(a) * 0.22;
+        const rim = this.roofTop(b.id, x, y);
+        sp.bath = { x: cx, y: cy };
+        this.sparrowFly(sp, t, { x, y, h: rim !== null && rim > 0.3 ? rim : 0.62 }, 'bath');
+        return;
+      }
     }
     if (r < 0.65) {
       const near = (list: { id: number; x: number; y: number }[]) => list.filter((q) => Math.hypot(q.x - sp.x, q.y - sp.y) < 12);
