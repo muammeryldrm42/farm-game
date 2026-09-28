@@ -10,7 +10,7 @@ import { U } from './gfx/shared';
 import { Sky } from './gfx/sky';
 import { makeWater } from './gfx/water';
 import { seasonOf, weatherAt, type Season } from './weather';
-import { FLOWER_KIT_MAT, Foliage, flowerKit, windify, type FlowerKind, type Spot } from './gfx/foliage';
+import { FLOWER_KIT_MAT, Foliage, blockBatch, flowerKit, windify, type Culled, type FlowerKind, type Spot } from './gfx/foliage';
 import { Post } from './gfx/post';
 import { PLANT_MAT, cropGeo } from './gfx/crops';
 import { PRODUCE_MAT, produceGeo } from './gfx/produce';
@@ -1004,6 +1004,7 @@ export class Renderer {
     this.land.remove(this.dynLand);
     this.dynLand.traverse((o) => { if ((o as THREE.InstancedMesh).isInstancedMesh) (o as THREE.InstancedMesh).dispose(); });
     this.dynLand = new THREE.Group();
+    this.forest = [];
     this.signs = [];
     const pines: [number, number, number][] = [];
     const rounds: [number, number, number][] = [];
@@ -1035,7 +1036,7 @@ export class Renderer {
         });
         im.castShadow = true;
         im.receiveShadow = true;
-        this.dynLand.add(im);
+        this.addForest(im);
       }
       this.land.add(this.dynLand);
       return;
@@ -1074,8 +1075,29 @@ export class Renderer {
       shell.setColorAt(i, col.offsetHSL(0, 0, 0.05));
       crown.setColorAt(i, col.offsetHSL(0, 0, -0.15));
     }
-    for (const im of [trunks, pineA, pineB, crown, shell]) { im.castShadow = true; im.receiveShadow = true; this.dynLand.add(im); }
+    for (const im of [trunks, pineA, pineB, crown, shell]) { im.castShadow = true; im.receiveShadow = true; this.addForest(im); }
     this.land.add(this.dynLand);
+  }
+
+  private forest: Culled[] = [];
+  private addForest(im: THREE.InstancedMesh) {
+    this.dynLand.add(im);
+    const b = blockBatch(im);
+    if (b) this.forest.push(b);
+  }
+
+  // big instanced batches (forest, meadow flowers) draw only the blocks of land in view, and
+  // cast shadow only from the blocks inside the sun's shadow box
+  private cullBlocks() {
+    let shadow: THREE.Frustum | null = null;
+    if (this.gl.shadowMap.enabled && this.sun.castShadow) {
+      this.sun.updateMatrixWorld();
+      this.sun.target.updateMatrixWorld();
+      this.sun.shadow.updateMatrices(this.sun);
+      shadow = this.sun.shadow.getFrustum();
+    }
+    this.foliage.cull(this.frustum, shadow);
+    for (const b of this.forest) b.cull(this.frustum, shadow);
   }
 
   private signs: THREE.Group[] = [];
@@ -1250,6 +1272,7 @@ export class Renderer {
     this.life.update(dt, t, this.nightNow(now), this.target);
     this.turtles.update(t);
     this.followSun();
+    this.cullBlocks();
     const wk = this.updateWeather(dt, now);
     this.updateLight(now, t, wk);
 
@@ -3902,10 +3925,12 @@ function palmTree(g: P, leaf: string) {
     mk(crown, cylGeo(0.07 - t * 0.02, 0.07 - t * 0.02, 10), M('#7a5634'), 1, 0.02, 1, nx, ny - 0.01, z);
     x = nx;
   }
+  // the fruit hangs in a kept group; the fronds go when the Blender crown takes their place
   const top = keep(group(crown, x, segs * 0.15, z));
+  const fronds = group(crown, x, segs * 0.15, z);
   for (let i = 0; i < 9; i++) {
     const a = (i / 9) * Math.PI * 2 + (i % 2) * 0.2;
-    const f = group(top);
+    const f = group(fronds);
     f.rotation.y = a;
     // each frond is a row of leaflets drooping further toward the tip
     for (let k = 0; k < 7; k++) {
@@ -3918,7 +3943,7 @@ function palmTree(g: P, leaf: string) {
       mk(f, G.ball, M(shade(leaf, -0.14)), 0.05, 0.012, 0.012, px, py + 0.004, 0, false);
     }
   }
-  return { crown, top };
+  return { crown, top, fronds };
 }
 
 function buildFruitTree(e: Entry, d: BuildingDef) {
@@ -4015,7 +4040,7 @@ function buildBanana(e: Entry, leaf: string, kind = 'banana') {
 
 function buildPalm(e: Entry, d: BuildingDef, leaf: string) {
   const g = e.root;
-  const { crown, top } = palmTree(g, leaf);
+  const { crown, top, fronds } = palmTree(g, leaf);
   const nut = PRODUCE_MAT;
   const fruit = [0, 1, 2, 3, 4].map((i) => {
     const a = (i / 5) * Math.PI * 2;
@@ -4037,7 +4062,7 @@ function buildPalm(e: Entry, d: BuildingDef, leaf: string) {
     const u = (t - shake) / 900;
     const wobble = u >= 0 && u < 1 ? Math.sin(u * Math.PI * 7) * (1 - u) * 0.08 : 0;
     crown.rotation.z = Math.sin(t / 1500 + o.id) * 0.025 + wobble;
-    top.children.forEach((f, i) => { f.rotation.z = Math.sin(t / 700 + i + o.id) * 0.06; });
+    if (fronds.parent) fronds.children.forEach((f, i) => { f.rotation.z = Math.sin(t / 700 + i + o.id) * 0.06; });
   };
 }
 

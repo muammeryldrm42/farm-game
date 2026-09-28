@@ -464,6 +464,7 @@ function dropRemoved(s: GameState) {
   const now = Date.now();
   s.orders = s.orders.map((o) => (o.items.every((it) => ITEMS[it.id]) ? o : genOrder(s, now)));
   for (const o of s.objects) if (o.prod) o.prod.queue = o.prod.queue.filter((e) => RECIPE[e.recipe]);
+  for (const o of s.objects) if (o.plot?.crop && !CROP[o.plot.crop]) o.plot.crop = null;
 }
 
 // Moves a farm laid out on the old 28 tile map to the middle of the current map.
@@ -518,6 +519,13 @@ function migrate(d: Partial<GameState>): GameState {
   if ((s.mapV ?? 1) < 3) shiftMap(s, MAP_OFF2, 3);
   dropRemoved(s);
   s.objects = s.objects.filter((o) => BUILDING[o.type]);
+  // ids must stay unique: a hand edited or damaged save may carry a stale counter
+  let top = 0;
+  for (const o of s.objects) {
+    top = Math.max(top, o.id);
+    for (const a of o.pen?.animals ?? []) top = Math.max(top, a.id);
+  }
+  if (!(s.nextId > top)) s.nextId = top + 1;
   return s;
 }
 
@@ -587,12 +595,19 @@ export class GameStore {
     if (save) this.scheduleSave();
   }
 
+  // saves wait for a quiet moment, but never longer than a few seconds during nonstop play
   scheduleSave() {
     if (this.saveT) clearTimeout(this.saveT);
+    const now = Date.now();
+    if (!this.saveDue) this.saveDue = now + 4000;
+    if (now >= this.saveDue) { this.saveNow(); return; }
     this.saveT = setTimeout(() => this.saveNow(), 800);
   }
 
+  private saveDue = 0;
   saveNow = () => {
+    if (this.saveT) { clearTimeout(this.saveT); this.saveT = null; }
+    this.saveDue = 0;
     try { localStorage.setItem(SAVE_KEY, JSON.stringify(this.s)); } catch { /* storage full or blocked */ }
   };
 
@@ -661,9 +676,15 @@ export class GameStore {
     return d.cost;
   }
 
+  // the renderer asks this for every tile, so the chunk list is kept as a set
+  private chunkSet = new Set<string>();
+  private chunkSrc: string[] | null = null;
+  private chunkN = -1;
   isUnlocked(x: number, y: number) {
     if (x < 0 || y < 0 || x >= GRID || y >= GRID) return false;
-    return this.s.chunks.includes(`${Math.floor(x / CHUNK)},${Math.floor(y / CHUNK)}`);
+    const c = this.s.chunks;
+    if (c !== this.chunkSrc || c.length !== this.chunkN) { this.chunkSet = new Set(c); this.chunkSrc = c; this.chunkN = c.length; }
+    return this.chunkSet.has(`${Math.floor(x / CHUNK)},${Math.floor(y / CHUNK)}`);
   }
 
   canPlace(type: string, x: number, y: number, ignoreId?: number) {
@@ -777,7 +798,7 @@ export class GameStore {
     this.sound('collect');
     this.burst(o, '#6fc8ff');
     this.float(o, `🪣 ${wi.max}/${wi.max}`, '#dff4ff', 30);
-    this.emit(false);
+    this.emit();
   }
 
   // ------------------------------------------------ fishing spot
@@ -884,7 +905,8 @@ export class GameStore {
 
   // A drink for a growing crop: the rest of its growing time shrinks by 30%. `free` is rain or a
   // sprinkler; by hand it takes one pour from the bucket.
-  waterPlot(o: FarmObject, free = false) {
+  // `quiet` leaves the redraw to the caller (rain waters many fields at once)
+  waterPlot(o: FarmObject, free = false, quiet = false) {
     const now = Date.now();
     if (!o.plot || !needsWater(o, now)) return false;
     if (!free) {
@@ -902,7 +924,7 @@ export class GameStore {
     o.plot.watered = true;
     this.burst(o, '#6fc8ff');
     if (!free) this.float(o, '💧', '#dff4ff', 20);
-    this.emit(false);
+    if (!quiet) this.emit();
     return true;
   }
 
@@ -1484,11 +1506,12 @@ export class GameStore {
       const rain = this.s.settings.weather && isRaining(now);
       const sprinklers = this.s.objects.filter((o) => o.type === 'sprinkler');
       const r = WATER.sprinklerRange;
-      let rained = 0;
+      let rained = 0, watered = 0;
       for (const o of thirsty) {
-        if (rain) { this.waterPlot(o, true); rained++; }
-        else if (sprinklers.some((sp) => Math.abs(sp.x - o.x) <= r && Math.abs(sp.y - o.y) <= r)) this.waterPlot(o, true);
+        if (rain) { if (this.waterPlot(o, true, true)) { rained++; watered++; } }
+        else if (sprinklers.some((sp) => Math.abs(sp.x - o.x) <= r && Math.abs(sp.y - o.y) <= r) && this.waterPlot(o, true, true)) watered++;
       }
+      if (watered) this.scheduleSave();
       // one note per shower, not one per field
       if (rained && now - this.rainNoteAt > 5 * 60e3) {
         this.rainNoteAt = now;
@@ -1571,6 +1594,7 @@ export class GameStore {
     this.s = s;
     this.ui = { selectedId: null, placing: null, tool: null, panel: null, storageTab: 'silo', expand: null, levelUp: null, daily: this.canDaily(), napping: false, napAt: 0 };
     this.ensureOrders();
+    this.giveStarterWell();
     this.objVersion++;
     this.emit();
     this.saveNow();
