@@ -1,5 +1,6 @@
 # Shore life for the sandy beach round the island: three true crabs, a hermit crab, sanderlings
-# running the tide line, and harbour seals that swim offshore and bask on the shore rocks.
+# running the tide line, harbour seals that swim offshore and bask on the shore rocks, and the
+# low, broad sea rocks off the shore where the seals haul out.
 # rock_crab: a red rock crab, brick red with black tipped claws; blue_crab: an olive backed
 # blue crab with long side spines, blue legs, red tipped claws and paddle hind legs; ghost_crab:
 # a pale sand coloured ghost crab on tall legs with big eyes on stalks; hermit_crab: a small
@@ -263,8 +264,65 @@ def harbor_seal():
     finish('harbor_seal', tex=1024, vivid=1.0, ao_min=0.78, ao_dist=0.06)
 
 
+def ledge(name, rx, ry, top, loc, dry, wet, seed):
+    """A low, broad slab of rock: a squashed faceted dome cut flat on top a little above the
+    water, its edges sloping down so a seal can heave itself up. Faces below the tide line get
+    the dark wet stone."""
+    import bpy
+    import random
+    bpy.ops.mesh.primitive_ico_sphere_add(subdivisions=3, radius=1, location=(0, 0, 0))
+    o = bpy.context.active_object
+    o.name = name
+    rnd = random.Random(seed)
+    for v in o.data.vertices:
+        k = 1 + (rnd.random() - 0.5) * 0.16
+        x, y, z = v.co.x * rx * k, v.co.y * ry * k, v.co.z * 0.42
+        # a flat, gently uneven top; the underside sunk deep below the water
+        if z > top - loc[2]:
+            z = top - loc[2] + (rnd.random() - 0.5) * 0.02
+        v.co = (x + loc[0], y + loc[1], z + loc[2])
+    o.data.materials.append(dry)
+    o.data.materials.append(wet)
+    for p in o.data.polygons:
+        p.material_index = 1 if p.center.z < 0.035 else 0
+        p.use_smooth = False
+    return o
+
+
+def sea_rock():
+    """A haul out ledge off the shore: a few broad, low slabs of grey stone just clear of the
+    water, flat enough on top for seals to lie on, with a dark wet band at the tide line crusted
+    with barnacles and fringed with wrack, and a few gull droppings and lichen on the dry top.
+    Blender coordinates: z up, z 0 the sea surface."""
+    import random
+    dry = pm('sr_dry', '#8a8680', '#a09a92', scale=5)
+    wet = pm('sr_wet', '#4a4a48', '#5a5854', scale=8)
+    barn = pm('sr_barn', '#d8d2c4', '#e8e2d4', scale=60)
+    weed = pm('sr_weed', '#4a5a22', '#5a6a2a', scale=40)
+    lichen = pm('sr_lichen', '#d8a040')
+    guano = pm('sr_guano', '#f2efe6')
+    ledge(uid('slab'), 0.95, 0.62, 0.16, (0, 0, -0.1), dry, wet, 3)
+    ledge(uid('slab'), 0.55, 0.42, 0.1, (0.72, 0.3, -0.12), dry, wet, 5)
+    ledge(uid('slab'), 0.48, 0.36, 0.07, (-0.7, -0.34, -0.14), dry, wet, 7)
+    rnd = random.Random(11)
+    # barnacles and wrack round the tide line
+    for i in range(46):
+        a = rnd.uniform(0, math.tau)
+        cx, cy, rx, ry = [(0, 0, 0.9, 0.6), (0.72, 0.3, 0.52, 0.4), (-0.7, -0.34, 0.45, 0.34)][i % 3]
+        x, y = cx + math.cos(a) * rx * 0.98, cy + math.sin(a) * ry * 0.98
+        if i % 2:
+            ball(uid('barnacle'), 0.018, (x, y, 0.02 + rnd.uniform(0, 0.03)), barn, scale=(1, 1, 0.7), segs=6)
+        else:
+            ball(uid('weed'), 0.05, (x, y, -0.01), weed, scale=(1.4, 0.8, 0.35), segs=8)
+    # lichen and droppings up top
+    for i in range(10):
+        x, y = rnd.uniform(-0.6, 0.6), rnd.uniform(-0.35, 0.35)
+        ball(uid('spot'), 0.035 if i % 2 else 0.025, (x, y, 0.16), lichen if i % 2 else guano, scale=(1, 1, 0.12), segs=8)
+    finish('sea_rock', tex=1024, vivid=1.0, ao_min=0.6, ao_dist=0.2)
+
+
 MODELS = {'rock_crab': rock_crab, 'blue_crab': blue_crab, 'ghost_crab': ghost_crab, 'hermit_crab': hermit_crab,
-          'sandpiper': sandpiper, 'harbor_seal': harbor_seal}
+          'sandpiper': sandpiper, 'harbor_seal': harbor_seal, 'sea_rock': sea_rock}
 
 if __name__ == '__main__':
     main(MODELS)

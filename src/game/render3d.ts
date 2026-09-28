@@ -1003,8 +1003,14 @@ export class Renderer {
   private shoreRocks = () => {
     for (const r of this.bigRocks) {
       if (!Number.isNaN(r.top) || !this.rockMesh) continue;
-      this.rockMesh.updateMatrixWorld();
       this.rockRay.set(new THREE.Vector3(r.x, 5, r.z), new THREE.Vector3(0, -1, 0));
+      if (r.obj) {
+        r.obj.updateMatrixWorld(true);
+        const hit = this.rockRay.intersectObject(r.obj, true)[0];
+        r.top = hit ? hit.point.y : -0.4;
+        continue;
+      }
+      this.rockMesh.updateMatrixWorld();
       const hit = this.rockRay.intersectObject(this.rockMesh, false).find((h) => h.instanceId === r.i);
       r.top = hit ? hit.point.y : -0.3;
     }
@@ -1045,6 +1051,26 @@ export class Renderer {
       if (sc < 0.22 || i % 4 === 2) continue;
       const [x, z] = edge(i, 1.1);
       this.bigRocks.push({ i, x, z, side: i % 4, top: NaN });
+    }
+    // a few low, broad ledges a little way out to sea: haul outs with room for two seals each
+    if (artStyle() === 'toon') {
+      loadModel('sea_rock').then((mdl) => {
+        SEA_ROCKS.forEach(([side, along, sc], k) => {
+          const out = BEACH + 1.9 + hash(k, 1, 91) * 0.4;
+          const x = side === 0 || side === 1 ? along : side === 3 ? GRID + out : -out;
+          const z = side === 0 ? -out : side === 1 ? GRID + out : along;
+          const r = mdl.clone();
+          const turn = hash(k, 2, 91) * Math.PI;
+          r.position.set(x, -0.55, z);
+          r.rotation.y = turn;
+          r.scale.setScalar(sc);
+          this.land.add(r);
+          for (const j of [-1, 1]) {
+            const ox = Math.cos(turn) * 0.38 * sc * j, oz = -Math.sin(turn) * 0.38 * sc * j;
+            this.bigRocks.push({ i: 1000 + k * 2 + (j > 0 ? 1 : 0), x: x + ox, z: z + oz, side, top: NaN, obj: r, reach: 1.1 * sc });
+          }
+        });
+      }).catch(() => {});
     }
     if (artStyle() === 'toon') {
       // the Blender boulder (tools/blender/world.py) takes over the shoreline rocks once loaded;
@@ -6071,7 +6097,8 @@ interface Crab {
   side: number; speed: number; seed: number;
   x: number; z: number; tx: number; tz: number; wait: number; hide: number; heading: number;
 }
-interface ShoreRock { i: number; x: number; z: number; side: number; top: number }
+// a place a seal can lie: a spot on a boulder, `reach` out from the water it climbs up from
+interface ShoreRock { i: number; x: number; z: number; side: number; top: number; obj?: THREE.Object3D; reach?: number }
 // Harbour seals: out at sea they swim with just the head up, now and then dive, and after a
 // while swim in to a boulder in the surf, heave themselves up onto it and bask there, head and
 // tail raised off the warm stone, before sliding back into the water.
@@ -6085,6 +6112,8 @@ interface Seal {
 interface Piper { g: THREE.Group; head?: THREE.Object3D; legs: THREE.Object3D[]; ox: number; oz: number; x: number; z: number; heading: number }
 interface Flock { side: number; along: number; to: number; wait: number; birds: Piper[]; seed: number }
 const SEA_Y = -0.55;
+// the sea rocks off the shore: side (0 north, 1 south, 3 east), how far along it, size
+const SEA_ROCKS: [number, number, number][] = [[0, 15, 1.15], [0, 46, 1.3], [1, 22, 1.25], [1, 52, 1.1], [3, 17, 1.2], [3, 44, 1.35]];
 const SEAL_TINTS: [number, number, number][] = [[1, 1, 1], [0.55, 0.54, 0.56], [0.92, 0.84, 0.76], [0.7, 0.66, 0.64]];
 
 class ShoreLife {
@@ -6164,7 +6193,7 @@ class ShoreLife {
 
   // a point out at sea off one side of the island, `along` that side, `out` tiles past the beach
   private offshore(side: number, along: number, salt: number) {
-    const out = BEACH + 1.6 + hash(salt, 1, 81) * 3;
+    const out = BEACH + 3.2 + hash(salt, 1, 81) * 2.5;
     const a = Math.max(2, Math.min(GRID - 2, along));
     return side === 0 ? { x: a, z: -out } : side === 1 ? { x: a, z: GRID + out } : side === 2 ? { x: -out, z: a } : { x: GRID + out, z: a };
   }
@@ -6184,8 +6213,8 @@ class ShoreLife {
           if (!s.rock) { s.t0 = t; s.dur = 20000; }
         }
         if (s.rock) {
-          const n = this.outward(s.rock.side);
-          s.tx = s.rock.x + n[0] * 0.9; s.tz = s.rock.z + n[1] * 0.9;
+          const n = this.outward(s.rock.side), reach = s.rock.reach ?? 0.9;
+          s.tx = s.rock.x + n[0] * reach; s.tz = s.rock.z + n[1] * reach;
         }
         const dx = s.tx - s.x, dz = s.tz - s.z, d = Math.hypot(dx, dz);
         if (d > 0.05) {
@@ -6237,7 +6266,7 @@ class ShoreLife {
         headY = Math.sin(t / 3700 + s.seed) * 0.5;
         tailX = -banana * 0.4;
         flip = Math.max(0, Math.sin(t / 1500 + s.seed * 4) - 0.8) * 3;
-        if (k >= 1) { s.state = 'slide'; s.t0 = t; s.dur = 2200; const n = this.outward(r.side); s.from = [r.x + n[0] * 1.1, r.z + n[1] * 1.1]; }
+        if (k >= 1) { s.state = 'slide'; s.t0 = t; s.dur = 2200; const n = this.outward(r.side), reach = (r.reach ?? 0.9) + 0.2; s.from = [r.x + n[0] * reach, r.z + n[1] * reach]; }
       }
       s.g.position.set(s.x, s.y, s.z);
       s.g.rotation.set(0, s.heading, 0);
