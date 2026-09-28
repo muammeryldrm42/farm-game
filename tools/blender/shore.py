@@ -165,8 +165,10 @@ def ghost_crab():
 
 def sandpiper():
     """A sanderling, the little wader that runs the tide line: pale grey back with a dark
-    shoulder, white face and belly, black bill and legs. Parts: `head` (pecking, at the neck)
-    and `leg0/1` (left, right, at the hips). The feet stand at y 0."""
+    shoulder, white face and belly, black bill and legs, and long pointed wings with a white
+    bar. Parts: `head` (pecking, at the neck), `leg0/1` (left, right, at the hips) and `wing0/1`
+    (left, right, at the shoulders), built spread out sideways: the game folds them back along
+    the body when the bird is on the ground. The feet stand at y 0."""
     grey = pm('sp_back', '#a8a49c', '#bcb8b0', scale=70)
     dark = pm('sp_dark', '#4a4642')
     white = pm('sp_white', '#f6f4f0', '#ffffff', scale=40)
@@ -181,7 +183,7 @@ def sandpiper():
         return grey
     b = Blob(0.0024)
     b.ell((0, Y, 0), 0.026, 0.024, 0.045)
-    b.ell((0, Y + 0.004, -0.05), 0.016, 0.008, 0.028)             # wing tips over the tail
+    b.ell((0, Y + 0.002, -0.05), 0.012, 0.006, 0.024)             # the tail
     b.build(body, 600)
     with anim_group('head', B(0, Y + 0.02, 0.03)):
         h = Blob(0.0022)
@@ -199,6 +201,21 @@ def sandpiper():
             lg.cap((sx * 0.01, Y - 0.015, 0.0), (sx * 0.01, 0.004, 0.004), 0.0028, 0.0022)
             lg.ell((sx * 0.01, 0.002, 0.012), 0.004, 0.0015, 0.01)
             lg.build(black, 60)
+    for i, sx in enumerate((-1, 1)):
+        with anim_group(f'wing{i}', B(sx * 0.018, Y + 0.017, 0.018)):
+            w = Blob(0.0016)
+            w.cap((sx * 0.018, Y + 0.017, 0.018), (sx * 0.05, Y + 0.017, 0.012), 0.012, 0.011)
+            w.cap((sx * 0.05, Y + 0.017, 0.012), (sx * 0.098, Y + 0.017, -0.004), 0.011, 0.003)
+            w.ell((sx * 0.045, Y + 0.017, 0.004), 0.03, 0.004, 0.016)
+
+            def wing(x, y, z):
+                ax = abs(x)
+                if ax > 0.075:
+                    return black                                  # dark primaries at the tip
+                if abs(z - 0.004 + (ax - 0.02) * 0.2) < 0.004 and ax > 0.03:
+                    return white                                  # the white wing bar
+                return dark if z > 0.014 else grey
+            w.build(wing, 160)
     finish('sandpiper', tex=256, vivid=1.05, ao_min=0.85, ao_dist=0.03)
 
 

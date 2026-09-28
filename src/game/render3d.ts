@@ -21,7 +21,7 @@ import { SCULPT_MAT, TOON_MAT, TOON_WOOL, WOOL_MAT } from './gfx/sdf';
 import { leafShell, leafTexture, meterBox, meterHip, meterRoof, surface, surfaceMat, type SurfaceKind } from './gfx/textures';
 import { ANIMAL, BUILDING, CROP, ITEMS, type BuildingDef, type CropDef } from './data';
 import {
-  CHUNK, FARM_OFF, FISH_SPOT, GRAZE, GRID, LAKE, MAP_OFF2, MAP_OFF3, NCH, isBeachTile, lakeE, animalReady, fishingInfo, boatState, canFulfill, chunkState, grazePhase, penInfo, plotProgress, prodInfo, treeInfo,
+  CHUNK, FARM_OFF, FISH_SPOT, SEA_FISH_SPOT, fishSpotAt, type FishSpot, GRAZE, GRID, LAKE, MAP_OFF2, MAP_OFF3, NCH, isBeachTile, lakeE, animalReady, fishingInfo, boatState, canFulfill, chunkState, grazePhase, penInfo, plotProgress, prodInfo, treeInfo,
   type Animal, type FarmObject, type GameStore,
 } from './state';
 
@@ -370,9 +370,11 @@ interface Actor {
 }
 interface Sparrow {
   g: THREE.Object3D; wings: THREE.Object3D[]; head: THREE.Object3D | null; x: number; y: number; h: number; heading: number;
-  state: 'ground' | 'fly' | 'perch' | 'nest'; until: number; t0: number; dur: number;
-  from: { x: number; y: number; h: number }; to: { x: number; y: number; h: number; kind: 'ground' | 'perch' | 'nest' };
+  state: 'ground' | 'fly' | 'perch' | 'nest' | 'bath'; until: number; t0: number; dur: number;
+  from: { x: number; y: number; h: number }; to: { x: number; y: number; h: number; kind: 'ground' | 'perch' | 'nest' | 'bath' };
   home: number | null; hopAt: number; hop: { x: number; y: number; t0: number } | null;
+  // the middle of the bird bath it sits on the rim of
+  bath?: { x: number; y: number };
 }
 const actor = (x: number, y: number, g: THREE.Group): Actor => ({ x, y, heading: 0, moving: false, g, phase: 0, path: [], goal: null, inside: false, sleeping: false, goHome: false, fade: 1 });
 
@@ -559,10 +561,10 @@ export class Renderer {
   private tiles!: THREE.InstancedMesh;
   private sea!: THREE.Mesh;
   private fishing!: ReturnType<typeof buildFishingSpot>;
+  private seaFishing!: ReturnType<typeof buildFishingSpot>;
   private life!: Life;
   private turtles!: TurtleBeach;
   private shore!: ShoreLife;
-  private fishBubble: THREE.Sprite | null = null;
   private sky = new Sky();
   private foliage = new Foliage();
   private foliageKey = '';
@@ -613,11 +615,13 @@ export class Renderer {
 
     this.buildSea();
     this.buildClouds();
-    this.fishing = buildFishingSpot();
-    this.scene.add(this.fishing.root);
+    this.fishing = buildFishingSpot('lake');
+    this.seaFishing = buildFishingSpot('sea');
+    this.scene.add(this.fishing.root, this.seaFishing.root);
     this.life = new Life(this.scene);
     this.turtles = new TurtleBeach(this.scene);
-    this.shore = new ShoreLife(this.scene, (x, y) => { this.rebuildNav(); return this.free(x, y); }, this.shoreRocks);
+    this.shore = new ShoreLife(this.scene, (x, y) => { this.rebuildNav(); return this.free(x, y); }, this.shoreRocks,
+      () => [this.farmer, this.dog].filter(Boolean).map((a) => [a.g.position.x, a.g.position.z] as [number, number]));
     this.sel = this.buildSelection();
     // start fetching the Blender models right away, so they are usually in before the farm shows
     if (artStyle() === 'toon') {
@@ -811,16 +815,17 @@ export class Renderer {
 
   // ------------------------------------------------ picking
 
-  pick(sx: number, sy: number): { obj?: FarmObject; tile: { x: number; y: number }; spot?: 'fishing' | 'visitor' } {
+  pick(sx: number, sy: number): { obj?: FarmObject; tile: { x: number; y: number }; spot?: 'fishing' | 'seaFishing' | 'visitor' } {
     const tile = this.gridAt(sx, sy);
     const moveId = this.store.ui.placing?.moveId;
-    const hits: THREE.Object3D[] = [this.fishing.hit];
+    const hits: THREE.Object3D[] = [this.fishing.hit, this.seaFishing.hit];
     const v = this.visitor;
     if (v && v.g.visible) hits.push(v.hit);
     for (const e of this.entries.values()) if (e.id !== moveId) hits.push(e.hit);
     const r = this.rayAt(sx, sy).intersectObjects(hits, false);
     if (r.length) {
       if (r[0].object === this.fishing.hit) return { tile, spot: 'fishing' };
+      if (r[0].object === this.seaFishing.hit) return { tile, spot: 'seaFishing' };
       if (v && r[0].object === v.hit) return { tile, spot: 'visitor' };
       const id = r[0].object.userData.objId as number;
       const obj = this.store.obj(id);
@@ -1043,15 +1048,10 @@ export class Renderer {
     rocks.forEach((mm, i) => { im.setMatrixAt(i, mm); im.setColorAt(i, cols[i]); });
     im.castShadow = true; im.receiveShadow = true;
     this.land.add(im);
-    // the big boulders in the surf, where seals haul out to bask (not by the turtle cove)
+    // seals haul out only on the broad sea ledges below: the boulders along the shore are too
+    // small and pointed to lie on (a seal on one hung half off it in the air)
     this.rockMesh = im;
     this.bigRocks = [];
-    for (let i = 0; i < 150; i++) {
-      const sc = 0.08 + Math.pow(hash(i, 3, 21), 2) * 0.32;
-      if (sc < 0.22 || i % 4 === 2) continue;
-      const [x, z] = edge(i, 1.1);
-      this.bigRocks.push({ i, x, z, side: i % 4, top: NaN });
-    }
     // a few low, broad ledges a little way out to sea: haul outs with room for two seals each
     if (artStyle() === 'toon') {
       loadModel('sea_rock').then((mdl) => {
@@ -1645,15 +1645,21 @@ export class Renderer {
   private shadowKey = 0;
 
   private updateFishing(t: number, now: number) {
-    const fi = fishingInfo(this.store.s, now);
-    this.fishing.update(fi.state, fi.p, t);
-    if (!this.fishBubble) {
-      this.fishBubble = new THREE.Sprite(new THREE.SpriteMaterial({ depthTest: false, transparent: true }));
-      this.fishBubble.center.set(0.5, 0);
-      this.fishBubble.renderOrder = 10;
-      this.fxLayer.add(this.fishBubble);
+    this.updateFishSpot('lake', this.fishing, t, now);
+    this.updateFishSpot('sea', this.seaFishing, t, now);
+  }
+  private fishBubbles: Partial<Record<FishSpot, THREE.Sprite>> = {};
+  private updateFishSpot(spot: FishSpot, fs: ReturnType<typeof buildFishingSpot>, t: number, now: number) {
+    const fi = fishingInfo(this.store.s, now, spot);
+    fs.update(fi.state, fi.p, t);
+    let b = this.fishBubbles[spot];
+    if (!b) {
+      b = new THREE.Sprite(new THREE.SpriteMaterial({ depthTest: false, transparent: true }));
+      b.center.set(0.5, 0);
+      b.renderOrder = 10;
+      this.fxLayer.add(b);
+      this.fishBubbles[spot] = b;
     }
-    const b = this.fishBubble;
     const show = fi.state === 'ready' || fi.state === 'waiting' || fi.state === 'idle';
     b.visible = show;
     if (!show) return;
@@ -1667,7 +1673,8 @@ export class Renderer {
     }
     const sc = mode === 'ready' ? 0.62 : 0.5;
     b.scale.set(sc, sc * 1.25, 1);
-    b.position.set(FISH_SPOT.x, 1.4 + (mode === 'ready' ? Math.abs(Math.sin(t / 260)) * 0.14 : 0), FISH_SPOT.y);
+    const P = fishSpotAt(spot);
+    b.position.set(P.x, (spot === 'sea' ? 1.0 : 1.4) + (mode === 'ready' ? Math.abs(Math.sin(t / 260)) * 0.14 : 0), P.y);
   }
 
   private updateBubbles(t: number, now: number) {
@@ -1896,8 +1903,8 @@ export class Renderer {
 
   // Wild house sparrows: a few always about the farm and two more for every bird house. They
   // hop and peck on the grass near the view, fly up to roofs, trees and bird houses to sit a
-  // while, and those with a bird house of their own pop inside it now and then. At night they
-  // are all tucked away.
+  // while, and those with a bird house of their own pop inside it now and then. A bird bath
+  // brings them down to its rim to drink and splash about. At night they are all tucked away.
   private sparrows: Sparrow[] = [];
   private sparrowSrc: THREE.Object3D | null = null;
   private sparrowLoading = false;
@@ -1908,7 +1915,9 @@ export class Renderer {
       return;
     }
     const houses = this.store.s.objects.filter((o) => o.type === 'bird_house');
-    const want = Math.min(12, 3 + houses.length * 2);
+    // a bird bath draws a couple more birds to the farm too
+    const baths = this.store.s.objects.reduce((n, o) => n + (o.type === 'birdbath' ? 1 : 0), 0);
+    const want = Math.min(14, 3 + houses.length * 2 + Math.min(2, baths) * 2);
     while (this.sparrows.length < want) {
       const g = this.sparrowSrc.clone();
       g.scale.setScalar(1.25);
@@ -1943,7 +1952,7 @@ export class Renderer {
         sp.heading = Math.atan2(sp.to.x - sp.from.x, sp.to.y - sp.from.y);
         if (u >= 1) {
           sp.state = sp.to.kind;
-          sp.until = t + (sp.state === 'ground' ? 4000 + Math.random() * 8000 : sp.state === 'perch' ? 3000 + Math.random() * 9000 : 5000 + Math.random() * 10000);
+          sp.until = t + (sp.state === 'ground' ? 4000 + Math.random() * 8000 : sp.state === 'perch' ? 3000 + Math.random() * 9000 : sp.state === 'bath' ? 6000 + Math.random() * 8000 : 5000 + Math.random() * 10000);
           sp.hopAt = t + 400;
         }
       } else if (sp.state === 'ground') {
@@ -1965,19 +1974,28 @@ export class Renderer {
       } else if (sp.state === 'perch') {
         sp.heading += Math.sin(t / 700 + i) * 0.01;
         if (t > sp.until) this.sparrowNext(sp, t, houses);
+      } else if (sp.state === 'bath') {
+        // on the rim facing the water, dipping down to drink and tipping the head back to swallow
+        if (sp.bath) sp.heading = Math.atan2(sp.bath.x - sp.x, sp.bath.y - sp.y);
+        if (t > sp.until) this.sparrowNext(sp, t, houses);
       }
       if (!(sp.state === 'ground' && sp.hop)) sp.g.position.set(sp.x, sp.h + FOOT, sp.y);
       sp.g.rotation.y = sp.heading;
       const flying = sp.state === 'fly';
+      // at the bird bath: now and then a splash, wings half open and shaking the water off
+      const splash = sp.state === 'bath' && Math.sin(t / 1300 + i * 2.1) > 0.55;
       const [w0, w1] = sp.wings;
       if (w0 && w1) {
         // spread and beating in flight, folded back along the body at rest
-        const beat = flying ? Math.sin(t / 38 + i) * 0.9 : 0.15;
-        w0.rotation.set(0, flying ? 0 : -1.35, flying ? beat : 0.15);
-        w1.rotation.set(0, flying ? 0 : 1.35, flying ? -beat : -0.15);
+        const beat = flying ? Math.sin(t / 38 + i) * 0.9 : splash ? Math.sin(t / 30 + i) * 0.5 : 0.15;
+        const fold = flying ? 0 : splash ? 0.7 : 1.35;
+        w0.rotation.set(0, -fold, flying || splash ? beat : 0.15);
+        w1.rotation.set(0, fold, flying || splash ? -beat : -0.15);
       }
-      // pecking at the grass, or bobbing the tail while perched
-      sp.g.rotation.x = sp.state === 'ground' && !sp.hop ? Math.max(0, Math.sin(t / 180 + i * 2)) * 0.5 : 0;
+      // pecking at the grass, bobbing the tail while perched, sipping at the bird bath
+      const sip = Math.sin(t / 520 + i * 1.7);
+      sp.g.rotation.x = sp.state === 'ground' && !sp.hop ? Math.max(0, Math.sin(t / 180 + i * 2)) * 0.5
+        : sp.state === 'bath' ? (splash ? 0.25 : sip > 0.2 ? 0.75 : sip < -0.6 ? -0.35 : 0) : 0;
     });
   }
   // a grassy spot near (x, y) for a sparrow to land on
@@ -1988,7 +2006,7 @@ export class Renderer {
     }
     return { x, y, h: 0 };
   }
-  private sparrowFly(sp: Sparrow, t: number, to: { x: number; y: number; h: number }, kind: 'ground' | 'perch' | 'nest') {
+  private sparrowFly(sp: Sparrow, t: number, to: { x: number; y: number; h: number }, kind: 'ground' | 'perch' | 'nest' | 'bath') {
     sp.from = { x: sp.x, y: sp.y, h: sp.h };
     sp.to = { ...to, kind };
     sp.t0 = t;
@@ -1999,11 +2017,28 @@ export class Renderer {
   // where to next: home to its bird house, up to a roof or a tree nearby, or down to the grass
   private sparrowNext(sp: Sparrow, t: number, houses: FarmObject[]) {
     const r = Math.random();
+    sp.bath = undefined;
     const home = houses.find((o) => o.id === sp.home);
-    if (home && r < 0.25) {
+    if (home && r < 0.22) {
       const top = this.roofTop(home.id, home.x + 0.5, home.y + 0.5) ?? 0.9;
       this.sparrowFly(sp, t, { x: home.x + 0.5, y: home.y + 0.62, h: Math.min(top, 0.86) }, 'nest');
       return;
+    }
+    // a drink and a bath: down onto the rim of a bird bath nearby, a spot of its own round it
+    if (r < 0.45) {
+      const baths = this.store.s.objects.filter((o) => o.type === 'birdbath' && Math.hypot(o.x + 0.5 - sp.x, o.y + 0.5 - sp.y) < 16);
+      const b = baths[Math.floor(Math.random() * baths.length)];
+      if (b) {
+        const cx = b.x + 0.5, cy = b.y + 0.5;
+        const taken = this.sparrows.filter((o) => o !== sp && o.bath && o.bath.x === cx && o.bath.y === cy).map((o) => Math.atan2(o.to.y - cy, o.to.x - cx));
+        let a = Math.random() * Math.PI * 2;
+        for (let k = 0; k < 6 && taken.some((q) => Math.abs(Math.atan2(Math.sin(a - q), Math.cos(a - q))) < 0.9); k++) a += 1.05;
+        const x = cx + Math.cos(a) * 0.22, y = cy + Math.sin(a) * 0.22;
+        const rim = this.roofTop(b.id, x, y);
+        sp.bath = { x: cx, y: cy };
+        this.sparrowFly(sp, t, { x, y, h: rim !== null && rim > 0.3 ? rim : 0.62 }, 'bath');
+        return;
+      }
     }
     if (r < 0.65) {
       const near = (list: { id: number; x: number; y: number }[]) => list.filter((q) => Math.hypot(q.x - sp.x, q.y - sp.y) < 12);
@@ -4378,6 +4413,11 @@ function seaSpot(o: FarmObject, d: BuildingDef, id: number): P2 {
   const e = edges.indexOf(Math.min(...edges));
   const along = (v: number) => Math.max(2, Math.min(GRID - 2, v + (hash(id, 3, 7) - 0.5) * 6));
   const out = BEACH + 0.5 + hash(id, 4, 9) * 0.8;
+  // keep clear of the fishing jetty on the south shore
+  if (e === 3 && Math.abs(along(cx) - SEA_FISH_SPOT.x) < 3) {
+    const x = along(cx) + (along(cx) < SEA_FISH_SPOT.x ? -3 : 3);
+    return { x: Math.max(2, Math.min(GRID - 2, x)), y: GRID + out };
+  }
   // on the west side the turtle cove's sand bulges out to sea: wade off its shore instead
   if (e === 0) { const y = along(cy); return { x: Math.min(-out, coveEdge(y) - 0.5 - hash(id, 4, 9) * 0.6), y }; }
   return e === 0 ? { x: -out, y: along(cy) } : e === 1 ? { x: GRID + out, y: along(cy) } : e === 2 ? { x: along(cx), y: -out } : { x: along(cx), y: GRID + out };
@@ -5726,30 +5766,46 @@ function fishModel(color = '#ff9a3c') {
   return g;
 }
 
-function buildFishingSpot() {
-  // at the end of the plank jetty on the lake: a rod propped in a holder, its line out to a
-  // bobber on the water. Nobody sits there; the catch waits for the farmer to reel it in.
+function buildFishingSpot(spot: FishSpot) {
+  // at the end of a jetty, a rod propped in a holder with its line out to a bobber on the
+  // water. Nobody sits there; the catch waits for the farmer to reel it in. On the lake the
+  // plank jetty of the lake itself; off the south shore the fishing jetty out into the sea.
   const root = new THREE.Group();
-  const X = FISH_SPOT.x, Z = FISH_SPOT.y;
-  const jx = LAKE.x - LAKE.rx * 1.12, end = jx + 8 * 0.16, deckY = LAKE_Y + 0.135;
-  const lock = badge(root, '🔒', 0.3, jx + 0.5, deckY + 0.35, Z);
+  const sea = spot === 'sea';
+  const P = fishSpotAt(spot);
+  const waterY = sea ? -0.55 : LAKE_Y;
+  // along: the way the jetty runs out over the water (+x on the lake, +z at sea)
+  const jx = LAKE.x - LAKE.rx * 1.12;
+  const Z0 = GRID + 0.25, L = 1.85;
+  const deckY = sea ? -0.085 : LAKE_Y + 0.135;
+  const shore = sea ? { x: P.x, z: Z0 + 0.4 } : { x: jx + 0.5, z: P.y };
+  const end = sea ? { x: P.x + 0.15, z: Z0 + L - 0.2 } : { x: jx + 8 * 0.16, z: P.y + 0.14 };
+  const yaw = sea ? 0 : Math.PI / 2;
+  if (sea && artStyle() === 'toon') {
+    loadModel('fishing_jetty').then((m) => { const j = m.clone(); j.position.set(P.x, 0, Z0); root.add(j); }).catch(() => {});
+  }
+  const lock = badge(root, '🔒', 0.3, shore.x, deckY + 0.35, shore.z);
   lock.rotation.x = -0.3;
   // a rope across the jetty while it is locked
-  const rope = mk(root, cylGeo(0.012, 0.012, 6), M('#8a6a44'), 1, 0.5, 1, jx + 0.35, deckY + 0.12, Z);
-  rope.rotation.x = Math.PI / 2;
+  const rope = mk(root, cylGeo(0.012, 0.012, 6), M('#8a6a44'), 1, sea ? 0.7 : 0.5, 1, shore.x - (sea ? 0 : 0.15), deckY + 0.12, shore.z);
+  if (sea) rope.rotation.z = Math.PI / 2; else rope.rotation.x = Math.PI / 2;
 
   const open = group(root);
   // the rod holder: a short post at the end of the jetty with the rod leaning out over the water
-  const holder = group(open, end, deckY, Z + 0.14);
+  const holder = group(open, end.x, deckY, end.z);
+  holder.rotation.y = yaw;
   mk(holder, cylGeo(0.022, 0.026, 6), surfaceMat('bark', '#6b4226', 4), 1, 0.22, 1, 0, 0.11, 0);
   const rod = group(holder, 0, 0.16, 0);
   mk(rod, cylGeo(0.005, 0.011, 5), M('#5a3a1a'), 1, 0.9, 1, 0, 0.45, 0);
   mk(rod, new THREE.TorusGeometry(0.03, 0.008, 5, 10), M('#3a3a3a'), 1, 1, 1, 0, 0.12, 0.02);
-  rod.rotation.z = -1.0;
+  rod.rotation.x = 1.0;
   // a bait tin and a bucket for the catch on the planks
-  cyl(open, 0.05, 0.045, 0.08, '#9aa4ad', end - 0.3, deckY + 0.04, Z - 0.14, 10);
-  cyl(open, 0.035, 0.035, 0.03, '#6b8a5a', end - 0.12, deckY + 0.015, Z - 0.16, 8);
-  const bobber = group(open, X, LAKE_Y + 0.02, Z + 0.1);
+  const side = (d: number, a: number) => (sea ? { x: end.x - 0.3 + a, z: end.z - d } : { x: end.x - d, z: end.z - 0.28 + a });
+  const tin = side(0.3, 0), pail = side(0.12, -0.02);
+  cyl(open, 0.05, 0.045, 0.08, '#9aa4ad', tin.x, deckY + 0.04, tin.z, 10);
+  cyl(open, 0.035, 0.035, 0.03, '#6b8a5a', pail.x, deckY + 0.015, pail.z, 8);
+  const X = sea ? P.x + 0.15 : P.x, Z = sea ? Z0 + L + 0.75 : P.y;
+  const bobber = group(open, X, waterY + 0.02, Z + (sea ? 0 : 0.1));
   ball(bobber, 0.035, '#e74c3c', 0, 0.02, 0);
   ball(bobber, 0.036, '#ffffff', 0, -0.005, 0, 1, 0.5, 1);
   const lineGeo = new THREE.BufferGeometry().setFromPoints([new THREE.Vector3(), new THREE.Vector3()]);
@@ -5761,10 +5817,12 @@ function buildFishingSpot() {
   open.add(fish);
   const ring = splashRing();
   open.add(ring);
+  // the fish leaps across the line of the jetty
+  const across = sea ? { x: 1, z: 0 } : { x: 0, z: 1 };
 
   const hit = new THREE.Mesh(G.box, HIT_MAT);
-  hit.scale.set(X - jx + 0.9, 1.2, 1.4);
-  hit.position.set((jx + X) / 2 + 0.2, 0.3, Z);
+  if (sea) { hit.scale.set(1.4, 1.2, L + 1.6); hit.position.set(P.x, 0.2, Z0 + L / 2 + 0.6); }
+  else { hit.scale.set(X - jx + 0.9, 1.2, 1.4); hit.position.set((jx + X) / 2 + 0.2, 0.3, Z); }
   root.add(hit);
 
   const tipV = new THREE.Vector3();
@@ -5777,12 +5835,12 @@ function buildFishingSpot() {
     bobber.visible = line.visible = casting;
     // idle, the rod stands up in its holder; cast, it leans out over the water and nods on a bite
     const nod = state === 'ready' ? Math.max(0, Math.sin(t / 140)) * 0.12 : state === 'waiting' && p > 0.8 ? Math.max(0, Math.sin(t / 90)) * 0.05 : 0;
-    rod.rotation.z = casting ? -1.0 - nod : -0.25;
+    rod.rotation.x = casting ? 1.0 + nod : 0.25;
     // the bobber twitches as a bite gets closer, and plunges when the fish is on
     let dip = Math.sin(t / 500) * 0.008;
     if (state === 'waiting' && p > 0.8) dip -= Math.max(0, Math.sin(t / 90)) * 0.02;
     if (state === 'ready') dip -= Math.max(0, Math.sin(t / 140)) * 0.04;
-    bobber.position.y = LAKE_Y + 0.02 + dip;
+    bobber.position.y = waterY + 0.02 + dip;
     if (casting) {
       rod.updateWorldMatrix(true, false);
       tipV.set(0, 0.9, 0).applyMatrix4(rod.matrixWorld);
@@ -5797,12 +5855,12 @@ function buildFishingSpot() {
     fish.visible = state === 'ready' && u < 0.45;
     if (fish.visible) {
       const k = u / 0.45;
-      fish.position.set(bobber.position.x + 0.3 - k * 0.6, LAKE_Y - 0.02 + Math.sin(k * Math.PI) * 0.35, bobber.position.z + 0.15);
-      fish.rotation.set(0, -Math.PI / 2, 0);
+      fish.position.set(bobber.position.x + (0.3 - k * 0.6) * across.x + 0.15 * across.z, waterY - 0.02 + Math.sin(k * Math.PI) * 0.35, bobber.position.z + (0.3 - k * 0.6) * across.z + 0.15 * across.x);
+      fish.rotation.set(0, sea ? -Math.PI / 2 : Math.PI, 0);
       fish.rotateX(-Math.cos(k * Math.PI) * 1.1);
     }
     const rk = state === 'ready' ? ((t / 1700 + 0.55) % 1) : 1;
-    ring.position.set(bobber.position.x - 0.3, LAKE_Y + 0.005, bobber.position.z + 0.15);
+    ring.position.set(bobber.position.x - 0.3 * across.x + 0.15 * across.z, waterY + 0.005, bobber.position.z - 0.3 * across.z + 0.15 * across.x);
     ring.scale.setScalar(0.05 + rk * 0.3);
     (ring.material as THREE.MeshBasicMaterial).opacity = state === 'ready' ? (1 - rk) * 0.8 : 0;
   };
@@ -6087,7 +6145,9 @@ class TurtleBeach {
 // whelk shells. Each keeps to its own side of the sand ring round the island (a straight strip,
 // so a walk between two points on it never crosses the grass), scuttles sideways from spot to
 // spot, stops to pick at the sand with its claws, and now and then a ghost crab ducks into its
-// burrow or a hermit crab pulls into its shell for a while.
+// burrow or a hermit crab pulls into its shell for a while. Every so often one walks down the
+// shore into the surf and is gone under the waves for a while, then comes out of the sea a
+// little way along and climbs back up the beach.
 type CrabKind = 'rock_crab' | 'blue_crab' | 'ghost_crab' | 'hermit_crab';
 const CRABS: [CrabKind, number, number, number][] = [
   // kind, how many, speed (tiles a second), size
@@ -6097,6 +6157,7 @@ interface Crab {
   kind: CrabKind; g: THREE.Group; body: THREE.Group; legs: THREE.Object3D[]; claws: THREE.Object3D[];
   side: number; speed: number; seed: number;
   x: number; z: number; tx: number; tz: number; wait: number; hide: number; heading: number;
+  mode: 'beach' | 'toSea' | 'sea' | 'fromSea';
 }
 // a place a seal can lie: a spot on a boulder, `reach` out from the water it climbs up from
 interface ShoreRock { i: number; x: number; z: number; side: number; top: number; obj?: THREE.Object3D; reach?: number }
@@ -6109,10 +6170,28 @@ interface Seal {
   x: number; z: number; y: number; tx: number; tz: number; heading: number; rock: ShoreRock | null; from: [number, number];
 }
 // Sanderlings: little flocks running the tide line on the strip of sand below the beach, in
-// quick bursts, stopping to probe the wet sand before dashing on.
-interface Piper { g: THREE.Group; head?: THREE.Object3D; legs: THREE.Object3D[]; ox: number; oz: number; x: number; z: number; heading: number }
-interface Flock { side: number; along: number; to: number; wait: number; birds: Piper[]; seed: number }
+// quick bursts, stopping to probe the wet sand before dashing on. Now and then, and at once
+// when the farmer or the dog comes near, the whole flock takes off together, flies low out
+// over the surf along the shore and settles again further down the beach.
+interface Piper {
+  g: THREE.Group; head?: THREE.Object3D; legs: THREE.Object3D[]; wings: THREE.Object3D[]; shadow: THREE.Object3D;
+  ox: number; oz: number; x: number; z: number; y: number; heading: number;
+}
+interface Flock {
+  side: number; along: number; to: number; wait: number; birds: Piper[]; seed: number;
+  fly: { a0: number; a1: number; t0: number; dur: number } | null; nextFly: number;
+}
 const SEA_Y = -0.55;
+// the ground height across the shore, `out` tiles past the edge of the land: the beach, a step
+// down to the strip of sand below it, a lower strip, then the sea bed falling away under the water
+function shoreY(out: number) {
+  if (out < -0.08) return 0;
+  if (out < 0.08) return lerpN(0, -0.2, (out + 0.08) / 0.16);
+  if (out < 0.66) return -0.2;
+  if (out < 0.84) return lerpN(-0.2, -0.38, (out - 0.66) / 0.18);
+  if (out < 1.12) return -0.38;
+  return -0.38 - (out - 1.12) * 1.3;
+}
 // the sea rocks off the shore: side (0 north, 1 south, 3 east), how far along it, size
 const SEA_ROCKS: [number, number, number][] = [[0, 15, 1.15], [0, 46, 1.3], [1, 22, 1.25], [1, 52, 1.1], [3, 17, 1.2], [3, 44, 1.35]];
 const SEAL_TINTS: [number, number, number][] = [[1, 1, 1], [0.55, 0.54, 0.56], [0.92, 0.84, 0.76], [0.7, 0.66, 0.64]];
@@ -6123,10 +6202,12 @@ class ShoreLife {
   private flocks: Flock[] = [];
   private free: (x: number, y: number) => boolean;
   private rocks: () => ShoreRock[];
+  private threats: () => [number, number][];
 
-  constructor(scene: THREE.Scene, free: (x: number, y: number) => boolean, rocks: () => ShoreRock[]) {
+  constructor(scene: THREE.Scene, free: (x: number, y: number) => boolean, rocks: () => ShoreRock[], threats: () => [number, number][]) {
     this.free = free;
     this.rocks = rocks;
+    this.threats = threats;
     this.makeSeals(scene);
     this.makeFlocks(scene);
     let n = 0;
@@ -6137,7 +6218,7 @@ class ShoreLife {
         body.scale.setScalar(size);
         g.add(body);
         contactShadow(g, 0.2 * size, 0.16 * size);
-        const c: Crab = { kind, g, body, legs: [], claws: [], side: n % 4, speed, seed: n * 7.3 + 1, x: 0, z: 0, tx: 0, tz: 0, wait: 0, hide: 0, heading: 0 };
+        const c: Crab = { kind, g, body, legs: [], claws: [], side: n % 4, speed, seed: n * 7.3 + 1, x: 0, z: 0, tx: 0, tz: 0, wait: 0, hide: 0, heading: 0, mode: 'beach' };
         const p = this.spot(c, n * 13 + 5);
         c.x = c.tx = p.x; c.z = c.tz = p.z;
         g.visible = false;
@@ -6287,12 +6368,12 @@ class ShoreLife {
   private makeFlocks(scene: THREE.Scene) {
     for (let f = 0; f < 3; f++) {
       const side = [0, 1, 3][f];
-      const fl: Flock = { side, along: 12 + f * 17, to: 12 + f * 17, wait: 0, birds: [], seed: f * 9.1 + 4 };
+      const fl: Flock = { side, along: 12 + f * 17, to: 12 + f * 17, wait: 0, birds: [], seed: f * 9.1 + 4, fly: null, nextFly: 30 + f * 25 };
       for (let k = 0; k < 7; k++) {
         const g = new THREE.Group();
         g.scale.setScalar(1.3);
-        contactShadow(g, 0.07, 0.07);
-        const b: Piper = { g, legs: [], ox: (hash(f, k, 86) - 0.5) * 1.2, oz: (hash(f, k, 87) - 0.5) * 0.35, x: 0, z: 0, heading: 0 };
+        const shadow = contactShadow(g, 0.07, 0.07);
+        const b: Piper = { g, legs: [], wings: [], shadow, ox: (hash(f, k, 86) - 0.5) * 1.2, oz: (hash(f, k, 87) - 0.5) * 0.35, x: 0, z: 0, y: -0.2, heading: 0 };
         g.visible = false;
         scene.add(g);
         fl.birds.push(b);
@@ -6303,6 +6384,7 @@ class ShoreLife {
             g.add(c);
             b.head = c.getObjectByName('head') ?? undefined;
             b.legs = [0, 1].map((i) => c.getObjectByName(`leg${i}`)).filter((o): o is THREE.Object3D => !!o);
+            b.wings = [0, 1].map((i) => c.getObjectByName(`wing${i}`)).filter((o): o is THREE.Object3D => !!o);
             g.visible = true;
           }).catch(() => {});
         }
@@ -6317,8 +6399,40 @@ class ShoreLife {
     return side === 0 ? { x: along, z: -o } : side === 1 ? { x: along, z: GRID + o } : side === 2 ? { x: -o, z: along } : { x: GRID + o, z: along };
   }
 
+  // the flock on the wing: up off the sand together, low out over the surf, and down again
+  private startFlight(f: Flock, t: number, away?: number) {
+    const dir = away ?? (hash(f.seed, Math.floor(t / 1000), 90) > 0.5 ? 1 : -1);
+    let a1 = f.along + dir * (9 + hash(f.seed, Math.floor(t / 1000), 91) * 8);
+    if (a1 < 4 || a1 > GRID - 4) a1 = f.along - dir * (9 + hash(f.seed, Math.floor(t / 1000), 91) * 8);
+    a1 = Math.max(4, Math.min(GRID - 4, a1));
+    // never down onto the fishing jetty
+    if (f.side === 1 && Math.abs(a1 - SEA_FISH_SPOT.x) < 1.6) a1 = SEA_FISH_SPOT.x + (a1 < SEA_FISH_SPOT.x ? -1.6 : 1.6);
+    f.fly = { a0: f.along, a1, t0: t, dur: (Math.abs(a1 - f.along) / 3.2 + 1.2) * 1000 };
+    f.nextFly = 45 + hash(f.seed, Math.floor(t / 1000), 92) * 60;
+  }
+
   private updateFlocks(dt: number, t: number) {
+    const threats = this.threats();
     for (const f of this.flocks) {
+      // a person or the dog too close sends the whole flock up at once, away from them
+      if (!f.fly) {
+        const c = this.tide(f.side, f.along, 0.5);
+        const near = threats.find(([x, z]) => Math.hypot(x - c.x, z - c.z) < 2.4);
+        f.nextFly -= dt;
+        if (near) this.startFlight(f, t, Math.sign(f.along - (f.side < 2 ? near[0] : near[1])) || 1);
+        else if (f.nextFly <= 0) this.startFlight(f, t);
+      }
+      if (f.fly) {
+        const u = (t - f.fly.t0) / f.fly.dur;
+        if (u >= 1) {
+          f.along = f.to = f.fly.a1;
+          f.fly = null;
+          f.wait = 1.5;
+        } else {
+          this.flyFlock(f, u, t);
+          continue;
+        }
+      }
       let running = false;
       if (f.wait > 0) f.wait -= dt;
       else if (Math.abs(f.to - f.along) > 0.05) {
@@ -6327,7 +6441,7 @@ class ShoreLife {
       } else {
         // a stop to probe the sand, then a dash a few tiles up or down the shore
         f.wait = 2 + hash(f.seed, Math.floor(t / 1000), 88) * 4;
-        f.to = Math.max(3, Math.min(GRID - 3, f.along + (hash(f.seed, Math.floor(t / 1000), 89) - 0.5) * 8));
+        f.to = this.offJetty(f.side, f.along, Math.max(3, Math.min(GRID - 3, f.along + (hash(f.seed, Math.floor(t / 1000), 89) - 0.5) * 8)));
       }
       const dir = Math.sign(f.to - f.along) || 1;
       for (const [k, b] of f.birds.entries()) {
@@ -6339,13 +6453,56 @@ class ShoreLife {
         if (moved > 0.002) b.heading = Math.atan2(p.x - b.x, p.z - b.z);
         b.x = b.x ? b.x + (p.x - b.x) * Math.min(1, dt * 8) : p.x;
         b.z = b.z ? b.z + (p.z - b.z) * Math.min(1, dt * 8) : p.z;
-        b.g.position.set(b.x, -0.2, b.z);
+        b.y = -0.2;
+        b.g.position.set(b.x, b.y, b.z);
+        b.g.rotation.set(0, b.g.rotation.y, 0);
         if (moved > 0.01 || running) b.g.rotation.y = b.heading;
         else b.g.rotation.y += Math.sin(t / 900 + k) * dt * 0.8;
-        // legs a blur while it runs; head down probing the sand while it stands
+        // legs a blur while it runs; head down probing the sand while it stands; wings folded
         b.legs.forEach((l, i) => { l.rotation.x = running ? Math.sin(t / 32 + k + i * Math.PI) * 0.9 : 0; });
         if (b.head) b.head.rotation.x = running ? -0.1 : Math.max(0, Math.sin(t / 240 + k * 1.7)) * 0.9;
+        this.wingsOf(b, 0, t, k);
+        b.shadow.visible = true;
       }
+    }
+  }
+
+  // wings: `open` 0 folded back along the body, 1 spread and beating
+  private wingsOf(b: Piper, open: number, t: number, k: number, flap = 1) {
+    const beat = Math.sin(t / 42 + k * 0.7) * 0.95 * open * flap;
+    b.wings.forEach((w, i) => {
+      const s = i ? 1 : -1;
+      w.rotation.set(0, s * 1.45 * (1 - open), s * beat);
+    });
+  }
+
+  private flyFlock(f: Flock, u: number, t: number) {
+    const fl = f.fly!;
+    const e = u * u * (3 - 2 * u);
+    const along = fl.a0 + (fl.a1 - fl.a0) * e;
+    const dir = Math.sign(fl.a1 - fl.a0) || 1;
+    // up and out over the surf, then back in to the sand: the whole flock wheels together
+    const arc = Math.sin(Math.PI * u);
+    for (const [k, b] of f.birds.entries()) {
+      if (!b.g.visible) continue;
+      const p = this.tide(f.side, Math.max(1, Math.min(GRID - 1, along + b.ox * 0.7)), 0.5 + b.oz);
+      const out = this.outward(f.side);
+      const off = arc * (1.4 + b.oz * 1.5);
+      const x = p.x + out[0] * off, z = p.z + out[1] * off;
+      const y = -0.2 + Math.pow(arc, 0.7) * (0.75 + (hash(k, 1, 93) - 0.5) * 0.2) + Math.sin(t / 380 + k) * 0.04 * arc;
+      const dx = x - b.x, dz = z - b.z;
+      if (Math.hypot(dx, dz) > 0.001) b.heading = Math.atan2(dx, dz);
+      b.x = x; b.z = z; b.y = y;
+      b.g.position.set(x, y, z);
+      // banking into the turns as the flock swings out and back in
+      b.g.rotation.set(-0.15 * arc, b.heading, Math.cos(Math.PI * u) * 0.35 * dir * (f.side === 0 || f.side === 3 ? 1 : -1));
+      // wings open for take off and stay beating (with short glides) until they touch down
+      const open = Math.min(1, Math.min(u, 1 - u) / 0.06);
+      const glide = open > 0.99 && Math.sin(t / 700 + k) > 0.6;
+      this.wingsOf(b, open, t, k, glide ? 0.12 : 1);
+      b.legs.forEach((l) => { l.rotation.x = -1.1 * open; });
+      if (b.head) b.head.rotation.x = -0.15;
+      b.shadow.visible = y < -0.1;
     }
   }
 
@@ -6363,6 +6520,28 @@ class ShoreLife {
     return { x: c.x || GRID / 2, z: c.z || 1.5 };
   }
 
+  // a point off one side of the island: `along` it, `out` tiles past the edge of the land
+  // (negative: up on the beach)
+  private shorePoint(side: number, along: number, out: number) {
+    const a = Math.max(1, Math.min(GRID - 1, along));
+    return side === 0 ? { x: a, z: -out } : side === 1 ? { x: a, z: GRID + out } : side === 2 ? { x: -out, z: a } : { x: GRID + out, z: a };
+  }
+  private alongOf(c: Crab) { return c.side < 2 ? c.x : c.z; }
+  // the plain shore, not the wide sandy turtle cove on the west side, nor under the fishing jetty
+  private plainShore(side: number, along: number) {
+    if (side === 1 && Math.abs(along - SEA_FISH_SPOT.x) < 1.2) return false;
+    return side !== 2 || coveEdge(along) >= -BEACH - 0.01;
+  }
+  // a run along the tide line stops short of the fishing jetty on the south shore
+  private offJetty(side: number, from: number, to: number) {
+    if (side !== 1) return to;
+    const j = SEA_FISH_SPOT.x;
+    if (from < j && to > j - 1) return j - 1;
+    if (from > j && to < j + 1) return j + 1;
+    return to;
+  }
+  private outOf(c: Crab) { return c.side === 0 ? -c.z : c.side === 1 ? c.z - GRID : c.side === 2 ? -c.x : c.x - GRID; }
+
   // the walk there crosses nothing built on the beach (a crab goes round a sun lounger)
   private clear(x0: number, z0: number, x1: number, z1: number) {
     const n = Math.ceil(Math.hypot(x1 - x0, z1 - z0) / 0.4);
@@ -6379,6 +6558,20 @@ class ShoreLife {
     for (const c of this.crabs) {
       if (!c.g.visible && !c.legs.length) continue;
       const hermit = c.kind === 'hermit_crab';
+      // out at sea, under the waves: a while later it comes out a little way along the shore
+      if (c.mode === 'sea') {
+        c.hide -= dt;
+        c.g.visible = false;
+        if (c.hide <= 0) {
+          let a = Math.max(3, Math.min(GRID - 3, this.alongOf(c) + (hash(c.seed, Math.floor(t / 1000), 94) - 0.5) * 8));
+          if (!this.plainShore(c.side, a)) a = this.alongOf(c);
+          const from = this.shorePoint(c.side, a, 1.35), to = this.shorePoint(c.side, a, -(0.6 + hash(c.seed, Math.floor(t / 1000), 95) * 1.8));
+          c.x = from.x; c.z = from.z;
+          if (this.clear(to.x, to.z, this.shorePoint(c.side, a, -0.1).x, this.shorePoint(c.side, a, -0.1).z)) { c.tx = to.x; c.tz = to.z; c.mode = 'fromSea'; }
+          else c.hide = 3;
+        }
+        continue;
+      }
       // tucked away: in its burrow (ghost crab) or inside its shell (hermit crab)
       if (c.hide > 0) {
         c.hide -= dt;
@@ -6402,15 +6595,25 @@ class ShoreLife {
         while (dh > Math.PI) dh -= Math.PI * 2;
         while (dh < -Math.PI) dh += Math.PI * 2;
         c.heading += dh * Math.min(1, dt * 5);
+      } else if (c.mode === 'toSea') {
+        // into the surf and under
+        c.mode = 'sea';
+        c.hide = 10 + hash(c.seed, Math.floor(t / 1000), 96) * 25;
+        continue;
       } else {
-        // there: a pause to feed, then off to the next spot (or down its hole for a while)
+        // there: a pause to feed, then off to the next spot (or down its hole for a while),
+        // and now and then down the shore into the sea
+        c.mode = 'beach';
         const r = hash(c.seed, Math.floor(t / 997), 3);
         c.wait = 1.5 + r * 5;
         if (r > 0.86) c.hide = 4 + r * 8;
-        const p = this.spot(c, Math.floor(t / 1000) + 17);
+        const sea = r < 0.18 && this.plainShore(c.side, this.alongOf(c)) && this.clear(c.x, c.z, this.shorePoint(c.side, this.alongOf(c), -0.1).x, this.shorePoint(c.side, this.alongOf(c), -0.1).z);
+        const p = sea ? this.shorePoint(c.side, this.alongOf(c) + (hash(c.seed, Math.floor(t / 1000), 97) - 0.5) * 2, 1.35) : this.spot(c, Math.floor(t / 1000) + 17);
+        if (sea) { c.mode = 'toSea'; c.wait = 0.5; }
         c.tx = p.x; c.tz = p.z;
       }
-      c.g.position.set(c.x, 0, c.z);
+      // down the step at the edge of the beach, over the low sand strip and into the water
+      c.g.position.set(c.x, shoreY(this.outOf(c)), c.z);
       c.g.rotation.y = c.heading;
       // legs: alternate pairs lift and swing while it runs; a slow shuffle while it feeds
       const ph = t / (hermit ? 140 : c.kind === 'ghost_crab' ? 45 : 70) + c.seed;

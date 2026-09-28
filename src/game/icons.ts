@@ -399,6 +399,40 @@ const PAINTERS: Record<string, Painter> = {
   sardine: fishy('#3a6a9a', '#e0e8f0', '#5a8aba', { stripes: "rgba(255,255,255,0.4)" }),
   anchovy: fishy('#4a7a8a', '#d8e4e8', '#6a9aaa', { long: true }),
   carp: fishy('#a8883a', '#e8d8a0', '#c89a4a'),
+  // lake fish
+  bluegill: fishy('#4a6a7a', '#f0b040', '#2a4a5a', { stripes: 'rgba(30,50,70,0.45)' }),
+  largemouth_bass: fishy('#5a7a3a', '#e8e4c0', '#4a6a2a', { spots: 'rgba(30,50,20,0.6)' }),
+  crayfish: (c) => {
+    c.save(); c.translate(64, 70); c.rotate(-0.5);
+    c.fillStyle = '#b8402a';
+    c.beginPath(); c.ellipse(0, 0, 34, 14, 0, 0, Math.PI * 2); c.fill(); outline(c, 3);
+    for (let i = 0; i < 4; i++) { c.beginPath(); c.ellipse(-30 - i * 8, 0, 8 - i, 10 - i, 0, 0, Math.PI * 2); c.fill(); }
+    for (const sy of [-1, 1]) {
+      c.beginPath(); c.moveTo(24, sy * 8); c.quadraticCurveTo(40, sy * 26, 52, sy * 20); c.lineWidth = 6; c.strokeStyle = '#b8402a'; c.stroke();
+      c.beginPath(); c.ellipse(54, sy * 22, 12, 7, sy * 0.4, 0, Math.PI * 2); c.fill(); outline(c, 2.5);
+    }
+    c.fillStyle = '#1a1010'; c.beginPath(); c.arc(28, -6, 3, 0, Math.PI * 2); c.arc(28, 6, 3, 0, Math.PI * 2); c.fill();
+    c.restore();
+  },
+  crappie: fishy('#8a9a8a', '#eef0e8', '#6a7a6a', { spots: 'rgba(40,50,40,0.6)' }),
+  chub: fishy('#5a6a6a', '#e0e4e0', '#c8603a'),
+  whitefish: fishy('#9aa8b0', '#f4f6f8', '#b8c4cc'),
+  bream: fishy('#8a7a4a', '#e8dcb0', '#6a5a3a'),
+  walleye: fishy('#8a8a4a', '#eee8c8', '#6a6a3a', { stripes: 'rgba(50,50,20,0.45)' }),
+  muskie: fishy('#6a7a4a', '#e8e4c8', '#8a6a3a', { stripes: 'rgba(40,50,20,0.5)', long: true }),
+  paddlefish: fishy('#6a7a8a', '#dde4ea', '#5a6a7a', { bill: true, long: true }),
+  // sea fish
+  plaice: fishy('#8a7a5a', '#f0e8d8', '#7a6a4a', { spots: 'rgba(230,110,40,0.85)' }),
+  bluefish: fishy('#3a6a9a', '#e8eef4', '#2a5a8a'),
+  pompano: fishy('#9aaab8', '#f0e0a0', '#e8c040'),
+  skate: (c) => {
+    c.fillStyle = '#8a7a6a';
+    c.beginPath(); c.moveTo(64, 22); c.quadraticCurveTo(116, 52, 110, 70); c.quadraticCurveTo(80, 76, 66, 92); c.quadraticCurveTo(48, 76, 18, 70); c.quadraticCurveTo(12, 52, 64, 22); c.fill(); outline(c);
+    c.strokeStyle = '#6a5a4a'; c.lineWidth = 5; c.lineCap = 'round'; c.beginPath(); c.moveTo(66, 92); c.quadraticCurveTo(70, 110, 62, 122); c.stroke();
+    c.fillStyle = 'rgba(60,45,35,0.5)'; for (const [x, y] of [[50, 50], [78, 50], [64, 64], [40, 62], [88, 62]]) { c.beginPath(); c.arc(x, y, 4, 0, Math.PI * 2); c.fill(); }
+    c.fillStyle = '#1a1210'; c.beginPath(); c.arc(56, 40, 3, 0, Math.PI * 2); c.arc(72, 40, 3, 0, Math.PI * 2); c.fill();
+  },
+  moray_eel: fishy('#6a7a2a', '#b8c060', '#5a6a20', { spots: 'rgba(250,240,160,0.8)', long: true }),
   perch: fishy('#6a8a3a', '#e8e0a0', '#e05a2a', { stripes: "rgba(40,60,20,0.55)" }),
   mackerel: fishy('#2a5a7a', '#e8eef2', '#3a6a8a', { stripes: "rgba(20,40,60,0.6)" }),
   tilapia: fishy('#7a8a8a', '#dce4e0', '#9aa8a8'),

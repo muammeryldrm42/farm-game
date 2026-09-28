@@ -9,7 +9,7 @@ import random
 import sys
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-from kit import (anim_group, ball, bark_mat, box, clump, cyl, finish, glow, lantern, leaf_mats, main, marker, pm,  # noqa: E402,F401
+from kit import (anim_group, ball, bark_mat, box, capture, clump, cyl, finish, glow, lantern, leaf_mats, main, marker, pm,  # noqa: E402,F401
                  prism, rock, std, torus, uid)
 from common import obox  # noqa: E402
 
@@ -277,12 +277,18 @@ def seesaw():
     m = std()
     red, blue = pm('ss_red', '#d8302a'), pm('ss_blue', '#2a6ad8')
     prism(uid('stand'), [(-0.12, 0), (0.12, 0), (0.03, 0.2), (-0.03, 0.2)], -0.08, 0.08, pm('ss_stand', '#f0c020'))
-    with anim_group('swayZ_plank', (0, 0, 0.2)):
+    # the plank at rest, tipped down on the blue end with the red seat up in the air
+    with capture() as cap:
         box(uid('plank'), (1.0, 0.12, 0.04), (0, 0, 0.21), pm('ss_plank', '#b8733a', '#d48f4e', scale=6, kind='wave', stretch=(8, 1, 1)), bev=0.01)
         for sx, mat in ((-1, red), (1, blue)):
             box(uid('seat'), (0.14, 0.14, 0.03), (sx * 0.42, 0, 0.24), mat, bev=0.01)
             cyl(uid('handle'), 0.01, 0.12, (sx * 0.34, 0, 0.29), m['metal'], verts=6)
             cyl(uid('grip'), 0.01, 0.12, (sx * 0.34, 0, 0.35), mat, verts=6, rot=(R90, 0, 0))
+    import mathutils
+    pivot = mathutils.Vector((0, 0, 0.2))
+    tilt = mathutils.Matrix.Translation(pivot) @ mathutils.Matrix.Rotation(0.37, 4, 'Y') @ mathutils.Matrix.Translation(-pivot)
+    for o in cap.objs:
+        o.matrix_world = tilt @ o.matrix_world
     box(uid('mat'), (1.1, 0.4, 0.01), (0, 0, 0.005), pm('ss_mat', '#8a5a3a', '#9a6a4a', scale=30), bev=0)
     finish('seesaw', tex=512)
 

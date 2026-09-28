@@ -154,7 +154,7 @@ function drafts(level: number): Draft[] {
   if (stall) add({ who: 'bramble', task: { icon: stall.icon, text: `Build the ${stall.name}`, target: 1, kind: 'count', key: stall.id }, line: 'Villagers would love to buy straight from your farm. A roadside stall is just the thing!', title: 'Open for Business' });
   const dock = sys('dock');
   if (dock) add({ who: 'finn', task: { icon: dock.icon, text: `Build the ${dock.name}`, target: 1, kind: 'count', key: dock.id }, line: 'Ahoy! My cargo boat could stop at your farm, if only you had a dock.', title: 'A Boat on the Horizon' });
-  if (level === 5) add({ who: 'finn', task: { icon: '🎣', text: 'Open the fishing spot', target: 1, kind: 'fishing', key: '' }, line: 'The lake in the woods has the best fishing in the valley. Open your fishing spot!', title: 'Gone Fishing' });
+  if (level === 5) add({ who: 'finn', task: { icon: '🎣', text: 'Open the fishing spot', target: 1, kind: 'fishing', key: '' }, line: 'Carp and trout in the lake, sea fish off the south shore. Open a fishing spot!', title: 'Gone Fishing' });
   return out;
 }
 
@@ -252,8 +252,8 @@ export function chapterAt(n: number): Chapter {
 
 // what a chapter's task has reached, counted from the moment the chapter began
 export interface StoryState { ch: number; started: number; base: Record<string, number>; seen: number }
-export function taskProgress(t: StoryTask, s: { stats: Record<string, number>; objects: { type: string }[]; fishing?: { open: boolean }; story?: StoryState }) {
+export function taskProgress(t: StoryTask, s: { stats: Record<string, number>; objects: { type: string }[]; fishing?: { open: boolean }; seaFishing?: { open: boolean }; story?: StoryState }) {
   if (t.kind === 'count') return s.objects.filter((o) => o.type === t.key).length;
-  if (t.kind === 'fishing') return s.fishing?.open ? 1 : 0;
+  if (t.kind === 'fishing') return s.fishing?.open || s.seaFishing?.open ? 1 : 0;
   return Math.max(0, (s.stats[t.key] ?? 0) - (s.story?.base[t.key] ?? 0));
 }

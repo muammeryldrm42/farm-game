@@ -97,7 +97,7 @@ function FarmCanvas() {
     let mode: Mode = 'none';
     let sx = 0, sy = 0, pinchD = 1, pinchZ = 1, pinchA = 0;
     let hitObj: FarmObject | null = null;
-    let hitSpot: 'fishing' | 'visitor' | null = null;
+    let hitSpot: 'fishing' | 'seaFishing' | 'visitor' | null = null;
     let hitTile = { x: 0, y: 0 };
     let ghostOff = { x: 0, y: 0 };
     let lp: ReturnType<typeof setTimeout> | null = null;
@@ -224,7 +224,8 @@ function FarmCanvas() {
           r.walkToObject(hitObj);
           store.tapObject(hitObj);
         }
-        else if (hitSpot === 'fishing') store.tapFishing();
+        else if (hitSpot === 'fishing') store.tapFishing('lake');
+        else if (hitSpot === 'seaFishing') store.tapFishing('sea');
         else if (hitSpot === 'visitor') store.tapVisitor();
         else {
           // tapping free farmland sends the farmer (and the dog) walking there
