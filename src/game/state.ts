@@ -57,7 +57,14 @@ export interface FarmObject {
   prod?: ProdData;
   pen?: PenData;
   tree?: TreeData;
-  rot?: number; // quarter turns (0..3); oblong things only turn half way round, keeping their footprint
+  rot?: number; // quarter turns (0..3); an odd turn stands an oblong thing the other way (w and h swap)
+}
+
+// the tiles a thing covers on the farm, as it is turned: an oblong thing turned a quarter (or three
+// quarters) round lies the other way
+export function footprint(o: { type: string; rot?: number }) {
+  const d = BUILDING[o.type];
+  return (o.rot ?? 0) % 2 ? { w: d.h, h: d.w } : { w: d.w, h: d.h };
 }
 
 export interface OrderItem { id: string; qty: number }
@@ -635,7 +642,8 @@ export class GameStore {
     if (s.chunks.length < before) s.coins += (before - s.chunks.length) * 2000;
     const on = (o: FarmObject) => {
       const d = BUILDING[o.type];
-      for (let i = 0; i < d.w; i++) for (let j = 0; j < d.h; j++) if (isLakeTile(o.x + i, o.y + j)) return true;
+      const f = footprint(o);
+      for (let i = 0; i < f.w; i++) for (let j = 0; j < f.h; j++) if (isLakeTile(o.x + i, o.y + j)) return true;
       return false;
     };
     for (const o of [...s.objects]) {
@@ -696,17 +704,17 @@ export class GameStore {
   }
 
   fly(o: { x: number; y: number; type: string }, icon: string, target: Flyer['target'], z = 30) {
-    const d = BUILDING[o.type];
+    const d = footprint(o);
     if (this.flyers.length < 40) this.flyers.push({ icon, gx: o.x + d.w / 2, gy: o.y + d.h / 2, z, target });
   }
 
   float(o: { x: number; y: number; type: string }, text: string, color = '#ffffff', z = 40) {
-    const d = BUILDING[o.type];
+    const d = footprint(o);
     this.fx.push({ kind: 'float', gx: o.x + d.w / 2, gy: o.y + d.h / 2, text, color, z });
   }
 
   burst(o: { x: number; y: number; type: string }, color: string) {
-    const d = BUILDING[o.type];
+    const d = footprint(o);
     this.fx.push({ kind: 'burst', gx: o.x + d.w / 2, gy: o.y + d.h / 2, color, z: 10 });
   }
 
@@ -734,7 +742,7 @@ export class GameStore {
 
   objectAt(x: number, y: number) {
     return this.s.objects.find((o) => {
-      const d = BUILDING[o.type];
+      const d = footprint(o);
       return x >= o.x && x < o.x + d.w && y >= o.y && y < o.y + d.h;
     });
   }
@@ -762,9 +770,11 @@ export class GameStore {
     return isBeachTile(x, y) || isLakeTile(x, y) || this.chunkSet.has(`${Math.floor(x / CHUNK)},${Math.floor(y / CHUNK)}`);
   }
 
-  canPlace(type: string, x: number, y: number, ignoreId?: number) {
+  // `rot`: how the thing is turned; a thing being moved keeps the turn it has
+  canPlace(type: string, x: number, y: number, ignoreId?: number, rot?: number) {
     const d = BUILDING[type];
-    for (let i = 0; i < d.w; i++) for (let j = 0; j < d.h; j++) {
+    const f = footprint({ type, rot: rot ?? (ignoreId !== undefined ? this.obj(ignoreId)?.rot : 0) });
+    for (let i = 0; i < f.w; i++) for (let j = 0; j < f.h; j++) {
       if (!this.isUnlocked(x + i, y + j) || isLakeTile(x + i, y + j)) return false;
       // the sand takes beach things only: deck chairs, sandcastles, palms...
       if (isBeachTile(x + i, y + j) && !d.beach) return false;
@@ -1222,10 +1232,17 @@ export class GameStore {
     this.emit(false);
   }
 
+  // the tiles the thing being placed covers: a thing being moved keeps its turn
+  placingFootprint() {
+    const p = this.ui.placing;
+    if (!p) return { w: 1, h: 1 };
+    return footprint({ type: p.type, rot: p.moveId !== undefined ? this.obj(p.moveId)?.rot : 0 });
+  }
+
   setPlacingPos(x: number, y: number) {
     const p = this.ui.placing;
     if (!p) return;
-    const d = BUILDING[p.type];
+    const d = this.placingFootprint();
     const nx = Math.max(0, Math.min(GRID - d.w, x));
     const ny = Math.max(0, Math.min(GRID - d.h, y));
     if (nx === p.x && ny === p.y) return;
@@ -1310,6 +1327,19 @@ export class GameStore {
     this.objVersion++;
     this.sound('coin');
     if (refund) this.toast(`Sold ${d.name} for ${refund} coins.`, 'good');
+    this.emit();
+  }
+
+  // stand an oblong thing the other way round (a 3 by 2 pen becomes 2 by 3), on the same corner
+  // tile, if the tiles it would then cover are free
+  turnSideways(id: number) {
+    const o = this.obj(id);
+    if (!o) return;
+    const rot = ((o.rot ?? 0) + 1) % 4;
+    if (!this.canPlace(o.type, o.x, o.y, o.id, rot)) { this.toast('There is no room to turn it that way here. Move it first.', 'bad'); return; }
+    o.rot = rot;
+    this.objVersion++;
+    this.sound('click');
     this.emit();
   }
 
