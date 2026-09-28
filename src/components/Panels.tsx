@@ -67,12 +67,12 @@ function Modal({ title, icon, onClose, children, wide = false }: { title: string
   );
 }
 
-function Sheet({ title, icon, sub, onClose, children }: { title: string; icon: string; sub?: ReactNode; onClose: () => void; children: ReactNode }) {
+function Sheet({ title, icon, pic, sub, onClose, children }: { title: string; icon: string; pic?: string; sub?: ReactNode; onClose: () => void; children: ReactNode }) {
   return (
     <div className="pointer-events-auto fixed inset-x-0 bottom-0 z-20 flex justify-center p-2 sm:p-3">
       <div className="panel w-full max-w-2xl animate-pop">
         <div className="flex items-center gap-3 border-b-2 border-[#e2cc9c] px-4 py-2">
-          <span className="emoji text-3xl"><Ico i={icon} /></span>
+          <span className="emoji text-3xl"><Ico i={icon} id={pic} /></span>
           <div className="min-w-0 flex-1 leading-tight">
             <div className="truncate text-lg font-bold">{title}</div>
             {sub && <div className="text-xs text-[#8a6a44]">{sub}</div>}
@@ -461,7 +461,7 @@ function DecoSheet({ o }: { o: FarmObject }) {
   const store = useStore();
   const d = BUILDING[o.type];
   return (
-    <Sheet title={d.name} icon={d.icon} sub={d.desc} onClose={() => store.select(null)}>
+    <Sheet title={d.name} icon={d.icon} pic={d.id} sub={d.desc} onClose={() => store.select(null)}>
       <div className="flex flex-wrap justify-center gap-2">
         <button className="btn btn-wood" onClick={() => store.startMove(o.id)}>
           Move
@@ -863,7 +863,7 @@ function ShopCard({ d }: { d: BuildingDef }) {
       onClick={() => store.startBuy(d.id)}
       className="card flex flex-col items-center gap-1 p-3 text-center transition active:scale-95 disabled:opacity-60"
     >
-      <span className={`emoji text-4xl ${locked ? 'grayscale' : ''}`}><Ico i={d.icon} /></span>
+      <span className={`emoji text-4xl ${locked ? 'grayscale' : ''}`}><Ico i={d.icon} id={d.id} /></span>
       <span className="font-bold leading-tight">{d.name}</span>
       <span className="line-clamp-2 min-h-[2rem] text-[11px] leading-4 text-[#8a6a44]">{d.desc}</span>
       {locked ? (
@@ -1380,7 +1380,7 @@ function LevelUpModal({ level }: { level: number }) {
             <div className="flex flex-wrap justify-center gap-2">
               {list.map((x) => (
                 <div key={x.name} className="card flex w-20 flex-col items-center p-2">
-                  <span className="emoji text-3xl"><Ico i={x.icon} /></span>
+                  <span className="emoji text-3xl"><Ico i={x.icon} id={x.id} /></span>
                   <span className="text-[11px] font-bold leading-tight">{x.name}</span>
                 </div>
               ))}

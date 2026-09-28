@@ -1859,6 +1859,13 @@ export const BUILDINGS: BuildingDef[] = [
   b({ id: 'dexter_pasture', name: 'Dexter Pasture', icon: '🐄', kind: 'pen', w: 3, h: 2, cost: 33300, level: 185, xp: 278, height: 26, wall: '#8fc45a', roof: '#8a4a2a', animal: 'dexter', capacity: 5, desc: 'Home for up to 5 dexter cows.' }),
   b({ id: 'ugli_fruit_tree', name: 'Ugli Fruit Tree', icon: '🍊', kind: 'tree', cost: 17100, level: 190, max: 8, xp: 86, height: 66, sellable: true, fruit: 'ugli_fruit', growTime: 2340, desc: 'Gives 2 ugli fruits again and again.' }),
   b({ id: 'pumpkin_carriage', name: 'Pumpkin Carriage', icon: '🎃', kind: 'deco', w: 2, h: 2, cost: 11700, level: 195, max: 2, xp: 58, height: 80, sellable: true, desc: 'A fairy tale ride home by midnight.' }),
+  // farmyard things
+  b({ id: 'firewood_pile', name: 'Firewood Pile', icon: '🪵', kind: 'deco', w: 1, h: 1, cost: 960, level: 16, max: 4, xp: 6, height: 45, sellable: true, desc: 'Split logs stacked for winter, and a chopping block.' }),
+  b({ id: 'milk_churns', name: 'Milk Churns', icon: '🥛', kind: 'deco', w: 1, h: 1, cost: 1440, level: 24, max: 4, xp: 8, height: 50, sellable: true, desc: 'Steel churns waiting at the lane for the dairy.' }),
+  b({ id: 'apple_crates', name: 'Apple Crates', icon: '🍎', kind: 'deco', w: 1, h: 1, cost: 2160, level: 36, max: 4, xp: 11, height: 40, sellable: true, desc: 'Crates of red and green apples fresh from the orchard.' }),
+  b({ id: 'tool_shed', name: 'Tool Shed', icon: '🛖', kind: 'deco', w: 1, h: 1, cost: 3200, level: 44, max: 2, xp: 14, height: 100, sellable: true, desc: 'A little plank shed for the rakes and spades.' }),
+  b({ id: 'sunflower_patch', name: 'Sunflower Patch', icon: '🌻', kind: 'deco', w: 1, h: 1, cost: 3840, level: 64, max: 4, xp: 19, height: 90, sellable: true, desc: 'Tall sunflowers turning their faces to the sun.' }),
+  b({ id: 'flower_bicycle', name: 'Flower Bicycle', icon: '🚲', kind: 'deco', w: 1, h: 1, cost: 5160, level: 86, max: 2, xp: 24, height: 60, sellable: true, desc: 'An old town bike with a basket full of flowers.' }),
   b({ id: 'friesian_stable', name: 'Friesian Stable', icon: '🐴', kind: 'pen', w: 3, h: 2, cost: 35460, level: 197, xp: 296, height: 26, wall: '#8fc45a', roof: '#8a4a2a', animal: 'friesian', capacity: 5, desc: 'Home for up to 5 friesian horses.' }),
 ];
 export const BUILDING: Record<string, BuildingDef> = Object.fromEntries(BUILDINGS.map((x) => [x.id, x]));
@@ -1873,11 +1880,11 @@ export const CATCHES: [string, number, number][] = [
   ['herring', 23, 7.3], ['sprat', 38, 6.9], ['zander', 42, 6.7], ['tench', 55, 6.3], ['roach', 66, 6.0], ['rainbow_trout', 71, 5.9], ['hake', 81, 5.6], ['pollock', 88, 5.4], ['whiting', 101, 5.0], ['garfish', 114, 4.6], ['john_dory', 116, 4.5], ['amberjack', 128, 4.2], ['tarpon', 133, 4.0], ['snook', 147, 3.6], ['cobia', 156, 3.3], ['triggerfish', 161, 3.2], ['butterflyfish', 171, 2.9], ['blue_tang', 178, 2.7], ['boxfish', 187, 2.4], ['sailfish', 199, 2.0],
 ];
 
-export function unlocksAt(level: number): { icon: string; name: string }[] {
-  const out: { icon: string; name: string }[] = [];
+export function unlocksAt(level: number): { icon: string; name: string; id?: string }[] {
+  const out: { icon: string; name: string; id?: string }[] = [];
   for (const c of CROPS) if (c.level === level) out.push({ icon: ITEMS[c.id].icon, name: ITEMS[c.id].name });
   for (const a of ANIMALS) if (a.level === level) out.push({ icon: a.icon, name: a.name });
-  for (const x of BUILDINGS) if (x.buyable && x.level === level && x.kind !== 'plot') out.push({ icon: x.icon, name: x.name });
+  for (const x of BUILDINGS) if (x.buyable && x.level === level && x.kind !== 'plot') out.push({ icon: x.icon, name: x.name, id: x.id });
   for (const r of RECIPES) if (r.level === level) out.push({ icon: ITEMS[r.id].icon, name: ITEMS[r.id].name });
   for (const [id, lv] of CATCHES) if (lv === level && id !== 'fish') out.push({ icon: ITEMS[id].icon, name: ITEMS[id].name });
   return out;
