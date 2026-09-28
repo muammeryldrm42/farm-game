@@ -97,7 +97,7 @@ function FarmCanvas() {
     let mode: Mode = 'none';
     let sx = 0, sy = 0, pinchD = 1, pinchZ = 1, pinchA = 0;
     let hitObj: FarmObject | null = null;
-    let hitSpot = false;
+    let hitSpot: 'fishing' | 'visitor' | null = null;
     let hitTile = { x: 0, y: 0 };
     let ghostOff = { x: 0, y: 0 };
     let lp: ReturnType<typeof setTimeout> | null = null;
@@ -129,7 +129,7 @@ function FarmCanvas() {
       longFired = false;
       const hit = r.pick(p.x, p.y);
       hitObj = hit.obj ?? null;
-      hitSpot = !!hit.spot;
+      hitSpot = hit.spot ?? null;
       hitTile = hit.tile;
       const ui = store.ui;
 
@@ -224,7 +224,8 @@ function FarmCanvas() {
           r.walkToObject(hitObj);
           store.tapObject(hitObj);
         }
-        else if (hitSpot) store.tapFishing();
+        else if (hitSpot === 'fishing') store.tapFishing();
+        else if (hitSpot === 'visitor') store.tapVisitor();
         else {
           // tapping free farmland sends the farmer (and the dog) walking there
           store.wake();

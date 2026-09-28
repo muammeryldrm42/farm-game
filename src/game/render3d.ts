@@ -796,14 +796,17 @@ export class Renderer {
 
   // ------------------------------------------------ picking
 
-  pick(sx: number, sy: number): { obj?: FarmObject; tile: { x: number; y: number }; spot?: 'fishing' } {
+  pick(sx: number, sy: number): { obj?: FarmObject; tile: { x: number; y: number }; spot?: 'fishing' | 'visitor' } {
     const tile = this.gridAt(sx, sy);
     const moveId = this.store.ui.placing?.moveId;
     const hits: THREE.Object3D[] = [this.fishing.hit];
+    const v = this.visitor;
+    if (v && v.g.visible) hits.push(v.hit);
     for (const e of this.entries.values()) if (e.id !== moveId) hits.push(e.hit);
     const r = this.rayAt(sx, sy).intersectObjects(hits, false);
     if (r.length) {
       if (r[0].object === this.fishing.hit) return { tile, spot: 'fishing' };
+      if (v && r[0].object === v.hit) return { tile, spot: 'visitor' };
       const id = r[0].object.userData.objId as number;
       const obj = this.store.obj(id);
       if (obj) return { obj, tile };
@@ -1726,6 +1729,102 @@ export class Renderer {
   // the farmer's speech bubble: story news and hints from the store
   private speech: THREE.Sprite | null = null;
   private speechText = '';
+
+  // The story's teller comes to visit: they stroll about near the farmhouse with a mark over
+  // their head ("!" for a chapter in progress, a gift when it is done) until the chapter ends.
+  private visitor: (Actor & { who: string; hit: THREE.Mesh; mark: THREE.Sprite; home: { x: number; y: number }; next: number }) | null = null;
+  private visitorLoading = '';
+  private updateVisitor(dt: number, t: number, now: number) {
+    const store = this.store;
+    const want = store.storyOn() && artStyle() === 'toon' ? store.chapter().who : '';
+    if (this.visitor && this.visitor.who !== want) { this.world.remove(this.visitor.g); this.visitor = null; }
+    if (!want) { this.visitorLoading = ''; return; }
+    if (!this.visitor) {
+      if (this.visitorLoading === want) return;
+      this.visitorLoading = want;
+      loadModel(`villager_${want}`).then((m) => {
+        if (this.visitorLoading !== want || this.visitor) return;
+        const g = farmerFromModel(m);
+        const h = this.homeDoor();
+        const base = h ? { x: Math.floor(h.door.x) + 2, y: Math.floor(h.door.y) + 1 } : { x: Math.floor(FARM_C.x) + 2, y: Math.floor(FARM_C.y) + 2 };
+        this.rebuildNav();
+        const n = this.nearestFree(base.x, base.y, 10) ?? base;
+        const hit = new THREE.Mesh(G.box, HIT_MAT);
+        hit.scale.set(0.55, 1.1, 0.55);
+        hit.position.y = 0.55;
+        g.add(hit);
+        const mark = new THREE.Sprite(new THREE.SpriteMaterial({ transparent: true, depthTest: false }));
+        mark.center.set(0.5, 0);
+        mark.renderOrder = 11;
+        this.fxLayer.add(mark);
+        this.world.add(g);
+        this.visitor = { ...actor(n.x + 0.5, n.y + 0.5, g), who: want, hit, mark, home: n, next: now + 3000 };
+      }).catch(() => {});
+      return;
+    }
+    const v = this.visitor;
+    // off home for the night, back in the morning
+    v.fade = clamp(v.fade + (this.nightMode ? -dt * 2 : dt * 2), 0, 1);
+    v.g.visible = v.fade > 0.01;
+    v.g.scale.setScalar(0.3 + v.fade * 0.7);
+    const tx = Math.floor(v.x), ty = Math.floor(v.y);
+    if (!this.free(tx, ty)) {
+      const n = this.nearestFree(tx, ty);
+      if (n) { v.x = n.x + 0.5; v.y = n.y + 0.5; v.path = []; }
+    }
+    // a short stroll now and then, never far from the house
+    if (!this.nightMode && !v.path.length && now > v.next) {
+      for (let k = 0; k < 6; k++) {
+        const x = v.home.x + Math.round((Math.random() - 0.5) * 6), y = v.home.y + Math.round((Math.random() - 0.5) * 5);
+        if (this.free(x, y) && this.send(v, x, y)) break;
+      }
+      v.next = now + 7000 + Math.random() * 9000;
+    }
+    this.step(v, 0.8, dt);
+    v.phase += dt * (v.moving ? 9 : 0);
+    const f = this.farmer;
+    const fd = Math.hypot(f.x - v.x, f.y - v.y);
+    // standing still: faces the farmer when close, otherwise the camera
+    if (!v.moving) v.heading = fd < 4 && !f.inside ? Math.atan2(f.x - v.x, f.y - v.y) : this.az;
+    let diff = v.heading - v.g.rotation.y;
+    while (diff > Math.PI) diff -= Math.PI * 2;
+    while (diff < -Math.PI) diff += Math.PI * 2;
+    v.g.rotation.y += diff * Math.min(1, dt * 6);
+    v.g.position.set(v.x, v.moving ? Math.abs(Math.sin(v.phase)) * 0.03 : 0, v.y);
+    animateLegs(v.g, v.moving ? Math.sin(v.phase) * 0.7 : 0);
+    blink(v.g, t, 11);
+    const body = v.g.userData.body as THREE.Object3D | undefined;
+    if (body) body.position.y = v.moving ? 0 : Math.sin(t / 700) * 0.005;
+    const arms = v.g.userData.arms as THREE.Object3D[] | undefined;
+    if (arms?.[1]) {
+      // waves at the farmer
+      const w = !v.moving && fd < 4 ? Math.max(0, Math.sin(t / 1800) - 0.6) * 4 : 0;
+      arms[1].rotation.x = -w * 2.2;
+      arms[1].rotation.z = 0.16 + w * 0.4 + Math.sin(t / 90) * 0.2 * w;
+    }
+    // the mark over their head
+    const ready = store.chapterReady();
+    const key = ready ? 'gift' : 'news';
+    if (v.mark.userData.key !== key) {
+      v.mark.userData.key = key;
+      v.mark.material.map = canvasTex(`visitor|${key}`, 128, 150, (c) => {
+        c.fillStyle = ready ? '#5cb82e' : '#ffd23a';
+        c.strokeStyle = '#5d3a1f'; c.lineWidth = 8;
+        c.beginPath(); c.arc(64, 60, 52, 0, Math.PI * 2); c.fill(); c.stroke();
+        c.beginPath(); c.moveTo(48, 104); c.lineTo(64, 144); c.lineTo(80, 104); c.closePath(); c.fillStyle = ready ? '#5cb82e' : '#ffd23a'; c.fill();
+        c.stroke();
+        c.fillStyle = ready ? '#5cb82e' : '#ffd23a'; c.fillRect(46, 96, 36, 14);
+        c.textAlign = 'center'; c.textBaseline = 'middle';
+        if (ready) { c.font = `64px ${EF}`; c.fillText('🎁', 64, 64); }
+        else { c.fillStyle = '#5d3a1f'; c.font = '900 84px ui-rounded, "Trebuchet MS", system-ui, sans-serif'; c.fillText('!', 64, 64); }
+      });
+      v.mark.material.needsUpdate = true;
+    }
+    const sc = 0.42 * clamp(1.3 / this.cam.zoom, 0.8, 1.8) * v.fade;
+    v.mark.scale.set(sc, sc * 150 / 128, 1);
+    v.mark.position.set(v.x, 1.1 + Math.abs(Math.sin(t / 300)) * 0.06, v.y);
+    v.mark.visible = v.g.visible && !this.store.ui.story;
+  }
   private speechAt = 0;
   private updateSpeech(now: number) {
     const f = this.farmer, say = this.store.ui.say;
@@ -2053,6 +2152,7 @@ export class Renderer {
     }
 
     this.updateSpeech(now);
+    this.updateVisitor(dt, t, now);
 
     // sleepy Z z z above the dog
     if (!this.zzz) {

@@ -1588,6 +1588,13 @@ export class GameStore {
     this.emit(false);
   }
 
+  // the chapter's teller, visiting the farm: hands out the reward when the chapter is done,
+  // otherwise tells it again
+  tapVisitor() {
+    if (this.chapterReady()) this.finishChapter();
+    else this.replayStory();
+  }
+
   replayStory() {
     if (!this.storyOn()) return;
     this.ui.panel = null;
