@@ -493,18 +493,21 @@ export function loadGame(): GameState {
   return testBoost(s ?? newGame());
 }
 
-// TEMP test boost: max level and 1,000,000 coins, granted once per browser. Remove later.
-const BOOST_KEY = 'talons-farm-test-boost-1';
+// TEMP test mode: level 200 and bottomless coins and gems while the game is being tested.
+// Set TEST_MODE to false (or delete this block and its three uses) to turn it off.
+export const TEST_MODE = true;
+const TEST_FUNDS = 999_999_999;
 function testBoost(s: GameState): GameState {
-  try {
-    if (localStorage.getItem(BOOST_KEY)) return s;
-    localStorage.setItem(BOOST_KEY, '1');
-  } catch { return s; }
-  s.level = Math.max(s.level, 35);
-  s.xp = 0;
-  s.coins += 1000000;
+  if (!TEST_MODE) return s;
+  s.level = Math.max(s.level, 200);
   s.tutorial = TUTORIAL_DONE;
+  topUp(s);
   return s;
+}
+function topUp(s: GameState) {
+  if (!TEST_MODE) return;
+  if (s.coins < TEST_FUNDS) s.coins = TEST_FUNDS;
+  if (s.gems < TEST_FUNDS) s.gems = TEST_FUNDS;
 }
 
 function migrate(d: Partial<GameState>): GameState {
@@ -1516,6 +1519,7 @@ export class GameStore {
 
   tick() {
     const now = Date.now();
+    topUp(this.s); // TEMP test mode
     if (this.settleGrazing(now)) this.emit();
     this.storyTick(now);
     // rain and sprinklers water thirsty fields for free
@@ -1715,7 +1719,7 @@ export class GameStore {
   }
 
   private replace(s: GameState) {
-    this.s = s;
+    this.s = testBoost(s); // TEMP test mode
     this.ui = { selectedId: null, placing: null, tool: null, panel: null, storageTab: 'silo', expand: null, levelUp: null, daily: this.canDaily(), napping: false, napAt: 0, story: null, say: null };
     this.ensureOrders();
     this.giveStarterWell();
