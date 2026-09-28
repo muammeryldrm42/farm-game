@@ -626,6 +626,7 @@ export class Renderer {
       grass: (x, y) => { this.rebuildNav(); return this.free(x, y) && !pathTiles.has(y * GRID + x) && !fieldTiles.has(y * GRID + x); },
       flowers: () => this.flowerSpots(),
       roofs: () => this.roofSpots(),
+      roofTop: (id, x, z) => this.roofTop(id, x, z),
     };
     // the farmer and pets start as sculpts and take on their Blender models once loaded
     if (artStyle() === 'toon') {
@@ -1901,7 +1902,7 @@ export class Renderer {
 
   // roof ridges a bird may perch on: the middle of each building with walls and its height
   private roofKey = '';
-  private roofList: { x: number; y: number; h: number }[] = [];
+  private roofList: { id: number; x: number; y: number; h: number }[] = [];
   private roofSpots() {
     const s = this.store.s;
     const key = `${this.store.objVersion}|${s.objects.length}`;
@@ -1912,10 +1913,34 @@ export class Renderer {
         const d = BUILDING[o.type];
         if (!['house', 'barn', 'silo', 'production', 'board', 'stall'].includes(d.kind)) continue;
         const e = this.entries.get(o.id);
-        if (e && e.top > 0.6) this.roofList.push({ x: o.x + d.w / 2, y: o.y + d.h / 2, h: e.top });
+        if (e && e.top > 0.6) this.roofList.push({ id: o.id, x: o.x + d.w / 2, y: o.y + d.h / 2, h: e.top });
       }
     }
     return this.roofList;
+  }
+
+  // the real height of a building's roof at a spot: a ray dropped onto its meshes (the model's
+  // own roof, not the rough height used for its bubble), remembered for a few seconds
+  private roofCache = new Map<string, { h: number | null; at: number }>();
+  private downRay = new THREE.Raycaster();
+  private roofTop(id: number, x: number, z: number) {
+    const key = `${id}|${x.toFixed(2)}|${z.toFixed(2)}`;
+    const now = performance.now();
+    const hit = this.roofCache.get(key);
+    if (hit && now - hit.at < 8000) return hit.h;
+    const e = this.entries.get(id);
+    let h: number | null = null;
+    if (e) {
+      e.root.updateWorldMatrix(true, true);
+      this.downRay.set(new THREE.Vector3(x, 30, z), new THREE.Vector3(0, -1, 0));
+      const meshes: THREE.Object3D[] = [];
+      e.root.traverse((c) => { const m = c as THREE.Mesh; if (m.isMesh && m.visible && m.material !== HIT_MAT && !(m.material as THREE.Material).transparent) meshes.push(m); });
+      const r = this.downRay.intersectObjects(meshes, false);
+      if (r.length) h = r[0].point.y;
+    }
+    if (this.roofCache.size > 500) this.roofCache.clear();
+    this.roofCache.set(key, { h, at: now });
+    return h;
   }
 
   private rebuildNav() {
@@ -3730,7 +3755,8 @@ let GRAZE_NAV: {
   nearest: (x: number, y: number) => P2 | null;
   grass: (x: number, y: number) => boolean;
   flowers: () => P2[];
-  roofs: () => { x: number; y: number; h: number }[];
+  roofs: () => { id: number; x: number; y: number; h: number }[];
+  roofTop: (id: number, x: number, z: number) => number | null;
 } | null = null;
 
 interface Trip { out: P2[]; eat: P2[][]; back: P2[]; recall?: { at: number; path: P2[] } }
@@ -4311,19 +4337,22 @@ function buildPen(e: Entry, d: BuildingDef) {
           if (near.length) {
             const r = near[Math.floor(hash(id, 11, 6) * near.length)].r;
             const perch = { x: r.x + (hash(id, 12, 7) - 0.5) * 0.5, y: r.y + (hash(id, 13, 8) - 0.5) * 0.5 };
+            // feet on the roof tiles: the surface under the perch, minus the bird's own foot offset
+            const top = GRAZE_NAV?.roofTop(r.id, perch.x, perch.y) ?? r.h;
+            const rh = top - 0.01;
             const ground = { x: o.x + sp.x, y: o.y + sp.z };
             let px: number, py: number, h: number, fly = false, head0 = 0;
             if (ur < 2000 || ur > 16000) {
               // up to the roof, or back down into the yard, in an arc
               const k = ur < 2000 ? ur / 2000 : (ur - 16000) / 2000;
               const [p0, p1] = ur < 2000 ? [ground, perch] : [perch, ground];
-              const h0 = ur < 2000 ? 0.04 : r.h, h1 = ur < 2000 ? r.h : 0.04;
+              const h0 = ur < 2000 ? 0.04 : rh, h1 = ur < 2000 ? rh : 0.04;
               px = p0.x + (p1.x - p0.x) * k; py = p0.y + (p1.y - p0.y) * k;
               h = h0 + (h1 - h0) * k + Math.sin(k * Math.PI) * 0.8;
               fly = k > 0 && k < 1;
               m.rotation.y = Math.atan2(p1.x - p0.x, p1.y - p0.y);
             } else {
-              px = perch.x; py = perch.y; h = r.h;
+              px = perch.x; py = perch.y; h = rh;
               m.rotation.y = Math.sin(t / 3000 + id) * 1.5;
               head0 = Math.max(0, Math.sin(t / 900 + id)) * 0.3;
             }
