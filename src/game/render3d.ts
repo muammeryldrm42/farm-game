@@ -2674,54 +2674,74 @@ function hideCatch(m: THREE.Object3D) {
   if (r) r.visible = false;
 }
 
-function fishCycle(herd: THREE.Object3D, m: THREE.Object3D, head: THREE.Object3D | undefined, now: number, id: number, heading: number) {
-  const C = 5200 + hash(id, 21, 4) * 2600;
-  const ph = ((now + hash(id, 22, 5) * C) % C) / C;
-  // wading between strikes, standing still to stalk and strike
-  const wading = ph < 0.42 || ph > 0.9;
-  animateLegs(m, wading ? Math.sin(now / 160 + id) * 0.25 : 0);
-  let hx = 0.2, fishOn = false, swallow = 1;
-  if (ph >= 0.42 && ph < 0.55) hx = 0.2 + (ph - 0.42) / 0.13 * 0.35;           // stalking, head lowering
-  else if (ph >= 0.55 && ph < 0.6) hx = 0.55 + (ph - 0.55) / 0.05 * 0.95;      // the strike
-  else if (ph >= 0.6 && ph < 0.66) hx = 1.5 - (ph - 0.6) / 0.06 * 1.1;         // up with the catch
-  else if (ph >= 0.66 && ph < 0.84) { hx = 0.4 - (ph - 0.66) / 0.18 * 0.2; }     // holding it
-  else if (ph >= 0.84 && ph < 0.9) { hx = 0.2 - (ph - 0.84) / 0.06 * 0.7; swallow = 1 - (ph - 0.84) / 0.06; } // toss and swallow
-  if (ph >= 0.6 && ph < 0.9) fishOn = true;
+// how deep each wader stands in the sea, in its own height units
+const WADE: Record<string, number> = { flamingo: 0.3, crane: 0.24, grey_heron: 0.2 };
+
+// One round of hunting in the shallows. `stand` runs 0 to 1 while the bird stands still at its
+// spot (-1 while it steps to the next one): it stares down, lowers its neck slowly, strikes,
+// and most times comes up with a wriggling fish to toss and swallow. Swans dip their heads for
+// weed instead. Rings spread where the beak goes in.
+function fishCycle(herd: THREE.Object3D, m: THREE.Object3D, head: THREE.Object3D | undefined, now: number, id: number, heading: number, stand: number, round: number, swan: boolean) {
+  const walking = stand < 0;
+  // slow high steps with a little head bob while wading; swans just glide
+  animateLegs(m, walking && !swan ? Math.sin(now / 240 + id) * 0.4 : 0);
+  let hx = walking ? 0.12 + Math.sin(now / 240 + id) * 0.06 : 0.1, fishOn = false, swallow = 1, dip = -1;
+  const caught = hash(id, round, 45) > 0.3;
+  if (!walking && swan) {
+    // dabbling: the head goes under a couple of times
+    const k = stand;
+    if ((k > 0.15 && k < 0.35) || (k > 0.55 && k < 0.75)) { const q = ((k - (k < 0.5 ? 0.15 : 0.55)) / 0.2); hx = 0.2 + Math.sin(q * Math.PI) * 1.2; dip = q; }
+  } else if (!walking) {
+    const k = stand;
+    if (k < 0.3) hx = 0.1 + (k / 0.3) * 0.55;                                  // stalking: the neck lowers slowly
+    else if (k < 0.35) { hx = 0.65 + ((k - 0.3) / 0.05) * 0.9; dip = (k - 0.3) / 0.05; } // the strike
+    else if (k < 0.43) { hx = 1.55 - ((k - 0.35) / 0.08) * 1.25; dip = 1; }   // up again
+    else if (k < 0.7) hx = 0.3 + Math.sin((k - 0.43) * 30) * 0.04;          // holding it
+    else if (k < 0.78) { hx = 0.3 - ((k - 0.7) / 0.08) * 0.75; swallow = 1 - (k - 0.7) / 0.08; } // toss and swallow
+    else hx = -0.45 + ((k - 0.78) / 0.22) * 0.55;                            // head up, looking about
+    fishOn = caught && k >= 0.35 && k < 0.78;
+    if (k >= 0.35 && k < 0.5) dip = 1 + (k - 0.35) / 0.15;
+  }
   if (head) {
     head.rotation.x = hx;
+    head.rotation.y = walking ? 0 : Math.sin(now / 1500 + id) * 0.2 * (stand > 0.78 ? 1 : 0.2);
     let f = m.userData.fish as THREE.Object3D | undefined;
     if (!f) {
       f = new THREE.Group();
       for (const g of FISH_GEO) f.add(new THREE.Mesh(g, FISH_MAT));
-      const b = beakOf(head);
-      f.position.copy(b);
+      f.position.copy(beakOf(head));
       f.rotation.y = Math.PI / 2;
-      // the head may be scaled with the body: keep the fish a fish sized fish
-      f.scale.setScalar(1.6 / Math.max(0.3, m.scale.x));
       head.add(f);
       m.userData.fish = f;
     }
-    f.visible = fishOn && swallow > 0.05;
+    f.visible = fishOn && swallow > 0.05 && !swan;
     if (f.visible) {
       f.rotation.z = Math.sin(now / 45 + id) * 0.5;
       f.scale.setScalar((1.6 / Math.max(0.3, m.scale.x)) * Math.max(0.2, swallow));
     }
   }
-  // ripples from the strike
+  // rings where the beak (or the swan's head) broke the water
   let r = m.userData.ripple as THREE.Mesh | undefined;
   if (!r) {
     r = new THREE.Mesh(RIPPLE_GEO, new THREE.MeshBasicMaterial({ color: '#ffffff', transparent: true, depthWrite: false }));
     r.renderOrder = 2;
-    // beside the herd, not in it: the herd's children are the animals
     r.userData.keep = true;
+    // beside the herd, not in it: the herd's children are the animals
     (herd.parent ?? herd).add(r);
     m.userData.ripple = r;
   }
-  const rk = (ph - 0.57) / 0.3;
+  const rk = dip < 0 ? -1 : dip <= 1 ? dip * 0.3 : 0.3 + (dip - 1) * 0.7;
   r.visible = rk > 0 && rk < 1;
-  if (r.visible) {
+  // and a soft ring round the legs of a wader while it steps
+  const wake = walking && !swan ? ((now / 900 + id) % 1) : -1;
+  if (!r.visible && wake >= 0) {
+    r.visible = true;
+    r.position.set(m.position.x, -0.545, m.position.z);
+    r.scale.setScalar(0.05 + wake * 0.18);
+    (r.material as THREE.MeshBasicMaterial).opacity = (1 - wake) * 0.35;
+  } else if (r.visible) {
     const reach = 0.22 * m.scale.x;
-    r.position.set(m.position.x + Math.sin(heading) * reach, -0.54, m.position.z + Math.cos(heading) * reach);
+    r.position.set(m.position.x + Math.sin(heading) * reach, -0.545, m.position.z + Math.cos(heading) * reach);
     r.scale.setScalar(0.04 + rk * 0.3);
     (r.material as THREE.MeshBasicMaterial).opacity = (1 - rk) * 0.8;
   }
@@ -3950,9 +3970,18 @@ function flyPose(o: FarmObject, d: BuildingDef, a: Animal, kind: string, now: nu
   }
   if (gp.phase === 'eating') {
     if (sea) {
-      // wading (or, for swans, paddling) about the shallows, striking at fish now and then
-      const w = now / 5200 + a.id;
-      return { x: ground.x + Math.cos(w) * 0.5, y: ground.y + Math.sin(w * 1.3) * 0.4, h: 0, fly: false, heading: w + Math.PI / 2, sea, feeding: true };
+      // a few slow deliberate steps (or strokes, for swans) to a new spot, then standing still
+      // to hunt there; each spot is picked by the bird and the round
+      const S = 4600 + hash(a.id, 41, 2) * 2200, off = hash(a.id, 42, 3) * S;
+      const n = Math.floor((now + off) / S), u = ((now + off) % S) / S;
+      const pt = (k: number) => ({ x: ground.x + (hash(a.id, k, 43) - 0.5) * 1.3, y: ground.y + (hash(a.id, k, 44) - 0.5) * 1.1 });
+      const p0 = pt(n - 1), p1 = pt(n);
+      const wk = Math.min(1, u / 0.32), ease = wk * wk * (3 - 2 * wk);
+      return {
+        x: p0.x + (p1.x - p0.x) * ease, y: p0.y + (p1.y - p0.y) * ease, h: 0, fly: false,
+        heading: Math.atan2(p1.x - p0.x, p1.y - p0.y), sea, feeding: true, moving: u < 0.32,
+        stand: u < 0.32 ? -1 : (u - 0.32) / 0.68, round: n,
+      };
     }
     const gz = grazePose(o, d, a, now);
     return gz ? { x: gz.x, y: gz.y, h: 0, fly: false, heading: gz.heading, sea, feeding: !gz.moving, moving: gz.moving } : null;
@@ -4247,7 +4276,7 @@ function buildPen(e: Entry, d: BuildingDef) {
   const an = ANIMAL[d.animal ?? ''];
   const fed = new Map<number, number | null>();
   const hop = new Map<number, number>();
-  e.update = (o, now, t) => {
+  e.update = (o, now, t, dt = 0.016) => {
     const list = o.pen?.animals ?? [];
     // sculpting a new kind takes a moment, so at most one new kind is sculpted per frame;
     // a farm full of pens fills in over a few frames instead of freezing on load
@@ -4312,15 +4341,25 @@ function buildPen(e: Entry, d: BuildingDef) {
       if (fp) {
         const cs = m.userData.shadow as THREE.Object3D | undefined;
         // at sea the bird stands in the shallows; swans float
-        const base = fp.sea && !fp.fly && fp.h === 0 ? (SWIMMERS.has(an!.id) ? -0.5 : -0.47) : 0.04;
+        // at sea waders stand in the water up past their ankles; swans sit on it
+        const swim = SWIMMERS.has(an!.id);
+        const base = fp.sea && !fp.fly && fp.h === 0 ? (swim ? -0.565 + Math.sin(t / 800 + id) * 0.006 : -0.55 - (WADE[an!.id] ?? 0.18) * m.scale.x) : 0.04;
         m.position.set(fp.x - o.x, base + fp.h, fp.y - o.y);
-        m.rotation.y = fp.heading;
+        // turning toward a new spot takes a moment rather than a snap
+        if (fp.fly) m.rotation.y = fp.heading;
+        else {
+          let dh = fp.heading - m.rotation.y;
+          while (dh > Math.PI) dh -= Math.PI * 2;
+          while (dh < -Math.PI) dh += Math.PI * 2;
+          m.rotation.y += dh * Math.min(1, dt * 4);
+        }
         m.rotation.x = fp.fly ? -0.12 : 0;
         m.rotation.z = 0;
         flap(m, fp.fly, t, id, fp.h > 1 ? 0.7 : 1);
         const fishing = fp.sea && fp.feeding && !fp.fly;
         if (fishing) {
-          fishCycle(herd, m, head, now, id, fp.heading);
+          const fq = fp as { stand?: number; round?: number };
+          fishCycle(herd, m, head, now, id, fp.heading, fq.stand ?? -1, fq.round ?? 0, swim);
         } else {
           hideCatch(m);
           animateLegs(m, fp.fly ? 0 : (fp as { moving?: boolean }).moving ? Math.sin(t / 110 + id) * 0.3 : 0);
