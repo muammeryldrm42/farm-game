@@ -1,4 +1,5 @@
-# Shore life for the sandy beach round the island: three true crabs and a hermit crab.
+# Shore life for the sandy beach round the island: three true crabs, a hermit crab, sanderlings
+# running the tide line, and harbour seals that swim offshore and bask on the shore rocks.
 # rock_crab: a red rock crab, brick red with black tipped claws; blue_crab: an olive backed
 # blue crab with long side spines, blue legs, red tipped claws and paddle hind legs; ghost_crab:
 # a pale sand coloured ghost crab on tall legs with big eyes on stalks; hermit_crab: a small
@@ -161,7 +162,91 @@ def ghost_crab():
          W=0.042, ghost=True)
 
 
-MODELS = {'rock_crab': rock_crab, 'blue_crab': blue_crab, 'ghost_crab': ghost_crab, 'hermit_crab': hermit_crab}
+def sandpiper():
+    """A sanderling, the little wader that runs the tide line: pale grey back with a dark
+    shoulder, white face and belly, black bill and legs. Parts: `head` (pecking, at the neck)
+    and `leg0/1` (left, right, at the hips). The feet stand at y 0."""
+    grey = pm('sp_back', '#a8a49c', '#bcb8b0', scale=70)
+    dark = pm('sp_dark', '#4a4642')
+    white = pm('sp_white', '#f6f4f0', '#ffffff', scale=40)
+    black = pm('sp_black', '#1a1816')
+    Y = 0.052
+
+    def body(x, y, z):
+        if y < Y - 0.004:
+            return white
+        if z > 0.0 and abs(x) > 0.02 and y < Y + 0.02:
+            return dark                                           # the dark shoulder
+        return grey
+    b = Blob(0.0024)
+    b.ell((0, Y, 0), 0.026, 0.024, 0.045)
+    b.ell((0, Y + 0.004, -0.05), 0.016, 0.008, 0.028)             # wing tips over the tail
+    b.build(body, 600)
+    with anim_group('head', B(0, Y + 0.02, 0.03)):
+        h = Blob(0.0022)
+        h.ball((0, Y + 0.03, 0.045), 0.019)
+        h.cap((0, Y + 0.022, 0.03), (0, Y + 0.03, 0.045), 0.015, 0.016)
+        h.build(lambda x, y, z: white if (y < Y + 0.026 or z > 0.055) else grey, 300)
+        bk = Blob(0.0015)
+        bk.cap((0, Y + 0.028, 0.062), (0, Y + 0.022, 0.09), 0.0035, 0.0016)
+        bk.build(black, 60)
+        for sx in (-1, 1):
+            ball(uid('eye'), 0.0035, B(sx * 0.013, Y + 0.036, 0.055), black, segs=8)
+    for i, sx in enumerate((-1, 1)):
+        with anim_group(f'leg{i}', B(sx * 0.01, Y - 0.015, 0.0)):
+            lg = Blob(0.0015)
+            lg.cap((sx * 0.01, Y - 0.015, 0.0), (sx * 0.01, 0.004, 0.004), 0.0028, 0.0022)
+            lg.ell((sx * 0.01, 0.002, 0.012), 0.004, 0.0015, 0.01)
+            lg.build(black, 60)
+    finish('sandpiper', tex=256, vivid=1.05, ao_min=0.85, ao_dist=0.03)
+
+
+def harbor_seal():
+    """A harbour seal hauled out on the sand: a plump spindle of a body, grey with dark rings
+    and spots, paler below, a round dog like head with big dark eyes and whiskers. Parts:
+    `head` (at the neck), the fore flippers `flip0/1` (left, right) and the hind flippers `tail`."""
+    grey = pm('hs_grey', '#8a8e92', '#9a9ea2', scale=40)
+    spot = pm('hs_spot', '#4a4e54')
+    pale = pm('hs_pale', '#c8c6c0', '#d6d4ce', scale=40)
+    black = pm('hs_black', '#141414')
+    nose = pm('hs_nose', '#2a2a2c')
+    whisk = pm('hs_whisk', '#a8a49e')
+
+    def coat(x, y, z):
+        if y < 0.045:
+            return pale
+        return spot if noise(x, y, z, 26) > 0.3 else grey
+    b = Blob(0.005)
+    b.ell((0, 0.075, 0.02), 0.11, 0.075, 0.2)                      # body
+    b.cap((0, 0.07, -0.12), (0, 0.05, -0.25), 0.075, 0.04)          # tapering to the hips
+    b.cap((0, 0.08, 0.12), (0, 0.095, 0.2), 0.08, 0.06)             # the neck
+    b.build(coat, 1600)
+    with anim_group('head', B(0, 0.1, 0.19)):
+        h = Blob(0.004)
+        h.ball((0, 0.12, 0.25), 0.062)
+        h.ell((0, 0.105, 0.3), 0.036, 0.03, 0.034)                  # the muzzle
+        h.build(coat, 700)
+        for sx in (-1, 1):
+            ball(uid('eye'), 0.014, B(sx * 0.03, 0.135, 0.292), black, segs=12)
+            # the whisker pads on the muzzle
+            ball(uid('pad'), 0.016, B(sx * 0.016, 0.1, 0.318), whisk, scale=(1, 0.8, 0.8), segs=10)
+        ball(uid('nose'), 0.012, B(0, 0.112, 0.33), nose, scale=(1.3, 1, 0.8), segs=10)
+    for i, sx in enumerate((-1, 1)):
+        with anim_group(f'flip{i}', B(sx * 0.09, 0.04, 0.1)):
+            f = Blob(0.003)
+            f.cap((sx * 0.09, 0.04, 0.1), (sx * 0.14, 0.012, 0.13), 0.022, 0.014)
+            f.build(grey, 200)
+    with anim_group('tail', B(0, 0.05, -0.25)):
+        t = Blob(0.003)
+        for sx in (-1, 1):
+            t.cap((sx * 0.015, 0.05, -0.25), (sx * 0.04, 0.04, -0.34), 0.026, 0.01)
+            t.ell((sx * 0.045, 0.035, -0.35), 0.03, 0.008, 0.028)
+        t.build(grey, 300)
+    finish('harbor_seal', tex=512, vivid=1.05, ao_min=0.8, ao_dist=0.06)
+
+
+MODELS = {'rock_crab': rock_crab, 'blue_crab': blue_crab, 'ghost_crab': ghost_crab, 'hermit_crab': hermit_crab,
+          'sandpiper': sandpiper, 'harbor_seal': harbor_seal}
 
 if __name__ == '__main__':
     main(MODELS)
