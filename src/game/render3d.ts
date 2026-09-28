@@ -2586,7 +2586,7 @@ const FLIERS = new Set(['chicken', 'duck', 'goose', 'gobbler', 'peacock', 'quail
   'khaki_campbell', 'rhode_island_red', 'call_duck', 'emden_goose', 'wyandotte', 'marans']);
 const SEA_BIRDS = new Set(['flamingo', 'crane', 'grey_heron', 'swan', 'black_swan']);
 // and the tree birds do not graze either: they fly to a tree nearby and sit in its crown
-const TREE_BIRDS = new Set(['barn_owl', 'parrot', 'peacock', 'white_peacock', 'pheasant']);
+const TREE_BIRDS = new Set(['barn_owl', 'parrot']);
 // a tree crown near the pen for a tree bird: one of the few closest, picked by the bird
 function treePerch(o: FarmObject, d: BuildingDef, id: number) {
   const trees = GRAZE_NAV?.trees() ?? [];
