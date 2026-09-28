@@ -197,17 +197,22 @@ export class Foliage {
   private bushMat = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.75 });
   private pebbleMat = new THREE.MeshStandardMaterial({ color: '#b7b3aa', roughness: 0.9, flatShading: true });
 
-  private batches: Culled[] = [];
+  private batches: { b: Culled | null; im: THREE.InstancedMesh; small: boolean }[] = [];
 
-  private keep(im: THREE.InstancedMesh) {
+  // small: wild flowers and pebbles, only a pixel or two when the camera is far out
+  private keep(im: THREE.InstancedMesh, small = false) {
     this.group.add(im);
     const b = blockBatch(im);
-    if (b) this.batches.push(b);
+    if (b || small) this.batches.push({ b, im, small });
   }
 
-  // draw only the grass and flowers on the land in view
-  cull(view: THREE.Frustum, shadow: THREE.Frustum | null) {
-    for (const b of this.batches) b.cull(view, shadow);
+  // draw only the grass and flowers on the land in view; from far out, not the little things
+  cull(view: THREE.Frustum, shadow: THREE.Frustum | null, far = false) {
+    for (const { b, im, small } of this.batches) {
+      if (small && far) { im.visible = false; continue; }
+      if (b) b.cull(view, shadow);
+      else im.visible = true;
+    }
   }
 
   // tiles: every free tile the grass may grow on; density: tufts per open tile
@@ -264,7 +269,8 @@ export class Foliage {
       this.keep(im);
     });
     if (bushes.length) {
-      const im = new THREE.InstancedMesh(toonCrown(4, 0.035), this.bushMat, bushes.length);
+      // a coarser sculpt than a tree crown: a bush is small on screen, and there are many
+      const im = new THREE.InstancedMesh(toonCrown(4, 0.055), this.bushMat, bushes.length);
       bushes.forEach(([x, z, s], i) => {
         q.setFromAxisAngle(up, rnd(i, 40) * 6);
         // the crown sits around y 0.8 with its underside near 0.36, so sink it to the ground
@@ -286,7 +292,7 @@ export class Foliage {
         im.setMatrixAt(i, m4);
       });
       im.receiveShadow = true;
-      this.keep(im);
+      this.keep(im, true);
     });
     if (pebbles.length) {
       const im = new THREE.InstancedMesh(PEBBLE, this.pebbleMat, pebbles.length);
@@ -297,7 +303,7 @@ export class Foliage {
       });
       im.castShadow = true;
       im.receiveShadow = true;
-      this.keep(im);
+      this.keep(im, true);
     }
     // wild flowers in little clumps: one instanced batch per color, each a real daisy or tulip
     FLOWER_COLORS.forEach((fc, ci) => {
@@ -310,7 +316,7 @@ export class Foliage {
         im.setMatrixAt(i, m4);
       });
       im.receiveShadow = true;
-      this.keep(im);
+      this.keep(im, true);
     });
   }
 }
