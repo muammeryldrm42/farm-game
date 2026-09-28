@@ -1,5 +1,5 @@
 // Talons Farm - game state, persistence and all player actions
-import { ANIMAL, BUILDING, BUILDINGS, CATCHES, CROP, ITEMS, ITEM_LIST, RECIPE, type BuildingDef } from './data';
+import { ANIMAL, BUILDING, BUILDINGS, CATCHES, CROP, ITEMS, ITEM_LIST, LAKE_CATCHES, RECIPE, SEA_CATCHES, type BuildingDef } from './data';
 import { isRaining } from './weather';
 import { LAST_CHAPTER, chapterAt, taskProgress, type StoryState } from './story';
 
@@ -28,9 +28,12 @@ export const inLakeWater = (x: number, y: number) => lakeE(x + 0.5, y + 0.5) < 1
 export const SAVE_KEY = 'talons-farm-save-v1';
 
 export interface FishingData { open: boolean; castAt: number | null; catchAt: number | null }
-// the fishing spot lies in the sea just off the south shore
-// the fishing spot: off the end of the plank jetty on the lake, where the bobber floats
+// Two fishing spots: off the end of the plank jetty on the lake (fresh water fish) and off the
+// fishing jetty on the south shore (sea fish). Each is where its bobber floats.
+export type FishSpot = 'lake' | 'sea';
 export const FISH_SPOT = { x: LAKE.x - LAKE.rx * 1.12 + 1.85, y: LAKE.z };
+export const SEA_FISH_SPOT = { x: GRID / 2, y: GRID + 2.3 };
+export const fishSpotAt = (spot: FishSpot) => (spot === 'sea' ? SEA_FISH_SPOT : FISH_SPOT);
 export const FISHING = { level: 5, cost: 800, time: 45 };
 // `watered`: the current crop got its drink (by hand, rain or a sprinkler) and grows faster
 export interface PlotData { crop: string | null; plantedAt: number; watered?: boolean }
@@ -86,6 +89,7 @@ export interface GameState {
   tutorial: number;
   mapV?: number;
   fishing?: FishingData;
+  seaFishing?: FishingData;
   restedOn?: string; // day key of the last nap that earned the rested bonus
   water?: { n: number; at: number }; // the bucket: waterings left, and when it was last filled
   starterWell?: boolean; // the free well every farm gets has been handed out
@@ -272,8 +276,8 @@ export function expandInfo(s: GameState) {
   return { cost: Math.round(cost / 10) * 10, level: Math.min(35, 2 + Math.floor(n * 0.8)) };
 }
 
-export function fishingInfo(s: GameState, now: number) {
-  const f = s.fishing;
+export function fishingInfo(s: GameState, now: number, spot: FishSpot = 'lake') {
+  const f = spot === 'sea' ? s.seaFishing : s.fishing;
   if (!f?.open) return { state: 'locked' as const, remaining: 0, p: 0 };
   if (f.castAt === null || f.catchAt === null) return { state: 'idle' as const, remaining: 0, p: 0 };
   const total = f.catchAt - f.castAt;
@@ -284,8 +288,8 @@ export function fishingInfo(s: GameState, now: number) {
 // Everything that can bite at the fishing spot: [item, level, weight]. Rarer, later catches
 // carry smaller weights, so a golden fish stays a thrill even at level 200.
 export { CATCHES };
-export function pickCatch(level: number, roll: number) {
-  const open = CATCHES.filter(([, lv]) => level >= lv);
+export function pickCatch(level: number, roll: number, spot: FishSpot = 'sea') {
+  const open = (spot === 'lake' ? LAKE_CATCHES : SEA_CATCHES).filter(([, lv]) => level >= lv);
   let r = roll * open.reduce((a, [, , w]) => a + w, 0);
   for (const [id, , w] of open) { r -= w; if (r <= 0) return id; }
   return 'fish';
@@ -589,6 +593,7 @@ export interface UIState {
   napAt: number;
   story: { ch: number; part: 'intro' | 'outro'; i: number } | null; // a story chapter being told
   say: { text: string; until: number } | null; // the farmer's speech bubble
+  fishSpot?: FishSpot; // which fishing spot the fishing panel is about
 }
 
 export class GameStore {
@@ -871,26 +876,31 @@ export class GameStore {
 
   // ------------------------------------------------ fishing spot
 
-  tapFishing() {
+  tapFishing(spot: FishSpot = 'lake') {
     this.sound('click');
-    if (fishingInfo(this.s, Date.now()).state === 'ready') { this.reelIn(); return; }
+    if (fishingInfo(this.s, Date.now(), spot).state === 'ready') { this.reelIn(spot); return; }
+    this.ui.fishSpot = spot;
     this.openPanel('fishing');
   }
 
-  buyFishing() {
-    if (this.s.fishing?.open) return;
+  private fishData(spot: FishSpot) { return spot === 'sea' ? this.s.seaFishing : this.s.fishing; }
+
+  buyFishing(spot: FishSpot = 'lake') {
+    if (this.fishData(spot)?.open) return;
     if (this.s.level < FISHING.level) { this.toast(`The fishing spot opens at level ${FISHING.level}.`, 'bad'); return; }
     if (this.s.coins < FISHING.cost) { this.toast('Not enough coins.', 'bad'); return; }
     this.s.coins -= FISHING.cost;
-    this.s.fishing = { open: true, castAt: null, catchAt: null };
+    const f = { open: true, castAt: null, catchAt: null };
+    if (spot === 'sea') this.s.seaFishing = f; else this.s.fishing = f;
     this.sound('build');
-    this.fx.push({ kind: 'burst', gx: FISH_SPOT.x, gy: FISH_SPOT.y, color: '#8fd3ff', z: 10 });
-    this.fx.push({ kind: 'float', gx: FISH_SPOT.x, gy: FISH_SPOT.y, text: 'Fishing spot open!', color: '#e6f7ff', z: 30 });
+    const p = fishSpotAt(spot);
+    this.fx.push({ kind: 'burst', gx: p.x, gy: p.y, color: '#8fd3ff', z: 10 });
+    this.fx.push({ kind: 'float', gx: p.x, gy: p.y, text: 'Fishing spot open!', color: '#e6f7ff', z: 30 });
     this.emit();
   }
 
-  castLine() {
-    const f = this.s.fishing;
+  castLine(spot: FishSpot = 'lake') {
+    const f = this.fishData(spot);
     if (!f?.open || f.castAt !== null) return;
     const now = Date.now();
     f.castAt = now;
@@ -899,12 +909,13 @@ export class GameStore {
     this.emit();
   }
 
-  reelIn() {
-    const f = this.s.fishing;
+  reelIn(spot: FishSpot = 'lake') {
+    const f = this.fishData(spot);
     const now = Date.now();
-    if (!f || fishingInfo(this.s, now).state !== 'ready') return;
-    // what bites depends on luck and level: plain fish most often, rarer catches as you grow
-    const id = pickCatch(this.s.level, Math.random());
+    if (!f || fishingInfo(this.s, now, spot).state !== 'ready') return;
+    // what bites depends on the water, luck and level: plain fish most often, rarer catches as
+    // you grow; fresh water fish at the lake, sea fish off the shore
+    const id = pickCatch(this.s.level, Math.random(), spot);
     const lobster = id !== 'fish';
     const qty = lobster ? 1 : 1 + (Math.random() < 0.4 ? 1 : 0);
     if (!this.canStore(id, qty)) { this.fullToast(id); return; }
@@ -914,9 +925,10 @@ export class GameStore {
     this.stat('fish', qty);
     this.addXp(lobster ? 4 + Math.floor(ITEMS[id].sell / 40) : 3);
     this.sound('collect');
-    if (this.flyers.length < 40) this.flyers.push({ icon: ITEMS[id].icon, gx: FISH_SPOT.x, gy: FISH_SPOT.y, z: 20, target: 'storage' });
-    this.fx.push({ kind: 'float', gx: FISH_SPOT.x, gy: FISH_SPOT.y, text: `+${qty} ${ITEMS[id].icon}`, color: '#ffffff', z: 40 });
-    this.fx.push({ kind: 'burst', gx: FISH_SPOT.x, gy: FISH_SPOT.y, color: '#bfe9ff', z: 5 });
+    const p = fishSpotAt(spot);
+    if (this.flyers.length < 40) this.flyers.push({ icon: ITEMS[id].icon, gx: p.x, gy: p.y, z: 20, target: 'storage' });
+    this.fx.push({ kind: 'float', gx: p.x, gy: p.y, text: `+${qty} ${ITEMS[id].icon}`, color: '#ffffff', z: 40 });
+    this.fx.push({ kind: 'burst', gx: p.x, gy: p.y, color: '#bfe9ff', z: 5 });
     this.emit();
   }
 

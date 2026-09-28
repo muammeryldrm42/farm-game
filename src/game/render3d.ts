@@ -21,7 +21,7 @@ import { SCULPT_MAT, TOON_MAT, TOON_WOOL, WOOL_MAT } from './gfx/sdf';
 import { leafShell, leafTexture, meterBox, meterHip, meterRoof, surface, surfaceMat, type SurfaceKind } from './gfx/textures';
 import { ANIMAL, BUILDING, CROP, ITEMS, type BuildingDef, type CropDef } from './data';
 import {
-  CHUNK, FARM_OFF, FISH_SPOT, GRAZE, GRID, LAKE, MAP_OFF2, MAP_OFF3, NCH, isBeachTile, lakeE, animalReady, fishingInfo, boatState, canFulfill, chunkState, grazePhase, penInfo, plotProgress, prodInfo, treeInfo,
+  CHUNK, FARM_OFF, FISH_SPOT, SEA_FISH_SPOT, fishSpotAt, type FishSpot, GRAZE, GRID, LAKE, MAP_OFF2, MAP_OFF3, NCH, isBeachTile, lakeE, animalReady, fishingInfo, boatState, canFulfill, chunkState, grazePhase, penInfo, plotProgress, prodInfo, treeInfo,
   type Animal, type FarmObject, type GameStore,
 } from './state';
 
@@ -561,10 +561,10 @@ export class Renderer {
   private tiles!: THREE.InstancedMesh;
   private sea!: THREE.Mesh;
   private fishing!: ReturnType<typeof buildFishingSpot>;
+  private seaFishing!: ReturnType<typeof buildFishingSpot>;
   private life!: Life;
   private turtles!: TurtleBeach;
   private shore!: ShoreLife;
-  private fishBubble: THREE.Sprite | null = null;
   private sky = new Sky();
   private foliage = new Foliage();
   private foliageKey = '';
@@ -615,8 +615,9 @@ export class Renderer {
 
     this.buildSea();
     this.buildClouds();
-    this.fishing = buildFishingSpot();
-    this.scene.add(this.fishing.root);
+    this.fishing = buildFishingSpot('lake');
+    this.seaFishing = buildFishingSpot('sea');
+    this.scene.add(this.fishing.root, this.seaFishing.root);
     this.life = new Life(this.scene);
     this.turtles = new TurtleBeach(this.scene);
     this.shore = new ShoreLife(this.scene, (x, y) => { this.rebuildNav(); return this.free(x, y); }, this.shoreRocks,
@@ -814,16 +815,17 @@ export class Renderer {
 
   // ------------------------------------------------ picking
 
-  pick(sx: number, sy: number): { obj?: FarmObject; tile: { x: number; y: number }; spot?: 'fishing' | 'visitor' } {
+  pick(sx: number, sy: number): { obj?: FarmObject; tile: { x: number; y: number }; spot?: 'fishing' | 'seaFishing' | 'visitor' } {
     const tile = this.gridAt(sx, sy);
     const moveId = this.store.ui.placing?.moveId;
-    const hits: THREE.Object3D[] = [this.fishing.hit];
+    const hits: THREE.Object3D[] = [this.fishing.hit, this.seaFishing.hit];
     const v = this.visitor;
     if (v && v.g.visible) hits.push(v.hit);
     for (const e of this.entries.values()) if (e.id !== moveId) hits.push(e.hit);
     const r = this.rayAt(sx, sy).intersectObjects(hits, false);
     if (r.length) {
       if (r[0].object === this.fishing.hit) return { tile, spot: 'fishing' };
+      if (r[0].object === this.seaFishing.hit) return { tile, spot: 'seaFishing' };
       if (v && r[0].object === v.hit) return { tile, spot: 'visitor' };
       const id = r[0].object.userData.objId as number;
       const obj = this.store.obj(id);
@@ -1643,15 +1645,21 @@ export class Renderer {
   private shadowKey = 0;
 
   private updateFishing(t: number, now: number) {
-    const fi = fishingInfo(this.store.s, now);
-    this.fishing.update(fi.state, fi.p, t);
-    if (!this.fishBubble) {
-      this.fishBubble = new THREE.Sprite(new THREE.SpriteMaterial({ depthTest: false, transparent: true }));
-      this.fishBubble.center.set(0.5, 0);
-      this.fishBubble.renderOrder = 10;
-      this.fxLayer.add(this.fishBubble);
+    this.updateFishSpot('lake', this.fishing, t, now);
+    this.updateFishSpot('sea', this.seaFishing, t, now);
+  }
+  private fishBubbles: Partial<Record<FishSpot, THREE.Sprite>> = {};
+  private updateFishSpot(spot: FishSpot, fs: ReturnType<typeof buildFishingSpot>, t: number, now: number) {
+    const fi = fishingInfo(this.store.s, now, spot);
+    fs.update(fi.state, fi.p, t);
+    let b = this.fishBubbles[spot];
+    if (!b) {
+      b = new THREE.Sprite(new THREE.SpriteMaterial({ depthTest: false, transparent: true }));
+      b.center.set(0.5, 0);
+      b.renderOrder = 10;
+      this.fxLayer.add(b);
+      this.fishBubbles[spot] = b;
     }
-    const b = this.fishBubble;
     const show = fi.state === 'ready' || fi.state === 'waiting' || fi.state === 'idle';
     b.visible = show;
     if (!show) return;
@@ -1665,7 +1673,8 @@ export class Renderer {
     }
     const sc = mode === 'ready' ? 0.62 : 0.5;
     b.scale.set(sc, sc * 1.25, 1);
-    b.position.set(FISH_SPOT.x, 1.4 + (mode === 'ready' ? Math.abs(Math.sin(t / 260)) * 0.14 : 0), FISH_SPOT.y);
+    const P = fishSpotAt(spot);
+    b.position.set(P.x, (spot === 'sea' ? 1.0 : 1.4) + (mode === 'ready' ? Math.abs(Math.sin(t / 260)) * 0.14 : 0), P.y);
   }
 
   private updateBubbles(t: number, now: number) {
@@ -4404,6 +4413,11 @@ function seaSpot(o: FarmObject, d: BuildingDef, id: number): P2 {
   const e = edges.indexOf(Math.min(...edges));
   const along = (v: number) => Math.max(2, Math.min(GRID - 2, v + (hash(id, 3, 7) - 0.5) * 6));
   const out = BEACH + 0.5 + hash(id, 4, 9) * 0.8;
+  // keep clear of the fishing jetty on the south shore
+  if (e === 3 && Math.abs(along(cx) - SEA_FISH_SPOT.x) < 3) {
+    const x = along(cx) + (along(cx) < SEA_FISH_SPOT.x ? -3 : 3);
+    return { x: Math.max(2, Math.min(GRID - 2, x)), y: GRID + out };
+  }
   // on the west side the turtle cove's sand bulges out to sea: wade off its shore instead
   if (e === 0) { const y = along(cy); return { x: Math.min(-out, coveEdge(y) - 0.5 - hash(id, 4, 9) * 0.6), y }; }
   return e === 0 ? { x: -out, y: along(cy) } : e === 1 ? { x: GRID + out, y: along(cy) } : e === 2 ? { x: along(cx), y: -out } : { x: along(cx), y: GRID + out };
@@ -5752,30 +5766,46 @@ function fishModel(color = '#ff9a3c') {
   return g;
 }
 
-function buildFishingSpot() {
-  // at the end of the plank jetty on the lake: a rod propped in a holder, its line out to a
-  // bobber on the water. Nobody sits there; the catch waits for the farmer to reel it in.
+function buildFishingSpot(spot: FishSpot) {
+  // at the end of a jetty, a rod propped in a holder with its line out to a bobber on the
+  // water. Nobody sits there; the catch waits for the farmer to reel it in. On the lake the
+  // plank jetty of the lake itself; off the south shore the fishing jetty out into the sea.
   const root = new THREE.Group();
-  const X = FISH_SPOT.x, Z = FISH_SPOT.y;
-  const jx = LAKE.x - LAKE.rx * 1.12, end = jx + 8 * 0.16, deckY = LAKE_Y + 0.135;
-  const lock = badge(root, '🔒', 0.3, jx + 0.5, deckY + 0.35, Z);
+  const sea = spot === 'sea';
+  const P = fishSpotAt(spot);
+  const waterY = sea ? -0.55 : LAKE_Y;
+  // along: the way the jetty runs out over the water (+x on the lake, +z at sea)
+  const jx = LAKE.x - LAKE.rx * 1.12;
+  const Z0 = GRID + 0.25, L = 1.85;
+  const deckY = sea ? -0.085 : LAKE_Y + 0.135;
+  const shore = sea ? { x: P.x, z: Z0 + 0.4 } : { x: jx + 0.5, z: P.y };
+  const end = sea ? { x: P.x + 0.15, z: Z0 + L - 0.2 } : { x: jx + 8 * 0.16, z: P.y + 0.14 };
+  const yaw = sea ? 0 : Math.PI / 2;
+  if (sea && artStyle() === 'toon') {
+    loadModel('fishing_jetty').then((m) => { const j = m.clone(); j.position.set(P.x, 0, Z0); root.add(j); }).catch(() => {});
+  }
+  const lock = badge(root, '🔒', 0.3, shore.x, deckY + 0.35, shore.z);
   lock.rotation.x = -0.3;
   // a rope across the jetty while it is locked
-  const rope = mk(root, cylGeo(0.012, 0.012, 6), M('#8a6a44'), 1, 0.5, 1, jx + 0.35, deckY + 0.12, Z);
-  rope.rotation.x = Math.PI / 2;
+  const rope = mk(root, cylGeo(0.012, 0.012, 6), M('#8a6a44'), 1, sea ? 0.7 : 0.5, 1, shore.x - (sea ? 0 : 0.15), deckY + 0.12, shore.z);
+  if (sea) rope.rotation.z = Math.PI / 2; else rope.rotation.x = Math.PI / 2;
 
   const open = group(root);
   // the rod holder: a short post at the end of the jetty with the rod leaning out over the water
-  const holder = group(open, end, deckY, Z + 0.14);
+  const holder = group(open, end.x, deckY, end.z);
+  holder.rotation.y = yaw;
   mk(holder, cylGeo(0.022, 0.026, 6), surfaceMat('bark', '#6b4226', 4), 1, 0.22, 1, 0, 0.11, 0);
   const rod = group(holder, 0, 0.16, 0);
   mk(rod, cylGeo(0.005, 0.011, 5), M('#5a3a1a'), 1, 0.9, 1, 0, 0.45, 0);
   mk(rod, new THREE.TorusGeometry(0.03, 0.008, 5, 10), M('#3a3a3a'), 1, 1, 1, 0, 0.12, 0.02);
-  rod.rotation.z = -1.0;
+  rod.rotation.x = 1.0;
   // a bait tin and a bucket for the catch on the planks
-  cyl(open, 0.05, 0.045, 0.08, '#9aa4ad', end - 0.3, deckY + 0.04, Z - 0.14, 10);
-  cyl(open, 0.035, 0.035, 0.03, '#6b8a5a', end - 0.12, deckY + 0.015, Z - 0.16, 8);
-  const bobber = group(open, X, LAKE_Y + 0.02, Z + 0.1);
+  const side = (d: number, a: number) => (sea ? { x: end.x - 0.3 + a, z: end.z - d } : { x: end.x - d, z: end.z - 0.28 + a });
+  const tin = side(0.3, 0), pail = side(0.12, -0.02);
+  cyl(open, 0.05, 0.045, 0.08, '#9aa4ad', tin.x, deckY + 0.04, tin.z, 10);
+  cyl(open, 0.035, 0.035, 0.03, '#6b8a5a', pail.x, deckY + 0.015, pail.z, 8);
+  const X = sea ? P.x + 0.15 : P.x, Z = sea ? Z0 + L + 0.75 : P.y;
+  const bobber = group(open, X, waterY + 0.02, Z + (sea ? 0 : 0.1));
   ball(bobber, 0.035, '#e74c3c', 0, 0.02, 0);
   ball(bobber, 0.036, '#ffffff', 0, -0.005, 0, 1, 0.5, 1);
   const lineGeo = new THREE.BufferGeometry().setFromPoints([new THREE.Vector3(), new THREE.Vector3()]);
@@ -5787,10 +5817,12 @@ function buildFishingSpot() {
   open.add(fish);
   const ring = splashRing();
   open.add(ring);
+  // the fish leaps across the line of the jetty
+  const across = sea ? { x: 1, z: 0 } : { x: 0, z: 1 };
 
   const hit = new THREE.Mesh(G.box, HIT_MAT);
-  hit.scale.set(X - jx + 0.9, 1.2, 1.4);
-  hit.position.set((jx + X) / 2 + 0.2, 0.3, Z);
+  if (sea) { hit.scale.set(1.4, 1.2, L + 1.6); hit.position.set(P.x, 0.2, Z0 + L / 2 + 0.6); }
+  else { hit.scale.set(X - jx + 0.9, 1.2, 1.4); hit.position.set((jx + X) / 2 + 0.2, 0.3, Z); }
   root.add(hit);
 
   const tipV = new THREE.Vector3();
@@ -5803,12 +5835,12 @@ function buildFishingSpot() {
     bobber.visible = line.visible = casting;
     // idle, the rod stands up in its holder; cast, it leans out over the water and nods on a bite
     const nod = state === 'ready' ? Math.max(0, Math.sin(t / 140)) * 0.12 : state === 'waiting' && p > 0.8 ? Math.max(0, Math.sin(t / 90)) * 0.05 : 0;
-    rod.rotation.z = casting ? -1.0 - nod : -0.25;
+    rod.rotation.x = casting ? 1.0 + nod : 0.25;
     // the bobber twitches as a bite gets closer, and plunges when the fish is on
     let dip = Math.sin(t / 500) * 0.008;
     if (state === 'waiting' && p > 0.8) dip -= Math.max(0, Math.sin(t / 90)) * 0.02;
     if (state === 'ready') dip -= Math.max(0, Math.sin(t / 140)) * 0.04;
-    bobber.position.y = LAKE_Y + 0.02 + dip;
+    bobber.position.y = waterY + 0.02 + dip;
     if (casting) {
       rod.updateWorldMatrix(true, false);
       tipV.set(0, 0.9, 0).applyMatrix4(rod.matrixWorld);
@@ -5823,12 +5855,12 @@ function buildFishingSpot() {
     fish.visible = state === 'ready' && u < 0.45;
     if (fish.visible) {
       const k = u / 0.45;
-      fish.position.set(bobber.position.x + 0.3 - k * 0.6, LAKE_Y - 0.02 + Math.sin(k * Math.PI) * 0.35, bobber.position.z + 0.15);
-      fish.rotation.set(0, -Math.PI / 2, 0);
+      fish.position.set(bobber.position.x + (0.3 - k * 0.6) * across.x + 0.15 * across.z, waterY - 0.02 + Math.sin(k * Math.PI) * 0.35, bobber.position.z + (0.3 - k * 0.6) * across.z + 0.15 * across.x);
+      fish.rotation.set(0, sea ? -Math.PI / 2 : Math.PI, 0);
       fish.rotateX(-Math.cos(k * Math.PI) * 1.1);
     }
     const rk = state === 'ready' ? ((t / 1700 + 0.55) % 1) : 1;
-    ring.position.set(bobber.position.x - 0.3, LAKE_Y + 0.005, bobber.position.z + 0.15);
+    ring.position.set(bobber.position.x - 0.3 * across.x + 0.15 * across.z, waterY + 0.005, bobber.position.z - 0.3 * across.z + 0.15 * across.x);
     ring.scale.setScalar(0.05 + rk * 0.3);
     (ring.material as THREE.MeshBasicMaterial).opacity = state === 'ready' ? (1 - rk) * 0.8 : 0;
   };
@@ -6373,6 +6405,8 @@ class ShoreLife {
     let a1 = f.along + dir * (9 + hash(f.seed, Math.floor(t / 1000), 91) * 8);
     if (a1 < 4 || a1 > GRID - 4) a1 = f.along - dir * (9 + hash(f.seed, Math.floor(t / 1000), 91) * 8);
     a1 = Math.max(4, Math.min(GRID - 4, a1));
+    // never down onto the fishing jetty
+    if (f.side === 1 && Math.abs(a1 - SEA_FISH_SPOT.x) < 1.6) a1 = SEA_FISH_SPOT.x + (a1 < SEA_FISH_SPOT.x ? -1.6 : 1.6);
     f.fly = { a0: f.along, a1, t0: t, dur: (Math.abs(a1 - f.along) / 3.2 + 1.2) * 1000 };
     f.nextFly = 45 + hash(f.seed, Math.floor(t / 1000), 92) * 60;
   }
@@ -6407,7 +6441,7 @@ class ShoreLife {
       } else {
         // a stop to probe the sand, then a dash a few tiles up or down the shore
         f.wait = 2 + hash(f.seed, Math.floor(t / 1000), 88) * 4;
-        f.to = Math.max(3, Math.min(GRID - 3, f.along + (hash(f.seed, Math.floor(t / 1000), 89) - 0.5) * 8));
+        f.to = this.offJetty(f.side, f.along, Math.max(3, Math.min(GRID - 3, f.along + (hash(f.seed, Math.floor(t / 1000), 89) - 0.5) * 8)));
       }
       const dir = Math.sign(f.to - f.along) || 1;
       for (const [k, b] of f.birds.entries()) {
@@ -6493,8 +6527,19 @@ class ShoreLife {
     return side === 0 ? { x: a, z: -out } : side === 1 ? { x: a, z: GRID + out } : side === 2 ? { x: -out, z: a } : { x: GRID + out, z: a };
   }
   private alongOf(c: Crab) { return c.side < 2 ? c.x : c.z; }
-  // the plain shore, not the wide sandy turtle cove on the west side
-  private plainShore(side: number, along: number) { return side !== 2 || coveEdge(along) >= -BEACH - 0.01; }
+  // the plain shore, not the wide sandy turtle cove on the west side, nor under the fishing jetty
+  private plainShore(side: number, along: number) {
+    if (side === 1 && Math.abs(along - SEA_FISH_SPOT.x) < 1.2) return false;
+    return side !== 2 || coveEdge(along) >= -BEACH - 0.01;
+  }
+  // a run along the tide line stops short of the fishing jetty on the south shore
+  private offJetty(side: number, from: number, to: number) {
+    if (side !== 1) return to;
+    const j = SEA_FISH_SPOT.x;
+    if (from < j && to > j - 1) return j - 1;
+    if (from > j && to < j + 1) return j + 1;
+    return to;
+  }
   private outOf(c: Crab) { return c.side === 0 ? -c.z : c.side === 1 ? c.z - GRID : c.side === 2 ? -c.x : c.x - GRID; }
 
   // the walk there crosses nothing built on the beach (a crab goes round a sun lounger)

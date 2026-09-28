@@ -714,20 +714,26 @@ function FishingModal() {
   const store = useStore();
   const s = store.s;
   const now = Date.now();
-  const fi = fishingInfo(s, now);
+  const spot = store.ui.fishSpot ?? 'lake';
+  const sea = spot === 'sea';
+  const fi = fishingInfo(s, now, spot);
   const close = () => store.openPanel(null);
   return (
-    <Modal title="Fishing Spot" icon="🎣" onClose={close}>
+    <Modal title={sea ? 'Sea Fishing' : 'Lake Fishing'} icon="🎣" onClose={close}>
       <div className="flex flex-col items-center gap-3 py-2 text-center">
         <span className="emoji animate-bob text-5xl">{fi.state === 'ready' ? '🐟' : '🌊'}</span>
         {fi.state === 'locked' && (
           <>
-            <p className="font-bold">Open a fishing spot on the jetty at the lake.</p>
-            <p className="text-sm text-[#8a6a44]">Cast a line, wait a little and reel in fish. New catches bite as you level up, from sardines, carp and salmon early on to koi, mahi mahi, clownfish, marlin, sturgeon, anglerfish and, at level 195, the golden fish.</p>
+            <p className="font-bold">{sea ? 'Open a fishing spot on the jetty off the south shore.' : 'Open a fishing spot on the jetty at the lake.'}</p>
+            <p className="text-sm text-[#8a6a44]">
+              {sea
+                ? 'Cast a line into the sea and reel in salt water fish: sardines, mackerel and sea bream early on, then tuna, mahi mahi, clownfish, marlin and anglerfish as you level up.'
+                : 'Cast a line into the lake and reel in fresh water fish: bluegill, bass, carp and crayfish early on, then pike, walleye, koi, sturgeon and, at level 195, the golden fish.'}
+            </p>
             {s.level < FISHING.level ? (
               <Lock level={FISHING.level} />
             ) : (
-              <button className="btn btn-green px-8 py-2" disabled={s.coins < FISHING.cost} onClick={() => store.buyFishing()}>
+              <button className="btn btn-green px-8 py-2" disabled={s.coins < FISHING.cost} onClick={() => store.buyFishing(spot)}>
                 Open for <Coins n={FISHING.cost} />
               </button>
             )}
@@ -736,7 +742,7 @@ function FishingModal() {
         {fi.state === 'idle' && (
           <>
             <p className="font-bold">The water is calm. Cast your line!</p>
-            <button className="btn btn-blue px-8 py-2" onClick={() => { store.castLine(); close(); }}>Cast line</button>
+            <button className="btn btn-blue px-8 py-2" onClick={() => { store.castLine(spot); close(); }}>Cast line</button>
           </>
         )}
         {fi.state === 'waiting' && (
@@ -749,7 +755,7 @@ function FishingModal() {
           </>
         )}
         {fi.state === 'ready' && (
-          <button className="btn btn-green px-8 py-2" onClick={() => { store.reelIn(); close(); }}>Reel in</button>
+          <button className="btn btn-green px-8 py-2" onClick={() => { store.reelIn(spot); close(); }}>Reel in</button>
         )}
       </div>
     </Modal>

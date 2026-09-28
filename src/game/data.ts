@@ -664,6 +664,22 @@ item('ugli_fruit', 'Ugli Fruit', '🍊', 'silo', 239, 190);
 item('lupin', 'Lupin', '🪻', 'silo', 441, 192);
 item('black_plume', 'Friesian Milk', '🥛', 'barn', 453, 197);
 item('sailfish', 'Sailfish', '@sailfish', 'barn', 545, 199);
+// more catches: fish of the lake and fish of the sea
+item('bluegill', 'Bluegill', '@bluegill', 'barn', 45, 4);
+item('largemouth_bass', 'Largemouth Bass', '@largemouth_bass', 'barn', 52, 6);
+item('crayfish', 'Crayfish', '@crayfish', 'barn', 68, 12);
+item('crappie', 'Crappie', '@crappie', 'barn', 78, 17);
+item('chub', 'Chub', '@chub', 'barn', 108, 29);
+item('whitefish', 'Whitefish', '@whitefish', 'barn', 150, 47);
+item('bream', 'Bream', '@bream', 'barn', 178, 58);
+item('walleye', 'Walleye', '@walleye', 'barn', 236, 83);
+item('muskie', 'Muskie', '@muskie', 'barn', 378, 140);
+item('paddlefish', 'Paddlefish', '@paddlefish', 'barn', 488, 182);
+item('plaice', 'Plaice', '@plaice', 'barn', 80, 18);
+item('bluefish', 'Bluefish', '@bluefish', 'barn', 150, 47);
+item('pompano', 'Pompano', '@pompano', 'barn', 190, 64);
+item('skate', 'Skate', '@skate', 'barn', 262, 93);
+item('moray_eel', 'Moray Eel', '@moray_eel', 'barn', 430, 160);
 item('chili_pepper_latte', 'Chili Pepper Latte', '☕', 'barn', 170, 21);
 item('chili_pepper_chai', 'Chili Pepper Chai', '☕', 'barn', 147, 25);
 item('iced_lemon_tea', 'Iced Lemon Tea', '🧋', 'barn', 136, 25);
@@ -1887,8 +1903,17 @@ export const CATCHES: [string, number, number][] = [
   ['shrimp', 40, 10], ['squid', 52, 8], ['octopus', 64, 7], ['swordfish', 78, 6], ['eel', 92, 6], ['pufferfish', 108, 5],
   ['stingray', 125, 4], ['marlin', 145, 3.5], ['pearl', 170, 3], ['golden_fish', 195, 1.5],
   ['sardine', 2, 8.9], ['anchovy', 9, 8.7], ['carp', 14, 8.5], ['perch', 20, 8.3], ['mackerel', 26, 8.1], ['tilapia', 31, 7.9], ['catfish', 38, 7.7], ['sea_bream', 44, 7.5], ['sea_bass', 50, 7.2], ['red_mullet', 55, 7.1], ['cod', 61, 6.9], ['pike', 68, 6.6], ['haddock', 74, 6.4], ['flounder', 79, 6.2], ['koi', 85, 6.0], ['arctic_char', 91, 5.8], ['grayling', 97, 5.6], ['sole', 102, 5.4], ['yellowtail', 109, 5.2], ['red_snapper', 114, 5.0], ['bonito', 120, 4.8], ['halibut', 126, 4.6], ['turbot', 131, 4.4], ['mahi_mahi', 138, 4.2], ['barracuda', 144, 4.0], ['grouper', 150, 3.7], ['clownfish', 155, 3.6], ['angelfish', 161, 3.4], ['parrotfish', 168, 3.1], ['wahoo', 174, 2.9], ['lionfish', 179, 2.7], ['sturgeon', 185, 2.5], ['sunfish', 191, 2.3], ['anglerfish', 197, 2.1],
+  ['bluegill', 4, 8.8], ['largemouth_bass', 6, 8.6], ['crayfish', 12, 8.2], ['crappie', 17, 8.0], ['chub', 29, 7.4], ['whitefish', 47, 6.8], ['bream', 58, 6.4], ['walleye', 83, 5.6], ['muskie', 140, 3.8], ['paddlefish', 182, 2.6],
+  ['plaice', 18, 8.0], ['bluefish', 47, 6.8], ['pompano', 64, 6.2], ['skate', 93, 5.2], ['moray_eel', 160, 3.4],
   ['herring', 23, 7.3], ['sprat', 38, 6.9], ['zander', 42, 6.7], ['tench', 55, 6.3], ['roach', 66, 6.0], ['rainbow_trout', 71, 5.9], ['hake', 81, 5.6], ['pollock', 88, 5.4], ['whiting', 101, 5.0], ['garfish', 114, 4.6], ['john_dory', 116, 4.5], ['amberjack', 128, 4.2], ['tarpon', 133, 4.0], ['snook', 147, 3.6], ['cobia', 156, 3.3], ['triggerfish', 161, 3.2], ['butterflyfish', 171, 2.9], ['blue_tang', 178, 2.7], ['boxfish', 187, 2.4], ['sailfish', 199, 2.0],
 ];
+
+// what lives in fresh water bites at the lake; everything else is a sea catch. The plain fish
+// bites at both.
+export const FRESHWATER = new Set(['fish', 'carp', 'perch', 'trout', 'rainbow_trout', 'catfish', 'pike', 'zander', 'tench', 'roach', 'grayling', 'arctic_char',
+  'koi', 'tilapia', 'sturgeon', 'eel', 'golden_fish', 'bluegill', 'largemouth_bass', 'crayfish', 'crappie', 'chub', 'whitefish', 'bream', 'walleye', 'muskie', 'paddlefish']);
+export const LAKE_CATCHES = CATCHES.filter(([id]) => FRESHWATER.has(id));
+export const SEA_CATCHES = CATCHES.filter(([id]) => id === 'fish' || !FRESHWATER.has(id));
 
 export function unlocksAt(level: number): { icon: string; name: string; id?: string }[] {
   const out: { icon: string; name: string; id?: string }[] = [];
