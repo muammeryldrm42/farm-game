@@ -1302,7 +1302,10 @@ export class Renderer {
       this.cullSphere.center.set(o.x + d.w / 2, 0.6, o.y + d.h / 2);
       this.cullSphere.radius = Math.max(d.w, d.h) * 0.8 + 1.2;
       const seen = this.frustum.intersectsSphere(this.cullSphere);
-      if (seen || (this.frameNo + o.id) % 24 === 0) e.update?.(o, now, t, dt);
+      // animals out of their pen (grazing, flying, fishing at sea) keep moving even when the pen
+      // itself is off screen, or they would stand frozen out there
+      const away = !!o.pen && o.pen.animals.some((a) => a.graze);
+      if (seen || away || (this.frameNo + o.id) % 24 === 0) e.update?.(o, now, t, dt);
       if (e.bounce || e.root.scale.x !== 1) this.applyBounce(e, o, dt);
     }
     tickAnims(dt);
@@ -1971,19 +1974,38 @@ export class Renderer {
     const N = GRID * GRID, start = sy * GRID + sx, goal = ty * GRID + tx;
     if (start === goal) return [];
     const gs = new Float32Array(N).fill(Infinity), from = new Int32Array(N).fill(-1), closed = new Uint8Array(N);
-    const open: number[] = [start];
-    const inOpen = new Uint8Array(N);
-    inOpen[start] = 1;
     const fs = new Float32Array(N).fill(Infinity);
+    // the open set is a binary heap on f (stale entries are skipped when popped), so long walks
+    // across the big map plan in a blink instead of stalling a frame
+    const heap: number[] = [];
+    const push = (i: number) => {
+      heap.push(i);
+      let k = heap.length - 1;
+      while (k > 0) { const p = (k - 1) >> 1; if (fs[heap[p]] <= fs[heap[k]]) break; [heap[p], heap[k]] = [heap[k], heap[p]]; k = p; }
+    };
+    const pop = () => {
+      const top = heap[0], last = heap.pop()!;
+      if (heap.length) {
+        heap[0] = last;
+        let k = 0;
+        for (;;) {
+          const l = 2 * k + 1, r = l + 1;
+          let m = k;
+          if (l < heap.length && fs[heap[l]] < fs[heap[m]]) m = l;
+          if (r < heap.length && fs[heap[r]] < fs[heap[m]]) m = r;
+          if (m === k) break;
+          [heap[m], heap[k]] = [heap[k], heap[m]]; k = m;
+        }
+      }
+      return top;
+    };
     const hh = (i: number) => { const dx = Math.abs((i % GRID) - tx), dy = Math.abs(Math.floor(i / GRID) - ty); return Math.max(dx, dy) + 0.41 * Math.min(dx, dy); };
     gs[start] = 0; fs[start] = hh(start);
+    push(start);
     let guard = 0;
-    while (open.length && guard++ < 20000) {
-      let bi = 0;
-      for (let i = 1; i < open.length; i++) if (fs[open[i]] < fs[open[bi]]) bi = i;
-      const cur = open[bi];
-      open.splice(bi, 1);
-      inOpen[cur] = 0;
+    while (heap.length && guard++ < 40000) {
+      const cur = pop();
+      if (closed[cur]) continue;
       if (cur === goal) break;
       closed[cur] = 1;
       const cx = cur % GRID, cy = Math.floor(cur / GRID);
@@ -1998,7 +2020,7 @@ export class Renderer {
         const ng = gs[cur] + (dx && dy ? 1.414 : 1) + (this.nav[ni] === 2 ? 2.5 : 0);
         if (ng < gs[ni]) {
           gs[ni] = ng; fs[ni] = ng + hh(ni); from[ni] = cur;
-          if (!inOpen[ni]) { open.push(ni); inOpen[ni] = 1; }
+          push(ni);
         }
       }
     }
@@ -2554,6 +2576,98 @@ function flap(m: THREE.Object3D, on: boolean, t: number, id: number, fast = 1) {
   for (const [i, wg] of wings.entries()) {
     wg.visible = on;
     if (on) wg.rotation.z = (i ? -1 : 1) * (0.15 + Math.sin(t / (55 / fast) + id) * 0.75);
+  }
+}
+
+// Fishing in the shallows, a few seconds a round: wade, freeze and stare, strike, come up with a
+// wriggling fish, toss it back and swallow. A ring of ripples spreads where the beak went in.
+const FISH_GEO = (() => {
+  const body = new THREE.SphereGeometry(1, 10, 6);
+  body.scale(0.012, 0.018, 0.05);
+  const tail = new THREE.ConeGeometry(0.018, 0.03, 4);
+  tail.rotateX(-Math.PI / 2);
+  tail.translate(0, 0, -0.06);
+  return [body, tail];
+})();
+const FISH_MAT = new THREE.MeshStandardMaterial({ color: '#b8ccd8', roughness: 0.3, metalness: 0.4 });
+const RIPPLE_GEO = new THREE.RingGeometry(0.8, 1, 28).rotateX(-Math.PI / 2);
+
+function beakOf(head: THREE.Object3D) {
+  let b = head.userData.beak as THREE.Vector3 | undefined;
+  if (b) return b;
+  // the tip of the head: its farthest point forward, in the head's own space
+  head.updateWorldMatrix(true, true);
+  const inv = new THREE.Matrix4().copy(head.matrixWorld).invert();
+  const box = new THREE.Box3(), mb = new THREE.Box3(), mm = new THREE.Matrix4();
+  head.traverse((c) => {
+    const mesh = c as THREE.Mesh;
+    if (!mesh.isMesh || !mesh.geometry) return;
+    if (!mesh.geometry.boundingBox) mesh.geometry.computeBoundingBox();
+    mb.copy(mesh.geometry.boundingBox!).applyMatrix4(mm.multiplyMatrices(inv, mesh.matrixWorld));
+    box.union(mb);
+  });
+  b = box.isEmpty() ? new THREE.Vector3(0, 0, 0.1) : new THREE.Vector3((box.min.x + box.max.x) / 2, box.min.y + (box.max.y - box.min.y) * 0.3, box.max.z);
+  head.userData.beak = b;
+  return b;
+}
+
+function hideCatch(m: THREE.Object3D) {
+  const f = m.userData.fish as THREE.Object3D | undefined;
+  if (f) f.visible = false;
+  const r = m.userData.ripple as THREE.Mesh | undefined;
+  if (r) r.visible = false;
+}
+
+function fishCycle(herd: THREE.Object3D, m: THREE.Object3D, head: THREE.Object3D | undefined, now: number, id: number, heading: number) {
+  const C = 5200 + hash(id, 21, 4) * 2600;
+  const ph = ((now + hash(id, 22, 5) * C) % C) / C;
+  // wading between strikes, standing still to stalk and strike
+  const wading = ph < 0.42 || ph > 0.9;
+  animateLegs(m, wading ? Math.sin(now / 160 + id) * 0.25 : 0);
+  let hx = 0.2, fishOn = false, swallow = 1;
+  if (ph >= 0.42 && ph < 0.55) hx = 0.2 + (ph - 0.42) / 0.13 * 0.35;           // stalking, head lowering
+  else if (ph >= 0.55 && ph < 0.6) hx = 0.55 + (ph - 0.55) / 0.05 * 0.95;      // the strike
+  else if (ph >= 0.6 && ph < 0.66) hx = 1.5 - (ph - 0.6) / 0.06 * 1.1;         // up with the catch
+  else if (ph >= 0.66 && ph < 0.84) { hx = 0.4 - (ph - 0.66) / 0.18 * 0.2; }     // holding it
+  else if (ph >= 0.84 && ph < 0.9) { hx = 0.2 - (ph - 0.84) / 0.06 * 0.7; swallow = 1 - (ph - 0.84) / 0.06; } // toss and swallow
+  if (ph >= 0.6 && ph < 0.9) fishOn = true;
+  if (head) {
+    head.rotation.x = hx;
+    let f = m.userData.fish as THREE.Object3D | undefined;
+    if (!f) {
+      f = new THREE.Group();
+      for (const g of FISH_GEO) f.add(new THREE.Mesh(g, FISH_MAT));
+      const b = beakOf(head);
+      f.position.copy(b);
+      f.rotation.y = Math.PI / 2;
+      // the head may be scaled with the body: keep the fish a fish sized fish
+      f.scale.setScalar(1.6 / Math.max(0.3, m.scale.x));
+      head.add(f);
+      m.userData.fish = f;
+    }
+    f.visible = fishOn && swallow > 0.05;
+    if (f.visible) {
+      f.rotation.z = Math.sin(now / 45 + id) * 0.5;
+      f.scale.setScalar((1.6 / Math.max(0.3, m.scale.x)) * Math.max(0.2, swallow));
+    }
+  }
+  // ripples from the strike
+  let r = m.userData.ripple as THREE.Mesh | undefined;
+  if (!r) {
+    r = new THREE.Mesh(RIPPLE_GEO, new THREE.MeshBasicMaterial({ color: '#ffffff', transparent: true, depthWrite: false }));
+    r.renderOrder = 2;
+    // beside the herd, not in it: the herd's children are the animals
+    r.userData.keep = true;
+    (herd.parent ?? herd).add(r);
+    m.userData.ripple = r;
+  }
+  const rk = (ph - 0.57) / 0.3;
+  r.visible = rk > 0 && rk < 1;
+  if (r.visible) {
+    const reach = 0.22 * m.scale.x;
+    r.position.set(m.position.x + Math.sin(heading) * reach, -0.54, m.position.z + Math.cos(heading) * reach);
+    r.scale.setScalar(0.04 + rk * 0.3);
+    (r.material as THREE.MeshBasicMaterial).opacity = (1 - rk) * 0.8;
   }
 }
 
@@ -4074,6 +4188,7 @@ function buildPen(e: Entry, d: BuildingDef) {
     if (list.length !== count || ver !== animalVer) {
       ver = animalVer;
       const grew = count >= 0 && list.length > count;
+      for (const c of herd.children) (c.userData.ripple as THREE.Object3D | undefined)?.removeFromParent();
       herd.clear();
       count = list.length;
       for (let i = 0; i < count; i++) herd.add(an?.id === 'bee' ? buildHive() : buildAnimal(an?.id ?? ''));
@@ -4133,17 +4248,21 @@ function buildPen(e: Entry, d: BuildingDef) {
         m.rotation.x = fp.fly ? -0.12 : 0;
         m.rotation.z = 0;
         flap(m, fp.fly, t, id, fp.h > 1 ? 0.7 : 1);
-        animateLegs(m, fp.fly ? 0 : (fp as { moving?: boolean }).moving ? Math.sin(t / 110 + id) * 0.3 : 0);
-        if (head) {
-          // feeding: pecking the grass, or a quick strike at a fish in the water
-          const strike = fp.sea ? Math.pow(Math.max(0, Math.sin(t / 700 + id * 1.9)), 12) * 1.3 : 0;
-          head.rotation.x = fp.fly ? -0.2 : fp.feeding ? (fp.sea ? 0.35 + strike : 0.55 + Math.max(0, Math.sin(t / 260 + id)) * 0.25) : 0;
+        const fishing = fp.sea && fp.feeding && !fp.fly;
+        if (fishing) {
+          fishCycle(herd, m, head, now, id, fp.heading);
+        } else {
+          hideCatch(m);
+          animateLegs(m, fp.fly ? 0 : (fp as { moving?: boolean }).moving ? Math.sin(t / 110 + id) * 0.3 : 0);
+          // feeding on land: pecking the grass
+          if (head) head.rotation.x = fp.fly ? -0.2 : fp.feeding ? 0.55 + Math.max(0, Math.sin(t / 260 + id)) * 0.25 : 0;
         }
         blink(m, t, id);
         if (cs) { cs.visible = !fp.sea || fp.fly; cs.position.y = 0.006 - (m.position.y - 0.04); }
         return;
       }
       flap(m, false, t, id);
+      hideCatch(m);
       if (m.userData.shadow) (m.userData.shadow as THREE.Object3D).visible = true;
       const gz = a?.graze ? grazePose(o, d, a, now) : null;
       if (gz) {
