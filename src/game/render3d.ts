@@ -1737,7 +1737,13 @@ export class Renderer {
   private updateVisitor(dt: number, t: number, now: number) {
     const store = this.store;
     const want = store.storyOn() && artStyle() === 'toon' ? store.chapter().who : '';
-    if (this.visitor && this.visitor.who !== want) { this.world.remove(this.visitor.g); this.visitor = null; }
+    if (this.visitor && this.visitor.who !== want) {
+      // the mark lives in the effects layer: it goes with its visitor
+      this.world.remove(this.visitor.g);
+      this.fxLayer.remove(this.visitor.mark);
+      this.visitor.mark.material.dispose();
+      this.visitor = null;
+    }
     if (!want) { this.visitorLoading = ''; return; }
     if (!this.visitor) {
       if (this.visitorLoading === want) return;
@@ -2473,8 +2479,54 @@ function fourLegs(g: THREE.Group, w: number, d: number, len: number, th: number,
   g.userData.signs = [1, -1, -1, 1];
 }
 
+// Birds that can fly flutter about their pen and fly (rather than walk) out through the open
+// gate to feed. The water birds find their food at sea: they fly to the shallows and fish there.
+const FLIERS = new Set(['chicken', 'duck', 'goose', 'gobbler', 'peacock', 'quail', 'guinea_fowl', 'pheasant', 'swan', 'flamingo', 'silkie_chicken',
+  'muscovy_duck', 'mandarin_duck', 'parrot', 'crane', 'black_swan', 'barn_owl', 'golden_goose', 'bronze_turkey', 'ayam_cemani', 'grey_heron',
+  'pekin_duck', 'orpington', 'brahma_chicken', 'toulouse_goose', 'polish_chicken', 'indian_runner', 'white_peacock', 'leghorn',
+  'khaki_campbell', 'rhode_island_red', 'call_duck', 'emden_goose', 'wyandotte', 'marans']);
+const SEA_BIRDS = new Set(['flamingo', 'crane', 'grey_heron', 'swan', 'black_swan']);
+const WING: Record<string, string> = {
+  flamingo: '#f47ea0', crane: '#d8d8d2', grey_heron: '#8c96a0', swan: '#f6f6f2', black_swan: '#26262a', parrot: '#2aa84a',
+  barn_owl: '#c8a070', peacock: '#2a6ab8', white_peacock: '#f6f6f2', ayam_cemani: '#1c1c20', gobbler: '#5a3a24', bronze_turkey: '#6a4a2a',
+  pheasant: '#8a4a2a', quail: '#8a6a4a', guinea_fowl: '#4a4a58', golden_goose: '#e8b83a', mandarin_duck: '#c86a2a', khaki_campbell: '#9a8458',
+  rhode_island_red: '#8a2a1a', marans: '#4a3a30', orpington: '#d8a860', muscovy_duck: '#2a2a2a', toulouse_goose: '#8a8a88',
+};
+
+// two wings folded out of sight, opened and flapped only in flight
+function addWings(g: THREE.Group, kind: string) {
+  g.updateMatrixWorld(true);
+  const bb = new THREE.Box3();
+  for (const c of g.children) if (c !== g.userData.shadow) bb.expandByObject(c);
+  if (bb.isEmpty()) return;
+  const k = g.scale.x || 1;
+  const w = (bb.max.x - bb.min.x) / k, h = (bb.max.y - bb.min.y) / k, l = (bb.max.z - bb.min.z) / k;
+  const cz = (bb.max.z + bb.min.z) / 2 / k;
+  const mat = M(WING[kind] ?? '#efeae0');
+  const wings: THREE.Object3D[] = [];
+  for (const sx of [-1, 1]) {
+    const piv = group(g, sx * w * 0.3, h * 0.55, cz);
+    const len = Math.max(0.12, w * 0.9);
+    mk(piv, G.ball, mat, len / 2, 0.012, Math.max(0.06, l * 0.22), sx * len / 2, 0, 0, false);
+    piv.visible = false;
+    wings.push(piv);
+  }
+  g.userData.wings = wings;
+}
+// flight pose: wings out and beating (or held for a glide), legs tucked
+function flap(m: THREE.Object3D, on: boolean, t: number, id: number, fast = 1) {
+  const wings = m.userData.wings as THREE.Object3D[] | undefined;
+  if (!wings) return;
+  for (const [i, wg] of wings.entries()) {
+    wg.visible = on;
+    if (on) wg.rotation.z = (i ? -1 : 1) * (0.15 + Math.sin(t / (55 / fast) + id) * 0.75);
+  }
+}
+
 function buildAnimal(kind: string) {
-  return animalBody(kind);
+  const g = animalBody(kind);
+  if (FLIERS.has(kind)) addWings(g, kind);
+  return g;
 }
 
 // Soft contact shadow under a creature, so it sits on the ground even where the sun shadow is
@@ -3626,6 +3678,64 @@ function grazePose(o: FarmObject, d: BuildingDef, a: Animal, now: number): { x: 
   return { x: leg.pt.x, y: leg.pt.y, heading: Math.atan2(leg.pt.dx, leg.pt.dy), moving: leg.moving };
 }
 
+// A flying bird's trip: it takes off at the pen, flies straight out to its feeding ground and
+// lands, feeds, and flies home at the end. Land birds feed on the grass spots a walker would
+// use; water birds fly to the sea shallows nearest the pen and fish there.
+const FLY_SPEED = 2.4 / 1000; // tiles per ms
+function seaSpot(o: FarmObject, d: BuildingDef, id: number): P2 {
+  const cx = o.x + d.w / 2, cy = o.y + d.h / 2;
+  const edges = [cx, GRID - cx, cy, GRID - cy];
+  const e = edges.indexOf(Math.min(...edges));
+  const along = (v: number) => Math.max(2, Math.min(GRID - 2, v + (hash(id, 3, 7) - 0.5) * 6));
+  const out = BEACH + 0.5 + hash(id, 4, 9) * 0.8;
+  // keep clear of the fishing jetty on the south shore
+  if (e === 3 && Math.abs(along(cx) - FISH_SPOT.x) < 4) {
+    const x = along(cx) + (along(cx) < FISH_SPOT.x ? -4 : 4);
+    return { x: Math.max(2, Math.min(GRID - 2, x)), y: GRID + out };
+  }
+  return e === 0 ? { x: -out, y: along(cy) } : e === 1 ? { x: GRID + out, y: along(cy) } : e === 2 ? { x: along(cx), y: -out } : { x: along(cx), y: GRID + out };
+}
+function flyPose(o: FarmObject, d: BuildingDef, a: Animal, kind: string, now: number) {
+  const g = a.graze;
+  if (!g) return null;
+  const gp = grazePhase(a, now);
+  if (gp.phase === 'in' || gp.phase === 'home' || gp.phase === 'full') return null;
+  const sea = SEA_BIRDS.has(kind);
+  const { walkMs, eatMs } = GRAZE;
+  const sp = animalSpot(d, a.id, g.at);
+  const home = { x: o.x + sp.x, y: o.y + sp.z };
+  const sp2 = animalSpot(d, a.id, g.at + 2 * walkMs + eatMs);
+  const home2 = { x: o.x + sp2.x, y: o.y + sp2.z };
+  const tr = sea ? null : tripFor(o, d, a);
+  const ground = sea ? seaSpot(o, d, a.id) : tr ? along(tr.eat[0], 0) : home;
+  // one hop through the air: up, across and down again, over at most `budget` ms
+  const hopAt = (from: P2, to: P2, t: number, budget: number, late: boolean) => {
+    const dist = Math.hypot(to.x - from.x, to.y - from.y);
+    const dur = Math.min(budget, Math.max(900, dist / FLY_SPEED));
+    const t0 = late ? budget - dur : 0;
+    const u = Math.max(0, Math.min(1, (t - t0) / dur));
+    const up = Math.min(2.2, 0.6 + dist * 0.12);
+    return { x: from.x + (to.x - from.x) * u, y: from.y + (to.y - from.y) * u, h: Math.sin(u * Math.PI) * up, fly: u > 0 && u < 1, heading: Math.atan2(to.x - from.x, to.y - from.y) };
+  };
+  if (gp.phase === 'leaving') return { ...hopAt(home, ground, gp.k * walkMs, walkMs, false), sea, feeding: false };
+  if (gp.phase === 'eating') {
+    if (sea) {
+      // wading (or, for swans, paddling) about the shallows, striking at fish now and then
+      const w = now / 5200 + a.id;
+      return { x: ground.x + Math.cos(w) * 0.5, y: ground.y + Math.sin(w * 1.3) * 0.4, h: 0, fly: false, heading: w + Math.PI / 2, sea, feeding: true };
+    }
+    const gz = grazePose(o, d, a, now);
+    return gz ? { x: gz.x, y: gz.y, h: 0, fly: false, heading: gz.heading, sea, feeding: !gz.moving, moving: gz.moving } : null;
+  }
+  // flying home: from the feeding ground, or from wherever it was when called back
+  let from = sea ? ground : tr ? along(tr.eat[1], 1) : ground;
+  if (g.back !== undefined) {
+    const at = flyPose(o, d, { ...a, graze: { at: g.at } }, kind, g.back);
+    if (at) from = { x: at.x, y: at.y };
+  }
+  return { ...hopAt(from, home2, gp.k * walkMs, walkMs, true), sea, feeding: false };
+}
+
 // how far a pen's gate stands open (0 to 1): it swings open as the first animal sets off and
 // shuts once the last one is back inside. A pure function of time, like the walks.
 function gateOpen(o: FarmObject, now: number) {
@@ -3966,6 +4076,28 @@ function buildPen(e: Entry, d: BuildingDef) {
       }
       const head = m.userData.head as THREE.Object3D | undefined;
       const tail = m.userData.tail as THREE.Object3D | undefined;
+      const fp = a?.graze && an && FLIERS.has(an.id) ? flyPose(o, d, a, an.id, now) : null;
+      if (fp) {
+        const cs = m.userData.shadow as THREE.Object3D | undefined;
+        // at sea the bird stands in the shallows; swans float
+        const base = fp.sea && !fp.fly && fp.h === 0 ? (SWIMMERS.has(an!.id) ? -0.5 : -0.47) : 0.04;
+        m.position.set(fp.x - o.x, base + fp.h, fp.y - o.y);
+        m.rotation.y = fp.heading;
+        m.rotation.x = fp.fly ? -0.12 : 0;
+        m.rotation.z = 0;
+        flap(m, fp.fly, t, id, fp.h > 1 ? 0.7 : 1);
+        animateLegs(m, fp.fly ? 0 : (fp as { moving?: boolean }).moving ? Math.sin(t / 110 + id) * 0.3 : 0);
+        if (head) {
+          // feeding: pecking the grass, or a quick strike at a fish in the water
+          const strike = fp.sea ? Math.pow(Math.max(0, Math.sin(t / 700 + id * 1.9)), 12) * 1.3 : 0;
+          head.rotation.x = fp.fly ? -0.2 : fp.feeding ? (fp.sea ? 0.35 + strike : 0.55 + Math.max(0, Math.sin(t / 260 + id)) * 0.25) : 0;
+        }
+        blink(m, t, id);
+        if (cs) { cs.visible = !fp.sea || fp.fly; cs.position.y = 0.006 - (m.position.y - 0.04); }
+        return;
+      }
+      flap(m, false, t, id);
+      if (m.userData.shadow) (m.userData.shadow as THREE.Object3D).visible = true;
       const gz = a?.graze ? grazePose(o, d, a, now) : null;
       if (gz) {
         // out grazing: walking the path, or head down nibbling the grass
@@ -4000,6 +4132,19 @@ function buildPen(e: Entry, d: BuildingDef) {
       m.rotation.y = sp.heading;
       animateLegs(m, Math.sin(t / 110 + id) * 0.28);
       if (cs) cs.position.y = 0.006 - (m.position.y - 0.04);
+      if (m.userData.wings && !SWIMMERS.has(an?.id ?? '')) {
+        // now and then a bird flutters up and across the yard
+        const P = 12000 + hash(id, 5, 1) * 9000;
+        const u = (t + hash(id, 6, 2) * P) % P;
+        const on = u < 1500;
+        if (on) {
+          const k = u / 1500;
+          m.position.y += Math.sin(k * Math.PI) * 0.45;
+          animateLegs(m, 0);
+          if (cs) cs.position.y = 0.006 - (m.position.y - 0.04);
+        }
+        flap(m, on, t, id, 1.3);
+      }
       if (m.userData.hop) {
         // rabbits bound along in little hops, then sit and twitch their ears
         const hopping = Math.max(0, Math.sin(t / 2400 + id * 1.3));
