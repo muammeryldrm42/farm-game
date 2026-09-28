@@ -258,7 +258,60 @@ def shark():
     finish('shark', tex=512, vivid=1.05, ao_min=0.8, ao_dist=0.08)
 
 
-MODELS = {'seagull': seagull, 'sailboat': sailboat, 'fishing_boat': fishing_boat, 'dolphin': dolphin, 'whale': whale, 'shark': shark}
+# ---------------------------------------------------------------- the house sparrow
+
+def sparrow():
+    """A house sparrow: brown back streaked dark, grey crown, chestnut nape, pale cheeks and
+    belly, a small black bib and a stout dark bill. Wings `wing0/1` fold along the body."""
+    brown = pm('sp_brown', '#8a5a34', '#9a6a40', scale=60)
+    streak = pm('sp_streak', '#3a2618')
+    grey = pm('sp_grey', '#8a8a88')
+    chest = pm('sp_chest', '#a8683a')
+    pale = pm('sp_pale', '#e4dccc', '#ece6d8', scale=40)
+    black = pm('sp_black', '#1c1a18')
+    bill = pm('sp_bill', '#2a2622')
+    leg = pm('sp_leg', '#c89a80')
+
+    def body(x, y, z):
+        if y < -0.005:
+            return pale
+        if z > 0.045 and y < 0.02 and abs(x) < 0.02:
+            return black                                          # the bib
+        return streak if (math.sin(x * 260) > 0.6 and math.sin(z * 180) > 0.2 and y > 0.01) else brown
+    b = Blob(0.0025)
+    b.ell((0, 0, 0), 0.035, 0.032, 0.055)
+    b.ell((0, -0.004, -0.07), 0.018, 0.008, 0.04)                 # tail
+    b.build(body, 600)
+    h = Blob(0.0025)
+    h.ball((0, 0.03, 0.055), 0.028)
+
+    def head(x, y, z):
+        if y > 0.045:
+            return grey                                           # crown
+        if z < 0.045:
+            return chest                                          # nape
+        if abs(x) > 0.017 and y < 0.035:
+            return pale                                           # cheeks
+        return black if y < 0.022 else brown
+    h.build(head, 400)
+    bk = Blob(0.002)
+    bk.cap((0, 0.028, 0.08), (0, 0.026, 0.095), 0.009, 0.004)
+    bk.build(bill, 60)
+    for sx in (-1, 1):
+        ball(uid('eye'), 0.005, B(sx * 0.02, 0.036, 0.07), black, segs=8)
+        lg = Blob(0.002)
+        lg.cap((sx * 0.012, -0.025, 0.0), (sx * 0.012, -0.045, 0.005), 0.004, 0.003)
+        lg.build(leg, 40)
+    for i, sx in enumerate((-1, 1)):
+        with anim_group(f'wing{i}', B(sx * 0.03, 0.015, 0.02)):
+            w = Blob(0.0025)
+            w.ell((sx * 0.035, 0.012, -0.01), 0.03, 0.008, 0.045)
+            w.ell((sx * 0.07, 0.012, -0.02), 0.03, 0.006, 0.03)
+            w.build(lambda x, y, z: streak if abs(math.sin(z * 200)) < 0.3 else chest, 200)
+    finish('sparrow', tex=256, vivid=1.05, ao_min=0.85, ao_dist=0.03)
+
+
+MODELS = {'seagull': seagull, 'sailboat': sailboat, 'fishing_boat': fishing_boat, 'dolphin': dolphin, 'whale': whale, 'shark': shark, 'sparrow': sparrow}
 
 if __name__ == '__main__':
     main(MODELS)
