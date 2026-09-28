@@ -3244,6 +3244,8 @@ function useModel(e: Entry, o: FarmObject, d: BuildingDef) {
     const movers: { o: THREE.Object3D; spin: boolean; axis: 'x' | 'y' | 'z'; base: number }[] = [];
     // pen gates: two leaves hinged at their posts that swing out while animals go through
     const gates: { o: THREE.Object3D; side: number; base: number }[] = [];
+    // ferris wheel cabins: carried round the rim by the spinning wheel, always hanging upright
+    const hangs: { o: THREE.Object3D; base: THREE.Vector3 }[] = [];
     for (const c of m.children) {
       const x = cx + c.position.x, y = c.position.y, z = cz + c.position.z;
       const mv = /^(spin|sway)([XYZ])/.exec(c.name);
@@ -3251,6 +3253,7 @@ function useModel(e: Entry, o: FarmObject, d: BuildingDef) {
       else if (c.name.startsWith('glow')) groundGlow(g, x, z, 1.1 * c.scale.x);
       else if (c.name === 'badge') badge(g, d.icon, spec.badge ?? 0.3, x, y, z, c.rotation.y).translateZ(0.01);
       else if (c.name === 'gate0' || c.name === 'gate1') gates.push({ o: c, side: c.name === 'gate0' ? -1 : 1, base: c.rotation.y });
+      else if (c.name.startsWith('hang')) hangs.push({ o: c, base: c.position.clone() });
       else if (mv) {
         const axis = mv[2].toLowerCase() as 'x' | 'y' | 'z';
         movers.push({ o: c, spin: mv[1] === 'spin', axis, base: c.rotation[axis] });
@@ -3272,8 +3275,17 @@ function useModel(e: Entry, o: FarmObject, d: BuildingDef) {
         for (const gl of gates) gl.o.rotation.y = gl.base + gl.side * s * 1.45;
       }
       for (const v of movers) {
-        if (v.spin) { if (mode === 'always' || busy) v.o.rotation[v.axis] += dt * 2.4; }
+        // a big wheel turns slowly; fans and mill sails whirl
+        if (v.spin) { if (mode === 'always' || busy) v.o.rotation[v.axis] += dt * (hangs.length ? 0.35 : 2.4); }
         else v.o.rotation[v.axis] = v.base + Math.sin(t / 2300 + e.id) * 0.6 + Math.sin(t / 830) * 0.08;
+      }
+      const wheel = hangs.length ? movers.find((v) => v.spin && v.axis === 'z') : undefined;
+      if (wheel) {
+        const a = wheel.o.rotation.z, ca = Math.cos(a), sa = Math.sin(a), p = wheel.o.position;
+        for (const h of hangs) {
+          const dx = h.base.x - p.x, dy = h.base.y - p.y;
+          h.o.position.set(p.x + dx * ca - dy * sa, p.y + dx * sa + dy * ca, h.base.z);
+        }
       }
     };
   }).catch(() => { /* keep the procedural building */ });

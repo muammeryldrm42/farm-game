@@ -636,7 +636,9 @@ def ferris_wheel():
     box(uid('booth'), (0.3, 0.3, 0.36), (0.6, -0.2, 0.26), pm('fw_booth', '#d8302a', '#f4efe6', scale=10, kind='wave'), bev=0.01)
     cyl(uid('axle'), 0.05, 0.5, (0, 0, 1.3), m['metal'], verts=10, rot=(R90, 0, 0))
     cols = ['#d8302a', '#f0c020', '#2a6ad8', '#2aa05a', '#f07a1a', '#b058e0', '#e84a8a', '#2ab8c8']
-    with anim_group('spinY_wheel', (0, 0, 1.3)):
+    # the wheel turns about the axle (the game's z axis); the cabins are parts of their own,
+    # hung from the rim, which the game carries round with it while they stay upright
+    with anim_group('spinZ_wheel', (0, 0, 1.3)):
         for sy in (-1, 1):
             torus(uid('rim'), 0.95, 0.025, (0, sy * 0.14, 1.3), white, rot=(R90, 0, 0), segs=40, rsegs=5)
             for k in range(16):
@@ -648,10 +650,14 @@ def ferris_wheel():
             ball(uid('bulb'), 0.02, (math.cos(a) * 0.95, -0.17, 1.3 + math.sin(a) * 0.95), m['lamp'], segs=6)
         for k in range(8):
             a = k * math.pi / 4
-            cx, cz = math.cos(a) * 0.95, 1.3 + math.sin(a) * 0.95
-            cyl(uid('cbar'), 0.012, 0.32, (cx, 0, cz), m['metal'], verts=6, rot=(R90, 0, 0))
+            cyl(uid('cbar'), 0.012, 0.32, (math.cos(a) * 0.95, 0, 1.3 + math.sin(a) * 0.95), m['metal'], verts=6, rot=(R90, 0, 0))
+    for k in range(8):
+        a = k * math.pi / 4
+        cx, cz = math.cos(a) * 0.95, 1.3 + math.sin(a) * 0.95
+        with anim_group(f'hang{k}', (cx, 0, cz)):
             box(uid('cab'), (0.2, 0.22, 0.16), (cx, 0, cz - 0.13), pm(f'fwc{k}', cols[k]), bev=0.03)
             box(uid('croof'), (0.22, 0.24, 0.03), (cx, 0, cz - 0.04), white, bev=0.01)
+            cyl(uid('hook'), 0.008, 0.06, (cx, 0, cz - 0.015), m['metal'], verts=6, bev=0)
     glow(0, 0, 3.0)
     finish('ferris_wheel', tex=1024, glow=('lamp',))
 
