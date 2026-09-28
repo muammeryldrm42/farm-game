@@ -3,15 +3,19 @@ import { ANIMAL, BUILDING, BUILDINGS, CATCHES, CROP, ITEMS, ITEM_LIST, RECIPE, t
 import { isRaining } from './weather';
 import { LAST_CHAPTER, chapterAt, taskProgress, type StoryState } from './story';
 
-export const GRID = 60;
-// the map grew twice, from 28 to 44 tiles and then to 60; each time older farms are moved by
-// this many tiles so they stay in the middle
+export const GRID = 68;
+// the map grew three times, from 28 to 44 tiles, then to 60, then to 68 with a sandy beach all
+// round; each time older farms are moved by this many tiles so they stay in the middle
 export const MAP_OFF = 8;
 export const MAP_OFF2 = 8;
+export const MAP_OFF3 = 4;
 // where the starting layout (written for the first 28 tile map) sits on today's map
-export const FARM_OFF = MAP_OFF + MAP_OFF2;
+export const FARM_OFF = MAP_OFF + MAP_OFF2 + MAP_OFF3;
 export const CHUNK = 4;
 export const NCH = GRID / CHUNK;
+// the outer ring of chunks is the beach: always open, but only beach things stand on the sand
+export const isBeachChunk = (cx: number, cy: number) => cx === 0 || cy === 0 || cx === NCH - 1 || cy === NCH - 1;
+export const isBeachTile = (x: number, y: number) => isBeachChunk(Math.floor(x / CHUNK), Math.floor(y / CHUNK));
 export const SAVE_KEY = 'talons-farm-save-v1';
 
 export interface FishingData { open: boolean; castAt: number | null; catchAt: number | null }
@@ -239,8 +243,9 @@ export function canFulfill(s: GameState, o: Order, now: number) {
   return o.readyAt <= now && o.items.every((it) => (s.inv[it.id] ?? 0) >= it.qty);
 }
 
-export function chunkState(s: GameState, cx: number, cy: number): 'open' | 'buyable' | 'locked' {
+export function chunkState(s: GameState, cx: number, cy: number): 'open' | 'buyable' | 'locked' | 'beach' {
   if (cx < 0 || cy < 0 || cx >= NCH || cy >= NCH) return 'locked';
+  if (isBeachChunk(cx, cy)) return 'beach';
   if (s.chunks.includes(`${cx},${cy}`)) return 'open';
   const n = [[1, 0], [-1, 0], [0, 1], [0, -1]];
   return n.some(([dx, dy]) => s.chunks.includes(`${cx + dx},${cy + dy}`)) ? 'buyable' : 'locked';
@@ -443,14 +448,18 @@ export function newGame(): GameState {
   for (let i = 0; i < orderCount(1); i++) s.orders.push(genOrder(s, now));
   // first order is always doable with starting wheat, for the tutorial
   s.orders[0] = { ...s.orders[0], items: [{ id: 'wheat', qty: 6 }], coins: 30, xp: 5, gems: 0 };
-  shiftMap(s, FARM_OFF, 3);
+  shiftMap(s, FARM_OFF, 4);
   return s;
 }
 
 // Pigs and unicorns, and their goods, were taken out of the game. Saves that still hold them are paid back in
 // coins, and orders, stall slots, boat crates and queues that mention them are cleaned up.
 const REMOVED_VALUE: Record<string, number> = { bacon: 50, pig_feed: 14, rainbow_mane: 520 };
-const REMOVED_BUILDING: Record<string, { cost: number; animal: number }> = { pigpen: { cost: 1000, animal: 160 }, unicorn_meadow: { cost: 32000, animal: 4000 } };
+const REMOVED_BUILDING: Record<string, { cost: number; animal: number }> = {
+  pigpen: { cost: 1000, animal: 160 }, unicorn_meadow: { cost: 32000, animal: 4000 },
+  // decorations taken out later: paid back in full
+  chapel: { cost: 10860, animal: 0 }, pagoda: { cost: 10320, animal: 0 }, torii_gate: { cost: 6600, animal: 0 }, totem_pole: { cost: 4140, animal: 0 },
+};
 function dropRemoved(s: GameState) {
   for (const o of s.objects) {
     const r = REMOVED_BUILDING[o.type];
@@ -528,6 +537,7 @@ function migrate(d: Partial<GameState>): GameState {
   if (!Array.isArray(s.objects) || !Array.isArray(s.chunks)) return base;
   if ((d.mapV ?? 1) < 2) shiftMap(s, MAP_OFF, 2);
   if ((s.mapV ?? 1) < 3) shiftMap(s, MAP_OFF2, 3);
+  if ((s.mapV ?? 1) < 4) shiftMap(s, MAP_OFF3, 4);
   dropRemoved(s);
   s.objects = s.objects.filter((o) => BUILDING[o.type]);
   // ids must stay unique: a hand edited or damaged save may carry a stale counter
@@ -698,13 +708,15 @@ export class GameStore {
     if (x < 0 || y < 0 || x >= GRID || y >= GRID) return false;
     const c = this.s.chunks;
     if (c !== this.chunkSrc || c.length !== this.chunkN) { this.chunkSet = new Set(c); this.chunkSrc = c; this.chunkN = c.length; }
-    return this.chunkSet.has(`${Math.floor(x / CHUNK)},${Math.floor(y / CHUNK)}`);
+    return isBeachTile(x, y) || this.chunkSet.has(`${Math.floor(x / CHUNK)},${Math.floor(y / CHUNK)}`);
   }
 
   canPlace(type: string, x: number, y: number, ignoreId?: number) {
     const d = BUILDING[type];
     for (let i = 0; i < d.w; i++) for (let j = 0; j < d.h; j++) {
       if (!this.isUnlocked(x + i, y + j)) return false;
+      // the sand takes beach things only: deck chairs, sandcastles, palms...
+      if (isBeachTile(x + i, y + j) && !d.beach) return false;
       const o = this.objectAt(x + i, y + j);
       if (o && o.id !== ignoreId) return false;
     }

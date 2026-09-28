@@ -21,7 +21,7 @@ import { SCULPT_MAT, TOON_MAT, TOON_WOOL, WOOL_MAT } from './gfx/sdf';
 import { leafShell, leafTexture, meterBox, meterHip, meterRoof, surface, surfaceMat, type SurfaceKind } from './gfx/textures';
 import { ANIMAL, BUILDING, CROP, ITEMS, type BuildingDef, type CropDef } from './data';
 import {
-  CHUNK, FARM_OFF, FISH_SPOT, GRAZE, GRID, MAP_OFF2, NCH, animalReady, fishingInfo, boatState, canFulfill, chunkState, grazePhase, penInfo, plotProgress, prodInfo, treeInfo,
+  CHUNK, FARM_OFF, FISH_SPOT, GRAZE, GRID, MAP_OFF2, MAP_OFF3, NCH, isBeachTile, animalReady, fishingInfo, boatState, canFulfill, chunkState, grazePhase, penInfo, plotProgress, prodInfo, treeInfo,
   type Animal, type FarmObject, type GameStore,
 } from './state';
 
@@ -445,7 +445,7 @@ const FARM_C = { x: 13.5 + FARM_OFF, y: 11.5 + FARM_OFF };
 // the beach round the island reaches BEACH tiles out; on the west side the turtle cove bulges
 // out much further, an ellipse centred at (x, z) with half widths rx, rz
 const BEACH = 1.2;
-const COVE = { x: -0.4, z: 15 + MAP_OFF2, rx: 4.4, rz: 8 };
+const COVE = { x: -0.4, z: 15 + MAP_OFF2 + MAP_OFF3, rx: 4.4, rz: 8 };
 // x of the cove's waterline at depth z (0 where there is no cove)
 function coveEdge(z: number) {
   const u = (z - COVE.z) / COVE.rz;
@@ -625,6 +625,7 @@ export class Renderer {
       nearest: (x, y) => { this.rebuildNav(); return this.nearestFree(x, y); },
       grass: (x, y) => { this.rebuildNav(); return this.free(x, y) && !pathTiles.has(y * GRID + x) && !fieldTiles.has(y * GRID + x); },
       flowers: () => this.flowerSpots(),
+      roofs: () => this.roofSpots(),
     };
     // the farmer and pets start as sculpts and take on their Blender models once loaded
     if (artStyle() === 'toon') {
@@ -879,13 +880,27 @@ export class Renderer {
     this.tiles = new THREE.InstancedMesh(G.box, grass, GRID * GRID);
     this.tiles.receiveShadow = true;
     const m = new THREE.Matrix4();
+    const beach: [number, number][] = [];
     for (let y = 0; y < GRID; y++) for (let x = 0; x < GRID; x++) {
-      m.makeScale(1, 0.4, 1);
+      // the beach ring is sand: its grass tile is left out
+      if (isBeachTile(x, y)) { beach.push([x, y]); m.makeScale(0, 0, 0); } else m.makeScale(1, 0.4, 1);
       m.setPosition(x + 0.5, -0.2, y + 0.5);
       this.tiles.setMatrixAt(y * GRID + x, m);
       this.tiles.setColorAt(y * GRID + x, new THREE.Color('#7cc450'));
     }
     this.land.add(this.tiles);
+    // the beach: warm dry sand, a little paler toward the sea
+    const sandTiles = new THREE.InstancedMesh(G.box, sand, beach.length);
+    const c = new THREE.Color();
+    beach.forEach(([x, y], i) => {
+      m.makeScale(1, 0.4, 1);
+      m.setPosition(x + 0.5, -0.2, y + 0.5);
+      sandTiles.setMatrixAt(i, m);
+      const edge = Math.min(x, y, GRID - 1 - x, GRID - 1 - y);
+      sandTiles.setColorAt(i, c.setRGB(1, 1, 1).multiplyScalar(1.04 - edge * 0.025 + (hash(x, y, 41) - 0.5) * 0.04));
+    });
+    sandTiles.receiveShadow = true;
+    this.land.add(sandTiles);
   }
 
   // boulders along the beach and in the surf, plus a few starfish on the sand
@@ -1013,7 +1028,7 @@ export class Renderer {
     }
     const spots: Spot[] = [];
     for (let y = 0; y < GRID; y++) for (let x = 0; x < GRID; x++) {
-      if (used[y * GRID + x]) continue;
+      if (used[y * GRID + x] || isBeachTile(x, y)) continue;
       const cs = chunkState(s, Math.floor(x / CHUNK), Math.floor(y / CHUNK));
       spots.push({ x, z: y, open: cs === 'open' });
     }
@@ -1048,7 +1063,7 @@ export class Renderer {
     const rounds: [number, number, number][] = [];
     for (let cy = 0; cy < NCH; cy++) for (let cx = 0; cx < NCH; cx++) {
       const cs = chunkState(s, cx, cy);
-      if (cs === 'open') continue;
+      if (cs === 'open' || cs === 'beach') continue;
       if (cs === 'buyable') this.buildSign(this.dynLand, cx, cy);
       for (let j = 0; j < CHUNK; j++) for (let i = 0; i < CHUNK; i++) {
         const x = cx * CHUNK + i, y = cy * CHUNK + j;
@@ -1737,7 +1752,13 @@ export class Renderer {
   private updateVisitor(dt: number, t: number, now: number) {
     const store = this.store;
     const want = store.storyOn() && artStyle() === 'toon' ? store.chapter().who : '';
-    if (this.visitor && this.visitor.who !== want) { this.world.remove(this.visitor.g); this.visitor = null; }
+    if (this.visitor && this.visitor.who !== want) {
+      // the mark lives in the effects layer: it goes with its visitor
+      this.world.remove(this.visitor.g);
+      this.fxLayer.remove(this.visitor.mark);
+      this.visitor.mark.material.dispose();
+      this.visitor = null;
+    }
     if (!want) { this.visitorLoading = ''; return; }
     if (!this.visitor) {
       if (this.visitorLoading === want) return;
@@ -1873,6 +1894,25 @@ export class Renderer {
       }
     }
     return this.flowerList;
+  }
+
+  // roof ridges a bird may perch on: the middle of each building with walls and its height
+  private roofKey = '';
+  private roofList: { x: number; y: number; h: number }[] = [];
+  private roofSpots() {
+    const s = this.store.s;
+    const key = `${this.store.objVersion}|${s.objects.length}`;
+    if (key !== this.roofKey) {
+      this.roofKey = key;
+      this.roofList = [];
+      for (const o of s.objects) {
+        const d = BUILDING[o.type];
+        if (!['house', 'barn', 'silo', 'production', 'board', 'stall'].includes(d.kind)) continue;
+        const e = this.entries.get(o.id);
+        if (e && e.top > 0.6) this.roofList.push({ x: o.x + d.w / 2, y: o.y + d.h / 2, h: e.top });
+      }
+    }
+    return this.roofList;
   }
 
   private rebuildNav() {
@@ -2473,8 +2513,54 @@ function fourLegs(g: THREE.Group, w: number, d: number, len: number, th: number,
   g.userData.signs = [1, -1, -1, 1];
 }
 
+// Birds that can fly flutter about their pen and fly (rather than walk) out through the open
+// gate to feed. The water birds find their food at sea: they fly to the shallows and fish there.
+const FLIERS = new Set(['chicken', 'duck', 'goose', 'gobbler', 'peacock', 'quail', 'guinea_fowl', 'pheasant', 'swan', 'flamingo', 'silkie_chicken',
+  'muscovy_duck', 'mandarin_duck', 'parrot', 'crane', 'black_swan', 'barn_owl', 'golden_goose', 'bronze_turkey', 'ayam_cemani', 'grey_heron',
+  'pekin_duck', 'orpington', 'brahma_chicken', 'toulouse_goose', 'polish_chicken', 'indian_runner', 'white_peacock', 'leghorn',
+  'khaki_campbell', 'rhode_island_red', 'call_duck', 'emden_goose', 'wyandotte', 'marans']);
+const SEA_BIRDS = new Set(['flamingo', 'crane', 'grey_heron', 'swan', 'black_swan']);
+const WING: Record<string, string> = {
+  flamingo: '#f47ea0', crane: '#d8d8d2', grey_heron: '#8c96a0', swan: '#f6f6f2', black_swan: '#26262a', parrot: '#2aa84a',
+  barn_owl: '#c8a070', peacock: '#2a6ab8', white_peacock: '#f6f6f2', ayam_cemani: '#1c1c20', gobbler: '#5a3a24', bronze_turkey: '#6a4a2a',
+  pheasant: '#8a4a2a', quail: '#8a6a4a', guinea_fowl: '#4a4a58', golden_goose: '#e8b83a', mandarin_duck: '#c86a2a', khaki_campbell: '#9a8458',
+  rhode_island_red: '#8a2a1a', marans: '#4a3a30', orpington: '#d8a860', muscovy_duck: '#2a2a2a', toulouse_goose: '#8a8a88',
+};
+
+// two wings folded out of sight, opened and flapped only in flight
+function addWings(g: THREE.Group, kind: string) {
+  g.updateMatrixWorld(true);
+  const bb = new THREE.Box3();
+  for (const c of g.children) if (c !== g.userData.shadow) bb.expandByObject(c);
+  if (bb.isEmpty()) return;
+  const k = g.scale.x || 1;
+  const w = (bb.max.x - bb.min.x) / k, h = (bb.max.y - bb.min.y) / k, l = (bb.max.z - bb.min.z) / k;
+  const cz = (bb.max.z + bb.min.z) / 2 / k;
+  const mat = M(WING[kind] ?? '#efeae0');
+  const wings: THREE.Object3D[] = [];
+  for (const sx of [-1, 1]) {
+    const piv = group(g, sx * w * 0.3, h * 0.55, cz);
+    const len = Math.max(0.12, w * 0.9);
+    mk(piv, G.ball, mat, len / 2, 0.012, Math.max(0.06, l * 0.22), sx * len / 2, 0, 0, false);
+    piv.visible = false;
+    wings.push(piv);
+  }
+  g.userData.wings = wings;
+}
+// flight pose: wings out and beating (or held for a glide), legs tucked
+function flap(m: THREE.Object3D, on: boolean, t: number, id: number, fast = 1) {
+  const wings = m.userData.wings as THREE.Object3D[] | undefined;
+  if (!wings) return;
+  for (const [i, wg] of wings.entries()) {
+    wg.visible = on;
+    if (on) wg.rotation.z = (i ? -1 : 1) * (0.15 + Math.sin(t / (55 / fast) + id) * 0.75);
+  }
+}
+
 function buildAnimal(kind: string) {
-  return animalBody(kind);
+  const g = animalBody(kind);
+  if (FLIERS.has(kind)) addWings(g, kind);
+  return g;
 }
 
 // Soft contact shadow under a creature, so it sits on the ground even where the sun shadow is
@@ -3150,8 +3236,8 @@ const MODELS: Record<string, ModelSpec> = {
 };
 for (const id of ['hay_bale', 'picket_fence', 'bird_house', 'pumpkin_pile', 'birdbath', 'topiary', 'well', 'flower_arch',
   'hay_wagon', 'tractor', 'bench', 'lamp', 'scarecrow', 'windmill', 'pond', 'mailbox', 'gazebo', 'fountain',
-  'sundial', 'bird_feeder', 'garden_swing', 'bonfire', 'totem_pole', 'picnic_spot', 'wind_turbine', 'stone_bridge', 'pergola', 'horse_statue', 'torii_gate', 'zen_garden', 'treehouse', 'greenhouse', 'water_tower', 'carousel', 'lighthouse', 'clock_tower', 'hot_air_balloon', 'golden_farmer',
-  'garden_gnome', 'wheelbarrow', 'rain_barrel', 'flower_cart', 'compost_bin', 'mushroom_ring', 'stone_lantern', 'bamboo_grove', 'fairy_house', 'snowman', 'sandcastle', 'seesaw', 'outdoor_oven', 'telescope', 'obelisk', 'hammock', 'water_wheel', 'koi_pond', 'camping_tent', 'beach_hut', 'log_cabin', 'playground_slide', 'pagoda', 'chapel', 'observatory', 'ferris_wheel',
+  'sundial', 'bird_feeder', 'garden_swing', 'bonfire', 'picnic_spot', 'wind_turbine', 'stone_bridge', 'pergola', 'horse_statue', 'zen_garden', 'treehouse', 'greenhouse', 'water_tower', 'carousel', 'lighthouse', 'clock_tower', 'hot_air_balloon', 'golden_farmer',
+  'garden_gnome', 'wheelbarrow', 'rain_barrel', 'flower_cart', 'compost_bin', 'mushroom_ring', 'stone_lantern', 'bamboo_grove', 'fairy_house', 'snowman', 'sandcastle', 'seesaw', 'outdoor_oven', 'telescope', 'obelisk', 'hammock', 'water_wheel', 'koi_pond', 'camping_tent', 'beach_hut', 'log_cabin', 'playground_slide', 'observatory', 'ferris_wheel', 'sun_lounger', 'beach_umbrella', 'lifeguard_tower', 'surfboard_rack',
   'hay_stack', 'picnic_table', 'lemonade_stand', 'insect_hotel', 'weathervane', 'rock_garden', 'veggie_stand', 'windchime', 'dovecote', 'flag_pole', 'ice_cream_cart', 'pumpkin_carriage']) MODELS[id] = {};
 for (const d of Object.values(BUILDING)) if (d.kind === 'pen') MODELS[d.id] = {};
 for (const d of Object.values(BUILDING)) if (d.kind === 'tree') MODELS[d.id] = {};
@@ -3192,6 +3278,8 @@ function useModel(e: Entry, o: FarmObject, d: BuildingDef) {
     const movers: { o: THREE.Object3D; spin: boolean; axis: 'x' | 'y' | 'z'; base: number }[] = [];
     // pen gates: two leaves hinged at their posts that swing out while animals go through
     const gates: { o: THREE.Object3D; side: number; base: number }[] = [];
+    // ferris wheel cabins: carried round the rim by the spinning wheel, always hanging upright
+    const hangs: { o: THREE.Object3D; base: THREE.Vector3 }[] = [];
     for (const c of m.children) {
       const x = cx + c.position.x, y = c.position.y, z = cz + c.position.z;
       const mv = /^(spin|sway)([XYZ])/.exec(c.name);
@@ -3199,6 +3287,7 @@ function useModel(e: Entry, o: FarmObject, d: BuildingDef) {
       else if (c.name.startsWith('glow')) groundGlow(g, x, z, 1.1 * c.scale.x);
       else if (c.name === 'badge') badge(g, d.icon, spec.badge ?? 0.3, x, y, z, c.rotation.y).translateZ(0.01);
       else if (c.name === 'gate0' || c.name === 'gate1') gates.push({ o: c, side: c.name === 'gate0' ? -1 : 1, base: c.rotation.y });
+      else if (c.name.startsWith('hang')) hangs.push({ o: c, base: c.position.clone() });
       else if (mv) {
         const axis = mv[2].toLowerCase() as 'x' | 'y' | 'z';
         movers.push({ o: c, spin: mv[1] === 'spin', axis, base: c.rotation[axis] });
@@ -3220,8 +3309,17 @@ function useModel(e: Entry, o: FarmObject, d: BuildingDef) {
         for (const gl of gates) gl.o.rotation.y = gl.base + gl.side * s * 1.45;
       }
       for (const v of movers) {
-        if (v.spin) { if (mode === 'always' || busy) v.o.rotation[v.axis] += dt * 2.4; }
+        // a big wheel turns slowly; fans and mill sails whirl
+        if (v.spin) { if (mode === 'always' || busy) v.o.rotation[v.axis] += dt * (hangs.length ? 0.35 : 2.4); }
         else v.o.rotation[v.axis] = v.base + Math.sin(t / 2300 + e.id) * 0.6 + Math.sin(t / 830) * 0.08;
+      }
+      const wheel = hangs.length ? movers.find((v) => v.spin && v.axis === 'z') : undefined;
+      if (wheel) {
+        const a = wheel.o.rotation.z, ca = Math.cos(a), sa = Math.sin(a), p = wheel.o.position;
+        for (const h of hangs) {
+          const dx = h.base.x - p.x, dy = h.base.y - p.y;
+          h.o.position.set(p.x + dx * ca - dy * sa, p.y + dx * sa + dy * ca, h.base.z);
+        }
       }
     };
   }).catch(() => { /* keep the procedural building */ });
@@ -3518,6 +3616,7 @@ let GRAZE_NAV: {
   nearest: (x: number, y: number) => P2 | null;
   grass: (x: number, y: number) => boolean;
   flowers: () => P2[];
+  roofs: () => { x: number; y: number; h: number }[];
 } | null = null;
 
 interface Trip { out: P2[]; eat: P2[][]; back: P2[]; recall?: { at: number; path: P2[] } }
@@ -3624,6 +3723,64 @@ function grazePose(o: FarmObject, d: BuildingDef, a: Animal, now: number): { x: 
   } else if (gp.phase === 'returning') leg = walkLeg(tr.back, gp.k * walkMs, walkMs, true);
   else return null;
   return { x: leg.pt.x, y: leg.pt.y, heading: Math.atan2(leg.pt.dx, leg.pt.dy), moving: leg.moving };
+}
+
+// A flying bird's trip: it takes off at the pen, flies straight out to its feeding ground and
+// lands, feeds, and flies home at the end. Land birds feed on the grass spots a walker would
+// use; water birds fly to the sea shallows nearest the pen and fish there.
+const FLY_SPEED = 2.4 / 1000; // tiles per ms
+function seaSpot(o: FarmObject, d: BuildingDef, id: number): P2 {
+  const cx = o.x + d.w / 2, cy = o.y + d.h / 2;
+  const edges = [cx, GRID - cx, cy, GRID - cy];
+  const e = edges.indexOf(Math.min(...edges));
+  const along = (v: number) => Math.max(2, Math.min(GRID - 2, v + (hash(id, 3, 7) - 0.5) * 6));
+  const out = BEACH + 0.5 + hash(id, 4, 9) * 0.8;
+  // keep clear of the fishing jetty on the south shore
+  if (e === 3 && Math.abs(along(cx) - FISH_SPOT.x) < 4) {
+    const x = along(cx) + (along(cx) < FISH_SPOT.x ? -4 : 4);
+    return { x: Math.max(2, Math.min(GRID - 2, x)), y: GRID + out };
+  }
+  return e === 0 ? { x: -out, y: along(cy) } : e === 1 ? { x: GRID + out, y: along(cy) } : e === 2 ? { x: along(cx), y: -out } : { x: along(cx), y: GRID + out };
+}
+function flyPose(o: FarmObject, d: BuildingDef, a: Animal, kind: string, now: number) {
+  const g = a.graze;
+  if (!g) return null;
+  const gp = grazePhase(a, now);
+  if (gp.phase === 'in' || gp.phase === 'home' || gp.phase === 'full') return null;
+  const sea = SEA_BIRDS.has(kind);
+  const { walkMs, eatMs } = GRAZE;
+  const sp = animalSpot(d, a.id, g.at);
+  const home = { x: o.x + sp.x, y: o.y + sp.z };
+  const sp2 = animalSpot(d, a.id, g.at + 2 * walkMs + eatMs);
+  const home2 = { x: o.x + sp2.x, y: o.y + sp2.z };
+  const tr = sea ? null : tripFor(o, d, a);
+  const ground = sea ? seaSpot(o, d, a.id) : tr ? along(tr.eat[0], 0) : home;
+  // one hop through the air: up, across and down again, over at most `budget` ms
+  const hopAt = (from: P2, to: P2, t: number, budget: number, late: boolean) => {
+    const dist = Math.hypot(to.x - from.x, to.y - from.y);
+    const dur = Math.min(budget, Math.max(900, dist / FLY_SPEED));
+    const t0 = late ? budget - dur : 0;
+    const u = Math.max(0, Math.min(1, (t - t0) / dur));
+    const up = Math.min(2.2, 0.6 + dist * 0.12);
+    return { x: from.x + (to.x - from.x) * u, y: from.y + (to.y - from.y) * u, h: Math.sin(u * Math.PI) * up, fly: u > 0 && u < 1, heading: Math.atan2(to.x - from.x, to.y - from.y) };
+  };
+  if (gp.phase === 'leaving') return { ...hopAt(home, ground, gp.k * walkMs, walkMs, false), sea, feeding: false };
+  if (gp.phase === 'eating') {
+    if (sea) {
+      // wading (or, for swans, paddling) about the shallows, striking at fish now and then
+      const w = now / 5200 + a.id;
+      return { x: ground.x + Math.cos(w) * 0.5, y: ground.y + Math.sin(w * 1.3) * 0.4, h: 0, fly: false, heading: w + Math.PI / 2, sea, feeding: true };
+    }
+    const gz = grazePose(o, d, a, now);
+    return gz ? { x: gz.x, y: gz.y, h: 0, fly: false, heading: gz.heading, sea, feeding: !gz.moving, moving: gz.moving } : null;
+  }
+  // flying home: from the feeding ground, or from wherever it was when called back
+  let from = sea ? ground : tr ? along(tr.eat[1], 1) : ground;
+  if (g.back !== undefined) {
+    const at = flyPose(o, d, { ...a, graze: { at: g.at } }, kind, g.back);
+    if (at) from = { x: at.x, y: at.y };
+  }
+  return { ...hopAt(from, home2, gp.k * walkMs, walkMs, true), sea, feeding: false };
 }
 
 // how far a pen's gate stands open (0 to 1): it swings open as the first animal sets off and
@@ -3966,6 +4123,28 @@ function buildPen(e: Entry, d: BuildingDef) {
       }
       const head = m.userData.head as THREE.Object3D | undefined;
       const tail = m.userData.tail as THREE.Object3D | undefined;
+      const fp = a?.graze && an && FLIERS.has(an.id) ? flyPose(o, d, a, an.id, now) : null;
+      if (fp) {
+        const cs = m.userData.shadow as THREE.Object3D | undefined;
+        // at sea the bird stands in the shallows; swans float
+        const base = fp.sea && !fp.fly && fp.h === 0 ? (SWIMMERS.has(an!.id) ? -0.5 : -0.47) : 0.04;
+        m.position.set(fp.x - o.x, base + fp.h, fp.y - o.y);
+        m.rotation.y = fp.heading;
+        m.rotation.x = fp.fly ? -0.12 : 0;
+        m.rotation.z = 0;
+        flap(m, fp.fly, t, id, fp.h > 1 ? 0.7 : 1);
+        animateLegs(m, fp.fly ? 0 : (fp as { moving?: boolean }).moving ? Math.sin(t / 110 + id) * 0.3 : 0);
+        if (head) {
+          // feeding: pecking the grass, or a quick strike at a fish in the water
+          const strike = fp.sea ? Math.pow(Math.max(0, Math.sin(t / 700 + id * 1.9)), 12) * 1.3 : 0;
+          head.rotation.x = fp.fly ? -0.2 : fp.feeding ? (fp.sea ? 0.35 + strike : 0.55 + Math.max(0, Math.sin(t / 260 + id)) * 0.25) : 0;
+        }
+        blink(m, t, id);
+        if (cs) { cs.visible = !fp.sea || fp.fly; cs.position.y = 0.006 - (m.position.y - 0.04); }
+        return;
+      }
+      flap(m, false, t, id);
+      if (m.userData.shadow) (m.userData.shadow as THREE.Object3D).visible = true;
       const gz = a?.graze ? grazePose(o, d, a, now) : null;
       if (gz) {
         // out grazing: walking the path, or head down nibbling the grass
@@ -4000,6 +4179,53 @@ function buildPen(e: Entry, d: BuildingDef) {
       m.rotation.y = sp.heading;
       animateLegs(m, Math.sin(t / 110 + id) * 0.28);
       if (cs) cs.position.y = 0.006 - (m.position.y - 0.04);
+      if (m.userData.wings && !SWIMMERS.has(an?.id ?? '') && !a?.graze) {
+        // some birds now and then fly up to a roof nearby, sit there a while and come back
+        const roofs = GRAZE_NAV?.roofs() ?? [];
+        const PR = 50000 + hash(id, 9, 4) * 40000;
+        const ur = (t + hash(id, 10, 5) * PR) % PR;
+        if (roofs.length && hash(id, 8, 3) < 0.45 && ur < 18000) {
+          const cx = o.x + d.w / 2, cy = o.y + d.h / 2;
+          const near = roofs.map((r) => ({ r, k: Math.hypot(r.x - cx, r.y - cy) })).filter((q) => q.k < 12).sort((p1, p2) => p1.k - p2.k).slice(0, 3);
+          if (near.length) {
+            const r = near[Math.floor(hash(id, 11, 6) * near.length)].r;
+            const perch = { x: r.x + (hash(id, 12, 7) - 0.5) * 0.5, y: r.y + (hash(id, 13, 8) - 0.5) * 0.5 };
+            const ground = { x: o.x + sp.x, y: o.y + sp.z };
+            let px: number, py: number, h: number, fly = false, head0 = 0;
+            if (ur < 2000 || ur > 16000) {
+              // up to the roof, or back down into the yard, in an arc
+              const k = ur < 2000 ? ur / 2000 : (ur - 16000) / 2000;
+              const [p0, p1] = ur < 2000 ? [ground, perch] : [perch, ground];
+              const h0 = ur < 2000 ? 0.04 : r.h, h1 = ur < 2000 ? r.h : 0.04;
+              px = p0.x + (p1.x - p0.x) * k; py = p0.y + (p1.y - p0.y) * k;
+              h = h0 + (h1 - h0) * k + Math.sin(k * Math.PI) * 0.8;
+              fly = k > 0 && k < 1;
+              m.rotation.y = Math.atan2(p1.x - p0.x, p1.y - p0.y);
+            } else {
+              px = perch.x; py = perch.y; h = r.h;
+              m.rotation.y = Math.sin(t / 3000 + id) * 1.5;
+              head0 = Math.max(0, Math.sin(t / 900 + id)) * 0.3;
+            }
+            m.position.set(px - o.x, h, py - o.y);
+            flap(m, fly, t, id, 1.2);
+            animateLegs(m, 0);
+            if (head) head.rotation.x = head0;
+            if (cs) cs.visible = false;
+            return;
+          }
+        }
+        // now and then a bird flutters up and across the yard
+        const P = 12000 + hash(id, 5, 1) * 9000;
+        const u = (t + hash(id, 6, 2) * P) % P;
+        const on = u < 1500;
+        if (on) {
+          const k = u / 1500;
+          m.position.y += Math.sin(k * Math.PI) * 0.45;
+          animateLegs(m, 0);
+          if (cs) cs.position.y = 0.006 - (m.position.y - 0.04);
+        }
+        flap(m, on, t, id, 1.3);
+      }
       if (m.userData.hop) {
         // rabbits bound along in little hops, then sit and twitch their ears
         const hopping = Math.max(0, Math.sin(t / 2400 + id * 1.3));

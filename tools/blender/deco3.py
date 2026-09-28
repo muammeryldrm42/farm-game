@@ -1,7 +1,7 @@
 # Second wave decorations: garden gnome, wheelbarrow, rain barrel, flower cart, compost bin,
 # mushroom ring, stone lantern, bamboo grove, fairy house, snowman, sandcastle, seesaw, outdoor
 # oven, telescope, obelisk, hammock, water wheel, koi pond, camping tent, beach hut, log cabin,
-# playground, pagoda, chapel, observatory and a ferris wheel.
+# playground, observatory and a ferris wheel.
 # Run: python3 tools/blender/deco3.py [names...]   (see kit.main)
 import math
 import os
@@ -541,69 +541,6 @@ def playground_slide():
     finish('playground_slide', tex=1024)
 
 
-def pagoda():
-    m = std()
-    red = pm('pa_red', '#b8281c', '#c83a2a', scale=12)
-    roof = pm('pa_roof', '#2a4a3a', '#3a5a48', scale=20)
-    box(uid('base'), (1.4, 1.4, 0.16), (0, 0, 0.08), m['stone'][1], bev=0.02)
-    z = 0.16
-    for tier in range(5):
-        s = 1.0 - tier * 0.14
-        h = 0.28
-        box(uid('wall'), (s * 0.8, s * 0.8, h), (0, 0, z + h / 2), red, bev=0.01)
-        for sx in (-1, 1):
-            box(uid('win'), (0.1, 0.02, 0.12), (sx * 0.15 * s, -s * 0.4, z + h / 2), m['lamp'], bev=0)
-        z += h
-        # a curling roof: four sloped planes flaring out at the corners
-        rw = s * 1.25
-        for k in range(4):
-            a = k * R90
-            d = (math.sin(a), -math.cos(a), 0)
-            c = (d[0] * rw * 0.3, d[1] * rw * 0.3, z + 0.06)
-            obox(uid('roof'), c, ((math.cos(a), math.sin(a), 0), (d[0], d[1], -0.45), (-d[0] * 0.45, -d[1] * 0.45, 1)), (rw, rw * 0.55, 0.04), roof, bev=0.006)
-        for sx in (-1, 1):
-            for sy in (-1, 1):
-                cyl(uid('tip'), 0.02, 0.1, (sx * rw * 0.5, sy * rw * 0.5, z + 0.04), roof, verts=6, r2=0.0, rot=(-sy * 0.8, sx * 0.8, 0))
-        z += 0.14
-    cyl(uid('spire'), 0.03, 0.5, (0, 0, z + 0.25), m['brass'], verts=8)
-    for k in range(5):
-        torus(uid('ring'), 0.05, 0.012, (0, 0, z + 0.1 + k * 0.07), m['brass'], segs=12, rsegs=4)
-    glow(0, -0.6, 1.8)
-    finish('pagoda', tex=1024, glow=('lamp',))
-
-
-def chapel():
-    m = std()
-    white = pm('ch_white', '#f4f1ea', '#fbfaf6', scale=10)
-    roof = pm('ch_roof', '#5a3a2a', '#6a4a36', scale=20)
-    box(uid('found'), (1.0, 1.5, 0.1), (0, 0.1, 0.05), m['stone'][0], bev=0.015)
-    box(uid('nave'), (0.9, 1.3, 0.8), (0, 0.1, 0.5), white, bev=0.01)
-    for sx in (-1, 1):
-        obox(uid('roof'), (sx * 0.24, 0.1, 1.08), ((0, 1, 0), (math.cos(0.75), 0, -sx * math.sin(0.75)), (sx * math.sin(0.75), 0, math.cos(0.75))), (1.4, 0.7, 0.05), roof, bev=0.01)
-    # the two gable ends, stepped up to the ridge
-    for yy in (-0.55, 0.75):
-        for k in range(8):
-            u = (k + 0.5) / 8
-            w = 0.9 * (1 - u)
-            box(uid('gab'), (w, 0.04, 0.45 / 8), (0, yy, 0.9 + u * 0.45), white, bev=0)
-    box(uid('tower'), (0.4, 0.4, 0.6), (0, -0.45, 1.2), white, bev=0.01)
-    box(uid('belfry'), (0.3, 0.3, 0.2), (0, -0.45, 1.6), pm('ch_dark', '#3a3030'), bev=0)
-    for sx in (-1, 1):
-        for sy in (-1, 1):
-            box(uid('bcol'), (0.06, 0.06, 0.22), (sx * 0.16, -0.45 + sy * 0.16, 1.6), white, bev=0.006)
-    ball(uid('bell'), 0.08, (0, -0.45, 1.6), m['brass'], scale=(1, 1, 1.1), segs=12)
-    cyl(uid('spire'), 0.3, 0.7, (0, -0.45, 2.05), roof, verts=4, r2=0.0, rot=(0, 0, math.radians(45)), bev=0)
-    cyl(uid('cross_v'), 0.012, 0.2, (0, -0.45, 2.5), m['brass'], verts=6)
-    box(uid('cross_h'), (0.1, 0.02, 0.02), (0, -0.45, 2.54), m['brass'], bev=0)
-    box(uid('door'), (0.26, 0.03, 0.44), (0, -0.66, 0.34), m['wood_dark'], bev=0.01)
-    ball(uid('arch'), 0.13, (0, -0.66, 0.56), m['wood_dark'], scale=(1, 0.25, 0.6), segs=10)
-    for y in (-0.2, 0.2, 0.55):
-        for sx in (-1, 1):
-            box(uid('win'), (0.03, 0.14, 0.34), (sx * 0.46, y, 0.55), pm('ch_glass', '#6a8ad8', rough=0.1), bev=0.004)
-    for k in range(4):
-        box(uid('step'), (0.4, 0.1, 0.03), (0, -0.72 - k * 0.08, 0.1 - k * 0.025), m['stone'][1], bev=0.005)
-    glow(0, -0.9, 1.6)
-    finish('chapel', tex=1024, glow=('ch_glass',))
 
 
 def observatory():
@@ -636,7 +573,9 @@ def ferris_wheel():
     box(uid('booth'), (0.3, 0.3, 0.36), (0.6, -0.2, 0.26), pm('fw_booth', '#d8302a', '#f4efe6', scale=10, kind='wave'), bev=0.01)
     cyl(uid('axle'), 0.05, 0.5, (0, 0, 1.3), m['metal'], verts=10, rot=(R90, 0, 0))
     cols = ['#d8302a', '#f0c020', '#2a6ad8', '#2aa05a', '#f07a1a', '#b058e0', '#e84a8a', '#2ab8c8']
-    with anim_group('spinY_wheel', (0, 0, 1.3)):
+    # the wheel turns about the axle (the game's z axis); the cabins are parts of their own,
+    # hung from the rim, which the game carries round with it while they stay upright
+    with anim_group('spinZ_wheel', (0, 0, 1.3)):
         for sy in (-1, 1):
             torus(uid('rim'), 0.95, 0.025, (0, sy * 0.14, 1.3), white, rot=(R90, 0, 0), segs=40, rsegs=5)
             for k in range(16):
@@ -648,10 +587,14 @@ def ferris_wheel():
             ball(uid('bulb'), 0.02, (math.cos(a) * 0.95, -0.17, 1.3 + math.sin(a) * 0.95), m['lamp'], segs=6)
         for k in range(8):
             a = k * math.pi / 4
-            cx, cz = math.cos(a) * 0.95, 1.3 + math.sin(a) * 0.95
-            cyl(uid('cbar'), 0.012, 0.32, (cx, 0, cz), m['metal'], verts=6, rot=(R90, 0, 0))
+            cyl(uid('cbar'), 0.012, 0.32, (math.cos(a) * 0.95, 0, 1.3 + math.sin(a) * 0.95), m['metal'], verts=6, rot=(R90, 0, 0))
+    for k in range(8):
+        a = k * math.pi / 4
+        cx, cz = math.cos(a) * 0.95, 1.3 + math.sin(a) * 0.95
+        with anim_group(f'hang{k}', (cx, 0, cz)):
             box(uid('cab'), (0.2, 0.22, 0.16), (cx, 0, cz - 0.13), pm(f'fwc{k}', cols[k]), bev=0.03)
             box(uid('croof'), (0.22, 0.24, 0.03), (cx, 0, cz - 0.04), white, bev=0.01)
+            cyl(uid('hook'), 0.008, 0.06, (cx, 0, cz - 0.015), m['metal'], verts=6, bev=0)
     glow(0, 0, 3.0)
     finish('ferris_wheel', tex=1024, glow=('lamp',))
 
@@ -879,16 +822,91 @@ def pumpkin_carriage():
     finish('pumpkin_carriage', tex=1024, glow=('lamp',))
 
 
+# ---------------------------------------------------------------- the beach
+
+def sun_lounger():
+    m = std()
+    wood = m['wood']
+    cloth = pm('sl_cloth', '#e8403a', '#f6f2ea', scale=12, kind='wave', stretch=(1, 10, 1))
+    # a low frame: the seat, then the back tipped up at the head end (+Y is the back of the tile)
+    for sx in (-1, 1):
+        box(uid('rail'), (0.04, 0.62, 0.04), (sx * 0.2, -0.08, 0.16), wood, bev=0.008)
+        for y in (-0.36, 0.2):
+            box(uid('leg'), (0.04, 0.04, 0.16), (sx * 0.2, y, 0.08), wood, bev=0.006)
+    box(uid('seat'), (0.38, 0.6, 0.025), (0, -0.08, 0.19), cloth, bev=0.008)
+    obox(uid('back'), (0, 0.33, 0.33), ((1, 0, 0), (0, 0.5, 0.87), (0, -0.87, 0.5)), (0.38, 0.36, 0.025), cloth, bev=0.008)
+    for sx in (-1, 1):
+        obox(uid('brail'), (sx * 0.2, 0.33, 0.33), ((1, 0, 0), (0, 0.5, 0.87), (0, -0.87, 0.5)), (0.04, 0.38, 0.04), wood, bev=0.006)
+    box(uid('towel'), (0.3, 0.2, 0.012), (0, -0.2, 0.21), pm('sl_towel', '#2a9ad8'), bev=0.004)
+    ball(uid('shades'), 0.03, (0.08, 0.1, 0.215), pm('sl_shades', '#1a1a20', rough=0.2), scale=(1.6, 0.6, 0.3), segs=10)
+    finish('sun_lounger', tex=512)
+
+
+def beach_umbrella():
+    m = std()
+    white = pm('bu_white', '#f6f4ee', rough=0.5)
+    cyl(uid('pole'), 0.02, 1.0, (0, 0, 0.5), white, verts=10)
+    canopy = pm('bu_canopy', '#f0c020', '#e8403a', scale=14, kind='wave', stretch=(1, 1, 1))
+    cyl(uid('canopy'), 0.55, 0.22, (0, 0, 0.93), canopy, verts=16, r2=0.02, bev=0.01)
+    ball(uid('tip'), 0.035, (0, 0, 1.06), white, segs=10)
+    # a towel, a bucket and spade in its shade
+    box(uid('towel'), (0.3, 0.55, 0.01), (0.12, -0.05, 0.005), pm('bu_towel', '#2aa0a8', '#f6f4ee', scale=10, kind='wave', stretch=(10, 1, 1)), bev=0.003)
+    cyl(uid('bucket'), 0.06, 0.1, (-0.25, -0.25, 0.05), pm('bu_bucket', '#2a6ad8'), verts=14, r2=0.075)
+    box(uid('spade'), (0.02, 0.2, 0.012), (-0.18, -0.3, 0.012), pm('bu_spade', '#f07a1a'), rot=(0, 0, 0.5), bev=0.003)
+    ball(uid('ball'), 0.07, (0.3, 0.3, 0.07), pm('bu_ball', '#f6f4ee', '#e8403a', scale=8, kind='wave'), segs=14)
+    finish('beach_umbrella', tex=512)
+
+
+def lifeguard_tower():
+    m = std()
+    white = pm('lg_white', '#f4f2ec', rough=0.55)
+    red = pm('lg_red', '#d8302a', rough=0.55)
+    for sx in (-1, 1):
+        for sy in (-1, 1):
+            obox(uid('leg'), (sx * 0.28, sy * 0.24, 0.45), ((-sx * 0.12, 0, 1), (0, 1, 0), (1, 0, sx * 0.12)), (0.9, 0.05, 0.05), white, bev=0.01)
+    box(uid('deck'), (0.62, 0.56, 0.05), (0, 0, 0.9), m['wood'], bev=0.01)
+    box(uid('hut'), (0.5, 0.36, 0.34), (0, 0.08, 1.1), red, bev=0.015)
+    box(uid('window'), (0.3, 0.02, 0.14), (0, -0.1, 1.15), m['glass'], bev=0)
+    box(uid('roof'), (0.62, 0.5, 0.05), (0, 0.06, 1.3), white, rot=(0.12, 0, 0), bev=0.01)
+    for sx in (-1, 1):
+        box(uid('rail'), (0.03, 0.03, 0.18), (sx * 0.3, -0.26, 1.02), white, bev=0.004)
+    box(uid('railb'), (0.62, 0.03, 0.03), (0, -0.26, 1.1), white, bev=0.004)
+    for k in range(6):
+        box(uid('rung'), (0.22, 0.03, 0.02), (0, -0.38 - k * 0.0, 0.12 + k * 0.14), m['wood'], rot=(-0.35, 0, 0), bev=0.003)
+    for sx in (-1, 1):
+        obox(uid('ladder'), (sx * 0.11, -0.42, 0.47), ((0, 0.35, 0.94), (1, 0, 0), (0, -0.94, 0.35)), (0.95, 0.03, 0.03), m['wood'], bev=0.004)
+    torus(uid('buoy'), 0.09, 0.03, (0.26, -0.27, 1.0), pm('lg_buoy', '#e8403a', '#f6f2ea', scale=6, kind='wave'), rot=(R90, 0, 0), segs=20, rsegs=8)
+    box(uid('flag'), (0.14, 0.01, 0.09), (-0.2, 0.08, 1.52), red, bev=0)
+    cyl(uid('fpole'), 0.008, 0.24, (-0.27, 0.08, 1.44), white, verts=6, bev=0)
+    finish('lifeguard_tower', tex=1024)
+
+
+def surfboard_rack():
+    m = std()
+    wood = m['wood_dark']
+    for sx in (-1, 1):
+        obox(uid('post'), (sx * 0.3, 0.05, 0.3), ((sx * -0.15, 0, 1), (0, 1, 0), (1, 0, sx * 0.15)), (0.62, 0.05, 0.05), wood, bev=0.008)
+    box(uid('bar'), (0.62, 0.05, 0.05), (0, 0.05, 0.3), wood, bev=0.008)
+    box(uid('bar2'), (0.66, 0.05, 0.05), (0, 0.05, 0.08), wood, bev=0.008)
+    cols = [('#2a9ad8', '#f6f2ea'), ('#f0c020', '#e8403a'), ('#2aa05a', '#f6f2ea')]
+    for i, (a, b) in enumerate(cols):
+        x = -0.18 + i * 0.18
+        board = pm(f'sb{i}', a, b, scale=8, kind='wave', stretch=(1, 1, 10))
+        ball(uid('board'), 0.5, (x, -0.04 + i * 0.01, 0.52), board, scale=(0.16, 0.035, 1.0), segs=20)
+    finish('surfboard_rack', tex=512)
+
+
 MODELS = {name: fn for name, fn in [
     ('garden_gnome', garden_gnome), ('wheelbarrow', wheelbarrow), ('rain_barrel', rain_barrel), ('flower_cart', flower_cart),
     ('compost_bin', compost_bin), ('mushroom_ring', mushroom_ring), ('stone_lantern', stone_lantern), ('bamboo_grove', bamboo_grove),
     ('fairy_house', fairy_house), ('snowman', snowman), ('sandcastle', sandcastle), ('seesaw', seesaw), ('outdoor_oven', outdoor_oven),
     ('telescope', telescope), ('obelisk', obelisk), ('hammock', hammock), ('water_wheel', water_wheel), ('koi_pond', koi_pond),
     ('camping_tent', camping_tent), ('beach_hut', beach_hut), ('log_cabin', log_cabin), ('playground_slide', playground_slide),
-    ('pagoda', pagoda), ('chapel', chapel), ('observatory', observatory), ('ferris_wheel', ferris_wheel),
+    ('observatory', observatory), ('ferris_wheel', ferris_wheel),
     ('hay_stack', hay_stack), ('picnic_table', picnic_table), ('lemonade_stand', lemonade_stand), ('insect_hotel', insect_hotel),
     ('weathervane', weathervane), ('rock_garden', rock_garden), ('veggie_stand', veggie_stand), ('windchime', windchime),
-    ('dovecote', dovecote), ('flag_pole', flag_pole), ('ice_cream_cart', ice_cream_cart), ('pumpkin_carriage', pumpkin_carriage)]}
+    ('dovecote', dovecote), ('flag_pole', flag_pole), ('ice_cream_cart', ice_cream_cart), ('pumpkin_carriage', pumpkin_carriage),
+    ('sun_lounger', sun_lounger), ('beach_umbrella', beach_umbrella), ('lifeguard_tower', lifeguard_tower), ('surfboard_rack', surfboard_rack)]}
 
 if __name__ == '__main__':
     main(MODELS)

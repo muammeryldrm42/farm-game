@@ -114,37 +114,6 @@ def bonfire():
     finish('bonfire', tex=512, glow=('bf_fire', 'bf_core'))
 
 
-def totem_pole():
-    m = std()
-    wood = pm('tp_wood', '#8a5230', '#a86a3e', scale=6, kind='wave', stretch=(1, 1, 8))
-    cols = [pm('tp_red', '#c02a20'), pm('tp_teal', '#1f8a8a'), pm('tp_yel', '#f0b020'), pm('tp_blk', '#1e1a18'), pm('tp_wht', '#f4efe6')]
-    cyl(uid('base'), 0.2, 0.1, (0, 0, 0.05), m['stone'][0], verts=12)
-    for k in range(4):
-        z = 0.3 + k * 0.52
-        cyl(uid('seg'), 0.15, 0.5, (0, 0, z), wood, verts=16)
-        # a carved face on each segment: brows, big eyes, a beak or mouth
-        box(uid('brow'), (0.22, 0.04, 0.05), (0, -0.14, z + 0.13), cols[k % 3], bev=0.01)
-        for sx in (-1, 1):
-            ball(uid('eye'), 0.05, (sx * 0.06, -0.13, z + 0.05), cols[4], scale=(1, 0.5, 0.8), segs=10)
-            ball(uid('pupil'), 0.022, (sx * 0.06, -0.155, z + 0.05), cols[3], scale=(1, 0.5, 1), segs=8)
-        if k % 2:
-            cyl(uid('beak'), 0.05, 0.16, (0, -0.2, z - 0.06), cols[2], verts=8, r2=0.0, rot=(R90, 0, 0))
-        else:
-            box(uid('mouth'), (0.16, 0.04, 0.05), (0, -0.14, z - 0.12), cols[0], bev=0.01)
-            for i in range(4):
-                box(uid('tooth'), (0.02, 0.02, 0.025), (-0.045 + i * 0.03, -0.16, z - 0.12), cols[4], bev=0)
-    # spread wings under the thunderbird on top
-    for sx in (-1, 1):
-        obox(uid('wing'), (sx * 0.34, 0, 2.08), ((sx, 0, 0.25), (0, 1, 0), (-0.25 * sx, 0, 1)), (0.46, 0.05, 0.16), cols[1], bev=0.02)
-        for i in range(3):
-            box(uid('feather'), (0.05, 0.055, 0.06), (sx * (0.2 + i * 0.13), -0.01, 2.0 + i * 0.03), cols[i % 3], bev=0.008)
-    ball(uid('head'), 0.14, (0, 0, 2.28), wood, segs=14)
-    cyl(uid('hbeak'), 0.06, 0.18, (0, -0.18, 2.26), cols[2], verts=8, r2=0.0, rot=(R90, 0, 0))
-    for sx in (-1, 1):
-        ball(uid('heye'), 0.03, (sx * 0.07, -0.11, 2.32), cols[4], segs=8)
-    tufts(m, [(0.3, -0.25), (-0.3, 0.25)], 41)
-    finish('totem_pole', tex=1024)
-
 
 def picnic_spot():
     m = std()
@@ -280,29 +249,6 @@ def horse_statue():
     tufts(m, [(0.38, -0.36), (-0.4, 0.34)], 71)
     finish('horse_statue', tex=1024)
 
-
-def torii_gate():
-    m = std()
-    red = pm('tg_red', '#c8281c', '#d83a2a', scale=12)
-    black = pm('tg_black', '#1e1a18')
-    for sx in (-1, 1):
-        cyl(uid('base'), 0.1, 0.14, (sx * 0.62, 0, 0.07), black, verts=16)
-        cyl(uid('pillar'), 0.075, 1.7, (sx * 0.62, 0, 0.99), red, verts=16, r2=0.065)
-    box(uid('nuki'), (1.6, 0.08, 0.1), (0, 0, 1.46), red, bev=0.01)
-    box(uid('tsuka'), (0.1, 0.08, 0.18), (0, 0, 1.6), red, bev=0.01)
-    box(uid('kasagi'), (2.0, 0.16, 0.1), (0, 0, 1.8), red, bev=0.012)
-    box(uid('top'), (2.14, 0.2, 0.07), (0, 0, 1.88), black, bev=0.012)
-    for sx in (-1, 1):
-        obox(uid('tip'), (sx * 1.06, 0, 1.92), ((1, 0, sx * 0.2), (0, 1, 0), (-sx * 0.2, 0, 1)), (0.16, 0.2, 0.07), black, bev=0.01)
-    for sx in (-1, 1):
-        box(uid('lantern'), (0.14, 0.14, 0.22), (sx * 0.9, -0.28, 0.46), m['stone'][0], bev=0.02)
-        cyl(uid('lroof'), 0.14, 0.1, (sx * 0.9, -0.28, 0.62), m['stone'][1], verts=4, r2=0.02, rot=(0, 0, math.radians(45)), bev=0)
-        cyl(uid('lpost'), 0.04, 0.35, (sx * 0.9, -0.28, 0.18), m['stone'][2], verts=8)
-        box(uid('llight'), (0.08, 0.15, 0.08), (sx * 0.9, -0.28, 0.47), m['lamp'], bev=0)
-        glow(sx * 0.9, -0.28, 1.0)
-    for i in range(5):
-        box(uid('path'), (0.4, 0.16, 0.03), (0, -0.4 + i * 0.2, 0.015), m['stone'][i % 3], rot=(0, 0, (i - 2) * 0.1), bev=0.01)
-    finish('torii_gate', tex=1024, glow=('lamp',))
 
 
 def zen_garden():
@@ -623,8 +569,8 @@ def golden_farmer():
 
 
 MODELS = {'sundial': sundial, 'bird_feeder': bird_feeder, 'garden_swing': garden_swing, 'bonfire': bonfire,
-          'totem_pole': totem_pole, 'picnic_spot': picnic_spot, 'wind_turbine': wind_turbine, 'stone_bridge': stone_bridge,
-          'pergola': pergola, 'horse_statue': horse_statue, 'torii_gate': torii_gate, 'zen_garden': zen_garden,
+          'picnic_spot': picnic_spot, 'wind_turbine': wind_turbine, 'stone_bridge': stone_bridge,
+          'pergola': pergola, 'horse_statue': horse_statue, 'zen_garden': zen_garden,
           'treehouse': treehouse, 'greenhouse': greenhouse, 'water_tower': water_tower, 'carousel': carousel,
           'lighthouse': lighthouse, 'clock_tower': clock_tower, 'hot_air_balloon': hot_air_balloon, 'golden_farmer': golden_farmer}
 
