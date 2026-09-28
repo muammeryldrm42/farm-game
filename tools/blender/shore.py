@@ -202,47 +202,65 @@ def sandpiper():
 
 
 def harbor_seal():
-    """A harbour seal hauled out on the sand: a plump spindle of a body, grey with dark rings
-    and spots, paler below, a round dog like head with big dark eyes and whiskers. Parts:
-    `head` (at the neck), the fore flippers `flip0/1` (left, right) and the hind flippers `tail`."""
-    grey = pm('hs_grey', '#8a8e92', '#9a9ea2', scale=40)
-    spot = pm('hs_spot', '#4a4e54')
-    pale = pm('hs_pale', '#c8c6c0', '#d6d4ce', scale=40)
-    black = pm('hs_black', '#141414')
-    nose = pm('hs_nose', '#2a2a2c')
-    whisk = pm('hs_whisk', '#a8a49e')
+    """A seal as the documentaries show them: a long, heavy spindle of a body in dark brown fur,
+    darker mottling over the back and a paler brown belly, a thick neck and a round head with
+    a dog like muzzle, V nostrils, whisker pads and big dark eyes. The fore flippers are short
+    clawed paddles; the hind flippers are two webbed fans held together behind. Parts: `head`
+    (at the neck), the fore flippers `flip0/1` (left, right) and the hind flippers `tail`.
+    Lying on its belly, y 0 is the ground under it."""
+    back = pm('hs_back', '#3a2e24', '#4a3a2c', scale=34)
+    mottle = pm('hs_mottle', '#241c16', '#2e241c', scale=40)
+    belly = pm('hs_belly', '#6a5642', '#7a6450', scale=30)
+    muzzle = pm('hs_muzzle', '#52423a', '#5e4c40', scale=40)
+    black = pm('hs_black', '#0c0a0a', rough=0.15)
+    nose = pm('hs_nose', '#181412', rough=0.3)
+    claw = pm('hs_claw', '#1a1612')
+    flip_m = pm('hs_flip', '#2a221c', '#342a22', scale=40)
 
     def coat(x, y, z):
-        if y < 0.045:
-            return pale
-        return spot if noise(x, y, z, 26) > 0.3 else grey
-    b = Blob(0.005)
-    b.ell((0, 0.075, 0.02), 0.11, 0.075, 0.2)                      # body
-    b.cap((0, 0.07, -0.12), (0, 0.05, -0.25), 0.075, 0.04)          # tapering to the hips
-    b.cap((0, 0.08, 0.12), (0, 0.095, 0.2), 0.08, 0.06)             # the neck
-    b.build(coat, 1600)
-    with anim_group('head', B(0, 0.1, 0.19)):
-        h = Blob(0.004)
-        h.ball((0, 0.12, 0.25), 0.062)
-        h.ell((0, 0.105, 0.3), 0.036, 0.03, 0.034)                  # the muzzle
-        h.build(coat, 700)
+        if y < 0.04 + 0.012 * math.sin(z * 9):
+            return belly
+        v = noise(x, y, z, 22) * 0.7 + noise(x + 5, y, z, 55) * 0.3
+        return mottle if v > 0.28 else back
+    # the body: a smooth spindle from the shoulders to the narrow hips, heaviest at the chest
+    b = Blob(0.0045)
+    for z, r, ry, y in [(0.13, 0.085, 0.07, 0.085), (0.06, 0.1, 0.08, 0.085), (-0.03, 0.098, 0.076, 0.08),
+                        (-0.12, 0.08, 0.064, 0.07), (-0.2, 0.055, 0.046, 0.058), (-0.26, 0.036, 0.032, 0.05)]:
+        b.ell((0, y, z), r, ry, 0.075)
+    b.cap((0, 0.09, 0.14), (0, 0.105, 0.21), 0.07, 0.058)           # the thick neck
+    b.build(coat, 2400)
+    with anim_group('head', B(0, 0.105, 0.2)):
+        h = Blob(0.0032)
+        h.ball((0, 0.122, 0.255), 0.056)                              # the round skull
+        h.ell((0, 0.108, 0.305), 0.034, 0.03, 0.044)                  # the muzzle, dog like
+        h.ell((0, 0.1, 0.33), 0.026, 0.022, 0.022)
+        h.build(lambda x, y, z: muzzle if z > 0.29 else coat(x, y, z), 1100)
         for sx in (-1, 1):
-            ball(uid('eye'), 0.014, B(sx * 0.03, 0.135, 0.292), black, segs=12)
-            # the whisker pads on the muzzle
-            ball(uid('pad'), 0.016, B(sx * 0.016, 0.1, 0.318), whisk, scale=(1, 0.8, 0.8), segs=10)
-        ball(uid('nose'), 0.012, B(0, 0.112, 0.33), nose, scale=(1.3, 1, 0.8), segs=10)
+            # big dark eyes set wide on the face, and the full whisker pads
+            ball(uid('eye'), 0.016, B(sx * 0.031, 0.137, 0.287), black, scale=(1, 1, 0.85), segs=14)
+            ball(uid('pad'), 0.017, B(sx * 0.016, 0.098, 0.325), muzzle, scale=(1, 0.8, 0.85), segs=12)
+            # the V of the nostrils at the tip of the nose
+            ball(uid('nostril'), 0.006, B(sx * 0.008, 0.112, 0.349), nose, scale=(0.7, 1.0, 0.5), segs=8)
+        ball(uid('nose'), 0.013, B(0, 0.11, 0.343), nose, scale=(1.3, 0.9, 0.7), segs=10)
+    # fore flippers: short paddles down the sides of the chest, five dark claws at the tips
     for i, sx in enumerate((-1, 1)):
-        with anim_group(f'flip{i}', B(sx * 0.09, 0.04, 0.1)):
-            f = Blob(0.003)
-            f.cap((sx * 0.09, 0.04, 0.1), (sx * 0.14, 0.012, 0.13), 0.022, 0.014)
-            f.build(grey, 200)
-    with anim_group('tail', B(0, 0.05, -0.25)):
-        t = Blob(0.003)
+        with anim_group(f'flip{i}', B(sx * 0.085, 0.045, 0.1)):
+            f = Blob(0.0026)
+            f.cap((sx * 0.085, 0.045, 0.1), (sx * 0.125, 0.018, 0.14), 0.024, 0.018)
+            f.ell((sx * 0.13, 0.014, 0.15), 0.02, 0.008, 0.026)
+            f.build(flip_m, 260)
+            for k in range(5):
+                ball(uid('claw'), 0.0035, B(sx * (0.118 + k * 0.006), 0.012, 0.172 - abs(k - 2) * 0.003), claw, scale=(0.8, 0.8, 1.6), segs=6)
+    # hind flippers: two webbed fans side by side, the long toes spread at the ends
+    with anim_group('tail', B(0, 0.05, -0.27)):
+        t = Blob(0.0026)
         for sx in (-1, 1):
-            t.cap((sx * 0.015, 0.05, -0.25), (sx * 0.04, 0.04, -0.34), 0.026, 0.01)
-            t.ell((sx * 0.045, 0.035, -0.35), 0.03, 0.008, 0.028)
-        t.build(grey, 300)
-    finish('harbor_seal', tex=512, vivid=1.05, ao_min=0.8, ao_dist=0.06)
+            t.cap((sx * 0.014, 0.05, -0.27), (sx * 0.028, 0.042, -0.33), 0.026, 0.014)
+            for k in range(3):
+                t.cap((sx * (0.022 + k * 0.012), 0.04, -0.33), (sx * (0.024 + k * 0.022), 0.036, -0.39 + abs(k - 1) * 0.01), 0.008, 0.005)
+            t.ell((sx * 0.042, 0.036, -0.37), 0.03, 0.006, 0.03)
+        t.build(flip_m, 520)
+    finish('harbor_seal', tex=1024, vivid=1.0, ao_min=0.78, ao_dist=0.06)
 
 
 MODELS = {'rock_crab': rock_crab, 'blue_crab': blue_crab, 'ghost_crab': ghost_crab, 'hermit_crab': hermit_crab,

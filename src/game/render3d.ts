@@ -6085,6 +6085,7 @@ interface Seal {
 interface Piper { g: THREE.Group; head?: THREE.Object3D; legs: THREE.Object3D[]; ox: number; oz: number; x: number; z: number; heading: number }
 interface Flock { side: number; along: number; to: number; wait: number; birds: Piper[]; seed: number }
 const SEA_Y = -0.55;
+const SEAL_TINTS: [number, number, number][] = [[1, 1, 1], [0.55, 0.54, 0.56], [0.92, 0.84, 0.76], [0.7, 0.66, 0.64]];
 
 class ShoreLife {
   private crabs: Crab[] = [];
@@ -6141,6 +6142,16 @@ class ShoreLife {
       if (artStyle() === 'toon') {
         loadModel('harbor_seal').then((m) => {
           const c = m.clone();
+          // each seal its own shade, from warm brown to nearly black, and a wet sheen on the coat
+          const tint = SEAL_TINTS[k % SEAL_TINTS.length];
+          c.traverse((o) => {
+            const mesh = o as THREE.Mesh;
+            if (!mesh.isMesh) return;
+            const mat = (mesh.material as THREE.MeshStandardMaterial).clone();
+            mat.color.setRGB(tint[0], tint[1], tint[2]);
+            mat.roughness = 0.42;
+            mesh.material = mat;
+          });
           body.add(c);
           s.head = c.getObjectByName('head') ?? undefined;
           s.tail = c.getObjectByName('tail') ?? undefined;
