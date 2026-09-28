@@ -14,7 +14,7 @@ from concurrent.futures import ThreadPoolExecutor
 HERE = os.path.dirname(os.path.abspath(__file__))
 OUT = os.path.join(HERE, '..', '..', 'public', 'models')
 LIBS = ('common.py', 'kit.py')
-SKIP = set(LIBS) | {'build_all.py'}
+SKIP = set(LIBS) | {'build_all.py', 'icons.py'}
 PINNED = {'farmhouse'}   # finished models, rebuilt only when named
 
 args = sys.argv[1:]

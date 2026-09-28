@@ -1044,15 +1044,10 @@ export class Renderer {
     rocks.forEach((mm, i) => { im.setMatrixAt(i, mm); im.setColorAt(i, cols[i]); });
     im.castShadow = true; im.receiveShadow = true;
     this.land.add(im);
-    // the big boulders in the surf, where seals haul out to bask (not by the turtle cove)
+    // seals haul out only on the broad sea ledges below: the boulders along the shore are too
+    // small and pointed to lie on (a seal on one hung half off it in the air)
     this.rockMesh = im;
     this.bigRocks = [];
-    for (let i = 0; i < 150; i++) {
-      const sc = 0.08 + Math.pow(hash(i, 3, 21), 2) * 0.32;
-      if (sc < 0.22 || i % 4 === 2) continue;
-      const [x, z] = edge(i, 1.1);
-      this.bigRocks.push({ i, x, z, side: i % 4, top: NaN });
-    }
     // a few low, broad ledges a little way out to sea: haul outs with room for two seals each
     if (artStyle() === 'toon') {
       loadModel('sea_rock').then((mdl) => {
