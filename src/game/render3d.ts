@@ -4223,9 +4223,14 @@ function flyPose(o: FarmObject, d: BuildingDef, a: Animal, kind: string, now: nu
     const t0 = late ? budget - dur : 0;
     const u = Math.max(0, Math.min(1, (t - t0) / dur));
     const up = Math.min(2.2, 0.6 + dist * 0.12);
-    return { x: from.x + (to.x - from.x) * u, y: from.y + (to.y - from.y) * u, h: h0 + (h1 - h0) * u + Math.sin(u * Math.PI) * up, fly: u > 0 && u < 1, heading: Math.atan2(to.x - from.x, to.y - from.y) };
+    return { x: from.x + (to.x - from.x) * u, y: from.y + (to.y - from.y) * u, h: h0 + (h1 - h0) * u + Math.sin(u * Math.PI) * up, fly: u > 0 && u < 1, heading: Math.atan2(to.x - from.x, to.y - from.y), u };
   };
-  if (gp.phase === 'leaving') return { ...hopAt(home, ground, gp.k * walkMs, walkMs, false, 0, up0), sea, water, feeding: false };
+  if (gp.phase === 'leaving') {
+    const r = hopAt(home, ground, gp.k * walkMs, walkMs, false, 0, up0);
+    // touched down on the water: swimming (or wading) from the first moment
+    if (water !== undefined && r.u >= 1) r.h = 0;
+    return { ...r, sea, water, pool: !!pool, feeding: false };
+  }
   if (gp.phase === 'eating' && perch) {
     // sitting up in the crown, turning to look about, now and then a short hop along the branch
     const w = now / 4000 + a.id;
@@ -4258,7 +4263,10 @@ function flyPose(o: FarmObject, d: BuildingDef, a: Animal, kind: string, now: nu
     const at = flyPose(o, d, { ...a, graze: { at: g.at } }, kind, g.back);
     if (at) { from = { x: at.x, y: at.y }; fromH = at.h; }
   }
-  return { ...hopAt(from, home2, gp.k * walkMs, walkMs, true, fromH, 0), sea, feeding: false };
+  const back = hopAt(from, home2, gp.k * walkMs, walkMs, true, fromH, 0);
+  // still on the water until it takes off
+  if (water !== undefined && back.u <= 0 && g.back === undefined) back.h = 0;
+  return { ...back, sea, water: back.u <= 0 ? water : undefined, pool: !!pool, feeding: false };
 }
 
 // how far a pen's gate stands open (0 to 1): it swings open as the first animal sets off and
@@ -4629,7 +4637,9 @@ function buildPen(e: Entry, d: BuildingDef) {
           fishCycle(herd, m, head, now, id, fp.heading, fq.stand ?? -1, fq.round ?? 0, swim, fw.water!);
         } else {
           hideCatch(m);
-          animateLegs(m, fp.fly ? 0 : (fp as { moving?: boolean }).moving ? Math.sin(t / 110 + id) * 0.3 : 0);
+          // afloat: legs tucked, a gentle rock on the ripples
+          if (onWater && swim) { animateLegs(m, 0); m.rotation.z = Math.sin(t / 520 + id) * 0.05; }
+          else animateLegs(m, fp.fly ? 0 : (fp as { moving?: boolean }).moving ? Math.sin(t / 110 + id) * 0.3 : 0);
           // feeding on land: pecking the grass
           if (head) head.rotation.x = fp.fly ? -0.2 : fp.feeding ? 0.55 + Math.max(0, Math.sin(t / 260 + id)) * 0.25 : 0;
         }
