@@ -626,6 +626,8 @@ export class Renderer {
       grass: (x, y) => { this.rebuildNav(); return this.free(x, y) && !pathTiles.has(y * GRID + x) && !fieldTiles.has(y * GRID + x); },
       flowers: () => this.flowerSpots(),
       roofs: () => this.roofSpots(),
+      roofTop: (id, x, z) => this.roofTop(id, x, z),
+      trees: () => this.treeSpots(),
     };
     // the farmer and pets start as sculpts and take on their Blender models once loaded
     if (artStyle() === 'toon') {
@@ -1302,7 +1304,10 @@ export class Renderer {
       this.cullSphere.center.set(o.x + d.w / 2, 0.6, o.y + d.h / 2);
       this.cullSphere.radius = Math.max(d.w, d.h) * 0.8 + 1.2;
       const seen = this.frustum.intersectsSphere(this.cullSphere);
-      if (seen || (this.frameNo + o.id) % 24 === 0) e.update?.(o, now, t, dt);
+      // animals out of their pen (grazing, flying, fishing at sea) keep moving even when the pen
+      // itself is off screen, or they would stand frozen out there
+      const away = !!o.pen && o.pen.animals.some((a) => a.graze);
+      if (seen || away || (this.frameNo + o.id) % 24 === 0) e.update?.(o, now, t, dt);
       if (e.bounce || e.root.scale.x !== 1) this.applyBounce(e, o, dt);
     }
     tickAnims(dt);
@@ -1898,7 +1903,7 @@ export class Renderer {
 
   // roof ridges a bird may perch on: the middle of each building with walls and its height
   private roofKey = '';
-  private roofList: { x: number; y: number; h: number }[] = [];
+  private roofList: { id: number; x: number; y: number; h: number }[] = [];
   private roofSpots() {
     const s = this.store.s;
     const key = `${this.store.objVersion}|${s.objects.length}`;
@@ -1909,10 +1914,51 @@ export class Renderer {
         const d = BUILDING[o.type];
         if (!['house', 'barn', 'silo', 'production', 'board', 'stall'].includes(d.kind)) continue;
         const e = this.entries.get(o.id);
-        if (e && e.top > 0.6) this.roofList.push({ x: o.x + d.w / 2, y: o.y + d.h / 2, h: e.top });
+        if (e && e.top > 0.6) this.roofList.push({ id: o.id, x: o.x + d.w / 2, y: o.y + d.h / 2, h: e.top });
       }
     }
     return this.roofList;
+  }
+
+  // trees a bird may sit in: fruit trees and the wild trees still standing on the farm
+  private treeKey = '';
+  private treeList: { id: number; x: number; y: number }[] = [];
+  private treeSpots() {
+    const s = this.store.s;
+    const key = `${this.store.objVersion}|${s.objects.length}`;
+    if (key !== this.treeKey) {
+      this.treeKey = key;
+      this.treeList = [];
+      for (const o of s.objects) {
+        const d = BUILDING[o.type];
+        if (d.kind === 'tree' || o.type.startsWith('tree_obs') || o.type === 'oak') this.treeList.push({ id: o.id, x: o.x + d.w / 2, y: o.y + d.h / 2 });
+      }
+    }
+    return this.treeList;
+  }
+
+  // the real height of a building's roof at a spot: a ray dropped onto its meshes (the model's
+  // own roof, not the rough height used for its bubble), remembered for a few seconds
+  private roofCache = new Map<string, { h: number | null; at: number }>();
+  private downRay = new THREE.Raycaster();
+  private roofTop(id: number, x: number, z: number) {
+    const key = `${id}|${x.toFixed(2)}|${z.toFixed(2)}`;
+    const now = performance.now();
+    const hit = this.roofCache.get(key);
+    if (hit && now - hit.at < 8000) return hit.h;
+    const e = this.entries.get(id);
+    let h: number | null = null;
+    if (e) {
+      e.root.updateWorldMatrix(true, true);
+      this.downRay.set(new THREE.Vector3(x, 30, z), new THREE.Vector3(0, -1, 0));
+      const meshes: THREE.Object3D[] = [];
+      e.root.traverse((c) => { const m = c as THREE.Mesh; if (m.isMesh && m.visible && m.material !== HIT_MAT && !(m.material as THREE.Material).transparent) meshes.push(m); });
+      const r = this.downRay.intersectObjects(meshes, false);
+      if (r.length) h = r[0].point.y;
+    }
+    if (this.roofCache.size > 500) this.roofCache.clear();
+    this.roofCache.set(key, { h, at: now });
+    return h;
   }
 
   private rebuildNav() {
@@ -1971,19 +2017,38 @@ export class Renderer {
     const N = GRID * GRID, start = sy * GRID + sx, goal = ty * GRID + tx;
     if (start === goal) return [];
     const gs = new Float32Array(N).fill(Infinity), from = new Int32Array(N).fill(-1), closed = new Uint8Array(N);
-    const open: number[] = [start];
-    const inOpen = new Uint8Array(N);
-    inOpen[start] = 1;
     const fs = new Float32Array(N).fill(Infinity);
+    // the open set is a binary heap on f (stale entries are skipped when popped), so long walks
+    // across the big map plan in a blink instead of stalling a frame
+    const heap: number[] = [];
+    const push = (i: number) => {
+      heap.push(i);
+      let k = heap.length - 1;
+      while (k > 0) { const p = (k - 1) >> 1; if (fs[heap[p]] <= fs[heap[k]]) break; [heap[p], heap[k]] = [heap[k], heap[p]]; k = p; }
+    };
+    const pop = () => {
+      const top = heap[0], last = heap.pop()!;
+      if (heap.length) {
+        heap[0] = last;
+        let k = 0;
+        for (;;) {
+          const l = 2 * k + 1, r = l + 1;
+          let m = k;
+          if (l < heap.length && fs[heap[l]] < fs[heap[m]]) m = l;
+          if (r < heap.length && fs[heap[r]] < fs[heap[m]]) m = r;
+          if (m === k) break;
+          [heap[m], heap[k]] = [heap[k], heap[m]]; k = m;
+        }
+      }
+      return top;
+    };
     const hh = (i: number) => { const dx = Math.abs((i % GRID) - tx), dy = Math.abs(Math.floor(i / GRID) - ty); return Math.max(dx, dy) + 0.41 * Math.min(dx, dy); };
     gs[start] = 0; fs[start] = hh(start);
+    push(start);
     let guard = 0;
-    while (open.length && guard++ < 20000) {
-      let bi = 0;
-      for (let i = 1; i < open.length; i++) if (fs[open[i]] < fs[open[bi]]) bi = i;
-      const cur = open[bi];
-      open.splice(bi, 1);
-      inOpen[cur] = 0;
+    while (heap.length && guard++ < 40000) {
+      const cur = pop();
+      if (closed[cur]) continue;
       if (cur === goal) break;
       closed[cur] = 1;
       const cx = cur % GRID, cy = Math.floor(cur / GRID);
@@ -1998,7 +2063,7 @@ export class Renderer {
         const ng = gs[cur] + (dx && dy ? 1.414 : 1) + (this.nav[ni] === 2 ? 2.5 : 0);
         if (ng < gs[ni]) {
           gs[ni] = ng; fs[ni] = ng + hh(ni); from[ni] = cur;
-          if (!inOpen[ni]) { open.push(ni); inOpen[ni] = 1; }
+          push(ni);
         }
       }
     }
@@ -2520,6 +2585,19 @@ const FLIERS = new Set(['chicken', 'duck', 'goose', 'gobbler', 'peacock', 'quail
   'pekin_duck', 'orpington', 'brahma_chicken', 'toulouse_goose', 'polish_chicken', 'indian_runner', 'white_peacock', 'leghorn',
   'khaki_campbell', 'rhode_island_red', 'call_duck', 'emden_goose', 'wyandotte', 'marans']);
 const SEA_BIRDS = new Set(['flamingo', 'crane', 'grey_heron', 'swan', 'black_swan']);
+// and the tree birds do not graze either: they fly to a tree nearby and sit in its crown
+const TREE_BIRDS = new Set(['barn_owl', 'parrot']);
+// a tree crown near the pen for a tree bird: one of the few closest, picked by the bird
+function treePerch(o: FarmObject, d: BuildingDef, id: number) {
+  const trees = GRAZE_NAV?.trees() ?? [];
+  const cx = o.x + d.w / 2, cy = o.y + d.h / 2;
+  const near = trees.map((t) => ({ t, k: Math.hypot(t.x - cx, t.y - cy) })).filter((q) => q.k < 14).sort((p, q) => p.k - q.k).slice(0, 4);
+  if (!near.length) return null;
+  const t = near[Math.floor(hash(id, 31, 2) * near.length)].t;
+  const x = t.x + (hash(id, 32, 3) - 0.5) * 0.3, y = t.y + (hash(id, 33, 4) - 0.5) * 0.3;
+  const top = GRAZE_NAV?.roofTop(t.id, x, y);
+  return top && top > 0.4 ? { x, y, h: top } : null;
+}
 const WING: Record<string, string> = {
   flamingo: '#f47ea0', crane: '#d8d8d2', grey_heron: '#8c96a0', swan: '#f6f6f2', black_swan: '#26262a', parrot: '#2aa84a',
   barn_owl: '#c8a070', peacock: '#2a6ab8', white_peacock: '#f6f6f2', ayam_cemani: '#1c1c20', gobbler: '#5a3a24', bronze_turkey: '#6a4a2a',
@@ -2554,6 +2632,98 @@ function flap(m: THREE.Object3D, on: boolean, t: number, id: number, fast = 1) {
   for (const [i, wg] of wings.entries()) {
     wg.visible = on;
     if (on) wg.rotation.z = (i ? -1 : 1) * (0.15 + Math.sin(t / (55 / fast) + id) * 0.75);
+  }
+}
+
+// Fishing in the shallows, a few seconds a round: wade, freeze and stare, strike, come up with a
+// wriggling fish, toss it back and swallow. A ring of ripples spreads where the beak went in.
+const FISH_GEO = (() => {
+  const body = new THREE.SphereGeometry(1, 10, 6);
+  body.scale(0.012, 0.018, 0.05);
+  const tail = new THREE.ConeGeometry(0.018, 0.03, 4);
+  tail.rotateX(-Math.PI / 2);
+  tail.translate(0, 0, -0.06);
+  return [body, tail];
+})();
+const FISH_MAT = new THREE.MeshStandardMaterial({ color: '#b8ccd8', roughness: 0.3, metalness: 0.4 });
+const RIPPLE_GEO = new THREE.RingGeometry(0.8, 1, 28).rotateX(-Math.PI / 2);
+
+function beakOf(head: THREE.Object3D) {
+  let b = head.userData.beak as THREE.Vector3 | undefined;
+  if (b) return b;
+  // the tip of the head: its farthest point forward, in the head's own space
+  head.updateWorldMatrix(true, true);
+  const inv = new THREE.Matrix4().copy(head.matrixWorld).invert();
+  const box = new THREE.Box3(), mb = new THREE.Box3(), mm = new THREE.Matrix4();
+  head.traverse((c) => {
+    const mesh = c as THREE.Mesh;
+    if (!mesh.isMesh || !mesh.geometry) return;
+    if (!mesh.geometry.boundingBox) mesh.geometry.computeBoundingBox();
+    mb.copy(mesh.geometry.boundingBox!).applyMatrix4(mm.multiplyMatrices(inv, mesh.matrixWorld));
+    box.union(mb);
+  });
+  b = box.isEmpty() ? new THREE.Vector3(0, 0, 0.1) : new THREE.Vector3((box.min.x + box.max.x) / 2, box.min.y + (box.max.y - box.min.y) * 0.3, box.max.z);
+  head.userData.beak = b;
+  return b;
+}
+
+function hideCatch(m: THREE.Object3D) {
+  const f = m.userData.fish as THREE.Object3D | undefined;
+  if (f) f.visible = false;
+  const r = m.userData.ripple as THREE.Mesh | undefined;
+  if (r) r.visible = false;
+}
+
+function fishCycle(herd: THREE.Object3D, m: THREE.Object3D, head: THREE.Object3D | undefined, now: number, id: number, heading: number) {
+  const C = 5200 + hash(id, 21, 4) * 2600;
+  const ph = ((now + hash(id, 22, 5) * C) % C) / C;
+  // wading between strikes, standing still to stalk and strike
+  const wading = ph < 0.42 || ph > 0.9;
+  animateLegs(m, wading ? Math.sin(now / 160 + id) * 0.25 : 0);
+  let hx = 0.2, fishOn = false, swallow = 1;
+  if (ph >= 0.42 && ph < 0.55) hx = 0.2 + (ph - 0.42) / 0.13 * 0.35;           // stalking, head lowering
+  else if (ph >= 0.55 && ph < 0.6) hx = 0.55 + (ph - 0.55) / 0.05 * 0.95;      // the strike
+  else if (ph >= 0.6 && ph < 0.66) hx = 1.5 - (ph - 0.6) / 0.06 * 1.1;         // up with the catch
+  else if (ph >= 0.66 && ph < 0.84) { hx = 0.4 - (ph - 0.66) / 0.18 * 0.2; }     // holding it
+  else if (ph >= 0.84 && ph < 0.9) { hx = 0.2 - (ph - 0.84) / 0.06 * 0.7; swallow = 1 - (ph - 0.84) / 0.06; } // toss and swallow
+  if (ph >= 0.6 && ph < 0.9) fishOn = true;
+  if (head) {
+    head.rotation.x = hx;
+    let f = m.userData.fish as THREE.Object3D | undefined;
+    if (!f) {
+      f = new THREE.Group();
+      for (const g of FISH_GEO) f.add(new THREE.Mesh(g, FISH_MAT));
+      const b = beakOf(head);
+      f.position.copy(b);
+      f.rotation.y = Math.PI / 2;
+      // the head may be scaled with the body: keep the fish a fish sized fish
+      f.scale.setScalar(1.6 / Math.max(0.3, m.scale.x));
+      head.add(f);
+      m.userData.fish = f;
+    }
+    f.visible = fishOn && swallow > 0.05;
+    if (f.visible) {
+      f.rotation.z = Math.sin(now / 45 + id) * 0.5;
+      f.scale.setScalar((1.6 / Math.max(0.3, m.scale.x)) * Math.max(0.2, swallow));
+    }
+  }
+  // ripples from the strike
+  let r = m.userData.ripple as THREE.Mesh | undefined;
+  if (!r) {
+    r = new THREE.Mesh(RIPPLE_GEO, new THREE.MeshBasicMaterial({ color: '#ffffff', transparent: true, depthWrite: false }));
+    r.renderOrder = 2;
+    // beside the herd, not in it: the herd's children are the animals
+    r.userData.keep = true;
+    (herd.parent ?? herd).add(r);
+    m.userData.ripple = r;
+  }
+  const rk = (ph - 0.57) / 0.3;
+  r.visible = rk > 0 && rk < 1;
+  if (r.visible) {
+    const reach = 0.22 * m.scale.x;
+    r.position.set(m.position.x + Math.sin(heading) * reach, -0.54, m.position.z + Math.cos(heading) * reach);
+    r.scale.setScalar(0.04 + rk * 0.3);
+    (r.material as THREE.MeshBasicMaterial).opacity = (1 - rk) * 0.8;
   }
 }
 
@@ -3616,7 +3786,9 @@ let GRAZE_NAV: {
   nearest: (x: number, y: number) => P2 | null;
   grass: (x: number, y: number) => boolean;
   flowers: () => P2[];
-  roofs: () => { x: number; y: number; h: number }[];
+  roofs: () => { id: number; x: number; y: number; h: number }[];
+  roofTop: (id: number, x: number, z: number) => number | null;
+  trees: () => { id: number; x: number; y: number }[];
 } | null = null;
 
 interface Trip { out: P2[]; eat: P2[][]; back: P2[]; recall?: { at: number; path: P2[] } }
@@ -3740,6 +3912,8 @@ function seaSpot(o: FarmObject, d: BuildingDef, id: number): P2 {
     const x = along(cx) + (along(cx) < FISH_SPOT.x ? -4 : 4);
     return { x: Math.max(2, Math.min(GRID - 2, x)), y: GRID + out };
   }
+  // on the west side the turtle cove's sand bulges out to sea: wade off its shore instead
+  if (e === 0) { const y = along(cy); return { x: Math.min(-out, coveEdge(y) - 0.5 - hash(id, 4, 9) * 0.6), y }; }
   return e === 0 ? { x: -out, y: along(cy) } : e === 1 ? { x: GRID + out, y: along(cy) } : e === 2 ? { x: along(cx), y: -out } : { x: along(cx), y: GRID + out };
 }
 function flyPose(o: FarmObject, d: BuildingDef, a: Animal, kind: string, now: number) {
@@ -3753,18 +3927,27 @@ function flyPose(o: FarmObject, d: BuildingDef, a: Animal, kind: string, now: nu
   const home = { x: o.x + sp.x, y: o.y + sp.z };
   const sp2 = animalSpot(d, a.id, g.at + 2 * walkMs + eatMs);
   const home2 = { x: o.x + sp2.x, y: o.y + sp2.z };
-  const tr = sea ? null : tripFor(o, d, a);
-  const ground = sea ? seaSpot(o, d, a.id) : tr ? along(tr.eat[0], 0) : home;
-  // one hop through the air: up, across and down again, over at most `budget` ms
-  const hopAt = (from: P2, to: P2, t: number, budget: number, late: boolean) => {
+  // owls and parrots feed up in the trees: a crown near the pen to sit in
+  const perch = TREE_BIRDS.has(kind) ? treePerch(o, d, a.id) : null;
+  const tr = sea || perch ? null : tripFor(o, d, a);
+  const ground = sea ? seaSpot(o, d, a.id) : perch ? { x: perch.x, y: perch.y } : tr ? along(tr.eat[0], 0) : home;
+  const up0 = perch ? perch.h - 0.04 : 0;
+  // one hop through the air: up, across and down again (or onto a branch), over at most `budget` ms
+  const hopAt = (from: P2, to: P2, t: number, budget: number, late: boolean, h0 = 0, h1 = 0) => {
     const dist = Math.hypot(to.x - from.x, to.y - from.y);
     const dur = Math.min(budget, Math.max(900, dist / FLY_SPEED));
     const t0 = late ? budget - dur : 0;
     const u = Math.max(0, Math.min(1, (t - t0) / dur));
     const up = Math.min(2.2, 0.6 + dist * 0.12);
-    return { x: from.x + (to.x - from.x) * u, y: from.y + (to.y - from.y) * u, h: Math.sin(u * Math.PI) * up, fly: u > 0 && u < 1, heading: Math.atan2(to.x - from.x, to.y - from.y) };
+    return { x: from.x + (to.x - from.x) * u, y: from.y + (to.y - from.y) * u, h: h0 + (h1 - h0) * u + Math.sin(u * Math.PI) * up, fly: u > 0 && u < 1, heading: Math.atan2(to.x - from.x, to.y - from.y) };
   };
-  if (gp.phase === 'leaving') return { ...hopAt(home, ground, gp.k * walkMs, walkMs, false), sea, feeding: false };
+  if (gp.phase === 'leaving') return { ...hopAt(home, ground, gp.k * walkMs, walkMs, false, 0, up0), sea, feeding: false };
+  if (gp.phase === 'eating' && perch) {
+    // sitting up in the crown, turning to look about, now and then a short hop along the branch
+    const w = now / 4000 + a.id;
+    const hop = Math.max(0, Math.sin(now / 1900 + a.id * 3) - 0.9) * 0.6;
+    return { x: perch.x + Math.cos(w) * 0.08, y: perch.y + Math.sin(w) * 0.08, h: up0 + hop, fly: false, heading: Math.sin(now / 2600 + a.id) * 2.5, sea, feeding: false, perched: true };
+  }
   if (gp.phase === 'eating') {
     if (sea) {
       // wading (or, for swans, paddling) about the shallows, striking at fish now and then
@@ -3775,12 +3958,13 @@ function flyPose(o: FarmObject, d: BuildingDef, a: Animal, kind: string, now: nu
     return gz ? { x: gz.x, y: gz.y, h: 0, fly: false, heading: gz.heading, sea, feeding: !gz.moving, moving: gz.moving } : null;
   }
   // flying home: from the feeding ground, or from wherever it was when called back
-  let from = sea ? ground : tr ? along(tr.eat[1], 1) : ground;
+  let from = sea || perch ? ground : tr ? along(tr.eat[1], 1) : ground;
+  let fromH = up0;
   if (g.back !== undefined) {
     const at = flyPose(o, d, { ...a, graze: { at: g.at } }, kind, g.back);
-    if (at) from = { x: at.x, y: at.y };
+    if (at) { from = { x: at.x, y: at.y }; fromH = at.h; }
   }
-  return { ...hopAt(from, home2, gp.k * walkMs, walkMs, true), sea, feeding: false };
+  return { ...hopAt(from, home2, gp.k * walkMs, walkMs, true, fromH, 0), sea, feeding: false };
 }
 
 // how far a pen's gate stands open (0 to 1): it swings open as the first animal sets off and
@@ -4074,6 +4258,7 @@ function buildPen(e: Entry, d: BuildingDef) {
     if (list.length !== count || ver !== animalVer) {
       ver = animalVer;
       const grew = count >= 0 && list.length > count;
+      for (const c of herd.children) (c.userData.ripple as THREE.Object3D | undefined)?.removeFromParent();
       herd.clear();
       count = list.length;
       for (let i = 0; i < count; i++) herd.add(an?.id === 'bee' ? buildHive() : buildAnimal(an?.id ?? ''));
@@ -4133,17 +4318,21 @@ function buildPen(e: Entry, d: BuildingDef) {
         m.rotation.x = fp.fly ? -0.12 : 0;
         m.rotation.z = 0;
         flap(m, fp.fly, t, id, fp.h > 1 ? 0.7 : 1);
-        animateLegs(m, fp.fly ? 0 : (fp as { moving?: boolean }).moving ? Math.sin(t / 110 + id) * 0.3 : 0);
-        if (head) {
-          // feeding: pecking the grass, or a quick strike at a fish in the water
-          const strike = fp.sea ? Math.pow(Math.max(0, Math.sin(t / 700 + id * 1.9)), 12) * 1.3 : 0;
-          head.rotation.x = fp.fly ? -0.2 : fp.feeding ? (fp.sea ? 0.35 + strike : 0.55 + Math.max(0, Math.sin(t / 260 + id)) * 0.25) : 0;
+        const fishing = fp.sea && fp.feeding && !fp.fly;
+        if (fishing) {
+          fishCycle(herd, m, head, now, id, fp.heading);
+        } else {
+          hideCatch(m);
+          animateLegs(m, fp.fly ? 0 : (fp as { moving?: boolean }).moving ? Math.sin(t / 110 + id) * 0.3 : 0);
+          // feeding on land: pecking the grass
+          if (head) head.rotation.x = fp.fly ? -0.2 : fp.feeding ? 0.55 + Math.max(0, Math.sin(t / 260 + id)) * 0.25 : 0;
         }
         blink(m, t, id);
         if (cs) { cs.visible = !fp.sea || fp.fly; cs.position.y = 0.006 - (m.position.y - 0.04); }
         return;
       }
       flap(m, false, t, id);
+      hideCatch(m);
       if (m.userData.shadow) (m.userData.shadow as THREE.Object3D).visible = true;
       const gz = a?.graze ? grazePose(o, d, a, now) : null;
       if (gz) {
@@ -4190,19 +4379,22 @@ function buildPen(e: Entry, d: BuildingDef) {
           if (near.length) {
             const r = near[Math.floor(hash(id, 11, 6) * near.length)].r;
             const perch = { x: r.x + (hash(id, 12, 7) - 0.5) * 0.5, y: r.y + (hash(id, 13, 8) - 0.5) * 0.5 };
+            // feet on the roof tiles: the surface under the perch, minus the bird's own foot offset
+            const top = GRAZE_NAV?.roofTop(r.id, perch.x, perch.y) ?? r.h;
+            const rh = top - 0.01;
             const ground = { x: o.x + sp.x, y: o.y + sp.z };
             let px: number, py: number, h: number, fly = false, head0 = 0;
             if (ur < 2000 || ur > 16000) {
               // up to the roof, or back down into the yard, in an arc
               const k = ur < 2000 ? ur / 2000 : (ur - 16000) / 2000;
               const [p0, p1] = ur < 2000 ? [ground, perch] : [perch, ground];
-              const h0 = ur < 2000 ? 0.04 : r.h, h1 = ur < 2000 ? r.h : 0.04;
+              const h0 = ur < 2000 ? 0.04 : rh, h1 = ur < 2000 ? rh : 0.04;
               px = p0.x + (p1.x - p0.x) * k; py = p0.y + (p1.y - p0.y) * k;
               h = h0 + (h1 - h0) * k + Math.sin(k * Math.PI) * 0.8;
               fly = k > 0 && k < 1;
               m.rotation.y = Math.atan2(p1.x - p0.x, p1.y - p0.y);
             } else {
-              px = perch.x; py = perch.y; h = r.h;
+              px = perch.x; py = perch.y; h = rh;
               m.rotation.y = Math.sin(t / 3000 + id) * 1.5;
               head0 = Math.max(0, Math.sin(t / 900 + id)) * 0.3;
             }
