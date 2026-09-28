@@ -21,7 +21,7 @@ import { SCULPT_MAT, TOON_MAT, TOON_WOOL, WOOL_MAT } from './gfx/sdf';
 import { leafShell, leafTexture, meterBox, meterHip, meterRoof, surface, surfaceMat, type SurfaceKind } from './gfx/textures';
 import { ANIMAL, BUILDING, CROP, ITEMS, type BuildingDef, type CropDef } from './data';
 import {
-  CHUNK, FARM_OFF, FISH_SPOT, GRAZE, GRID, MAP_OFF2, NCH, animalReady, fishingInfo, boatState, canFulfill, chunkState, grazePhase, penInfo, plotProgress, prodInfo, treeInfo,
+  CHUNK, FARM_OFF, FISH_SPOT, GRAZE, GRID, MAP_OFF2, MAP_OFF3, NCH, isBeachTile, animalReady, fishingInfo, boatState, canFulfill, chunkState, grazePhase, penInfo, plotProgress, prodInfo, treeInfo,
   type Animal, type FarmObject, type GameStore,
 } from './state';
 
@@ -445,7 +445,7 @@ const FARM_C = { x: 13.5 + FARM_OFF, y: 11.5 + FARM_OFF };
 // the beach round the island reaches BEACH tiles out; on the west side the turtle cove bulges
 // out much further, an ellipse centred at (x, z) with half widths rx, rz
 const BEACH = 1.2;
-const COVE = { x: -0.4, z: 15 + MAP_OFF2, rx: 4.4, rz: 8 };
+const COVE = { x: -0.4, z: 15 + MAP_OFF2 + MAP_OFF3, rx: 4.4, rz: 8 };
 // x of the cove's waterline at depth z (0 where there is no cove)
 function coveEdge(z: number) {
   const u = (z - COVE.z) / COVE.rz;
@@ -625,6 +625,7 @@ export class Renderer {
       nearest: (x, y) => { this.rebuildNav(); return this.nearestFree(x, y); },
       grass: (x, y) => { this.rebuildNav(); return this.free(x, y) && !pathTiles.has(y * GRID + x) && !fieldTiles.has(y * GRID + x); },
       flowers: () => this.flowerSpots(),
+      roofs: () => this.roofSpots(),
     };
     // the farmer and pets start as sculpts and take on their Blender models once loaded
     if (artStyle() === 'toon') {
@@ -879,13 +880,27 @@ export class Renderer {
     this.tiles = new THREE.InstancedMesh(G.box, grass, GRID * GRID);
     this.tiles.receiveShadow = true;
     const m = new THREE.Matrix4();
+    const beach: [number, number][] = [];
     for (let y = 0; y < GRID; y++) for (let x = 0; x < GRID; x++) {
-      m.makeScale(1, 0.4, 1);
+      // the beach ring is sand: its grass tile is left out
+      if (isBeachTile(x, y)) { beach.push([x, y]); m.makeScale(0, 0, 0); } else m.makeScale(1, 0.4, 1);
       m.setPosition(x + 0.5, -0.2, y + 0.5);
       this.tiles.setMatrixAt(y * GRID + x, m);
       this.tiles.setColorAt(y * GRID + x, new THREE.Color('#7cc450'));
     }
     this.land.add(this.tiles);
+    // the beach: warm dry sand, a little paler toward the sea
+    const sandTiles = new THREE.InstancedMesh(G.box, sand, beach.length);
+    const c = new THREE.Color();
+    beach.forEach(([x, y], i) => {
+      m.makeScale(1, 0.4, 1);
+      m.setPosition(x + 0.5, -0.2, y + 0.5);
+      sandTiles.setMatrixAt(i, m);
+      const edge = Math.min(x, y, GRID - 1 - x, GRID - 1 - y);
+      sandTiles.setColorAt(i, c.setRGB(1, 1, 1).multiplyScalar(1.04 - edge * 0.025 + (hash(x, y, 41) - 0.5) * 0.04));
+    });
+    sandTiles.receiveShadow = true;
+    this.land.add(sandTiles);
   }
 
   // boulders along the beach and in the surf, plus a few starfish on the sand
@@ -1013,7 +1028,7 @@ export class Renderer {
     }
     const spots: Spot[] = [];
     for (let y = 0; y < GRID; y++) for (let x = 0; x < GRID; x++) {
-      if (used[y * GRID + x]) continue;
+      if (used[y * GRID + x] || isBeachTile(x, y)) continue;
       const cs = chunkState(s, Math.floor(x / CHUNK), Math.floor(y / CHUNK));
       spots.push({ x, z: y, open: cs === 'open' });
     }
@@ -1048,7 +1063,7 @@ export class Renderer {
     const rounds: [number, number, number][] = [];
     for (let cy = 0; cy < NCH; cy++) for (let cx = 0; cx < NCH; cx++) {
       const cs = chunkState(s, cx, cy);
-      if (cs === 'open') continue;
+      if (cs === 'open' || cs === 'beach') continue;
       if (cs === 'buyable') this.buildSign(this.dynLand, cx, cy);
       for (let j = 0; j < CHUNK; j++) for (let i = 0; i < CHUNK; i++) {
         const x = cx * CHUNK + i, y = cy * CHUNK + j;
@@ -1879,6 +1894,25 @@ export class Renderer {
       }
     }
     return this.flowerList;
+  }
+
+  // roof ridges a bird may perch on: the middle of each building with walls and its height
+  private roofKey = '';
+  private roofList: { x: number; y: number; h: number }[] = [];
+  private roofSpots() {
+    const s = this.store.s;
+    const key = `${this.store.objVersion}|${s.objects.length}`;
+    if (key !== this.roofKey) {
+      this.roofKey = key;
+      this.roofList = [];
+      for (const o of s.objects) {
+        const d = BUILDING[o.type];
+        if (!['house', 'barn', 'silo', 'production', 'board', 'stall'].includes(d.kind)) continue;
+        const e = this.entries.get(o.id);
+        if (e && e.top > 0.6) this.roofList.push({ x: o.x + d.w / 2, y: o.y + d.h / 2, h: e.top });
+      }
+    }
+    return this.roofList;
   }
 
   private rebuildNav() {
@@ -3203,7 +3237,7 @@ const MODELS: Record<string, ModelSpec> = {
 for (const id of ['hay_bale', 'picket_fence', 'bird_house', 'pumpkin_pile', 'birdbath', 'topiary', 'well', 'flower_arch',
   'hay_wagon', 'tractor', 'bench', 'lamp', 'scarecrow', 'windmill', 'pond', 'mailbox', 'gazebo', 'fountain',
   'sundial', 'bird_feeder', 'garden_swing', 'bonfire', 'picnic_spot', 'wind_turbine', 'stone_bridge', 'pergola', 'horse_statue', 'zen_garden', 'treehouse', 'greenhouse', 'water_tower', 'carousel', 'lighthouse', 'clock_tower', 'hot_air_balloon', 'golden_farmer',
-  'garden_gnome', 'wheelbarrow', 'rain_barrel', 'flower_cart', 'compost_bin', 'mushroom_ring', 'stone_lantern', 'bamboo_grove', 'fairy_house', 'snowman', 'sandcastle', 'seesaw', 'outdoor_oven', 'telescope', 'obelisk', 'hammock', 'water_wheel', 'koi_pond', 'camping_tent', 'beach_hut', 'log_cabin', 'playground_slide', 'observatory', 'ferris_wheel',
+  'garden_gnome', 'wheelbarrow', 'rain_barrel', 'flower_cart', 'compost_bin', 'mushroom_ring', 'stone_lantern', 'bamboo_grove', 'fairy_house', 'snowman', 'sandcastle', 'seesaw', 'outdoor_oven', 'telescope', 'obelisk', 'hammock', 'water_wheel', 'koi_pond', 'camping_tent', 'beach_hut', 'log_cabin', 'playground_slide', 'observatory', 'ferris_wheel', 'sun_lounger', 'beach_umbrella', 'lifeguard_tower', 'surfboard_rack',
   'hay_stack', 'picnic_table', 'lemonade_stand', 'insect_hotel', 'weathervane', 'rock_garden', 'veggie_stand', 'windchime', 'dovecote', 'flag_pole', 'ice_cream_cart', 'pumpkin_carriage']) MODELS[id] = {};
 for (const d of Object.values(BUILDING)) if (d.kind === 'pen') MODELS[d.id] = {};
 for (const d of Object.values(BUILDING)) if (d.kind === 'tree') MODELS[d.id] = {};
@@ -3582,6 +3616,7 @@ let GRAZE_NAV: {
   nearest: (x: number, y: number) => P2 | null;
   grass: (x: number, y: number) => boolean;
   flowers: () => P2[];
+  roofs: () => { x: number; y: number; h: number }[];
 } | null = null;
 
 interface Trip { out: P2[]; eat: P2[][]; back: P2[]; recall?: { at: number; path: P2[] } }
@@ -4144,7 +4179,41 @@ function buildPen(e: Entry, d: BuildingDef) {
       m.rotation.y = sp.heading;
       animateLegs(m, Math.sin(t / 110 + id) * 0.28);
       if (cs) cs.position.y = 0.006 - (m.position.y - 0.04);
-      if (m.userData.wings && !SWIMMERS.has(an?.id ?? '')) {
+      if (m.userData.wings && !SWIMMERS.has(an?.id ?? '') && !a?.graze) {
+        // some birds now and then fly up to a roof nearby, sit there a while and come back
+        const roofs = GRAZE_NAV?.roofs() ?? [];
+        const PR = 50000 + hash(id, 9, 4) * 40000;
+        const ur = (t + hash(id, 10, 5) * PR) % PR;
+        if (roofs.length && hash(id, 8, 3) < 0.45 && ur < 18000) {
+          const cx = o.x + d.w / 2, cy = o.y + d.h / 2;
+          const near = roofs.map((r) => ({ r, k: Math.hypot(r.x - cx, r.y - cy) })).filter((q) => q.k < 12).sort((p1, p2) => p1.k - p2.k).slice(0, 3);
+          if (near.length) {
+            const r = near[Math.floor(hash(id, 11, 6) * near.length)].r;
+            const perch = { x: r.x + (hash(id, 12, 7) - 0.5) * 0.5, y: r.y + (hash(id, 13, 8) - 0.5) * 0.5 };
+            const ground = { x: o.x + sp.x, y: o.y + sp.z };
+            let px: number, py: number, h: number, fly = false, head0 = 0;
+            if (ur < 2000 || ur > 16000) {
+              // up to the roof, or back down into the yard, in an arc
+              const k = ur < 2000 ? ur / 2000 : (ur - 16000) / 2000;
+              const [p0, p1] = ur < 2000 ? [ground, perch] : [perch, ground];
+              const h0 = ur < 2000 ? 0.04 : r.h, h1 = ur < 2000 ? r.h : 0.04;
+              px = p0.x + (p1.x - p0.x) * k; py = p0.y + (p1.y - p0.y) * k;
+              h = h0 + (h1 - h0) * k + Math.sin(k * Math.PI) * 0.8;
+              fly = k > 0 && k < 1;
+              m.rotation.y = Math.atan2(p1.x - p0.x, p1.y - p0.y);
+            } else {
+              px = perch.x; py = perch.y; h = r.h;
+              m.rotation.y = Math.sin(t / 3000 + id) * 1.5;
+              head0 = Math.max(0, Math.sin(t / 900 + id)) * 0.3;
+            }
+            m.position.set(px - o.x, h, py - o.y);
+            flap(m, fly, t, id, 1.2);
+            animateLegs(m, 0);
+            if (head) head.rotation.x = head0;
+            if (cs) cs.visible = false;
+            return;
+          }
+        }
         // now and then a bird flutters up and across the yard
         const P = 12000 + hash(id, 5, 1) * 9000;
         const u = (t + hash(id, 6, 2) * P) % P;

@@ -822,6 +822,80 @@ def pumpkin_carriage():
     finish('pumpkin_carriage', tex=1024, glow=('lamp',))
 
 
+# ---------------------------------------------------------------- the beach
+
+def sun_lounger():
+    m = std()
+    wood = m['wood']
+    cloth = pm('sl_cloth', '#e8403a', '#f6f2ea', scale=12, kind='wave', stretch=(1, 10, 1))
+    # a low frame: the seat, then the back tipped up at the head end (+Y is the back of the tile)
+    for sx in (-1, 1):
+        box(uid('rail'), (0.04, 0.62, 0.04), (sx * 0.2, -0.08, 0.16), wood, bev=0.008)
+        for y in (-0.36, 0.2):
+            box(uid('leg'), (0.04, 0.04, 0.16), (sx * 0.2, y, 0.08), wood, bev=0.006)
+    box(uid('seat'), (0.38, 0.6, 0.025), (0, -0.08, 0.19), cloth, bev=0.008)
+    obox(uid('back'), (0, 0.33, 0.33), ((1, 0, 0), (0, 0.5, 0.87), (0, -0.87, 0.5)), (0.38, 0.36, 0.025), cloth, bev=0.008)
+    for sx in (-1, 1):
+        obox(uid('brail'), (sx * 0.2, 0.33, 0.33), ((1, 0, 0), (0, 0.5, 0.87), (0, -0.87, 0.5)), (0.04, 0.38, 0.04), wood, bev=0.006)
+    box(uid('towel'), (0.3, 0.2, 0.012), (0, -0.2, 0.21), pm('sl_towel', '#2a9ad8'), bev=0.004)
+    ball(uid('shades'), 0.03, (0.08, 0.1, 0.215), pm('sl_shades', '#1a1a20', rough=0.2), scale=(1.6, 0.6, 0.3), segs=10)
+    finish('sun_lounger', tex=512)
+
+
+def beach_umbrella():
+    m = std()
+    white = pm('bu_white', '#f6f4ee', rough=0.5)
+    cyl(uid('pole'), 0.02, 1.0, (0, 0, 0.5), white, verts=10)
+    canopy = pm('bu_canopy', '#f0c020', '#e8403a', scale=14, kind='wave', stretch=(1, 1, 1))
+    cyl(uid('canopy'), 0.55, 0.22, (0, 0, 0.93), canopy, verts=16, r2=0.02, bev=0.01)
+    ball(uid('tip'), 0.035, (0, 0, 1.06), white, segs=10)
+    # a towel, a bucket and spade in its shade
+    box(uid('towel'), (0.3, 0.55, 0.01), (0.12, -0.05, 0.005), pm('bu_towel', '#2aa0a8', '#f6f4ee', scale=10, kind='wave', stretch=(10, 1, 1)), bev=0.003)
+    cyl(uid('bucket'), 0.06, 0.1, (-0.25, -0.25, 0.05), pm('bu_bucket', '#2a6ad8'), verts=14, r2=0.075)
+    box(uid('spade'), (0.02, 0.2, 0.012), (-0.18, -0.3, 0.012), pm('bu_spade', '#f07a1a'), rot=(0, 0, 0.5), bev=0.003)
+    ball(uid('ball'), 0.07, (0.3, 0.3, 0.07), pm('bu_ball', '#f6f4ee', '#e8403a', scale=8, kind='wave'), segs=14)
+    finish('beach_umbrella', tex=512)
+
+
+def lifeguard_tower():
+    m = std()
+    white = pm('lg_white', '#f4f2ec', rough=0.55)
+    red = pm('lg_red', '#d8302a', rough=0.55)
+    for sx in (-1, 1):
+        for sy in (-1, 1):
+            obox(uid('leg'), (sx * 0.28, sy * 0.24, 0.45), ((-sx * 0.12, 0, 1), (0, 1, 0), (1, 0, sx * 0.12)), (0.9, 0.05, 0.05), white, bev=0.01)
+    box(uid('deck'), (0.62, 0.56, 0.05), (0, 0, 0.9), m['wood'], bev=0.01)
+    box(uid('hut'), (0.5, 0.36, 0.34), (0, 0.08, 1.1), red, bev=0.015)
+    box(uid('window'), (0.3, 0.02, 0.14), (0, -0.1, 1.15), m['glass'], bev=0)
+    box(uid('roof'), (0.62, 0.5, 0.05), (0, 0.06, 1.3), white, rot=(0.12, 0, 0), bev=0.01)
+    for sx in (-1, 1):
+        box(uid('rail'), (0.03, 0.03, 0.18), (sx * 0.3, -0.26, 1.02), white, bev=0.004)
+    box(uid('railb'), (0.62, 0.03, 0.03), (0, -0.26, 1.1), white, bev=0.004)
+    for k in range(6):
+        box(uid('rung'), (0.22, 0.03, 0.02), (0, -0.38 - k * 0.0, 0.12 + k * 0.14), m['wood'], rot=(-0.35, 0, 0), bev=0.003)
+    for sx in (-1, 1):
+        obox(uid('ladder'), (sx * 0.11, -0.42, 0.47), ((0, 0.35, 0.94), (1, 0, 0), (0, -0.94, 0.35)), (0.95, 0.03, 0.03), m['wood'], bev=0.004)
+    torus(uid('buoy'), 0.09, 0.03, (0.26, -0.27, 1.0), pm('lg_buoy', '#e8403a', '#f6f2ea', scale=6, kind='wave'), rot=(R90, 0, 0), segs=20, rsegs=8)
+    box(uid('flag'), (0.14, 0.01, 0.09), (-0.2, 0.08, 1.52), red, bev=0)
+    cyl(uid('fpole'), 0.008, 0.24, (-0.27, 0.08, 1.44), white, verts=6, bev=0)
+    finish('lifeguard_tower', tex=1024)
+
+
+def surfboard_rack():
+    m = std()
+    wood = m['wood_dark']
+    for sx in (-1, 1):
+        obox(uid('post'), (sx * 0.3, 0.05, 0.3), ((sx * -0.15, 0, 1), (0, 1, 0), (1, 0, sx * 0.15)), (0.62, 0.05, 0.05), wood, bev=0.008)
+    box(uid('bar'), (0.62, 0.05, 0.05), (0, 0.05, 0.3), wood, bev=0.008)
+    box(uid('bar2'), (0.66, 0.05, 0.05), (0, 0.05, 0.08), wood, bev=0.008)
+    cols = [('#2a9ad8', '#f6f2ea'), ('#f0c020', '#e8403a'), ('#2aa05a', '#f6f2ea')]
+    for i, (a, b) in enumerate(cols):
+        x = -0.18 + i * 0.18
+        board = pm(f'sb{i}', a, b, scale=8, kind='wave', stretch=(1, 1, 10))
+        ball(uid('board'), 0.5, (x, -0.04 + i * 0.01, 0.52), board, scale=(0.16, 0.035, 1.0), segs=20)
+    finish('surfboard_rack', tex=512)
+
+
 MODELS = {name: fn for name, fn in [
     ('garden_gnome', garden_gnome), ('wheelbarrow', wheelbarrow), ('rain_barrel', rain_barrel), ('flower_cart', flower_cart),
     ('compost_bin', compost_bin), ('mushroom_ring', mushroom_ring), ('stone_lantern', stone_lantern), ('bamboo_grove', bamboo_grove),
@@ -831,7 +905,8 @@ MODELS = {name: fn for name, fn in [
     ('observatory', observatory), ('ferris_wheel', ferris_wheel),
     ('hay_stack', hay_stack), ('picnic_table', picnic_table), ('lemonade_stand', lemonade_stand), ('insect_hotel', insect_hotel),
     ('weathervane', weathervane), ('rock_garden', rock_garden), ('veggie_stand', veggie_stand), ('windchime', windchime),
-    ('dovecote', dovecote), ('flag_pole', flag_pole), ('ice_cream_cart', ice_cream_cart), ('pumpkin_carriage', pumpkin_carriage)]}
+    ('dovecote', dovecote), ('flag_pole', flag_pole), ('ice_cream_cart', ice_cream_cart), ('pumpkin_carriage', pumpkin_carriage),
+    ('sun_lounger', sun_lounger), ('beach_umbrella', beach_umbrella), ('lifeguard_tower', lifeguard_tower), ('surfboard_rack', surfboard_rack)]}
 
 if __name__ == '__main__':
     main(MODELS)

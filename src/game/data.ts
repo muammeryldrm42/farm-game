@@ -70,6 +70,7 @@ export interface BuildingDef {
   capacity?: number;
   clearCost?: number;
   fruit?: string; // fruit trees
+  beach?: boolean; // may stand on the beach round the island
   growTime?: number; // fruit trees, seconds
 }
 
@@ -1557,7 +1558,7 @@ export const BUILDINGS: BuildingDef[] = [
   b({ id: 'cherry_tree', name: 'Cherry Tree', icon: '🍒', kind: 'tree', cost: 300, level: 9, max: 12, xp: 8, height: 64, sellable: true, fruit: 'cherry', growTime: 360, desc: 'Gives 2 cherries again and again.' }),
   b({ id: 'peach_tree', name: 'Peach Tree', icon: '🍑', kind: 'tree', cost: 380, level: 10, max: 12, xp: 9, height: 64, sellable: true, fruit: 'peach', growTime: 420, desc: 'Gives 2 peaches again and again.' }),
   b({ id: 'lemon_tree', name: 'Lemon Tree', icon: '🍋', kind: 'tree', cost: 520, level: 13, max: 12, xp: 11, height: 64, sellable: true, fruit: 'lemon', growTime: 540, desc: 'Gives 2 lemons again and again.' }),
-  b({ id: 'coconut_palm', name: 'Coconut Palm', icon: '🥥', kind: 'tree', cost: 700, level: 16, max: 10, xp: 14, height: 80, sellable: true, fruit: 'coconut', growTime: 660, desc: 'A tall palm that gives 2 coconuts again and again.' }),
+  b({ id: 'coconut_palm', name: 'Coconut Palm', icon: '🥥', kind: 'tree', beach: true, cost: 700, level: 16, max: 10, xp: 14, height: 80, sellable: true, fruit: 'coconut', growTime: 660, desc: 'A tall palm that gives 2 coconuts again and again.' }),
   b({ id: 'pear_tree', name: 'Pear Tree', icon: '🍐', kind: 'tree', cost: 260, level: 8, max: 12, xp: 7, height: 64, sellable: true, fruit: 'pear', growTime: 330, desc: 'Gives 2 pears again and again.' }),
   b({ id: 'plum_tree', name: 'Plum Tree', icon: '@plum', kind: 'tree', cost: 480, level: 12, max: 12, xp: 10, height: 64, sellable: true, fruit: 'plum', growTime: 500, desc: 'Gives 2 plums again and again.' }),
   b({ id: 'banana_tree', name: 'Banana Tree', icon: '🍌', kind: 'tree', cost: 620, level: 15, max: 10, xp: 13, height: 80, sellable: true, fruit: 'banana', growTime: 600, desc: 'Big leaves and a heavy bunch of bananas.' }),
@@ -1574,7 +1575,7 @@ export const BUILDINGS: BuildingDef[] = [
   b({ id: 'mulberry_tree', name: 'Mulberry Tree', icon: '@mulberry', kind: 'tree', cost: 1600, level: 34, max: 8, xp: 24, height: 70, sellable: true, fruit: 'mulberry', growTime: 1080, desc: 'Gives 2 handfuls of mulberries again and again.' }),
   b({ id: 'grapefruit_tree', name: 'Grapefruit Tree', icon: '@grapefruit', kind: 'tree', cost: 1900, level: 41, max: 8, xp: 27, height: 70, sellable: true, fruit: 'grapefruit', growTime: 1150, desc: 'Gives 2 big grapefruits again and again.' }),
   b({ id: 'persimmon_tree', name: 'Persimmon Tree', icon: '@persimmon', kind: 'tree', cost: 2400, level: 50, max: 8, xp: 31, height: 70, sellable: true, fruit: 'persimmon', growTime: 1240, desc: 'Gives 2 sweet persimmons again and again.' }),
-  b({ id: 'date_palm', name: 'Date Palm', icon: '@date', kind: 'tree', cost: 3000, level: 60, max: 8, xp: 35, height: 80, sellable: true, fruit: 'date', growTime: 1320, desc: 'A desert palm heavy with sticky dates.' }),
+  b({ id: 'date_palm', name: 'Date Palm', icon: '@date', kind: 'tree', beach: true, cost: 3000, level: 60, max: 8, xp: 35, height: 80, sellable: true, fruit: 'date', growTime: 1320, desc: 'A desert palm heavy with sticky dates.' }),
   b({ id: 'lychee_tree', name: 'Lychee Tree', icon: '@lychee', kind: 'tree', cost: 3800, level: 72, max: 8, xp: 40, height: 70, sellable: true, fruit: 'lychee', growTime: 1420, desc: 'Gives 2 bunches of lychees again and again.' }),
   b({ id: 'hazelnut_tree', name: 'Hazelnut Tree', icon: '@hazelnut', kind: 'tree', cost: 4700, level: 84, max: 8, xp: 45, height: 70, sellable: true, fruit: 'hazelnut', growTime: 1520, desc: 'Gives 2 hazelnuts again and again.' }),
   b({ id: 'starfruit_tree', name: 'Starfruit Tree', icon: '@starfruit', kind: 'tree', cost: 5800, level: 98, max: 8, xp: 51, height: 70, sellable: true, fruit: 'starfruit', growTime: 1640, desc: 'Gives 2 star shaped fruits again and again.' }),
@@ -1702,7 +1703,7 @@ export const BUILDINGS: BuildingDef[] = [
   b({ id: 'pecan_tree', name: 'Pecan Tree', icon: '🌰', kind: 'tree', cost: 9450, level: 105, max: 8, xp: 47, height: 64, sellable: true, fruit: 'pecan', growTime: 1830, desc: 'Gives 2 pecans again and again.' }),
   b({ id: 'cemani_coop', name: 'Cemani Coop', icon: '🐓', kind: 'pen', w: 2, h: 2, cost: 21400, level: 107, xp: 160, height: 26, wall: '#8fc45a', roof: '#8a4a2a', animal: 'ayam_cemani', capacity: 6, desc: 'Home for up to 6 ayam cemani hens.' }),
   b({ id: 'blood_orange_tree', name: 'Blood Orange Tree', icon: '🍊', kind: 'tree', cost: 9810, level: 109, max: 8, xp: 49, height: 64, sellable: true, fruit: 'blood_orange', growTime: 1854, desc: 'Gives 2 blood oranges again and again.' }),
-  b({ id: 'zen_garden', name: 'Rock Garden', icon: '🪨', kind: 'deco', w: 2, h: 2, cost: 6900, level: 115, max: 2, xp: 34, height: 16, sellable: true, desc: 'Raked sand and quiet stones.' }),
+  b({ id: 'zen_garden', name: 'Sand Garden', icon: '🪨', kind: 'deco', w: 2, h: 2, cost: 6900, level: 115, max: 2, xp: 34, height: 16, sellable: true, desc: 'Raked sand and quiet stones.' }),
   b({ id: 'jackfruit_tree', name: 'Jackfruit Tree', icon: '🍈', kind: 'tree', cost: 10440, level: 116, max: 8, xp: 52, height: 64, sellable: true, fruit: 'jackfruit', growTime: 1896, desc: 'Gives 2 jackfruits again and again.' }),
   b({ id: 'heron_marsh', name: 'Heron Marsh', icon: '🪿', kind: 'pen', w: 3, h: 2, cost: 23800, level: 119, xp: 178, height: 26, wall: '#8fc45a', roof: '#8a4a2a', animal: 'grey_heron', capacity: 4, desc: 'Home for up to 4 grey herons.' }),
   b({ id: 'macadamia_tree', name: 'Macadamia Tree', icon: '🥜', kind: 'tree', cost: 10980, level: 122, max: 8, xp: 55, height: 64, sellable: true, fruit: 'macadamia', growTime: 1932, desc: 'Gives 2 macadamias again and again.' }),
@@ -1758,7 +1759,11 @@ export const BUILDINGS: BuildingDef[] = [
   b({ id: 'feijoa_tree', name: 'Feijoa Tree', icon: '🟢', kind: 'tree', cost: 6750, level: 75, max: 8, xp: 34, height: 66, sellable: true, fruit: 'feijoa', growTime: 1650, desc: 'Gives 2 feijoas again and again.' }),
   b({ id: 'polish_coop', name: 'Polish Coop', icon: '🐓', kind: 'pen', w: 2, h: 2, cost: 13680, level: 76, xp: 114, height: 26, wall: '#8fc45a', roof: '#8a4a2a', animal: 'polish_chicken', capacity: 6, desc: 'Home for up to 6 polish chickens.' }),
   b({ id: 'acerola_tree', name: 'Acerola Tree', icon: '🍒', kind: 'tree', cost: 7200, level: 80, max: 8, xp: 36, height: 66, sellable: true, fruit: 'acerola', growTime: 1680, desc: 'Gives 2 acerolas again and again.' }),
-  b({ id: 'sandcastle', name: 'Sandcastle', icon: '🏰', kind: 'deco', w: 1, h: 1, cost: 4860, level: 81, max: 4, xp: 24, height: 30, sellable: true, desc: 'Towers, walls and a little flag.' }),
+  b({ id: 'sun_lounger', name: 'Sun Lounger', icon: '🏖️', kind: 'deco', beach: true, w: 1, h: 1, cost: 480, level: 8, max: 12, xp: 4, height: 20, sellable: true, desc: 'A striped deck chair for lazy beach days.' }),
+  b({ id: 'beach_umbrella', name: 'Beach Umbrella', icon: '⛱️', kind: 'deco', beach: true, w: 1, h: 1, cost: 520, level: 8, max: 12, xp: 4, height: 50, sellable: true, desc: 'Bright stripes of shade on the sand.' }),
+  b({ id: 'lifeguard_tower', name: 'Lifeguard Tower', icon: '🛟', kind: 'deco', beach: true, w: 1, h: 1, cost: 1800, level: 30, max: 4, xp: 12, height: 90, sellable: true, desc: 'Someone keeps an eye on the swimmers.' }),
+  b({ id: 'surfboard_rack', name: 'Surfboard Rack', icon: '🏄', kind: 'deco', beach: true, w: 1, h: 1, cost: 2700, level: 45, max: 4, xp: 16, height: 60, sellable: true, desc: 'Colorful boards waiting for the next wave.' }),
+  b({ id: 'sandcastle', name: 'Sandcastle', icon: '🏰', kind: 'deco', beach: true, w: 1, h: 1, cost: 4860, level: 81, max: 4, xp: 24, height: 30, sellable: true, desc: 'Towers, walls and a little flag.' }),
   b({ id: 'valais_fold', name: 'Valais Fold', icon: '🐑', kind: 'pen', w: 3, h: 2, cost: 15120, level: 84, xp: 126, height: 26, wall: '#8fc45a', roof: '#8a4a2a', animal: 'valais_blacknose', capacity: 5, desc: 'Home for up to 5 valais blacknose.' }),
   b({ id: 'carob_tree', name: 'Carob Tree', icon: '🟤', kind: 'tree', cost: 7740, level: 86, max: 8, xp: 39, height: 66, sellable: true, fruit: 'carob', growTime: 1716, desc: 'Gives 2 carobs again and again.' }),
   b({ id: 'seesaw', name: 'Seesaw', icon: '🎢', kind: 'deco', w: 1, h: 1, cost: 5340, level: 89, max: 4, xp: 27, height: 24, sellable: true, desc: 'Up and down, all day long.' }),
@@ -1785,7 +1790,7 @@ export const BUILDINGS: BuildingDef[] = [
   b({ id: 'camping_tent', name: 'Camping Tent', icon: '⛺', kind: 'deco', w: 2, h: 2, cost: 8460, level: 141, max: 2, xp: 42, height: 50, sellable: true, desc: 'Ready for a night under the stars.' }),
   b({ id: 'finger_lime_tree', name: 'Finger Lime Tree', icon: '🟢', kind: 'tree', cost: 13050, level: 145, max: 8, xp: 65, height: 66, sellable: true, fruit: 'finger_lime', growTime: 2070, desc: 'Gives 2 finger limes again and again.' }),
   b({ id: 'white_peacock_garden', name: 'White Peacock Garden', icon: '🦚', kind: 'pen', w: 2, h: 2, cost: 26280, level: 146, xp: 219, height: 26, wall: '#8fc45a', roof: '#8a4a2a', animal: 'white_peacock', capacity: 6, desc: 'Home for up to 6 white peacocks.' }),
-  b({ id: 'beach_hut', name: 'Beach Hut', icon: '🏖️', kind: 'deco', w: 2, h: 2, cost: 8940, level: 149, max: 2, xp: 45, height: 70, sellable: true, desc: 'Striped planks and a sunny porch.' }),
+  b({ id: 'beach_hut', name: 'Beach Hut', icon: '🛖', kind: 'deco', beach: true, w: 2, h: 2, cost: 8940, level: 149, max: 2, xp: 45, height: 70, sellable: true, desc: 'Striped planks and a sunny porch.' }),
   b({ id: 'sapodilla_tree', name: 'Sapodilla Tree', icon: '🟤', kind: 'tree', cost: 13590, level: 151, max: 8, xp: 68, height: 66, sellable: true, fruit: 'sapodilla', growTime: 2106, desc: 'Gives 2 sapodillas again and again.' }),
   b({ id: 'appaloosa_stable', name: 'Appaloosa Stable', icon: '🐎', kind: 'pen', w: 3, h: 2, cost: 27720, level: 154, xp: 231, height: 26, wall: '#8fc45a', roof: '#8a4a2a', animal: 'appaloosa', capacity: 5, desc: 'Home for up to 5 appaloosas.' }),
   b({ id: 'soursop_tree', name: 'Soursop Tree', icon: '🟢', kind: 'tree', cost: 14040, level: 156, max: 8, xp: 70, height: 66, sellable: true, fruit: 'soursop', growTime: 2136, desc: 'Gives 2 soursops again and again.' }),
