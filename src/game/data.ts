@@ -1764,6 +1764,17 @@ export const BUILDINGS: BuildingDef[] = [
   b({ id: 'lifeguard_tower', name: 'Lifeguard Tower', icon: '🛟', kind: 'deco', beach: true, w: 1, h: 1, cost: 1800, level: 30, max: 4, xp: 12, height: 90, sellable: true, desc: 'Someone keeps an eye on the swimmers.' }),
   b({ id: 'surfboard_rack', name: 'Surfboard Rack', icon: '🏄', kind: 'deco', beach: true, w: 1, h: 1, cost: 2700, level: 45, max: 4, xp: 16, height: 60, sellable: true, desc: 'Colorful boards waiting for the next wave.' }),
   b({ id: 'sandcastle', name: 'Sandcastle', icon: '🏰', kind: 'deco', beach: true, w: 1, h: 1, cost: 4860, level: 81, max: 4, xp: 24, height: 30, sellable: true, desc: 'Towers, walls and a little flag.' }),
+  // sand sculptures for the beach
+  b({ id: 'sand_turtle', name: 'Sand Turtle', icon: '🐢', kind: 'deco', beach: true, w: 1, h: 1, cost: 720, level: 12, max: 4, xp: 5, height: 25, sellable: true, desc: 'A sea turtle sculpted in sand, its shell carved into plates.' }),
+  b({ id: 'sand_dolphin', name: 'Sand Dolphin', icon: '🐬', kind: 'deco', beach: true, w: 1, h: 1, cost: 1320, level: 22, max: 4, xp: 7, height: 40, sellable: true, desc: 'A dolphin leaping out of the sand.' }),
+  b({ id: 'sand_crab', name: 'Sand Crab', icon: '🦀', kind: 'deco', beach: true, w: 1, h: 1, cost: 2040, level: 34, max: 4, xp: 10, height: 25, sellable: true, desc: 'A giant sand crab with its claws up.' }),
+  b({ id: 'sand_octopus', name: 'Sand Octopus', icon: '🐙', kind: 'deco', beach: true, w: 1, h: 1, cost: 3000, level: 50, max: 4, xp: 15, height: 40, sellable: true, desc: 'Eight curling arms set with shell suckers.' }),
+  b({ id: 'sand_starfish', name: 'Sand Starfish', icon: '⭐', kind: 'deco', beach: true, w: 1, h: 1, cost: 3960, level: 66, max: 4, xp: 20, height: 20, sellable: true, desc: 'A big starfish studded with shells.' }),
+  b({ id: 'sand_pyramid', name: 'Sand Pyramid', icon: '🔺', kind: 'deco', beach: true, w: 1, h: 1, cost: 5280, level: 88, max: 4, xp: 26, height: 45, sellable: true, desc: 'A stepped pyramid, patted smooth.' }),
+  b({ id: 'sand_tower', name: 'Sand Tower', icon: '🏰', kind: 'deco', beach: true, w: 1, h: 1, cost: 6360, level: 106, max: 4, xp: 31, height: 70, sellable: true, desc: 'A tall tower with a ramp winding up to its flag.' }),
+  b({ id: 'sand_car', name: 'Sand Race Car', icon: '🏎️', kind: 'deco', beach: true, w: 1, h: 1, cost: 7560, level: 126, max: 4, xp: 37, height: 25, sellable: true, desc: 'A sand racer, number one on the nose.' }),
+  b({ id: 'sand_serpent', name: 'Sand Sea Serpent', icon: '🐉', kind: 'deco', beach: true, w: 1, h: 1, cost: 9000, level: 150, max: 4, xp: 44, height: 35, sellable: true, desc: 'A sea serpent looping in and out of the sand.' }),
+  b({ id: 'sand_whale', name: 'Sand Whale', icon: '🐋', kind: 'deco', beach: true, w: 1, h: 1, cost: 10440, level: 174, max: 4, xp: 51, height: 30, sellable: true, desc: 'A whale with its tail raised, stranded in sand.' }),
   b({ id: 'valais_fold', name: 'Valais Fold', icon: '🐑', kind: 'pen', w: 3, h: 2, cost: 15120, level: 84, xp: 126, height: 26, wall: '#8fc45a', roof: '#8a4a2a', animal: 'valais_blacknose', capacity: 5, desc: 'Home for up to 5 valais blacknose.' }),
   b({ id: 'carob_tree', name: 'Carob Tree', icon: '🟤', kind: 'tree', cost: 7740, level: 86, max: 8, xp: 39, height: 66, sellable: true, fruit: 'carob', growTime: 1716, desc: 'Gives 2 carobs again and again.' }),
   b({ id: 'seesaw', name: 'Seesaw', icon: '🎢', kind: 'deco', w: 1, h: 1, cost: 5340, level: 89, max: 4, xp: 27, height: 24, sellable: true, desc: 'Up and down, all day long.' }),
@@ -1778,7 +1789,7 @@ export const BUILDINGS: BuildingDef[] = [
   b({ id: 'obelisk', name: 'Obelisk', icon: '🗿', kind: 'deco', w: 1, h: 1, cost: 6660, level: 111, max: 4, xp: 33, height: 110, sellable: true, desc: 'A tall stone needle.' }),
   b({ id: 'tamarind_tree', name: 'Tamarind Tree', icon: '🟤', kind: 'tree', cost: 10350, level: 115, max: 8, xp: 52, height: 66, sellable: true, fruit: 'tamarind', growTime: 1890, desc: 'Gives 2 tamarinds again and again.' }),
   b({ id: 'dorper_fold', name: 'Dorper Fold', icon: '🐑', kind: 'pen', w: 3, h: 2, cost: 20880, level: 116, xp: 174, height: 26, wall: '#8fc45a', roof: '#8a4a2a', animal: 'dorper', capacity: 5, desc: 'Home for up to 5 dorper sheep.' }),
-  b({ id: 'hammock', name: 'Hammock', icon: '🏝️', kind: 'deco', w: 2, h: 1, cost: 7140, level: 119, max: 2, xp: 36, height: 40, sellable: true, desc: 'Strung between two palms.' }),
+  b({ id: 'hammock', name: 'Hammock', icon: '🏝️', kind: 'deco', beach: true, w: 2, h: 1, cost: 7140, level: 119, max: 2, xp: 36, height: 40, sellable: true, desc: 'Strung between two palms.' }),
   b({ id: 'pawpaw_tree', name: 'Pawpaw Tree', icon: '🥭', kind: 'tree', cost: 10890, level: 121, max: 8, xp: 54, height: 66, sellable: true, fruit: 'pawpaw', growTime: 1926, desc: 'Gives 2 pawpaws again and again.' }),
   b({ id: 'charolais_pasture', name: 'Charolais Pasture', icon: '🐄', kind: 'pen', w: 3, h: 2, cost: 22320, level: 124, xp: 186, height: 26, wall: '#8fc45a', roof: '#8a4a2a', animal: 'charolais', capacity: 5, desc: 'Home for up to 5 charolais cows.' }),
   b({ id: 'longan_tree', name: 'Longan Tree', icon: '🟤', kind: 'tree', cost: 11430, level: 127, max: 8, xp: 57, height: 66, sellable: true, fruit: 'longan', growTime: 1962, desc: 'Gives 2 longans again and again.' }),
@@ -1859,6 +1870,13 @@ export const BUILDINGS: BuildingDef[] = [
   b({ id: 'dexter_pasture', name: 'Dexter Pasture', icon: '🐄', kind: 'pen', w: 3, h: 2, cost: 33300, level: 185, xp: 278, height: 26, wall: '#8fc45a', roof: '#8a4a2a', animal: 'dexter', capacity: 5, desc: 'Home for up to 5 dexter cows.' }),
   b({ id: 'ugli_fruit_tree', name: 'Ugli Fruit Tree', icon: '🍊', kind: 'tree', cost: 17100, level: 190, max: 8, xp: 86, height: 66, sellable: true, fruit: 'ugli_fruit', growTime: 2340, desc: 'Gives 2 ugli fruits again and again.' }),
   b({ id: 'pumpkin_carriage', name: 'Pumpkin Carriage', icon: '🎃', kind: 'deco', w: 2, h: 2, cost: 11700, level: 195, max: 2, xp: 58, height: 80, sellable: true, desc: 'A fairy tale ride home by midnight.' }),
+  // farmyard things
+  b({ id: 'firewood_pile', name: 'Firewood Pile', icon: '🪵', kind: 'deco', w: 1, h: 1, cost: 960, level: 16, max: 4, xp: 6, height: 45, sellable: true, desc: 'Split logs stacked for winter, and a chopping block.' }),
+  b({ id: 'milk_churns', name: 'Milk Churns', icon: '🥛', kind: 'deco', w: 1, h: 1, cost: 1440, level: 24, max: 4, xp: 8, height: 50, sellable: true, desc: 'Steel churns waiting at the lane for the dairy.' }),
+  b({ id: 'apple_crates', name: 'Apple Crates', icon: '🍎', kind: 'deco', w: 1, h: 1, cost: 2160, level: 36, max: 4, xp: 11, height: 40, sellable: true, desc: 'Crates of red and green apples fresh from the orchard.' }),
+  b({ id: 'tool_shed', name: 'Tool Shed', icon: '🛖', kind: 'deco', w: 1, h: 1, cost: 3200, level: 44, max: 2, xp: 14, height: 100, sellable: true, desc: 'A little plank shed for the rakes and spades.' }),
+  b({ id: 'sunflower_patch', name: 'Sunflower Patch', icon: '🌻', kind: 'deco', w: 1, h: 1, cost: 3840, level: 64, max: 4, xp: 19, height: 90, sellable: true, desc: 'Tall sunflowers turning their faces to the sun.' }),
+  b({ id: 'flower_bicycle', name: 'Flower Bicycle', icon: '🚲', kind: 'deco', w: 1, h: 1, cost: 5160, level: 86, max: 2, xp: 24, height: 60, sellable: true, desc: 'An old town bike with a basket full of flowers.' }),
   b({ id: 'friesian_stable', name: 'Friesian Stable', icon: '🐴', kind: 'pen', w: 3, h: 2, cost: 35460, level: 197, xp: 296, height: 26, wall: '#8fc45a', roof: '#8a4a2a', animal: 'friesian', capacity: 5, desc: 'Home for up to 5 friesian horses.' }),
 ];
 export const BUILDING: Record<string, BuildingDef> = Object.fromEntries(BUILDINGS.map((x) => [x.id, x]));
@@ -1873,11 +1891,11 @@ export const CATCHES: [string, number, number][] = [
   ['herring', 23, 7.3], ['sprat', 38, 6.9], ['zander', 42, 6.7], ['tench', 55, 6.3], ['roach', 66, 6.0], ['rainbow_trout', 71, 5.9], ['hake', 81, 5.6], ['pollock', 88, 5.4], ['whiting', 101, 5.0], ['garfish', 114, 4.6], ['john_dory', 116, 4.5], ['amberjack', 128, 4.2], ['tarpon', 133, 4.0], ['snook', 147, 3.6], ['cobia', 156, 3.3], ['triggerfish', 161, 3.2], ['butterflyfish', 171, 2.9], ['blue_tang', 178, 2.7], ['boxfish', 187, 2.4], ['sailfish', 199, 2.0],
 ];
 
-export function unlocksAt(level: number): { icon: string; name: string }[] {
-  const out: { icon: string; name: string }[] = [];
+export function unlocksAt(level: number): { icon: string; name: string; id?: string }[] {
+  const out: { icon: string; name: string; id?: string }[] = [];
   for (const c of CROPS) if (c.level === level) out.push({ icon: ITEMS[c.id].icon, name: ITEMS[c.id].name });
   for (const a of ANIMALS) if (a.level === level) out.push({ icon: a.icon, name: a.name });
-  for (const x of BUILDINGS) if (x.buyable && x.level === level && x.kind !== 'plot') out.push({ icon: x.icon, name: x.name });
+  for (const x of BUILDINGS) if (x.buyable && x.level === level && x.kind !== 'plot') out.push({ icon: x.icon, name: x.name, id: x.id });
   for (const r of RECIPES) if (r.level === level) out.push({ icon: ITEMS[r.id].icon, name: ITEMS[r.id].name });
   for (const [id, lv] of CATCHES) if (lv === level && id !== 'fish') out.push({ icon: ITEMS[id].icon, name: ITEMS[id].name });
   return out;

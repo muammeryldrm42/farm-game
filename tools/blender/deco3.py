@@ -181,20 +181,20 @@ def bamboo_grove():
     node = pm('bb_node', '#4a7a2a')
     leaves = leaf_mats('#4a9a3a', 'bbl')
     rnd = random.Random(6)
-    with anim_group('swayX_canes', (0, 0, 0)):
-        for i in range(9):
-            x, y = rnd.uniform(-0.25, 0.25), rnd.uniform(-0.25, 0.25)
-            h = rnd.uniform(1.6, 2.3)
-            lean = (rnd.uniform(-0.08, 0.08), rnd.uniform(-0.08, 0.08))
-            cyl(uid('cane'), 0.022, h, (x + lean[0] * h / 2, y + lean[1] * h / 2, h / 2), cane, verts=8, rot=(-lean[1], lean[0], 0))
-            for k in range(1, int(h / 0.3)):
-                z = k * 0.3
-                torus(uid('node'), 0.023, 0.006, (x + lean[0] * z, y + lean[1] * z, z), node, segs=10, rsegs=4)
-            for k in range(6):
-                z = h * (0.55 + k * 0.08)
-                a = rnd.uniform(0, 6.28)
-                obox(uid('leaf'), (x + lean[0] * z + math.cos(a) * 0.08, y + lean[1] * z + math.sin(a) * 0.08, z),
-                     ((math.cos(a), math.sin(a), -0.3), (-math.sin(a), math.cos(a), 0), (0.3, 0, 1)), (0.18, 0.035, 0.005), leaves[k % 3], bev=0)
+    # the canes stand still: the grove is one rigid clump, and swaying it whole looked wrong
+    for i in range(9):
+        x, y = rnd.uniform(-0.25, 0.25), rnd.uniform(-0.25, 0.25)
+        h = rnd.uniform(1.6, 2.3)
+        lean = (rnd.uniform(-0.08, 0.08), rnd.uniform(-0.08, 0.08))
+        cyl(uid('cane'), 0.022, h, (x + lean[0] * h / 2, y + lean[1] * h / 2, h / 2), cane, verts=8, rot=(-lean[1], lean[0], 0))
+        for k in range(1, int(h / 0.3)):
+            z = k * 0.3
+            torus(uid('node'), 0.023, 0.006, (x + lean[0] * z, y + lean[1] * z, z), node, segs=10, rsegs=4)
+        for k in range(6):
+            z = h * (0.55 + k * 0.08)
+            a = rnd.uniform(0, 6.28)
+            obox(uid('leaf'), (x + lean[0] * z + math.cos(a) * 0.08, y + lean[1] * z + math.sin(a) * 0.08, z),
+                 ((math.cos(a), math.sin(a), -0.3), (-math.sin(a), math.cos(a), 0), (0.3, 0, 1)), (0.18, 0.035, 0.005), leaves[k % 3], bev=0)
     for i in range(5):
         ball(uid('shoot'), 0.03, (rnd.uniform(-0.35, 0.35), rnd.uniform(-0.35, 0.35), 0.03), pm('bb_shoot', '#c8b060'), scale=(1, 1, 2), segs=8)
     finish('bamboo_grove', tex=1024)

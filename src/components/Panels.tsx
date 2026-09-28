@@ -36,6 +36,7 @@ import {
   restBonus,
   waterInfo,
   grazePhase,
+  GRAZE,
   storyReward,
   type FarmObject,
 } from '@/game/state';
@@ -66,12 +67,12 @@ function Modal({ title, icon, onClose, children, wide = false }: { title: string
   );
 }
 
-function Sheet({ title, icon, sub, onClose, children }: { title: string; icon: string; sub?: ReactNode; onClose: () => void; children: ReactNode }) {
+function Sheet({ title, icon, pic, sub, onClose, children }: { title: string; icon: string; pic?: string; sub?: ReactNode; onClose: () => void; children: ReactNode }) {
   return (
     <div className="pointer-events-auto fixed inset-x-0 bottom-0 z-20 flex justify-center p-2 sm:p-3">
       <div className="panel w-full max-w-2xl animate-pop">
         <div className="flex items-center gap-3 border-b-2 border-[#e2cc9c] px-4 py-2">
-          <span className="emoji text-3xl"><Ico i={icon} /></span>
+          <span className="emoji text-3xl"><Ico i={icon} id={pic} /></span>
           <div className="min-w-0 flex-1 leading-tight">
             <div className="truncate text-lg font-bold">{title}</div>
             {sub && <div className="text-xs text-[#8a6a44]">{sub}</div>}
@@ -387,10 +388,13 @@ function PenSheet({ o }: { o: FarmObject }) {
                 {a.graze ? (
                   <span className="text-center text-[10px] font-bold leading-3 text-[#2d7a2a]">
                     {(() => {
-                      const ph = grazePhase(a, now, an.id === 'bee').phase;
-                      if (ph === 'leaving') return an.id === 'bee' ? 'Flying out' : 'Heading out';
-                      if (ph === 'eating') return an.id === 'bee' ? 'On flowers' : 'Grazing';
-                      return 'Coming home';
+                      const bee = an.id === 'bee';
+                      const ph = grazePhase(a, now, bee).phase;
+                      const g = a.graze!;
+                      // back home (and full) at: the end of the trip, or a walk after being called
+                      const home = g.back !== undefined ? g.back + GRAZE.walkMs : g.at + 2 * GRAZE.walkMs + (bee ? GRAZE.beeEatMs : GRAZE.eatMs);
+                      const label = ph === 'leaving' ? (bee ? 'Flying out' : 'Heading out') : ph === 'eating' ? (bee ? 'On flowers' : 'Grazing') : 'Coming home';
+                      return <>{label}<br /><span className="font-semibold text-[#8a6a44]">{fmtTime(home - now)}</span></>;
                     })()}
                   </span>
                 ) : ready ? (
@@ -398,7 +402,11 @@ function PenSheet({ o }: { o: FarmObject }) {
                 ) : a.fedAt === null ? (
                   <span className="text-[10px] font-bold text-[#c0392b]">Hungry</span>
                 ) : (
-                  <Bar p={p} color="#f5b92b" />
+                  <>
+                    <Bar p={p} color="#f5b92b" />
+                    {/* how long until this one has its product ready */}
+                    <span className="text-[10px] font-bold leading-3 text-[#8a6a44]">{fmtTime(a.fedAt + an.time * 1000 - now)}</span>
+                  </>
                 )}
               </div>
             );
@@ -453,7 +461,7 @@ function DecoSheet({ o }: { o: FarmObject }) {
   const store = useStore();
   const d = BUILDING[o.type];
   return (
-    <Sheet title={d.name} icon={d.icon} sub={d.desc} onClose={() => store.select(null)}>
+    <Sheet title={d.name} icon={d.icon} pic={d.id} sub={d.desc} onClose={() => store.select(null)}>
       <div className="flex flex-wrap justify-center gap-2">
         <button className="btn btn-wood" onClick={() => store.startMove(o.id)}>
           Move
@@ -714,7 +722,7 @@ function FishingModal() {
         <span className="emoji animate-bob text-5xl">{fi.state === 'ready' ? '🐟' : '🌊'}</span>
         {fi.state === 'locked' && (
           <>
-            <p className="font-bold">Open a fishing spot off the south shore.</p>
+            <p className="font-bold">Open a fishing spot on the jetty at the lake.</p>
             <p className="text-sm text-[#8a6a44]">Cast a line, wait a little and reel in fish. New catches bite as you level up, from sardines, carp and salmon early on to koi, mahi mahi, clownfish, marlin, sturgeon, anglerfish and, at level 195, the golden fish.</p>
             {s.level < FISHING.level ? (
               <Lock level={FISHING.level} />
@@ -855,7 +863,7 @@ function ShopCard({ d }: { d: BuildingDef }) {
       onClick={() => store.startBuy(d.id)}
       className="card flex flex-col items-center gap-1 p-3 text-center transition active:scale-95 disabled:opacity-60"
     >
-      <span className={`emoji text-4xl ${locked ? 'grayscale' : ''}`}><Ico i={d.icon} /></span>
+      <span className={`emoji text-4xl ${locked ? 'grayscale' : ''}`}><Ico i={d.icon} id={d.id} /></span>
       <span className="font-bold leading-tight">{d.name}</span>
       <span className="line-clamp-2 min-h-[2rem] text-[11px] leading-4 text-[#8a6a44]">{d.desc}</span>
       {locked ? (
@@ -1372,7 +1380,7 @@ function LevelUpModal({ level }: { level: number }) {
             <div className="flex flex-wrap justify-center gap-2">
               {list.map((x) => (
                 <div key={x.name} className="card flex w-20 flex-col items-center p-2">
-                  <span className="emoji text-3xl"><Ico i={x.icon} /></span>
+                  <span className="emoji text-3xl"><Ico i={x.icon} id={x.id} /></span>
                   <span className="text-[11px] font-bold leading-tight">{x.name}</span>
                 </div>
               ))}

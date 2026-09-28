@@ -561,6 +561,7 @@ export class Renderer {
   private fishing!: ReturnType<typeof buildFishingSpot>;
   private life!: Life;
   private turtles!: TurtleBeach;
+  private shore!: ShoreLife;
   private fishBubble: THREE.Sprite | null = null;
   private sky = new Sky();
   private foliage = new Foliage();
@@ -616,6 +617,7 @@ export class Renderer {
     this.scene.add(this.fishing.root);
     this.life = new Life(this.scene);
     this.turtles = new TurtleBeach(this.scene);
+    this.shore = new ShoreLife(this.scene, (x, y) => { this.rebuildNav(); return this.free(x, y); }, this.shoreRocks);
     this.sel = this.buildSelection();
     // start fetching the Blender models right away, so they are usually in before the farm shows
     if (artStyle() === 'toon') {
@@ -994,6 +996,27 @@ export class Renderer {
   }
 
   // boulders along the beach and in the surf, plus a few starfish on the sand
+  private rockMesh: THREE.InstancedMesh | null = null;
+  private bigRocks: ShoreRock[] = [];
+  private rockRay = new THREE.Raycaster();
+  // the height of a boulder's top, found once by dropping a ray on it
+  private shoreRocks = () => {
+    for (const r of this.bigRocks) {
+      if (!Number.isNaN(r.top) || !this.rockMesh) continue;
+      this.rockRay.set(new THREE.Vector3(r.x, 5, r.z), new THREE.Vector3(0, -1, 0));
+      if (r.obj) {
+        r.obj.updateMatrixWorld(true);
+        const hit = this.rockRay.intersectObject(r.obj, true)[0];
+        r.top = hit ? hit.point.y : -0.4;
+        continue;
+      }
+      this.rockMesh.updateMatrixWorld();
+      const hit = this.rockRay.intersectObject(this.rockMesh, false).find((h) => h.instanceId === r.i);
+      r.top = hit ? hit.point.y : -0.3;
+    }
+    return this.bigRocks;
+  };
+
   private buildShore() {
     const rocks: THREE.Matrix4[] = [];
     const cols: THREE.Color[] = [];
@@ -1020,6 +1043,35 @@ export class Renderer {
     rocks.forEach((mm, i) => { im.setMatrixAt(i, mm); im.setColorAt(i, cols[i]); });
     im.castShadow = true; im.receiveShadow = true;
     this.land.add(im);
+    // the big boulders in the surf, where seals haul out to bask (not by the turtle cove)
+    this.rockMesh = im;
+    this.bigRocks = [];
+    for (let i = 0; i < 150; i++) {
+      const sc = 0.08 + Math.pow(hash(i, 3, 21), 2) * 0.32;
+      if (sc < 0.22 || i % 4 === 2) continue;
+      const [x, z] = edge(i, 1.1);
+      this.bigRocks.push({ i, x, z, side: i % 4, top: NaN });
+    }
+    // a few low, broad ledges a little way out to sea: haul outs with room for two seals each
+    if (artStyle() === 'toon') {
+      loadModel('sea_rock').then((mdl) => {
+        SEA_ROCKS.forEach(([side, along, sc], k) => {
+          const out = BEACH + 1.9 + hash(k, 1, 91) * 0.4;
+          const x = side === 0 || side === 1 ? along : side === 3 ? GRID + out : -out;
+          const z = side === 0 ? -out : side === 1 ? GRID + out : along;
+          const r = mdl.clone();
+          const turn = hash(k, 2, 91) * Math.PI;
+          r.position.set(x, -0.55, z);
+          r.rotation.y = turn;
+          r.scale.setScalar(sc);
+          this.land.add(r);
+          for (const j of [-1, 1]) {
+            const ox = Math.cos(turn) * 0.38 * sc * j, oz = -Math.sin(turn) * 0.38 * sc * j;
+            this.bigRocks.push({ i: 1000 + k * 2 + (j > 0 ? 1 : 0), x: x + ox, z: z + oz, side, top: NaN, obj: r, reach: 1.1 * sc });
+          }
+        });
+      }).catch(() => {});
+    }
     if (artStyle() === 'toon') {
       // the Blender boulder (tools/blender/world.py) takes over the shoreline rocks once loaded;
       // its stone is painted already, so the tints only nudge each copy lighter or darker
@@ -1028,6 +1080,7 @@ export class Renderer {
         if (!src) return;
         im.geometry = src.geometry;
         im.material = src.material;
+        for (const r of this.bigRocks) r.top = NaN;
         cols.forEach((c, i) => im.setColorAt(i, c.setRGB(1, 1, 1).offsetHSL(0, 0, (hash(i, 7, 21) - 0.5) * 0.16)));
         if (im.instanceColor) im.instanceColor.needsUpdate = true;
       }).catch(() => {});
@@ -1417,6 +1470,7 @@ export class Renderer {
     this.updateFishing(t, now);
     this.life.update(dt, t, this.nightNow(now), this.target);
     this.turtles.update(t);
+    this.shore.update(dt, t);
     this.followSun();
     this.cullBlocks();
     const wk = this.updateWeather(dt, now);
@@ -3822,7 +3876,9 @@ for (const id of ['hay_bale', 'picket_fence', 'bird_house', 'pumpkin_pile', 'bir
   'hay_wagon', 'tractor', 'bench', 'lamp', 'scarecrow', 'windmill', 'pond', 'mailbox', 'gazebo', 'fountain',
   'sundial', 'bird_feeder', 'garden_swing', 'bonfire', 'picnic_spot', 'wind_turbine', 'stone_bridge', 'pergola', 'horse_statue', 'zen_garden', 'treehouse', 'greenhouse', 'water_tower', 'carousel', 'lighthouse', 'clock_tower', 'hot_air_balloon', 'golden_farmer',
   'garden_gnome', 'wheelbarrow', 'rain_barrel', 'flower_cart', 'compost_bin', 'mushroom_ring', 'stone_lantern', 'bamboo_grove', 'fairy_house', 'snowman', 'sandcastle', 'seesaw', 'outdoor_oven', 'telescope', 'obelisk', 'hammock', 'water_wheel', 'koi_pond', 'camping_tent', 'beach_hut', 'log_cabin', 'playground_slide', 'observatory', 'ferris_wheel', 'sun_lounger', 'beach_umbrella', 'lifeguard_tower', 'surfboard_rack',
-  'hay_stack', 'picnic_table', 'lemonade_stand', 'insect_hotel', 'weathervane', 'rock_garden', 'veggie_stand', 'windchime', 'dovecote', 'flag_pole', 'ice_cream_cart', 'pumpkin_carriage']) MODELS[id] = {};
+  'hay_stack', 'picnic_table', 'lemonade_stand', 'insect_hotel', 'weathervane', 'rock_garden', 'veggie_stand', 'windchime', 'dovecote', 'flag_pole', 'ice_cream_cart', 'pumpkin_carriage',
+  'firewood_pile', 'milk_churns', 'apple_crates', 'tool_shed', 'sunflower_patch', 'flower_bicycle',
+  'sand_turtle', 'sand_dolphin', 'sand_crab', 'sand_octopus', 'sand_starfish', 'sand_pyramid', 'sand_tower', 'sand_car', 'sand_serpent', 'sand_whale']) MODELS[id] = {};
 for (const d of Object.values(BUILDING)) if (d.kind === 'pen') MODELS[d.id] = {};
 for (const d of Object.values(BUILDING)) if (d.kind === 'tree') MODELS[d.id] = {};
 MODELS.flowers = {};
@@ -4322,11 +4378,6 @@ function seaSpot(o: FarmObject, d: BuildingDef, id: number): P2 {
   const e = edges.indexOf(Math.min(...edges));
   const along = (v: number) => Math.max(2, Math.min(GRID - 2, v + (hash(id, 3, 7) - 0.5) * 6));
   const out = BEACH + 0.5 + hash(id, 4, 9) * 0.8;
-  // keep clear of the fishing jetty on the south shore
-  if (e === 3 && Math.abs(along(cx) - FISH_SPOT.x) < 4) {
-    const x = along(cx) + (along(cx) < FISH_SPOT.x ? -4 : 4);
-    return { x: Math.max(2, Math.min(GRID - 2, x)), y: GRID + out };
-  }
   // on the west side the turtle cove's sand bulges out to sea: wade off its shore instead
   if (e === 0) { const y = along(cy); return { x: Math.min(-out, coveEdge(y) - 0.5 - hash(id, 4, 9) * 0.6), y }; }
   return e === 0 ? { x: -out, y: along(cy) } : e === 1 ? { x: GRID + out, y: along(cy) } : e === 2 ? { x: along(cx), y: -out } : { x: along(cx), y: GRID + out };
@@ -5657,17 +5708,8 @@ function buildDeco(e: Entry, d: BuildingDef) {
 }
 
 // ------------------------------------------------------------------ fishing spot
-// A jetty off the south shore. Once opened a fisher waits in a rowboat inside a ring of buoys;
-// the bobber dances when a fish bites and fish leap out when the catch is ready.
-
-function signTex(text: string) {
-  return canvasTex(`sign|${text}`, 256, 128, (c) => {
-    c.fillStyle = '#c98a45'; c.fillRect(0, 0, 256, 128);
-    c.strokeStyle = '#6b4226'; c.lineWidth = 12; c.strokeRect(6, 6, 244, 116);
-    c.fillStyle = '#fff8e6'; c.font = '900 44px ui-rounded, "Trebuchet MS", system-ui, sans-serif';
-    c.textAlign = 'center'; c.textBaseline = 'middle'; c.fillText(text, 128, 66);
-  });
-}
+// The plank jetty on the lake. Once opened a rod stands in a holder at its end; the bobber
+// dances when a fish bites and fish leap out when the catch is ready.
 
 function splashRing() {
   const m = new THREE.Mesh(new THREE.RingGeometry(0.7, 1, 24), new THREE.MeshBasicMaterial({ color: '#ffffff', transparent: true, opacity: 0, depthWrite: false }));
@@ -5685,90 +5727,29 @@ function fishModel(color = '#ff9a3c') {
 }
 
 function buildFishingSpot() {
+  // at the end of the plank jetty on the lake: a rod propped in a holder, its line out to a
+  // bobber on the water. Nobody sits there; the catch waits for the farmer to reel it in.
   const root = new THREE.Group();
-  const X = FISH_SPOT.x, Z0 = GRID + 0.25, Z1 = FISH_SPOT.y - 0.2;
-  // jetty deck on posts
-  const n0 = root.children.length;
-  const deck = new THREE.Mesh(meterBox(Z1 - Z0, 0.07, 0.7), surfaceMat('planks', '#c49660', 1.2));
-  deck.rotation.y = Math.PI / 2;
-  deck.position.set(X, -0.12, (Z0 + Z1) / 2);
-  deck.castShadow = deck.receiveShadow = true;
-  root.add(deck);
-  for (let z = Z0 + 0.15; z <= Z1 + 0.01; z += 0.55) for (const sx of [-1, 1]) {
-    mk(root, cylGeo(0.045, 0.05, 8), surfaceMat('bark', '#6b4226', 4), 1, 0.9, 1, X + sx * 0.32, -0.55, z);
-  }
-  for (const sx of [-1, 1]) mk(root, cylGeo(0.05, 0.05, 8), surfaceMat('bark', '#6b4226', 4), 1, 0.35, 1, X + sx * 0.32, 0.02, Z1);
-  // sign at the shore end
-  const sign = group(root, X - 0.55, -0.2, Z0 + 0.15);
-  cyl(sign, 0.03, 0.03, 0.75, '#6b4226', 0, 0, 0, 6);
-  const board = new THREE.Mesh(G.box, [M('#a8733f'), M('#a8733f'), M('#a8733f'), M('#a8733f'), new THREE.MeshStandardMaterial({ map: signTex('FISHING') }), new THREE.MeshStandardMaterial({ map: signTex('FISHING') })]);
-  board.scale.set(0.62, 0.3, 0.05);
-  board.position.set(0, 0.72, 0);
-  board.castShadow = true;
-  sign.add(board);
-  // the Blender jetty (tools/blender/world.py) replaces the deck, piles and sign once loaded
-  const jettyStandIn = root.children.slice(n0);
-  if (artStyle() === 'toon') {
-    loadModel('fishing_jetty').then((m) => {
-      for (const c of jettyStandIn) root.remove(c);
-      const j = m.clone();
-      j.position.set(X, 0, Z0);
-      root.add(j);
-    }).catch(() => {});
-  }
-  const lock = badge(root, '🔒', 0.3, X, 0.35, Z0 + 0.3);
+  const X = FISH_SPOT.x, Z = FISH_SPOT.y;
+  const jx = LAKE.x - LAKE.rx * 1.12, end = jx + 8 * 0.16, deckY = LAKE_Y + 0.135;
+  const lock = badge(root, '🔒', 0.3, jx + 0.5, deckY + 0.35, Z);
   lock.rotation.x = -0.3;
-  // chain rope across the jetty while locked
-  const rope = mk(root, cylGeo(0.012, 0.012, 6), M('#8a6a44'), 1, 0.66, 1, X, 0.02, Z0 + 0.3);
-  rope.rotation.z = Math.PI / 2;
+  // a rope across the jetty while it is locked
+  const rope = mk(root, cylGeo(0.012, 0.012, 6), M('#8a6a44'), 1, 0.5, 1, jx + 0.35, deckY + 0.12, Z);
+  rope.rotation.x = Math.PI / 2;
 
-  // buoys marking the fishing area
   const open = group(root);
-  const buoys: THREE.Object3D[] = [];
-  for (let i = 0; i < 7; i++) {
-    const a = (i / 7) * Math.PI * 2 + 0.3;
-    const b = group(open, X + Math.cos(a) * 1.35, -0.5, FISH_SPOT.y + 0.4 + Math.sin(a) * 1.0);
-    ball(b, 0.07, i % 2 ? '#ffffff' : '#e74c3c', 0, 0, 0, 1, 0.9, 1);
-    cyl(b, 0.01, 0.01, 0.12, '#3a3a3a', 0, 0.04, 0, 4);
-    buoys.push(b);
-  }
-  // rowboat with a fisher in a yellow raincoat
-  const boat = group(open, X + 0.75, -0.62, FISH_SPOT.y + 0.35);
-  boat.rotation.y = 0.5;
-  const hull = mk(boat, G.dome, surfaceMat('planks', '#9a5a32', 3), 0.26, 0.2, 0.55, 0, 0.3, 0);
-  hull.rotation.x = Math.PI;
-  mk(boat, new THREE.TorusGeometry(1, 0.06, 6, 24), M('#7a4a28'), 0.26, 0.55, 0.4, 0, 0.3, 0).rotation.x = Math.PI / 2;
-  mk(boat, G.ball, M('#f4efe6'), 0.27, 0.05, 0.56, 0, 0.16, 0);
-  bx(boat, 0.44, 0.03, 0.1, '#7a4a28', 0, 0.22, -0.12);
-  const hullStandIn = [...boat.children];
-  const fisher = buildFarmer('#f2b134', '#3a5a40', '#3a5a40');
-  fisher.position.set(0, 0.0, -0.12);
-  fisher.scale.setScalar(0.9);
-  const fl = fisher.userData.legs as THREE.Object3D[];
-  fl.forEach((l) => { l.rotation.x = -1.4; });
-  const arms = fisher.userData.arms as THREE.Object3D[];
-  arms.forEach((a) => { a.rotation.x = -1.1; });
-  boat.add(fisher);
-  if (artStyle() === 'toon') {
-    // Blender rowboat and fisher, seated and holding the rod like the stand ins
-    loadModel('rowboat').then((m) => {
-      for (const c of hullStandIn) boat.remove(c);
-      boat.add(m.clone());
-    }).catch(() => {});
-    loadModel('fisher').then((m) => {
-      const fresh = farmerFromModel(m);
-      fisher.clear();
-      for (const c of [...fresh.children]) fisher.add(c);
-      Object.assign(fisher.userData, fresh.userData);
-      (fisher.userData.legs as THREE.Object3D[]).forEach((l) => { l.rotation.x = -1.4; });
-      (fisher.userData.arms as THREE.Object3D[]).forEach((a) => { a.rotation.x = -1.1; });
-    }).catch(() => {});
-  }
-  const rod = group(boat, 0.08, 0.4, 0.1);
-  mk(rod, cylGeo(0.006, 0.012, 5), M('#5a3a1a'), 1, 0.9, 1, 0, 0.45, 0);
-  rod.rotation.x = 0.9;
-  rod.rotation.z = 0.5;
-  const bobber = group(open, X - 0.25, -0.53, FISH_SPOT.y + 0.8);
+  // the rod holder: a short post at the end of the jetty with the rod leaning out over the water
+  const holder = group(open, end, deckY, Z + 0.14);
+  mk(holder, cylGeo(0.022, 0.026, 6), surfaceMat('bark', '#6b4226', 4), 1, 0.22, 1, 0, 0.11, 0);
+  const rod = group(holder, 0, 0.16, 0);
+  mk(rod, cylGeo(0.005, 0.011, 5), M('#5a3a1a'), 1, 0.9, 1, 0, 0.45, 0);
+  mk(rod, new THREE.TorusGeometry(0.03, 0.008, 5, 10), M('#3a3a3a'), 1, 1, 1, 0, 0.12, 0.02);
+  rod.rotation.z = -1.0;
+  // a bait tin and a bucket for the catch on the planks
+  cyl(open, 0.05, 0.045, 0.08, '#9aa4ad', end - 0.3, deckY + 0.04, Z - 0.14, 10);
+  cyl(open, 0.035, 0.035, 0.03, '#6b8a5a', end - 0.12, deckY + 0.015, Z - 0.16, 8);
+  const bobber = group(open, X, LAKE_Y + 0.02, Z + 0.1);
   ball(bobber, 0.035, '#e74c3c', 0, 0.02, 0);
   ball(bobber, 0.036, '#ffffff', 0, -0.005, 0, 1, 0.5, 1);
   const lineGeo = new THREE.BufferGeometry().setFromPoints([new THREE.Vector3(), new THREE.Vector3()]);
@@ -5782,8 +5763,8 @@ function buildFishingSpot() {
   open.add(ring);
 
   const hit = new THREE.Mesh(G.box, HIT_MAT);
-  hit.scale.set(3, 1.4, Z1 - Z0 + 1.8);
-  hit.position.set(X, 0.2, (Z0 + Z1) / 2 + 0.6);
+  hit.scale.set(X - jx + 0.9, 1.2, 1.4);
+  hit.position.set((jx + X) / 2 + 0.2, 0.3, Z);
   root.add(hit);
 
   const tipV = new THREE.Vector3();
@@ -5792,17 +5773,16 @@ function buildFishingSpot() {
     open.visible = isOpen;
     lock.visible = rope.visible = !isOpen;
     if (!isOpen) return;
-    buoys.forEach((b, i) => { b.position.y = -0.5 + Math.sin(t / 600 + i) * 0.02; b.rotation.z = Math.sin(t / 800 + i) * 0.1; });
-    boat.position.y = -0.62 + Math.sin(t / 900) * 0.015;
-    boat.rotation.z = Math.sin(t / 1100) * 0.04;
     const casting = state !== 'idle';
     bobber.visible = line.visible = casting;
-    rod.rotation.x = casting ? 0.9 : 0.2;
+    // idle, the rod stands up in its holder; cast, it leans out over the water and nods on a bite
+    const nod = state === 'ready' ? Math.max(0, Math.sin(t / 140)) * 0.12 : state === 'waiting' && p > 0.8 ? Math.max(0, Math.sin(t / 90)) * 0.05 : 0;
+    rod.rotation.z = casting ? -1.0 - nod : -0.25;
     // the bobber twitches as a bite gets closer, and plunges when the fish is on
-    let dip = Math.sin(t / 500) * 0.012;
-    if (state === 'waiting' && p > 0.8) dip -= Math.max(0, Math.sin(t / 90)) * 0.03;
-    if (state === 'ready') dip -= Math.max(0, Math.sin(t / 140)) * 0.06;
-    bobber.position.y = -0.53 + dip;
+    let dip = Math.sin(t / 500) * 0.008;
+    if (state === 'waiting' && p > 0.8) dip -= Math.max(0, Math.sin(t / 90)) * 0.02;
+    if (state === 'ready') dip -= Math.max(0, Math.sin(t / 140)) * 0.04;
+    bobber.position.y = LAKE_Y + 0.02 + dip;
     if (casting) {
       rod.updateWorldMatrix(true, false);
       tipV.set(0, 0.9, 0).applyMatrix4(rod.matrixWorld);
@@ -5812,18 +5792,18 @@ function buildFishingSpot() {
       pos.setXYZ(1, bobber.position.x, bobber.position.y + 0.03, bobber.position.z);
       pos.needsUpdate = true;
     }
-    // leaping fish and splash rings while the catch waits
+    // a leaping fish and splash rings while the catch waits
     const u = ((t / 1700) % 1);
     fish.visible = state === 'ready' && u < 0.45;
     if (fish.visible) {
       const k = u / 0.45;
-      fish.position.set(bobber.position.x + 0.35 - k * 0.7, -0.55 + Math.sin(k * Math.PI) * 0.45, bobber.position.z + 0.1);
+      fish.position.set(bobber.position.x + 0.3 - k * 0.6, LAKE_Y - 0.02 + Math.sin(k * Math.PI) * 0.35, bobber.position.z + 0.15);
       fish.rotation.set(0, -Math.PI / 2, 0);
       fish.rotateX(-Math.cos(k * Math.PI) * 1.1);
     }
     const rk = state === 'ready' ? ((t / 1700 + 0.55) % 1) : 1;
-    ring.position.set(bobber.position.x - 0.35, -0.53, bobber.position.z + 0.1);
-    ring.scale.setScalar(0.05 + rk * 0.35);
+    ring.position.set(bobber.position.x - 0.3, LAKE_Y + 0.005, bobber.position.z + 0.15);
+    ring.scale.setScalar(0.05 + rk * 0.3);
     (ring.material as THREE.MeshBasicMaterial).opacity = state === 'ready' ? (1 - rk) * 0.8 : 0;
   };
   return { root, hit, update };
@@ -6103,15 +6083,377 @@ class TurtleBeach {
   }
 }
 
+// Crabs on the beach: red rock crabs, blue crabs, pale ghost crabs and hermit crabs in their
+// whelk shells. Each keeps to its own side of the sand ring round the island (a straight strip,
+// so a walk between two points on it never crosses the grass), scuttles sideways from spot to
+// spot, stops to pick at the sand with its claws, and now and then a ghost crab ducks into its
+// burrow or a hermit crab pulls into its shell for a while.
+type CrabKind = 'rock_crab' | 'blue_crab' | 'ghost_crab' | 'hermit_crab';
+const CRABS: [CrabKind, number, number, number][] = [
+  // kind, how many, speed (tiles a second), size
+  ['rock_crab', 5, 0.32, 1.25], ['blue_crab', 3, 0.4, 1.2], ['ghost_crab', 4, 1.1, 1.2], ['hermit_crab', 4, 0.12, 1.3],
+];
+interface Crab {
+  kind: CrabKind; g: THREE.Group; body: THREE.Group; legs: THREE.Object3D[]; claws: THREE.Object3D[];
+  side: number; speed: number; seed: number;
+  x: number; z: number; tx: number; tz: number; wait: number; hide: number; heading: number;
+}
+// a place a seal can lie: a spot on a boulder, `reach` out from the water it climbs up from
+interface ShoreRock { i: number; x: number; z: number; side: number; top: number; obj?: THREE.Object3D; reach?: number }
+// Harbour seals: out at sea they swim with just the head up, now and then dive, and after a
+// while swim in to a boulder in the surf, heave themselves up onto it and bask there, head and
+// tail raised off the warm stone, before sliding back into the water.
+interface Seal {
+  g: THREE.Group; body: THREE.Group; head?: THREE.Object3D; tail?: THREE.Object3D; flips: THREE.Object3D[];
+  ready: boolean; seed: number; side: number; state: 'swim' | 'haul' | 'bask' | 'slide'; t0: number; dur: number;
+  x: number; z: number; y: number; tx: number; tz: number; heading: number; rock: ShoreRock | null; from: [number, number];
+}
+// Sanderlings: little flocks running the tide line on the strip of sand below the beach, in
+// quick bursts, stopping to probe the wet sand before dashing on.
+interface Piper { g: THREE.Group; head?: THREE.Object3D; legs: THREE.Object3D[]; ox: number; oz: number; x: number; z: number; heading: number }
+interface Flock { side: number; along: number; to: number; wait: number; birds: Piper[]; seed: number }
+const SEA_Y = -0.55;
+// the sea rocks off the shore: side (0 north, 1 south, 3 east), how far along it, size
+const SEA_ROCKS: [number, number, number][] = [[0, 15, 1.15], [0, 46, 1.3], [1, 22, 1.25], [1, 52, 1.1], [3, 17, 1.2], [3, 44, 1.35]];
+const SEAL_TINTS: [number, number, number][] = [[1, 1, 1], [0.55, 0.54, 0.56], [0.92, 0.84, 0.76], [0.7, 0.66, 0.64]];
+
+class ShoreLife {
+  private crabs: Crab[] = [];
+  private seals: Seal[] = [];
+  private flocks: Flock[] = [];
+  private free: (x: number, y: number) => boolean;
+  private rocks: () => ShoreRock[];
+
+  constructor(scene: THREE.Scene, free: (x: number, y: number) => boolean, rocks: () => ShoreRock[]) {
+    this.free = free;
+    this.rocks = rocks;
+    this.makeSeals(scene);
+    this.makeFlocks(scene);
+    let n = 0;
+    for (const [kind, count, speed, size] of CRABS) {
+      for (let k = 0; k < count; k++, n++) {
+        const g = new THREE.Group();
+        const body = new THREE.Group();
+        body.scale.setScalar(size);
+        g.add(body);
+        contactShadow(g, 0.2 * size, 0.16 * size);
+        const c: Crab = { kind, g, body, legs: [], claws: [], side: n % 4, speed, seed: n * 7.3 + 1, x: 0, z: 0, tx: 0, tz: 0, wait: 0, hide: 0, heading: 0 };
+        const p = this.spot(c, n * 13 + 5);
+        c.x = c.tx = p.x; c.z = c.tz = p.z;
+        g.visible = false;
+        scene.add(g);
+        this.crabs.push(c);
+        if (artStyle() === 'toon') {
+          loadModel(kind).then((m) => {
+            const mc = m.clone();
+            mc.traverse((o) => { o.castShadow = false; });
+            body.add(mc);
+            c.legs = [0, 1, 2, 3, 4, 5, 6, 7].map((i) => mc.getObjectByName(`leg${i}`)).filter((o): o is THREE.Object3D => !!o);
+            c.claws = [0, 1].map((i) => mc.getObjectByName(`claw${i}`)).filter((o): o is THREE.Object3D => !!o);
+            g.visible = true;
+          }).catch(() => {});
+        }
+      }
+    }
+  }
+
+  private makeSeals(scene: THREE.Scene) {
+    for (let k = 0; k < 4; k++) {
+      const g = new THREE.Group();
+      const body = new THREE.Group();
+      body.scale.setScalar(1.25);
+      g.add(body);
+      const side = [0, 1, 3, 1][k];
+      const p = this.offshore(side, 10 + k * 16, k * 3.1);
+      const s: Seal = { g, body, flips: [], ready: false, seed: k * 5.7 + 2, side, state: 'swim', t0: 0, dur: 20000 + k * 9000, x: p.x, z: p.z, y: SEA_Y, tx: p.x, tz: p.z, heading: 0, rock: null, from: [p.x, p.z] };
+      g.visible = false;
+      scene.add(g);
+      this.seals.push(s);
+      if (artStyle() === 'toon') {
+        loadModel('harbor_seal').then((m) => {
+          const c = m.clone();
+          // each seal its own shade, from warm brown to nearly black, and a wet sheen on the coat
+          const tint = SEAL_TINTS[k % SEAL_TINTS.length];
+          c.traverse((o) => {
+            const mesh = o as THREE.Mesh;
+            if (!mesh.isMesh) return;
+            const mat = (mesh.material as THREE.MeshStandardMaterial).clone();
+            mat.color.setRGB(tint[0], tint[1], tint[2]);
+            mat.roughness = 0.42;
+            mesh.material = mat;
+          });
+          body.add(c);
+          s.head = c.getObjectByName('head') ?? undefined;
+          s.tail = c.getObjectByName('tail') ?? undefined;
+          s.flips = [0, 1].map((i) => c.getObjectByName(`flip${i}`)).filter((o): o is THREE.Object3D => !!o);
+          s.ready = true;
+        }).catch(() => {});
+      }
+    }
+  }
+
+  // a point out at sea off one side of the island, `along` that side, `out` tiles past the beach
+  private offshore(side: number, along: number, salt: number) {
+    const out = BEACH + 3.2 + hash(salt, 1, 81) * 2.5;
+    const a = Math.max(2, Math.min(GRID - 2, along));
+    return side === 0 ? { x: a, z: -out } : side === 1 ? { x: a, z: GRID + out } : side === 2 ? { x: -out, z: a } : { x: GRID + out, z: a };
+  }
+
+  private updateSeals(dt: number, t: number) {
+    const rocks = this.rocks();
+    for (const s of this.seals) {
+      if (!s.ready) continue;
+      const k = (t - s.t0) / s.dur;
+      let pitch = 0, headX = 0, headY = 0, tailX = 0, flip = 0, sink = 0;
+      if (s.state === 'swim') {
+        if (k >= 1 && !s.rock) {
+          // time to haul out: a boulder on its side of the island no other seal has chosen
+          const taken = new Set(this.seals.filter((o) => o !== s && o.rock).map((o) => o.rock!.i));
+          const near = rocks.filter((r) => r.side === s.side && !taken.has(r.i)).sort((a, b) => Math.hypot(a.x - s.x, a.z - s.z) - Math.hypot(b.x - s.x, b.z - s.z));
+          s.rock = near[Math.floor(hash(s.seed, Math.floor(t / 1000), 83) * Math.min(3, near.length))] ?? null;
+          if (!s.rock) { s.t0 = t; s.dur = 20000; }
+        }
+        if (s.rock) {
+          const n = this.outward(s.rock.side), reach = s.rock.reach ?? 0.9;
+          s.tx = s.rock.x + n[0] * reach; s.tz = s.rock.z + n[1] * reach;
+        }
+        const dx = s.tx - s.x, dz = s.tz - s.z, d = Math.hypot(dx, dz);
+        if (d > 0.05) {
+          const step = Math.min(d, 0.45 * dt);
+          s.x += (dx / d) * step; s.z += (dz / d) * step;
+          let dh = Math.atan2(dx, dz) - s.heading;
+          while (dh > Math.PI) dh -= Math.PI * 2;
+          while (dh < -Math.PI) dh += Math.PI * 2;
+          s.heading += dh * Math.min(1, dt * 2);
+        } else if (s.rock) {
+          s.state = 'haul'; s.t0 = t; s.dur = 3500; s.from = [s.x, s.z];
+        } else {
+          // a new stretch of water to swim to, along its own side of the island
+          const p = this.offshore(s.side, (s.side < 2 ? s.x : s.z) + (hash(s.seed, Math.floor(t / 1000), 82) - 0.5) * 12, t / 1000 + s.seed);
+          s.tx = p.x; s.tz = p.z;
+        }
+        // now and then a dive (not while it heads in to its rock): gone under for a few seconds
+        const dive = s.rock ? 0 : Math.sin(t / 5200 + s.seed * 3);
+        sink = dive > 0.93 ? (dive - 0.93) * 6 : 0;
+        // swimming low: the back just awash, the head held up out of the water
+        s.y = SEA_Y - 0.21 - sink + Math.sin(t / 700 + s.seed) * 0.01;
+        headX = -0.55;
+        flip = Math.sin(t / 260 + s.seed) * 0.4;
+        pitch = -0.22 + Math.sin(t / 900 + s.seed) * 0.04;
+      } else if (s.state === 'haul' || s.state === 'slide') {
+        // heaving up onto the rock in lurches, or sliding back off it into the sea
+        const r = s.rock!;
+        const u = Math.min(1, k), e = s.state === 'haul' ? u : 1 - u;
+        const lurch = e + Math.sin(u * Math.PI * 6) * 0.02 * (1 - u);
+        s.x = s.from[0] + (r.x - s.from[0]) * lurch;
+        s.z = s.from[1] + (r.z - s.from[1]) * lurch;
+        s.y = (SEA_Y - 0.21) + (r.top - 0.03 - (SEA_Y - 0.21)) * Math.min(1, lurch * 1.2);
+        // up the rock head first; back down to the sea head first too
+        s.heading = s.state === 'haul' ? Math.atan2(r.x - s.from[0], r.z - s.from[1]) : Math.atan2(s.from[0] - r.x, s.from[1] - r.z);
+        pitch = -Math.sin(u * Math.PI) * 0.25 + Math.sin(u * Math.PI * 6) * 0.08;
+        flip = Math.sin(u * Math.PI * 6) * 0.7;
+        headX = -0.3;
+        if (u >= 1) {
+          if (s.state === 'haul') { s.state = 'bask'; s.t0 = t; s.dur = 40000 + hash(s.seed, Math.floor(t / 1000), 84) * 50000; }
+          else { s.state = 'swim'; s.rock = null; s.t0 = t; s.dur = 25000 + hash(s.seed, Math.floor(t / 1000), 85) * 30000; }
+        }
+      } else {
+        // basking: stretched out on the warm stone, now and then the head and tail curl up
+        // into the banana pose, the head turns to look about and a flipper scratches
+        const r = s.rock!;
+        s.x = r.x; s.z = r.z; s.y = r.top - 0.03;
+        const banana = Math.max(0, Math.sin(t / 6000 + s.seed * 2));
+        headX = -banana * 0.45 + Math.max(0, Math.sin(t / 2300 + s.seed)) * 0.12;
+        headY = Math.sin(t / 3700 + s.seed) * 0.5;
+        tailX = -banana * 0.4;
+        flip = Math.max(0, Math.sin(t / 1500 + s.seed * 4) - 0.8) * 3;
+        if (k >= 1) { s.state = 'slide'; s.t0 = t; s.dur = 2200; const n = this.outward(r.side), reach = (r.reach ?? 0.9) + 0.2; s.from = [r.x + n[0] * reach, r.z + n[1] * reach]; }
+      }
+      s.g.position.set(s.x, s.y, s.z);
+      s.g.rotation.set(0, s.heading, 0);
+      s.body.rotation.x = pitch;
+      if (s.head) { s.head.rotation.x = headX; s.head.rotation.y = headY; }
+      if (s.tail) s.tail.rotation.x = tailX + (s.state === 'swim' ? Math.sin(t / 300 + s.seed) * 0.35 : 0);
+      s.flips.forEach((f, i) => { f.rotation.y = flip * (i ? -1 : 1); });
+      s.g.visible = sink < 0.25 || s.state !== 'swim';
+    }
+  }
+
+  // straight out to sea from a side of the island
+  private outward(side: number): [number, number] {
+    return side === 0 ? [0, -1] : side === 1 ? [0, 1] : side === 2 ? [-1, 0] : [1, 0];
+  }
+
+  private makeFlocks(scene: THREE.Scene) {
+    for (let f = 0; f < 3; f++) {
+      const side = [0, 1, 3][f];
+      const fl: Flock = { side, along: 12 + f * 17, to: 12 + f * 17, wait: 0, birds: [], seed: f * 9.1 + 4 };
+      for (let k = 0; k < 7; k++) {
+        const g = new THREE.Group();
+        g.scale.setScalar(1.3);
+        contactShadow(g, 0.07, 0.07);
+        const b: Piper = { g, legs: [], ox: (hash(f, k, 86) - 0.5) * 1.2, oz: (hash(f, k, 87) - 0.5) * 0.35, x: 0, z: 0, heading: 0 };
+        g.visible = false;
+        scene.add(g);
+        fl.birds.push(b);
+        if (artStyle() === 'toon') {
+          loadModel('sandpiper').then((m) => {
+            const c = m.clone();
+            c.traverse((o) => { o.castShadow = false; });
+            g.add(c);
+            b.head = c.getObjectByName('head') ?? undefined;
+            b.legs = [0, 1].map((i) => c.getObjectByName(`leg${i}`)).filter((o): o is THREE.Object3D => !!o);
+            g.visible = true;
+          }).catch(() => {});
+        }
+      }
+      this.flocks.push(fl);
+    }
+  }
+
+  // a spot on the tide line strip of sand below the beach: `along` the side, `across` in 0..1
+  private tide(side: number, along: number, across: number) {
+    const o = 0.14 + across * 0.46;
+    return side === 0 ? { x: along, z: -o } : side === 1 ? { x: along, z: GRID + o } : side === 2 ? { x: -o, z: along } : { x: GRID + o, z: along };
+  }
+
+  private updateFlocks(dt: number, t: number) {
+    for (const f of this.flocks) {
+      let running = false;
+      if (f.wait > 0) f.wait -= dt;
+      else if (Math.abs(f.to - f.along) > 0.05) {
+        f.along += Math.sign(f.to - f.along) * Math.min(Math.abs(f.to - f.along), 1.5 * dt);
+        running = true;
+      } else {
+        // a stop to probe the sand, then a dash a few tiles up or down the shore
+        f.wait = 2 + hash(f.seed, Math.floor(t / 1000), 88) * 4;
+        f.to = Math.max(3, Math.min(GRID - 3, f.along + (hash(f.seed, Math.floor(t / 1000), 89) - 0.5) * 8));
+      }
+      const dir = Math.sign(f.to - f.along) || 1;
+      for (const [k, b] of f.birds.entries()) {
+        if (!b.g.visible) continue;
+        // each bird keeps its place in the flock, loosely, and lags a little behind the leader
+        const lag = running ? -dir * Math.abs(b.ox) * 0.3 : 0;
+        const p = this.tide(f.side, Math.max(1, Math.min(GRID - 1, f.along + b.ox + lag)), 0.5 + b.oz);
+        const moved = Math.hypot(p.x - b.x, p.z - b.z);
+        if (moved > 0.002) b.heading = Math.atan2(p.x - b.x, p.z - b.z);
+        b.x = b.x ? b.x + (p.x - b.x) * Math.min(1, dt * 8) : p.x;
+        b.z = b.z ? b.z + (p.z - b.z) * Math.min(1, dt * 8) : p.z;
+        b.g.position.set(b.x, -0.2, b.z);
+        if (moved > 0.01 || running) b.g.rotation.y = b.heading;
+        else b.g.rotation.y += Math.sin(t / 900 + k) * dt * 0.8;
+        // legs a blur while it runs; head down probing the sand while it stands
+        b.legs.forEach((l, i) => { l.rotation.x = running ? Math.sin(t / 32 + k + i * Math.PI) * 0.9 : 0; });
+        if (b.head) b.head.rotation.x = running ? -0.1 : Math.max(0, Math.sin(t / 240 + k * 1.7)) * 0.9;
+      }
+    }
+  }
+
+  // a point on this crab's strip of beach: the sand ring's side, clear of the grass and of
+  // anything built on the beach
+  private spot(c: Crab, salt: number) {
+    const lo = 0.35, hi = CHUNK - 0.35;
+    for (let tries = 0; tries < 8; tries++) {
+      const along = 1 + hash(c.seed, salt, tries) * (GRID - 2), across = lo + hash(c.seed, salt + 1, tries) * (hi - lo);
+      // near where it is, most of the time: crabs potter about one stretch of beach
+      const a = tries < 6 && c.x ? Math.max(1, Math.min(GRID - 1, (c.side < 2 ? c.x : c.z) + (hash(c.seed, salt, 9 + tries) - 0.5) * 6)) : along;
+      const p = c.side === 0 ? { x: a, z: across } : c.side === 1 ? { x: a, z: GRID - across } : c.side === 2 ? { x: across, z: a } : { x: GRID - across, z: a };
+      if (this.clear(c.x || p.x, c.z || p.z, p.x, p.z)) return p;
+    }
+    return { x: c.x || GRID / 2, z: c.z || 1.5 };
+  }
+
+  // the walk there crosses nothing built on the beach (a crab goes round a sun lounger)
+  private clear(x0: number, z0: number, x1: number, z1: number) {
+    const n = Math.ceil(Math.hypot(x1 - x0, z1 - z0) / 0.4);
+    for (let i = 0; i <= n; i++) {
+      const k = n ? i / n : 1;
+      if (!this.free(Math.floor(x0 + (x1 - x0) * k), Math.floor(z0 + (z1 - z0) * k))) return false;
+    }
+    return true;
+  }
+
+  update(dt: number, t: number) {
+    this.updateSeals(dt, t);
+    this.updateFlocks(dt, t);
+    for (const c of this.crabs) {
+      if (!c.g.visible && !c.legs.length) continue;
+      const hermit = c.kind === 'hermit_crab';
+      // tucked away: in its burrow (ghost crab) or inside its shell (hermit crab)
+      if (c.hide > 0) {
+        c.hide -= dt;
+        if (c.kind === 'ghost_crab') c.g.visible = c.hide <= 0;
+        else c.body.position.y = -0.004;
+        c.claws.forEach((cl) => { cl.rotation.y = 0; });
+        continue;
+      }
+      c.g.visible = true;
+      c.body.position.y = 0;
+      const dx = c.tx - c.x, dz = c.tz - c.z, d = Math.hypot(dx, dz);
+      let moving = false;
+      if (c.wait > 0) c.wait -= dt;
+      else if (d > 0.02) {
+        const step = Math.min(d, c.speed * dt);
+        c.x += (dx / d) * step; c.z += (dz / d) * step;
+        moving = true;
+        // true crabs go sideways, the hermit crab walks forward under its shell
+        const want = Math.atan2(dx, dz) + (hermit ? 0 : Math.PI / 2 * (Math.sin(c.seed) > 0 ? 1 : -1));
+        let dh = want - c.heading;
+        while (dh > Math.PI) dh -= Math.PI * 2;
+        while (dh < -Math.PI) dh += Math.PI * 2;
+        c.heading += dh * Math.min(1, dt * 5);
+      } else {
+        // there: a pause to feed, then off to the next spot (or down its hole for a while)
+        const r = hash(c.seed, Math.floor(t / 997), 3);
+        c.wait = 1.5 + r * 5;
+        if (r > 0.86) c.hide = 4 + r * 8;
+        const p = this.spot(c, Math.floor(t / 1000) + 17);
+        c.tx = p.x; c.tz = p.z;
+      }
+      c.g.position.set(c.x, 0, c.z);
+      c.g.rotation.y = c.heading;
+      // legs: alternate pairs lift and swing while it runs; a slow shuffle while it feeds
+      const ph = t / (hermit ? 140 : c.kind === 'ghost_crab' ? 45 : 70) + c.seed;
+      c.legs.forEach((l, i) => {
+        const left = hermit ? i < 2 : i < 4;
+        const alt = (i % 2 ? 1 : -1) * (left ? 1 : -1);
+        l.rotation.z = moving ? Math.max(0, Math.sin(ph + i * 1.6)) * 0.35 * (left ? -1 : 1) : 0;
+        l.rotation.y = moving ? Math.sin(ph + i * 1.6) * 0.25 * alt : 0;
+      });
+      // claws: held out while it runs; picking at the sand and lifting it to the mouth while it feeds
+      c.claws.forEach((cl, i) => {
+        const pick = moving ? 0 : Math.max(0, Math.sin(t / 380 + c.seed + i * Math.PI));
+        cl.rotation.x = -pick * 0.35;
+        cl.rotation.y = (i ? -1 : 1) * (0.05 + Math.sin(t / 600 + c.seed + i) * 0.05);
+      });
+      c.body.rotation.z = moving ? Math.sin(ph * 2) * 0.03 : 0;
+    }
+  }
+}
+
 // Butterflies over the grass, gulls circling above the shore, fish leaping in the sea and a
 // sailboat drifting on the horizon. Purely cosmetic.
+
+// A course round the square island that keeps well off the beach: a rounded square (a
+// superellipse) rather than a circle, whose diagonal would cut across the sandy corners.
+function sailCourse(a: number, R: number) {
+  const c = Math.cos(a), s = Math.sin(a), n = 0.4;
+  return { x: GRID / 2 + Math.sign(c) * Math.pow(Math.abs(c), n) * R, z: GRID / 2 + Math.sign(s) * Math.pow(Math.abs(s), n) * R };
+}
+function sailRound(g: THREE.Object3D, a: number, dir: number, R: number, t: number, ph: number) {
+  const p = sailCourse(a, R), q = sailCourse(a + 0.002 * dir, R);
+  g.position.set(p.x, -0.5 + Math.sin(t / 900 + ph) * 0.03, p.z);
+  // bow along the course, whichever way round it goes
+  g.rotation.set(Math.sin(t / 1300 + ph) * 0.03, Math.atan2(q.x - p.x, q.z - p.z), 0.08 + Math.sin(t / 1100 + ph) * 0.04);
+}
 
 class Life {
   private butterflies: { g: THREE.Group; wings: THREE.Mesh[]; hx: number; hz: number; seed: number }[] = [];
   private gulls: { g: THREE.Group; wings: THREE.Object3D[]; cx: number; cz: number; r: number; h: number; sp: number; ph: number }[] = [];
   private fish: { g: THREE.Group; ring: THREE.Mesh; t: number; x: number; z: number; dir: number; y: number }[] = [];
   private sail: THREE.Group;
-  private trawler = new THREE.Group();
+  // a second yacht, sailing round the other way a little further out
+  private sail2 = new THREE.Group();
   private nextFish = 2;
   // now and then something big shows itself off the shore in view: a pod of dolphins, a whale
   // coming up to blow, or a shark's fin circling
@@ -6180,7 +6522,7 @@ class Life {
     sailM.scale.set(1, 1.4, 0.7);
     sailM.position.set(0, 0.25, 0.08);
     this.sail.add(sailM);
-    scene.add(this.sail, this.trawler);
+    scene.add(this.sail, this.sail2);
     for (let i = 0; i < 12; i++) {
       const m = new THREE.Mesh(G.ball, new THREE.MeshBasicMaterial({ color: '#f4fbff', transparent: true, depthWrite: false }));
       m.visible = false;
@@ -6199,8 +6541,10 @@ class Life {
         if (w0 && w1) gl.wings = [w0, w1];
       }
     }).catch(() => {});
-    loadModel('sailboat').then((src) => { this.sail.clear(); const m = src.clone(); m.position.y = -0.08; this.sail.add(m); }).catch(() => {});
-    loadModel('fishing_boat').then((src) => { const m = src.clone(); m.position.y = -0.1; this.trawler.add(m); }).catch(() => {});
+    loadModel('sailboat').then((src) => {
+      this.sail.clear();
+      for (const g of [this.sail, this.sail2]) { const m = src.clone(); m.position.y = -0.08; g.add(m); }
+    }).catch(() => {});
     loadModel('dolphin').then((src) => {
       for (let i = 0; i < 3; i++) {
         const m = src.clone();
@@ -6373,16 +6717,9 @@ class Life {
       f.ring.position.set(f.x + Math.sin(f.dir) * 0.45, f.y + 0.02, f.z + Math.cos(f.dir) * 0.45);
       f.ring.scale.setScalar(0.08 + rk * 0.45);
     }
-    // the sailboat circles the island far out, heeling a little in the breeze; a fishing boat
-    // chugs round the other way, closer in
-    const a = t / 90000;
-    const R = GRID / 2 + 16;
-    this.sail.position.set(GRID / 2 + Math.cos(a) * R, -0.5 + Math.sin(t / 900) * 0.03, GRID / 2 + Math.sin(a) * R);
-    this.sail.rotation.set(Math.sin(t / 1300) * 0.03, -a, 0.08 + Math.sin(t / 1100) * 0.04);
-    const b = -t / 70000 + 2;
-    const R2 = GRID / 2 + 11;
-    this.trawler.position.set(GRID / 2 + Math.cos(b) * R2, -0.5 + Math.sin(t / 800) * 0.025, GRID / 2 + Math.sin(b) * R2);
-    this.trawler.rotation.set(Math.sin(t / 1000) * 0.04, -b + Math.PI, Math.sin(t / 1200) * 0.05);
+    // two yachts sail round the island in opposite directions, heeling a little in the breeze
+    sailRound(this.sail, t / 90000, 1, GRID / 2 + BEACH + 13, t, 0);
+    sailRound(this.sail2, -t / 110000 + 2, -1, GRID / 2 + BEACH + 19, t, 1.7);
     // the big animals
     this.nextSea -= dt;
     if (this.nextSea <= 0 && !this.seaEvent.kind) {
