@@ -36,6 +36,7 @@ import {
   restBonus,
   waterInfo,
   grazePhase,
+  GRAZE,
   storyReward,
   type FarmObject,
 } from '@/game/state';
@@ -387,10 +388,13 @@ function PenSheet({ o }: { o: FarmObject }) {
                 {a.graze ? (
                   <span className="text-center text-[10px] font-bold leading-3 text-[#2d7a2a]">
                     {(() => {
-                      const ph = grazePhase(a, now, an.id === 'bee').phase;
-                      if (ph === 'leaving') return an.id === 'bee' ? 'Flying out' : 'Heading out';
-                      if (ph === 'eating') return an.id === 'bee' ? 'On flowers' : 'Grazing';
-                      return 'Coming home';
+                      const bee = an.id === 'bee';
+                      const ph = grazePhase(a, now, bee).phase;
+                      const g = a.graze!;
+                      // back home (and full) at: the end of the trip, or a walk after being called
+                      const home = g.back !== undefined ? g.back + GRAZE.walkMs : g.at + 2 * GRAZE.walkMs + (bee ? GRAZE.beeEatMs : GRAZE.eatMs);
+                      const label = ph === 'leaving' ? (bee ? 'Flying out' : 'Heading out') : ph === 'eating' ? (bee ? 'On flowers' : 'Grazing') : 'Coming home';
+                      return <>{label}<br /><span className="font-semibold text-[#8a6a44]">{fmtTime(home - now)}</span></>;
                     })()}
                   </span>
                 ) : ready ? (
@@ -398,7 +402,11 @@ function PenSheet({ o }: { o: FarmObject }) {
                 ) : a.fedAt === null ? (
                   <span className="text-[10px] font-bold text-[#c0392b]">Hungry</span>
                 ) : (
-                  <Bar p={p} color="#f5b92b" />
+                  <>
+                    <Bar p={p} color="#f5b92b" />
+                    {/* how long until this one has its product ready */}
+                    <span className="text-[10px] font-bold leading-3 text-[#8a6a44]">{fmtTime(a.fedAt + an.time * 1000 - now)}</span>
+                  </>
                 )}
               </div>
             );

@@ -561,6 +561,7 @@ export class Renderer {
   private fishing!: ReturnType<typeof buildFishingSpot>;
   private life!: Life;
   private turtles!: TurtleBeach;
+  private shore!: ShoreLife;
   private fishBubble: THREE.Sprite | null = null;
   private sky = new Sky();
   private foliage = new Foliage();
@@ -616,6 +617,7 @@ export class Renderer {
     this.scene.add(this.fishing.root);
     this.life = new Life(this.scene);
     this.turtles = new TurtleBeach(this.scene);
+    this.shore = new ShoreLife(this.scene, (x, y) => { this.rebuildNav(); return this.free(x, y); });
     this.sel = this.buildSelection();
     // start fetching the Blender models right away, so they are usually in before the farm shows
     if (artStyle() === 'toon') {
@@ -1417,6 +1419,7 @@ export class Renderer {
     this.updateFishing(t, now);
     this.life.update(dt, t, this.nightNow(now), this.target);
     this.turtles.update(t);
+    this.shore.update(dt, t);
     this.followSun();
     this.cullBlocks();
     const wk = this.updateWeather(dt, now);
@@ -6024,6 +6027,135 @@ class TurtleBeach {
         }
       });
     });
+  }
+}
+
+// Crabs on the beach: red rock crabs, blue crabs, pale ghost crabs and hermit crabs in their
+// whelk shells. Each keeps to its own side of the sand ring round the island (a straight strip,
+// so a walk between two points on it never crosses the grass), scuttles sideways from spot to
+// spot, stops to pick at the sand with its claws, and now and then a ghost crab ducks into its
+// burrow or a hermit crab pulls into its shell for a while.
+type CrabKind = 'rock_crab' | 'blue_crab' | 'ghost_crab' | 'hermit_crab';
+const CRABS: [CrabKind, number, number, number][] = [
+  // kind, how many, speed (tiles a second), size
+  ['rock_crab', 5, 0.32, 1.25], ['blue_crab', 3, 0.4, 1.2], ['ghost_crab', 4, 1.1, 1.2], ['hermit_crab', 4, 0.12, 1.3],
+];
+interface Crab {
+  kind: CrabKind; g: THREE.Group; body: THREE.Group; legs: THREE.Object3D[]; claws: THREE.Object3D[];
+  side: number; speed: number; seed: number;
+  x: number; z: number; tx: number; tz: number; wait: number; hide: number; heading: number;
+}
+class ShoreLife {
+  private crabs: Crab[] = [];
+  private free: (x: number, y: number) => boolean;
+
+  constructor(scene: THREE.Scene, free: (x: number, y: number) => boolean) {
+    this.free = free;
+    let n = 0;
+    for (const [kind, count, speed, size] of CRABS) {
+      for (let k = 0; k < count; k++, n++) {
+        const g = new THREE.Group();
+        const body = new THREE.Group();
+        body.scale.setScalar(size);
+        g.add(body);
+        contactShadow(g, 0.2 * size, 0.16 * size);
+        const c: Crab = { kind, g, body, legs: [], claws: [], side: n % 4, speed, seed: n * 7.3 + 1, x: 0, z: 0, tx: 0, tz: 0, wait: 0, hide: 0, heading: 0 };
+        const p = this.spot(c, n * 13 + 5);
+        c.x = c.tx = p.x; c.z = c.tz = p.z;
+        g.visible = false;
+        scene.add(g);
+        this.crabs.push(c);
+        if (artStyle() === 'toon') {
+          loadModel(kind).then((m) => {
+            const mc = m.clone();
+            mc.traverse((o) => { o.castShadow = false; });
+            body.add(mc);
+            c.legs = [0, 1, 2, 3, 4, 5, 6, 7].map((i) => mc.getObjectByName(`leg${i}`)).filter((o): o is THREE.Object3D => !!o);
+            c.claws = [0, 1].map((i) => mc.getObjectByName(`claw${i}`)).filter((o): o is THREE.Object3D => !!o);
+            g.visible = true;
+          }).catch(() => {});
+        }
+      }
+    }
+  }
+
+  // a point on this crab's strip of beach: the sand ring's side, clear of the grass and of
+  // anything built on the beach
+  private spot(c: Crab, salt: number) {
+    const lo = 0.35, hi = CHUNK - 0.35;
+    for (let tries = 0; tries < 8; tries++) {
+      const along = 1 + hash(c.seed, salt, tries) * (GRID - 2), across = lo + hash(c.seed, salt + 1, tries) * (hi - lo);
+      // near where it is, most of the time: crabs potter about one stretch of beach
+      const a = tries < 6 && c.x ? Math.max(1, Math.min(GRID - 1, (c.side < 2 ? c.x : c.z) + (hash(c.seed, salt, 9 + tries) - 0.5) * 6)) : along;
+      const p = c.side === 0 ? { x: a, z: across } : c.side === 1 ? { x: a, z: GRID - across } : c.side === 2 ? { x: across, z: a } : { x: GRID - across, z: a };
+      if (this.clear(c.x || p.x, c.z || p.z, p.x, p.z)) return p;
+    }
+    return { x: c.x || GRID / 2, z: c.z || 1.5 };
+  }
+
+  // the walk there crosses nothing built on the beach (a crab goes round a sun lounger)
+  private clear(x0: number, z0: number, x1: number, z1: number) {
+    const n = Math.ceil(Math.hypot(x1 - x0, z1 - z0) / 0.4);
+    for (let i = 0; i <= n; i++) {
+      const k = n ? i / n : 1;
+      if (!this.free(Math.floor(x0 + (x1 - x0) * k), Math.floor(z0 + (z1 - z0) * k))) return false;
+    }
+    return true;
+  }
+
+  update(dt: number, t: number) {
+    for (const c of this.crabs) {
+      if (!c.g.visible && !c.legs.length) continue;
+      const hermit = c.kind === 'hermit_crab';
+      // tucked away: in its burrow (ghost crab) or inside its shell (hermit crab)
+      if (c.hide > 0) {
+        c.hide -= dt;
+        if (c.kind === 'ghost_crab') c.g.visible = c.hide <= 0;
+        else c.body.position.y = -0.004;
+        c.claws.forEach((cl) => { cl.rotation.y = 0; });
+        continue;
+      }
+      c.g.visible = true;
+      c.body.position.y = 0;
+      const dx = c.tx - c.x, dz = c.tz - c.z, d = Math.hypot(dx, dz);
+      let moving = false;
+      if (c.wait > 0) c.wait -= dt;
+      else if (d > 0.02) {
+        const step = Math.min(d, c.speed * dt);
+        c.x += (dx / d) * step; c.z += (dz / d) * step;
+        moving = true;
+        // true crabs go sideways, the hermit crab walks forward under its shell
+        const want = Math.atan2(dx, dz) + (hermit ? 0 : Math.PI / 2 * (Math.sin(c.seed) > 0 ? 1 : -1));
+        let dh = want - c.heading;
+        while (dh > Math.PI) dh -= Math.PI * 2;
+        while (dh < -Math.PI) dh += Math.PI * 2;
+        c.heading += dh * Math.min(1, dt * 5);
+      } else {
+        // there: a pause to feed, then off to the next spot (or down its hole for a while)
+        const r = hash(c.seed, Math.floor(t / 997), 3);
+        c.wait = 1.5 + r * 5;
+        if (r > 0.86) c.hide = 4 + r * 8;
+        const p = this.spot(c, Math.floor(t / 1000) + 17);
+        c.tx = p.x; c.tz = p.z;
+      }
+      c.g.position.set(c.x, 0, c.z);
+      c.g.rotation.y = c.heading;
+      // legs: alternate pairs lift and swing while it runs; a slow shuffle while it feeds
+      const ph = t / (hermit ? 140 : c.kind === 'ghost_crab' ? 45 : 70) + c.seed;
+      c.legs.forEach((l, i) => {
+        const left = hermit ? i < 2 : i < 4;
+        const alt = (i % 2 ? 1 : -1) * (left ? 1 : -1);
+        l.rotation.z = moving ? Math.max(0, Math.sin(ph + i * 1.6)) * 0.35 * (left ? -1 : 1) : 0;
+        l.rotation.y = moving ? Math.sin(ph + i * 1.6) * 0.25 * alt : 0;
+      });
+      // claws: held out while it runs; picking at the sand and lifting it to the mouth while it feeds
+      c.claws.forEach((cl, i) => {
+        const pick = moving ? 0 : Math.max(0, Math.sin(t / 380 + c.seed + i * Math.PI));
+        cl.rotation.x = -pick * 0.35;
+        cl.rotation.y = (i ? -1 : 1) * (0.05 + Math.sin(t / 600 + c.seed + i) * 0.05);
+      });
+      c.body.rotation.z = moving ? Math.sin(ph * 2) * 0.03 : 0;
+    }
   }
 }
 
