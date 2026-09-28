@@ -714,7 +714,7 @@ function FishingModal() {
         <span className="emoji animate-bob text-5xl">{fi.state === 'ready' ? '🐟' : '🌊'}</span>
         {fi.state === 'locked' && (
           <>
-            <p className="font-bold">Open a fishing spot off the south shore.</p>
+            <p className="font-bold">Open a fishing spot on the jetty at the lake.</p>
             <p className="text-sm text-[#8a6a44]">Cast a line, wait a little and reel in fish. New catches bite as you level up, from sardines, carp and salmon early on to koi, mahi mahi, clownfish, marlin, sturgeon, anglerfish and, at level 195, the golden fish.</p>
             {s.level < FISHING.level ? (
               <Lock level={FISHING.level} />

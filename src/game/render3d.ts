@@ -4322,11 +4322,6 @@ function seaSpot(o: FarmObject, d: BuildingDef, id: number): P2 {
   const e = edges.indexOf(Math.min(...edges));
   const along = (v: number) => Math.max(2, Math.min(GRID - 2, v + (hash(id, 3, 7) - 0.5) * 6));
   const out = BEACH + 0.5 + hash(id, 4, 9) * 0.8;
-  // keep clear of the fishing jetty on the south shore
-  if (e === 3 && Math.abs(along(cx) - FISH_SPOT.x) < 4) {
-    const x = along(cx) + (along(cx) < FISH_SPOT.x ? -4 : 4);
-    return { x: Math.max(2, Math.min(GRID - 2, x)), y: GRID + out };
-  }
   // on the west side the turtle cove's sand bulges out to sea: wade off its shore instead
   if (e === 0) { const y = along(cy); return { x: Math.min(-out, coveEdge(y) - 0.5 - hash(id, 4, 9) * 0.6), y }; }
   return e === 0 ? { x: -out, y: along(cy) } : e === 1 ? { x: GRID + out, y: along(cy) } : e === 2 ? { x: along(cx), y: -out } : { x: along(cx), y: GRID + out };
@@ -5657,17 +5652,8 @@ function buildDeco(e: Entry, d: BuildingDef) {
 }
 
 // ------------------------------------------------------------------ fishing spot
-// A jetty off the south shore. Once opened a fisher waits in a rowboat inside a ring of buoys;
-// the bobber dances when a fish bites and fish leap out when the catch is ready.
-
-function signTex(text: string) {
-  return canvasTex(`sign|${text}`, 256, 128, (c) => {
-    c.fillStyle = '#c98a45'; c.fillRect(0, 0, 256, 128);
-    c.strokeStyle = '#6b4226'; c.lineWidth = 12; c.strokeRect(6, 6, 244, 116);
-    c.fillStyle = '#fff8e6'; c.font = '900 44px ui-rounded, "Trebuchet MS", system-ui, sans-serif';
-    c.textAlign = 'center'; c.textBaseline = 'middle'; c.fillText(text, 128, 66);
-  });
-}
+// The plank jetty on the lake. Once opened a rod stands in a holder at its end; the bobber
+// dances when a fish bites and fish leap out when the catch is ready.
 
 function splashRing() {
   const m = new THREE.Mesh(new THREE.RingGeometry(0.7, 1, 24), new THREE.MeshBasicMaterial({ color: '#ffffff', transparent: true, opacity: 0, depthWrite: false }));
@@ -5685,90 +5671,29 @@ function fishModel(color = '#ff9a3c') {
 }
 
 function buildFishingSpot() {
+  // at the end of the plank jetty on the lake: a rod propped in a holder, its line out to a
+  // bobber on the water. Nobody sits there; the catch waits for the farmer to reel it in.
   const root = new THREE.Group();
-  const X = FISH_SPOT.x, Z0 = GRID + 0.25, Z1 = FISH_SPOT.y - 0.2;
-  // jetty deck on posts
-  const n0 = root.children.length;
-  const deck = new THREE.Mesh(meterBox(Z1 - Z0, 0.07, 0.7), surfaceMat('planks', '#c49660', 1.2));
-  deck.rotation.y = Math.PI / 2;
-  deck.position.set(X, -0.12, (Z0 + Z1) / 2);
-  deck.castShadow = deck.receiveShadow = true;
-  root.add(deck);
-  for (let z = Z0 + 0.15; z <= Z1 + 0.01; z += 0.55) for (const sx of [-1, 1]) {
-    mk(root, cylGeo(0.045, 0.05, 8), surfaceMat('bark', '#6b4226', 4), 1, 0.9, 1, X + sx * 0.32, -0.55, z);
-  }
-  for (const sx of [-1, 1]) mk(root, cylGeo(0.05, 0.05, 8), surfaceMat('bark', '#6b4226', 4), 1, 0.35, 1, X + sx * 0.32, 0.02, Z1);
-  // sign at the shore end
-  const sign = group(root, X - 0.55, -0.2, Z0 + 0.15);
-  cyl(sign, 0.03, 0.03, 0.75, '#6b4226', 0, 0, 0, 6);
-  const board = new THREE.Mesh(G.box, [M('#a8733f'), M('#a8733f'), M('#a8733f'), M('#a8733f'), new THREE.MeshStandardMaterial({ map: signTex('FISHING') }), new THREE.MeshStandardMaterial({ map: signTex('FISHING') })]);
-  board.scale.set(0.62, 0.3, 0.05);
-  board.position.set(0, 0.72, 0);
-  board.castShadow = true;
-  sign.add(board);
-  // the Blender jetty (tools/blender/world.py) replaces the deck, piles and sign once loaded
-  const jettyStandIn = root.children.slice(n0);
-  if (artStyle() === 'toon') {
-    loadModel('fishing_jetty').then((m) => {
-      for (const c of jettyStandIn) root.remove(c);
-      const j = m.clone();
-      j.position.set(X, 0, Z0);
-      root.add(j);
-    }).catch(() => {});
-  }
-  const lock = badge(root, '🔒', 0.3, X, 0.35, Z0 + 0.3);
+  const X = FISH_SPOT.x, Z = FISH_SPOT.y;
+  const jx = LAKE.x - LAKE.rx * 1.12, end = jx + 8 * 0.16, deckY = LAKE_Y + 0.135;
+  const lock = badge(root, '🔒', 0.3, jx + 0.5, deckY + 0.35, Z);
   lock.rotation.x = -0.3;
-  // chain rope across the jetty while locked
-  const rope = mk(root, cylGeo(0.012, 0.012, 6), M('#8a6a44'), 1, 0.66, 1, X, 0.02, Z0 + 0.3);
-  rope.rotation.z = Math.PI / 2;
+  // a rope across the jetty while it is locked
+  const rope = mk(root, cylGeo(0.012, 0.012, 6), M('#8a6a44'), 1, 0.5, 1, jx + 0.35, deckY + 0.12, Z);
+  rope.rotation.x = Math.PI / 2;
 
-  // buoys marking the fishing area
   const open = group(root);
-  const buoys: THREE.Object3D[] = [];
-  for (let i = 0; i < 7; i++) {
-    const a = (i / 7) * Math.PI * 2 + 0.3;
-    const b = group(open, X + Math.cos(a) * 1.35, -0.5, FISH_SPOT.y + 0.4 + Math.sin(a) * 1.0);
-    ball(b, 0.07, i % 2 ? '#ffffff' : '#e74c3c', 0, 0, 0, 1, 0.9, 1);
-    cyl(b, 0.01, 0.01, 0.12, '#3a3a3a', 0, 0.04, 0, 4);
-    buoys.push(b);
-  }
-  // rowboat with a fisher in a yellow raincoat
-  const boat = group(open, X + 0.75, -0.62, FISH_SPOT.y + 0.35);
-  boat.rotation.y = 0.5;
-  const hull = mk(boat, G.dome, surfaceMat('planks', '#9a5a32', 3), 0.26, 0.2, 0.55, 0, 0.3, 0);
-  hull.rotation.x = Math.PI;
-  mk(boat, new THREE.TorusGeometry(1, 0.06, 6, 24), M('#7a4a28'), 0.26, 0.55, 0.4, 0, 0.3, 0).rotation.x = Math.PI / 2;
-  mk(boat, G.ball, M('#f4efe6'), 0.27, 0.05, 0.56, 0, 0.16, 0);
-  bx(boat, 0.44, 0.03, 0.1, '#7a4a28', 0, 0.22, -0.12);
-  const hullStandIn = [...boat.children];
-  const fisher = buildFarmer('#f2b134', '#3a5a40', '#3a5a40');
-  fisher.position.set(0, 0.0, -0.12);
-  fisher.scale.setScalar(0.9);
-  const fl = fisher.userData.legs as THREE.Object3D[];
-  fl.forEach((l) => { l.rotation.x = -1.4; });
-  const arms = fisher.userData.arms as THREE.Object3D[];
-  arms.forEach((a) => { a.rotation.x = -1.1; });
-  boat.add(fisher);
-  if (artStyle() === 'toon') {
-    // Blender rowboat and fisher, seated and holding the rod like the stand ins
-    loadModel('rowboat').then((m) => {
-      for (const c of hullStandIn) boat.remove(c);
-      boat.add(m.clone());
-    }).catch(() => {});
-    loadModel('fisher').then((m) => {
-      const fresh = farmerFromModel(m);
-      fisher.clear();
-      for (const c of [...fresh.children]) fisher.add(c);
-      Object.assign(fisher.userData, fresh.userData);
-      (fisher.userData.legs as THREE.Object3D[]).forEach((l) => { l.rotation.x = -1.4; });
-      (fisher.userData.arms as THREE.Object3D[]).forEach((a) => { a.rotation.x = -1.1; });
-    }).catch(() => {});
-  }
-  const rod = group(boat, 0.08, 0.4, 0.1);
-  mk(rod, cylGeo(0.006, 0.012, 5), M('#5a3a1a'), 1, 0.9, 1, 0, 0.45, 0);
-  rod.rotation.x = 0.9;
-  rod.rotation.z = 0.5;
-  const bobber = group(open, X - 0.25, -0.53, FISH_SPOT.y + 0.8);
+  // the rod holder: a short post at the end of the jetty with the rod leaning out over the water
+  const holder = group(open, end, deckY, Z + 0.14);
+  mk(holder, cylGeo(0.022, 0.026, 6), surfaceMat('bark', '#6b4226', 4), 1, 0.22, 1, 0, 0.11, 0);
+  const rod = group(holder, 0, 0.16, 0);
+  mk(rod, cylGeo(0.005, 0.011, 5), M('#5a3a1a'), 1, 0.9, 1, 0, 0.45, 0);
+  mk(rod, new THREE.TorusGeometry(0.03, 0.008, 5, 10), M('#3a3a3a'), 1, 1, 1, 0, 0.12, 0.02);
+  rod.rotation.z = -1.0;
+  // a bait tin and a bucket for the catch on the planks
+  cyl(open, 0.05, 0.045, 0.08, '#9aa4ad', end - 0.3, deckY + 0.04, Z - 0.14, 10);
+  cyl(open, 0.035, 0.035, 0.03, '#6b8a5a', end - 0.12, deckY + 0.015, Z - 0.16, 8);
+  const bobber = group(open, X, LAKE_Y + 0.02, Z + 0.1);
   ball(bobber, 0.035, '#e74c3c', 0, 0.02, 0);
   ball(bobber, 0.036, '#ffffff', 0, -0.005, 0, 1, 0.5, 1);
   const lineGeo = new THREE.BufferGeometry().setFromPoints([new THREE.Vector3(), new THREE.Vector3()]);
@@ -5782,8 +5707,8 @@ function buildFishingSpot() {
   open.add(ring);
 
   const hit = new THREE.Mesh(G.box, HIT_MAT);
-  hit.scale.set(3, 1.4, Z1 - Z0 + 1.8);
-  hit.position.set(X, 0.2, (Z0 + Z1) / 2 + 0.6);
+  hit.scale.set(X - jx + 0.9, 1.2, 1.4);
+  hit.position.set((jx + X) / 2 + 0.2, 0.3, Z);
   root.add(hit);
 
   const tipV = new THREE.Vector3();
@@ -5792,17 +5717,16 @@ function buildFishingSpot() {
     open.visible = isOpen;
     lock.visible = rope.visible = !isOpen;
     if (!isOpen) return;
-    buoys.forEach((b, i) => { b.position.y = -0.5 + Math.sin(t / 600 + i) * 0.02; b.rotation.z = Math.sin(t / 800 + i) * 0.1; });
-    boat.position.y = -0.62 + Math.sin(t / 900) * 0.015;
-    boat.rotation.z = Math.sin(t / 1100) * 0.04;
     const casting = state !== 'idle';
     bobber.visible = line.visible = casting;
-    rod.rotation.x = casting ? 0.9 : 0.2;
+    // idle, the rod stands up in its holder; cast, it leans out over the water and nods on a bite
+    const nod = state === 'ready' ? Math.max(0, Math.sin(t / 140)) * 0.12 : state === 'waiting' && p > 0.8 ? Math.max(0, Math.sin(t / 90)) * 0.05 : 0;
+    rod.rotation.z = casting ? -1.0 - nod : -0.25;
     // the bobber twitches as a bite gets closer, and plunges when the fish is on
-    let dip = Math.sin(t / 500) * 0.012;
-    if (state === 'waiting' && p > 0.8) dip -= Math.max(0, Math.sin(t / 90)) * 0.03;
-    if (state === 'ready') dip -= Math.max(0, Math.sin(t / 140)) * 0.06;
-    bobber.position.y = -0.53 + dip;
+    let dip = Math.sin(t / 500) * 0.008;
+    if (state === 'waiting' && p > 0.8) dip -= Math.max(0, Math.sin(t / 90)) * 0.02;
+    if (state === 'ready') dip -= Math.max(0, Math.sin(t / 140)) * 0.04;
+    bobber.position.y = LAKE_Y + 0.02 + dip;
     if (casting) {
       rod.updateWorldMatrix(true, false);
       tipV.set(0, 0.9, 0).applyMatrix4(rod.matrixWorld);
@@ -5812,18 +5736,18 @@ function buildFishingSpot() {
       pos.setXYZ(1, bobber.position.x, bobber.position.y + 0.03, bobber.position.z);
       pos.needsUpdate = true;
     }
-    // leaping fish and splash rings while the catch waits
+    // a leaping fish and splash rings while the catch waits
     const u = ((t / 1700) % 1);
     fish.visible = state === 'ready' && u < 0.45;
     if (fish.visible) {
       const k = u / 0.45;
-      fish.position.set(bobber.position.x + 0.35 - k * 0.7, -0.55 + Math.sin(k * Math.PI) * 0.45, bobber.position.z + 0.1);
+      fish.position.set(bobber.position.x + 0.3 - k * 0.6, LAKE_Y - 0.02 + Math.sin(k * Math.PI) * 0.35, bobber.position.z + 0.15);
       fish.rotation.set(0, -Math.PI / 2, 0);
       fish.rotateX(-Math.cos(k * Math.PI) * 1.1);
     }
     const rk = state === 'ready' ? ((t / 1700 + 0.55) % 1) : 1;
-    ring.position.set(bobber.position.x - 0.35, -0.53, bobber.position.z + 0.1);
-    ring.scale.setScalar(0.05 + rk * 0.35);
+    ring.position.set(bobber.position.x - 0.3, LAKE_Y + 0.005, bobber.position.z + 0.15);
+    ring.scale.setScalar(0.05 + rk * 0.3);
     (ring.material as THREE.MeshBasicMaterial).opacity = state === 'ready' ? (1 - rk) * 0.8 : 0;
   };
   return { root, hit, update };

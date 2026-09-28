@@ -29,7 +29,8 @@ export const SAVE_KEY = 'talons-farm-save-v1';
 
 export interface FishingData { open: boolean; castAt: number | null; catchAt: number | null }
 // the fishing spot lies in the sea just off the south shore
-export const FISH_SPOT = { x: GRID / 2, y: GRID + 2.3 };
+// the fishing spot: off the end of the plank jetty on the lake, where the bobber floats
+export const FISH_SPOT = { x: LAKE.x - LAKE.rx * 1.12 + 1.85, y: LAKE.z };
 export const FISHING = { level: 5, cost: 800, time: 45 };
 // `watered`: the current crop got its drink (by hand, rain or a sprinkler) and grows faster
 export interface PlotData { crop: string | null; plantedAt: number; watered?: boolean }

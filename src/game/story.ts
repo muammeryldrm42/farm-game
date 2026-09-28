@@ -154,7 +154,7 @@ function drafts(level: number): Draft[] {
   if (stall) add({ who: 'bramble', task: { icon: stall.icon, text: `Build the ${stall.name}`, target: 1, kind: 'count', key: stall.id }, line: 'Villagers would love to buy straight from your farm. A roadside stall is just the thing!', title: 'Open for Business' });
   const dock = sys('dock');
   if (dock) add({ who: 'finn', task: { icon: dock.icon, text: `Build the ${dock.name}`, target: 1, kind: 'count', key: dock.id }, line: 'Ahoy! My cargo boat could stop at your farm, if only you had a dock.', title: 'A Boat on the Horizon' });
-  if (level === 5) add({ who: 'finn', task: { icon: '🎣', text: 'Open the fishing spot', target: 1, kind: 'fishing', key: '' }, line: 'The south shore has the best fishing in the valley. Open your fishing spot!', title: 'Gone Fishing' });
+  if (level === 5) add({ who: 'finn', task: { icon: '🎣', text: 'Open the fishing spot', target: 1, kind: 'fishing', key: '' }, line: 'The lake in the woods has the best fishing in the valley. Open your fishing spot!', title: 'Gone Fishing' });
   return out;
 }
 
@@ -162,7 +162,7 @@ function drafts(level: number): Draft[] {
 const MILESTONES: Record<number, { title: string; who: CastId; lines: string[]; outro: string; task?: Omit<StoryTask, 'id'> }> = {
   1: { title: 'A New Beginning', who: 'grandpa', lines: ['There you are! Welcome to Talon Valley. This old farm is yours now.', 'My knees are too old for the fields, but yours are not. Let us wake this place up!'], outro: 'Look at that, the farm is breathing again. I knew you could do it!' },
   2: { title: 'The Order Board', who: 'bramble', lines: ['Welcome, new farmer! I am Mayor Bramble.', 'The town has missed fresh food from this farm. Every order you deliver brings the valley back to life.'], outro: 'Splendid! The townsfolk are already smiling again.', task: { icon: '📋', text: 'Deliver orders ×2', target: 2, kind: 'stat', key: 'orders' } },
-  5: { title: 'Gone Fishing', who: 'finn', lines: ['Ahoy there! Captain Finn, at your service.', 'Your grandpa and I used to fish off the south shore every morning.'], outro: 'A natural! The sea will be good to you.', task: { icon: '🎣', text: 'Open the fishing spot', target: 1, kind: 'fishing', key: '' } },
+  5: { title: 'Gone Fishing', who: 'finn', lines: ['Ahoy there! Captain Finn, at your service.', 'Your grandpa and I used to fish off the lake jetty every morning.'], outro: 'A natural! The lake will be good to you.', task: { icon: '🎣', text: 'Open the fishing spot', target: 1, kind: 'fishing', key: '' } },
   10: { title: 'The Valley Wakes Up', who: 'bramble', lines: ['The whole town is talking about your farm!', 'Shops are opening again and children play in the square. That is your doing.'], outro: 'Talon Valley has not looked this lively in years.' },
   15: { title: 'Old Photographs', who: 'grandpa', lines: ['I found an old photo of this farm, full of animals and flowers.', 'We are getting close to how it used to be. Closer every day.'], outro: 'This old heart is very happy today.' },
   20: { title: 'Market Day', who: 'rosie', lines: ['Guess what? The market is back every Saturday!', 'I told everyone the best goods come from your farm.'], outro: 'Sold out before noon! Your goods are the talk of the market.', task: { icon: '🏪', text: 'Sell at your stall ×3', target: 3, kind: 'stat', key: 'stall' } },
@@ -198,7 +198,7 @@ const OUTRO: Record<CastId, string[]> = {
   maya: ['Happy animals, happy valley. Thank you!', 'They settled in beautifully. You are a natural with animals.'],
   rosie: ['Mmm! That goes straight into my recipe book.', 'Delicious! The whole bakery smells wonderful.'],
   marco: ['Magnifico! The whole valley can smell it.', 'Perfect! You cook like a true chef.'],
-  finn: ['Now that is a catch! The sea likes you.', 'Fair winds, farmer. Good work today.'],
+  finn: ['Now that is a catch! The fish like you.', 'Fair winds, farmer. Good work today.'],
   hazel: ['Fascinating! I must write this down.', 'A wonderful result. Science thanks you!'],
 };
 
