@@ -21,7 +21,7 @@ import { SCULPT_MAT, TOON_MAT, TOON_WOOL, WOOL_MAT } from './gfx/sdf';
 import { leafShell, leafTexture, meterBox, meterHip, meterRoof, surface, surfaceMat, type SurfaceKind } from './gfx/textures';
 import { ANIMAL, BUILDING, CROP, ITEMS, type BuildingDef, type CropDef } from './data';
 import {
-  CHUNK, FARM_OFF, FISH_SPOT, SEA_FISH_SPOT, fishSpotAt, type FishSpot, GRAZE, GRID, LAKE, MAP_OFF2, MAP_OFF3, NCH, isBeachTile, lakeE, animalReady, fishingInfo, boatState, canFulfill, chunkState, grazePhase, penInfo, plotProgress, prodInfo, treeInfo,
+  CHUNK, FARM_OFF, FISH_SPOT, footprint, SEA_FISH_SPOT, fishSpotAt, type FishSpot, GRAZE, GRID, LAKE, MAP_OFF2, MAP_OFF3, NCH, isBeachTile, lakeE, animalReady, fishingInfo, boatState, canFulfill, chunkState, grazePhase, penInfo, plotProgress, prodInfo, treeInfo,
   type Animal, type FarmObject, type GameStore,
 } from './state';
 
@@ -1163,7 +1163,7 @@ export class Renderer {
     this.foliageKey = key;
     const used = new Uint8Array(GRID * GRID);
     for (const o of s.objects) {
-      const d = BUILDING[o.type];
+      const d = footprint(o);
       const grassy = GRASSY_PEN.has(o.type);
       for (let j = 0; j < d.h; j++) for (let i = 0; i < d.w; i++) {
         // grassy pens keep grass except under the shelter and the trough
@@ -1383,11 +1383,13 @@ export class Renderer {
     FX_ROOT.add(r);
     const d = BUILDING[e.type];
     const p0 = r.position.clone();
+    const th0 = r.rotation.y, cx = d.w / 2, cz = d.h / 2;
+    const mx = cx * Math.cos(th0) + cz * Math.sin(th0), mz = -cx * Math.sin(th0) + cz * Math.cos(th0);
     play(0.4, (k) => {
       const s = Math.max(0.001, 1 - easeOutBack(k) * 0.999);
       r.scale.set(s, s * (1 + Math.sin(k * Math.PI) * 0.3), s);
-      r.position.set(p0.x + (d.w / 2) * (1 - s), k * 0.2, p0.z + (d.h / 2) * (1 - s));
-      r.rotation.y = k * 0.6;
+      r.position.set(p0.x + mx * (1 - s), k * 0.2, p0.z + mz * (1 - s));
+      r.rotation.y = th0 + k * 0.6;
     }, () => FX_ROOT.remove(r));
     if (e.bubble) { this.fxLayer.remove(e.bubble); e.bubble.material.dispose(); }
     this.entries.delete(e.id);
@@ -1444,7 +1446,7 @@ export class Renderer {
       const e = this.entries.get(o.id);
       if (!e) continue;
       e.root.visible = o.id !== moveId;
-      const d = BUILDING[o.type];
+      const d = footprint(o);
       this.cullSphere.center.set(o.x + d.w / 2, 0.6, o.y + d.h / 2);
       this.cullSphere.radius = Math.max(d.w, d.h) * 0.8 + 1.2;
       const seen = this.frustum.intersectsSphere(this.cullSphere);
@@ -1560,11 +1562,11 @@ export class Renderer {
     (this.ghost.foot.material as THREE.MeshBasicMaterial).color.set(ok ? '#5cb82e' : '#e0533d');
     // a thing being moved keeps its turn
     const real = p.moveId !== undefined ? this.store.obj(p.moveId) : undefined;
-    const gd = BUILDING[p.type];
+    const gd = BUILDING[p.type], gf = this.store.placingFootprint();
     const th = -((real?.rot) ?? 0) * Math.PI / 2;
     const gc = Math.cos(th), gs = Math.sin(th), hx = gd.w / 2, hz = gd.h / 2;
     this.ghost.g.rotation.y = th;
-    this.ghost.g.position.set(p.x + hx - (hx * gc + hz * gs), 0.06 + Math.abs(Math.sin(t / 260)) * 0.06, p.y + hz - (-hx * gs + hz * gc));
+    this.ghost.g.position.set(p.x + gf.w / 2 - (hx * gc + hz * gs), 0.06 + Math.abs(Math.sin(t / 260)) * 0.06, p.y + gf.h / 2 - (-hx * gs + hz * gc));
   }
 
   private buildSelection() {
@@ -1579,7 +1581,7 @@ export class Renderer {
   private updateSelection(t: number) {
     const o = this.store.obj(this.store.ui.selectedId);
     if (!o) { this.sel.visible = false; return; }
-    const d = BUILDING[o.type];
+    const d = footprint(o);
     this.sel.visible = true;
     this.sel.position.set(o.x, 0.04, o.y);
     const th = 0.07;
@@ -1712,7 +1714,7 @@ export class Renderer {
       const sc = b.mode === 'ready' ? 0.62 : 0.5;
       e.bubble.scale.set(sc, sc * 1.25, 1);
       const bob = b.mode === 'ready' ? Math.abs(Math.sin(t / 260 + o.id)) * 0.14 : 0;
-      e.bubble.position.set(o.x + d.w / 2, e.top + 0.15 + bob, o.y + d.h / 2);
+      e.bubble.position.set(o.x + footprint(o).w / 2, e.top + 0.15 + bob, o.y + footprint(o).h / 2);
       e.bubble.visible = true;
     }
   }
@@ -2206,7 +2208,7 @@ export class Renderer {
         const d = BUILDING[o.type];
         const bloom = o.type === 'flowers' || o.type === 'flower_arch' || d.kind === 'tree'
           || (d.kind === 'plot' && !!o.plot?.crop && CROP[o.plot.crop]?.shape === 'flower');
-        if (bloom) this.flowerList.push({ x: o.x + d.w / 2, y: o.y + d.h / 2 });
+        if (bloom) this.flowerList.push({ x: o.x + footprint(o).w / 2, y: o.y + footprint(o).h / 2 });
       }
     }
     return this.flowerList;
@@ -2225,7 +2227,7 @@ export class Renderer {
         const d = BUILDING[o.type];
         if (!['house', 'barn', 'silo', 'production', 'board', 'stall'].includes(d.kind)) continue;
         const e = this.entries.get(o.id);
-        if (e && e.top > 0.6) this.roofList.push({ id: o.id, x: o.x + d.w / 2, y: o.y + d.h / 2, h: e.top });
+        if (e && e.top > 0.6) this.roofList.push({ id: o.id, x: o.x + footprint(o).w / 2, y: o.y + footprint(o).h / 2, h: e.top });
       }
     }
     return this.roofList;
@@ -2259,7 +2261,7 @@ export class Renderer {
       this.treeList = [];
       for (const o of s.objects) {
         const d = BUILDING[o.type];
-        if (d.kind === 'tree' || o.type.startsWith('tree_obs') || o.type === 'oak') this.treeList.push({ id: o.id, x: o.x + d.w / 2, y: o.y + d.h / 2 });
+        if (d.kind === 'tree' || o.type.startsWith('tree_obs') || o.type === 'oak') this.treeList.push({ id: o.id, x: o.x + footprint(o).w / 2, y: o.y + footprint(o).h / 2 });
       }
     }
     return this.treeList;
@@ -2312,7 +2314,8 @@ export class Renderer {
       // animal homes, decorations, trees and clutter only slow the farmer down: he steps over
       // the fences and between the benches. Buildings with walls stay in the way.
       const v = SOFT_KINDS.has(d.kind) ? 2 : 1;
-      for (let j = 0; j < d.h; j++) for (let i = 0; i < d.w; i++) {
+      const f = footprint(o);
+      for (let j = 0; j < f.h; j++) for (let i = 0; i < f.w; i++) {
         const x = o.x + i, y = o.y + j;
         if (x >= 0 && y >= 0 && x < GRID && y < GRID) this.nav[y * GRID + x] = Math.max(this.nav[y * GRID + x], v);
       }
@@ -2441,7 +2444,7 @@ export class Renderer {
 
   // walk up to a building: to the free tile nearest the middle of its front
   walkToObject(o: FarmObject) {
-    const d = BUILDING[o.type];
+    const d = footprint(o);
     this.walkTo(o.x + Math.floor(d.w / 2), o.y + d.h);
   }
 
@@ -2952,7 +2955,7 @@ function waterSpot(o: FarmObject, d: BuildingDef, id: number) {
   return memoSpot(list, `${o.x}|${o.y}|${o.type}|${id}`, () => waterSpotOf(list, o, d, id));
 }
 function waterSpotOf(list: { x: number; y: number; r: number; surf: number }[], o: FarmObject, d: BuildingDef, id: number) {
-  const cx = o.x + d.w / 2, cy = o.y + d.h / 2;
+  const f = footprint(o), cx = o.x + f.w / 2, cy = o.y + f.h / 2;
   const ponds = list.map((p) => ({ p, k: Math.hypot(p.x - cx, p.y - cy) })).filter((q) => q.k < 16).sort((p, q) => p.k - q.k);
   const lakeFar = Math.hypot(LAKE.x - cx, LAKE.z - cy) > 34;
   if (ponds.length && (lakeFar || hash(id, 51, 2) < 0.55)) {
@@ -2969,7 +2972,7 @@ function waterSpotOf(list: { x: number; y: number; r: number; surf: number }[], 
 function treePerch(o: FarmObject, d: BuildingDef, id: number) {
   const trees = GRAZE_NAV?.trees() ?? NO_SPOTS;
   const pick = memoSpot(trees, `${o.x}|${o.y}|${o.type}|${id}`, () => {
-    const cx = o.x + d.w / 2, cy = o.y + d.h / 2;
+    const f = footprint(o), cx = o.x + f.w / 2, cy = o.y + f.h / 2;
     const near = trees.map((t) => ({ t, k: Math.hypot(t.x - cx, t.y - cy) })).filter((q) => q.k < 14).sort((p, q) => p.k - q.k).slice(0, 4);
     if (!near.length) return null;
     const t = near[Math.floor(hash(id, 31, 2) * near.length)].t;
@@ -3663,10 +3666,17 @@ function buildHive() {
 // where an animal wanders in its pen, in the pen's own tiles; a turned pen turns its yard too
 function animalSpot(o: FarmObject, d: BuildingDef, id: number, t: number) {
   const sp = penSpot(d, id, t);
-  const th = -(o.rot ?? 0) * Math.PI / 2;
-  if (!th) return sp;
-  const c = Math.cos(th), s = Math.sin(th), dx = sp.x - d.w / 2, dz = sp.z - d.h / 2;
-  return { x: d.w / 2 + dx * c + dz * s, z: d.h / 2 - dx * s + dz * c, heading: sp.heading + th };
+  if (!o.rot) return sp;
+  const q = penPt(o, d, sp.x, sp.z);
+  return { x: q.x, z: q.z, heading: sp.heading - o.rot * Math.PI / 2 };
+}
+// a point in a pen's own tiles as built, where it is on the turned pen's footprint: the model's
+// middle sits on the footprint's middle (they differ once an oblong pen stands the other way)
+function penPt(o: FarmObject, d: BuildingDef, x: number, z: number) {
+  if (!o.rot) return { x, z };
+  const th = -o.rot * Math.PI / 2, f = footprint(o);
+  const c = Math.cos(th), s = Math.sin(th), dx = x - d.w / 2, dz = z - d.h / 2;
+  return { x: f.w / 2 + dx * c + dz * s, z: f.h / 2 - dx * s + dz * c };
 }
 function penSpot(d: BuildingDef, id: number, t: number) {
   const u = hash(id, 1, 3), v = hash(id, 2, 5);
@@ -3763,17 +3773,18 @@ function placeRoot(e: Entry, o: FarmObject, sx: number, sy: number) {
   const d = BUILDING[o.type];
   const th = -(o.rot ?? 0) * Math.PI / 2;
   const c = Math.cos(th), s = Math.sin(th);
-  const cx = d.w / 2, cz = d.h / 2;
-  // three.js turns (x, z) by th about y to (x c + z s, -x s + z c)
+  const cx = d.w / 2, cz = d.h / 2, f = footprint(o), fx = f.w / 2, fz = f.h / 2;
+  // three.js turns (x, z) by th about y to (x c + z s, -x s + z c); the model's middle c goes
+  // on the footprint's middle f
   const rx = (cx * c + cz * s) * sx, rz = (-cx * s + cz * c) * sx;
   e.root.rotation.y = th;
   e.root.scale.set(sx, sy, sx);
-  e.root.position.set(o.x + cx - rx, 0, o.y + cz - rz);
+  e.root.position.set(o.x + fx - rx, 0, o.y + fz - rz);
   e.root.userData.at = `${o.x},${o.y},${o.rot ?? 0}`;
   for (const g of e.counter ?? []) {
-    // local position p with R(th) (p + R(-th) q) = q - c + R(th) c for a farm offset q
+    // local position p with R(th) (p + R(-th) q) = q - f + R(th) c for a farm offset q
     const ic = Math.cos(-th), is = Math.sin(-th);
-    const bx = cx * c + cz * s - cx, bz = -cx * s + cz * c - cz;
+    const bx = cx * c + cz * s - fx, bz = -cx * s + cz * c - fz;
     g.rotation.y = -th;
     g.position.set(bx * ic + bz * is, 0, -bx * is + bz * ic);
   }
@@ -4372,10 +4383,9 @@ function walk(from: P2, to: P2) {
 function turnPt(o: FarmObject, d: BuildingDef, p: P2): P2 {
   const th = -(o.rot ?? 0) * Math.PI / 2;
   if (!th) return p;
-  const c = Math.cos(th), s = Math.sin(th);
-  const cx = o.x + d.w / 2, cz = o.y + d.h / 2;
-  const dx = p.x - cx, dz = p.y - cz;
-  return { x: cx + dx * c + dz * s, y: cz - dx * s + dz * c };
+  const c = Math.cos(th), s = Math.sin(th), f = footprint(o);
+  const dx = p.x - o.x - d.w / 2, dz = p.y - o.y - d.h / 2;
+  return { x: o.x + f.w / 2 + dx * c + dz * s, y: o.y + f.h / 2 - dx * s + dz * c };
 }
 
 function tripFor(o: FarmObject, d: BuildingDef, a: Animal): Trip | null {
@@ -4458,7 +4468,7 @@ function grazePose(o: FarmObject, d: BuildingDef, a: Animal, now: number): { x: 
 // use; water birds fly to the sea shallows nearest the pen and fish there.
 const FLY_SPEED = 1.5 / 1000; // tiles per ms
 function seaSpot(o: FarmObject, d: BuildingDef, id: number): P2 {
-  const cx = o.x + d.w / 2, cy = o.y + d.h / 2;
+  const f = footprint(o), cx = o.x + f.w / 2, cy = o.y + f.h / 2;
   const edges = [cx, GRID - cx, cy, GRID - cy];
   const e = edges.indexOf(Math.min(...edges));
   const along = (v: number) => Math.max(2, Math.min(GRID - 2, v + (hash(id, 3, 7) - 0.5) * 6));
@@ -4977,8 +4987,9 @@ function buildPen(e: Entry, d: BuildingDef) {
         const u = hash(id, 1, 3);
         const ang = t / (4200 + u * 2000) + id * 1.7;
         const r = 0.3 + u * 0.35;
-        m.position.set(1.7 + Math.cos(ang) * r, 0.08 + Math.sin(t / 400 + id) * 0.01 + jump * 0.5, (1.7 + Math.sin(ang) * r) * (d.h / 3));
-        m.rotation.y = Math.atan2(-Math.sin(ang), Math.cos(ang));
+        const q = penPt(o, d, 1.7 + Math.cos(ang) * r, (1.7 + Math.sin(ang) * r) * (d.h / 3));
+        m.position.set(q.x, 0.08 + Math.sin(t / 400 + id) * 0.01 + jump * 0.5, q.z);
+        m.rotation.y = Math.atan2(-Math.sin(ang), Math.cos(ang)) - (o.rot ?? 0) * Math.PI / 2;
         m.rotation.z = Math.sin(t / 520 + id) * 0.06;
         blink(m, t, id);
         // now and then a duck dips its head under water
@@ -4998,7 +5009,7 @@ function buildPen(e: Entry, d: BuildingDef) {
         const PR = 50000 + hash(id, 9, 4) * 40000;
         const ur = (t + hash(id, 10, 5) * PR) % PR;
         if (roofs.length && hash(id, 8, 3) < 0.45 && ur < 18000) {
-          const cx = o.x + d.w / 2, cy = o.y + d.h / 2;
+          const f = footprint(o), cx = o.x + f.w / 2, cy = o.y + f.h / 2;
           const near = memoSpot(roofs, `${o.x}|${o.y}|${o.type}`, () => roofs.map((r) => ({ r, k: Math.hypot(r.x - cx, r.y - cy) })).filter((q) => q.k < 12).sort((p1, p2) => p1.k - p2.k).slice(0, 3));
           if (near.length) {
             const r = near[Math.floor(hash(id, 11, 6) * near.length)].r;

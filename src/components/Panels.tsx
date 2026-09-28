@@ -264,6 +264,11 @@ function ObjectActions({ o, move = true }: { o: FarmObject; move?: boolean }) {
       <button className="btn btn-wood" onClick={() => store.rotateObject(o.id)} title="Turn it round">
         <span className="emoji">🔄</span> Rotate
       </button>
+      {d.w !== d.h && (
+        <button className="btn btn-wood" onClick={() => store.turnSideways(o.id)} title="Stand it the other way: wide becomes long">
+          <span className="emoji">↔️</span> Sideways
+        </button>
+      )}
       {store.canSell(o) && (
         sure ? (
           <button className="btn btn-red" onClick={() => { setSure(false); store.removeObject(o.id); }}>

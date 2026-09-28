@@ -135,7 +135,7 @@ function FarmCanvas() {
 
       if (ui.placing) {
         const pl = ui.placing;
-        const d = BUILDING[pl.type];
+        const d = store.placingFootprint();
         const g = r.gridAt(p.x, p.y);
         if (g.x >= pl.x && g.x < pl.x + d.w && g.y >= pl.y && g.y < pl.y + d.h) {
           mode = 'ghost';
@@ -215,7 +215,7 @@ function FarmCanvas() {
       }
       if (mode === 'pending' && !longFired) {
         if (store.ui.placing) {
-          const d = BUILDING[store.ui.placing.type];
+          const d = store.placingFootprint();
           const g = r.gridAt(p.x, p.y);
           store.setPlacingPos(g.x - Math.floor((d.w - 1) / 2), g.y - Math.floor((d.h - 1) / 2));
         } else if (hitObj) {
