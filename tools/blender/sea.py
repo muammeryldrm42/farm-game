@@ -1,9 +1,9 @@
-# Life at sea: herring gulls, a sailing yacht, a fishing boat, and the animals that sometimes
+# Life at sea: herring gulls, a sailing yacht, and the animals that sometimes
 # show off the island: bottlenose dolphins, a humpback whale and a blue shark.
 # The animals are sculpted from metaballs like animals.py, in game coordinates (y up, +z the
 # nose). Parts the game moves: the gull's `wing0/1` (left, right) at the shoulders, and the
 # `tail` of the dolphin, whale and shark at the root of the tail stock.
-# The boats are built in Blender coordinates with the bow toward -Y (the game's +z).
+# The yacht is built in Blender coordinates with the bow toward -Y (the game's +z).
 # Run: python3 tools/blender/sea.py [names...]   (see kit.main)
 import math
 import os
@@ -122,43 +122,6 @@ def sailboat():
     line(uid('fpole'), (0, 0.95, 0.2), (0, 0.97, 0.5), 0.005, steel, verts=4)
     finish('sailboat', tex=1024, vivid=1.05, ao_min=0.7)
 
-
-def fishing_boat():
-    """A small trawler: a red and blue hull, a white wheelhouse with windows, a mast with
-    outrigger booms and lights, nets heaped on the aft deck and fish crates."""
-    m = std()
-    red = pm('fb_red', '#c8302a', '#d84036', scale=20, rough=0.45)
-    blue = pm('fb_blue', '#1f4a8a', rough=0.45)
-    white = pm('fb_white', '#f4f4f0', rough=0.5)
-    deck = pm('fb_deck', '#8a8a88', '#9a9a98', scale=20)
-    steel = pm('fb_steel', '#b8bec4', rough=0.3, metal=0.7)
-    bowl(uid('hull'), 0.4, 1.15, 0.32, (0, 0, 0.26), red, wall=0.035, segs=32)
-    torus(uid('band'), 1.0, 0.05, (0, 0, 0.2), blue, segs=40, rsegs=6).scale = (0.39, 1.12, 0.6)
-    torus(uid('gun'), 1.0, 0.03, (0, 0, 0.27), white, segs=40, rsegs=6).scale = (0.4, 1.15, 0.5)
-    d = cyl(uid('deck'), 1.0, 0.02, (0, 0, 0.25), deck, verts=40, bev=0)
-    d.scale = (0.38, 1.12, 1)
-    box(uid('house'), (0.42, 0.4, 0.34), (0, -0.25, 0.43), white, bev=0.03)
-    box(uid('hroof'), (0.46, 0.44, 0.03), (0, -0.25, 0.615), blue, bev=0.01)
-    for sx in (-1, 1):
-        box(uid('win'), (0.01, 0.26, 0.1), (sx * 0.211, -0.25, 0.5), m['glass'], bev=0)
-    box(uid('wfront'), (0.34, 0.01, 0.1), (0, -0.451, 0.5), m['glass'], bev=0)
-    cyl(uid('mast'), 0.02, 1.0, (0, -0.1, 0.62 + 0.5), steel, verts=8)
-    for sx in (-1, 1):
-        line(uid('boom'), (0, -0.1, 0.95), (sx * 0.75, 0.15, 0.62), 0.012, steel)
-        line(uid('wire'), (sx * 0.75, 0.15, 0.62), (sx * 0.5, 0.4, 0.3), 0.003, steel, verts=4)
-    ball(uid('lamp'), 0.03, (0, -0.1, 1.14), pm('fb_lamp', '#fff2b0', emit=2.0), segs=10)
-    # nets, floats and fish crates on the aft deck
-    net = pm('fb_net', '#3a8a5a', '#4a9a6a', scale=60)
-    ball(uid('net'), 0.16, (0.05, 0.5, 0.3), net, scale=(1.3, 1.1, 0.5), segs=14)
-    for k in range(5):
-        ball(uid('float'), 0.03, (-0.1 + k * 0.06, 0.62, 0.33), pm('fb_float', '#f07a1a'), segs=8)
-    for k, (x, y) in enumerate([(-0.22, 0.25), (-0.22, 0.45), (0.22, 0.75)]):
-        box(uid('crate'), (0.14, 0.12, 0.08), (x, y, 0.3), pm('fb_crate', '#3a7ad0'), bev=0.01)
-    box(uid('flag'), (0.005, 0.1, 0.06), (0, -0.1, 1.2), pm('fb_flag', '#f2c230'), bev=0)
-    finish('fishing_boat', tex=1024, vivid=1.05, ao_min=0.7, glow=('fb_lamp',))
-
-
-# ---------------------------------------------------------------- whales, dolphins and sharks
 
 def dolphin():
     """A bottlenose dolphin: dark grey back, lighter flanks, pale belly, short beak, curved
@@ -311,7 +274,7 @@ def sparrow():
     finish('sparrow', tex=256, vivid=1.05, ao_min=0.85, ao_dist=0.03)
 
 
-MODELS = {'seagull': seagull, 'sailboat': sailboat, 'fishing_boat': fishing_boat, 'dolphin': dolphin, 'whale': whale, 'shark': shark, 'sparrow': sparrow}
+MODELS = {'seagull': seagull, 'sailboat': sailboat, 'dolphin': dolphin, 'whale': whale, 'shark': shark, 'sparrow': sparrow}
 
 if __name__ == '__main__':
     main(MODELS)

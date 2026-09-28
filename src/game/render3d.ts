@@ -6433,12 +6433,26 @@ class ShoreLife {
 // Butterflies over the grass, gulls circling above the shore, fish leaping in the sea and a
 // sailboat drifting on the horizon. Purely cosmetic.
 
+// A course round the square island that keeps well off the beach: a rounded square (a
+// superellipse) rather than a circle, whose diagonal would cut across the sandy corners.
+function sailCourse(a: number, R: number) {
+  const c = Math.cos(a), s = Math.sin(a), n = 0.4;
+  return { x: GRID / 2 + Math.sign(c) * Math.pow(Math.abs(c), n) * R, z: GRID / 2 + Math.sign(s) * Math.pow(Math.abs(s), n) * R };
+}
+function sailRound(g: THREE.Object3D, a: number, dir: number, R: number, t: number, ph: number) {
+  const p = sailCourse(a, R), q = sailCourse(a + 0.002 * dir, R);
+  g.position.set(p.x, -0.5 + Math.sin(t / 900 + ph) * 0.03, p.z);
+  // bow along the course, whichever way round it goes
+  g.rotation.set(Math.sin(t / 1300 + ph) * 0.03, Math.atan2(q.x - p.x, q.z - p.z), 0.08 + Math.sin(t / 1100 + ph) * 0.04);
+}
+
 class Life {
   private butterflies: { g: THREE.Group; wings: THREE.Mesh[]; hx: number; hz: number; seed: number }[] = [];
   private gulls: { g: THREE.Group; wings: THREE.Object3D[]; cx: number; cz: number; r: number; h: number; sp: number; ph: number }[] = [];
   private fish: { g: THREE.Group; ring: THREE.Mesh; t: number; x: number; z: number; dir: number; y: number }[] = [];
   private sail: THREE.Group;
-  private trawler = new THREE.Group();
+  // a second yacht, sailing round the other way a little further out
+  private sail2 = new THREE.Group();
   private nextFish = 2;
   // now and then something big shows itself off the shore in view: a pod of dolphins, a whale
   // coming up to blow, or a shark's fin circling
@@ -6507,7 +6521,7 @@ class Life {
     sailM.scale.set(1, 1.4, 0.7);
     sailM.position.set(0, 0.25, 0.08);
     this.sail.add(sailM);
-    scene.add(this.sail, this.trawler);
+    scene.add(this.sail, this.sail2);
     for (let i = 0; i < 12; i++) {
       const m = new THREE.Mesh(G.ball, new THREE.MeshBasicMaterial({ color: '#f4fbff', transparent: true, depthWrite: false }));
       m.visible = false;
@@ -6526,8 +6540,10 @@ class Life {
         if (w0 && w1) gl.wings = [w0, w1];
       }
     }).catch(() => {});
-    loadModel('sailboat').then((src) => { this.sail.clear(); const m = src.clone(); m.position.y = -0.08; this.sail.add(m); }).catch(() => {});
-    loadModel('fishing_boat').then((src) => { const m = src.clone(); m.position.y = -0.1; this.trawler.add(m); }).catch(() => {});
+    loadModel('sailboat').then((src) => {
+      this.sail.clear();
+      for (const g of [this.sail, this.sail2]) { const m = src.clone(); m.position.y = -0.08; g.add(m); }
+    }).catch(() => {});
     loadModel('dolphin').then((src) => {
       for (let i = 0; i < 3; i++) {
         const m = src.clone();
@@ -6700,16 +6716,9 @@ class Life {
       f.ring.position.set(f.x + Math.sin(f.dir) * 0.45, f.y + 0.02, f.z + Math.cos(f.dir) * 0.45);
       f.ring.scale.setScalar(0.08 + rk * 0.45);
     }
-    // the sailboat circles the island far out, heeling a little in the breeze; a fishing boat
-    // chugs round the other way, closer in
-    const a = t / 90000;
-    const R = GRID / 2 + 16;
-    this.sail.position.set(GRID / 2 + Math.cos(a) * R, -0.5 + Math.sin(t / 900) * 0.03, GRID / 2 + Math.sin(a) * R);
-    this.sail.rotation.set(Math.sin(t / 1300) * 0.03, -a, 0.08 + Math.sin(t / 1100) * 0.04);
-    const b = -t / 70000 + 2;
-    const R2 = GRID / 2 + 11;
-    this.trawler.position.set(GRID / 2 + Math.cos(b) * R2, -0.5 + Math.sin(t / 800) * 0.025, GRID / 2 + Math.sin(b) * R2);
-    this.trawler.rotation.set(Math.sin(t / 1000) * 0.04, -b + Math.PI, Math.sin(t / 1200) * 0.05);
+    // two yachts sail round the island in opposite directions, heeling a little in the breeze
+    sailRound(this.sail, t / 90000, 1, GRID / 2 + BEACH + 13, t, 0);
+    sailRound(this.sail2, -t / 110000 + 2, -1, GRID / 2 + BEACH + 19, t, 1.7);
     // the big animals
     this.nextSea -= dt;
     if (this.nextSea <= 0 && !this.seaEvent.kind) {
