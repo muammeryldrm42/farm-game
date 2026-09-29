@@ -2029,12 +2029,12 @@ MODELS = {f'animal_{k}': fn for k, fn in {
     'ayam_cemani': ayam_cemani, 'guinea_fowl': guinea_fowl, 'pheasant': pheasant,
     'flamingo': flamingo, 'crane': crane, 'grey_heron': grey_heron, 'emu': emu, 'rhea': rhea, 'cassowary': cassowary,
     'angora_rabbit': angora_rabbit, 'dutch_rabbit': dutch_rabbit, 'lop_rabbit': lop_rabbit,
-    'muscovy_duck': muscovy_duck, 'mandarin_duck': mandarin_duck, 'duck': duck, 'bronze_turkey': bronze_turkey,
+    'muscovy_duck': muscovy_duck, 'mandarin_duck': mandarin_duck, 'bronze_turkey': bronze_turkey,
     'white_peacock': white_peacock, 'bison': bison, 'musk_ox': musk_ox,
     'cat': cat, 'squirrel': squirrel, 'beaver': beaver, 'chinchilla': chinchilla, 'kiwi_bird': kiwi_bird, 'parrot': parrot,
-    'silkworm': silkworm, 'black_swan': black_swan, 'alpaca': alpaca, 'buffalo': buffalo, 'yak': yak, 'camel': camel,
-    'cow': cow, 'dog': dog, 'donkey': donkey, 'gobbler': gobbler, 'horse': horse, 'ostrich': ostrich, 'peacock': peacock,
-    'quail': quail, 'rabbit': rabbit, 'sheep': sheep,
+    'silkworm': silkworm, 'black_swan': black_swan,
+   
+   
     'pekin_duck': pekin_duck, 'call_duck': call_duck, 'khaki_campbell': khaki_campbell,
 }.items()}
 
