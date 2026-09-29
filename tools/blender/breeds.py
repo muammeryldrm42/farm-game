@@ -2012,30 +2012,16 @@ def khaki_campbell():
 
 
 MODELS = {f'animal_{k}': fn for k, fn in {
-    'angus_cow': angus_cow, 'belted_galloway': belted_galloway, 'dexter': dexter, 'charolais': charolais,
-    'brown_swiss': brown_swiss, 'hereford': hereford, 'guernsey': guernsey, 'jersey_cow': jersey_cow,
-    'texas_longhorn': texas_longhorn, 'watusi': watusi, 'zebu': zebu, 'highland_cow': highland_cow,
-    'appaloosa': appaloosa, 'clydesdale': clydesdale, 'friesian': friesian, 'palomino': palomino, 'pony': pony, 'mule': mule,
-    'dorper': dorper, 'black_sheep': black_sheep, 'karakul': karakul, 'merino_sheep': merino_sheep,
-    'suffolk_sheep': suffolk_sheep, 'valais_blacknose': valais_blacknose, 'shetland_sheep': shetland_sheep, 'jacob_sheep': jacob_sheep,
     'goat': goat, 'alpine_goat': alpine_goat, 'boer_goat': boer_goat, 'angora_goat': angora_goat, 'cashmere_goat': cashmere_goat,
     'saanen_goat': saanen_goat, 'nubian_goat': nubian_goat, 'pygmy_goat': pygmy_goat,
-    'llama': llama, 'vicuna': vicuna, 'bactrian_camel': bactrian_camel,
-    'moose': moose, 'elk': elk, 'reindeer': reindeer, 'spotted_deer': spotted_deer,
     'goose': goose, 'emden_goose': emden_goose, 'toulouse_goose': toulouse_goose, 'golden_goose': golden_goose,
-    'indian_runner': indian_runner, 'swan': swan,
+    'indian_runner': indian_runner,
     'chicken': chicken, 'rhode_island_red': rhode_island_red, 'leghorn': leghorn, 'marans': marans, 'orpington': orpington,
     'polish_chicken': polish_chicken, 'silkie_chicken': silkie_chicken, 'wyandotte': wyandotte, 'brahma_chicken': brahma_chicken,
     'ayam_cemani': ayam_cemani, 'guinea_fowl': guinea_fowl, 'pheasant': pheasant,
-    'flamingo': flamingo, 'crane': crane, 'grey_heron': grey_heron, 'emu': emu, 'rhea': rhea, 'cassowary': cassowary,
-    'angora_rabbit': angora_rabbit, 'dutch_rabbit': dutch_rabbit, 'lop_rabbit': lop_rabbit,
-    'muscovy_duck': muscovy_duck, 'mandarin_duck': mandarin_duck, 'bronze_turkey': bronze_turkey,
-    'bison': bison, 'musk_ox': musk_ox,
+    'flamingo': flamingo, 'crane': crane, 'grey_heron': grey_heron,
     'cat': cat, 'squirrel': squirrel, 'beaver': beaver, 'chinchilla': chinchilla, 'kiwi_bird': kiwi_bird, 'parrot': parrot,
-    'silkworm': silkworm, 'black_swan': black_swan,
-   
-   
-    'pekin_duck': pekin_duck, 'call_duck': call_duck, 'khaki_campbell': khaki_campbell,
+    'silkworm': silkworm,
 }.items()}
 
 if __name__ == '__main__':

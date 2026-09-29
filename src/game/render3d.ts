@@ -3476,7 +3476,11 @@ function assembleModel(src: THREE.Object3D) {
     }
     if (c.name === 'head') g.userData.head = c;
     else if (c.name === 'tail') g.userData.tail = c;
-    else if (c.name === 'fan' || c.name === 'train') g.userData[c.name] = c;   // a peacock's display and its folded train
+    else if (c.name === 'fan' || c.name === 'train') {
+      // a peacock's display and its folded train: the fan stays folded away until it shows off
+      g.userData[c.name] = c;
+      if (c.name === 'fan') c.visible = false;
+    }
     else if (/^leg\d$/.test(c.name)) legs[+c.name.slice(3)] = c;
     else if ((c as THREE.Mesh).isMesh) {
       const bb = new THREE.Box3().setFromObject(c);
