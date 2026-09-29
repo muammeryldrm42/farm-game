@@ -76,6 +76,7 @@ function FarmCanvas() {
     (window as unknown as { __farm?: unknown }).__farm = { store, renderer: r };
     store.viewCenter = () => r.gridAt(r.W / 2, r.H / 2);
     store.toScreen = (gx, gy, z) => r.toScreen(gx, gy, z);
+    store.focusOn = (x, y) => r.centerOn(x, y);
 
     let first = true;
     const resize = () => {

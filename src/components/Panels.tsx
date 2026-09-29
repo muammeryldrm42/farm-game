@@ -1,6 +1,6 @@
 'use client';
 import Ico from './Ico';
-import { useEffect, useState, type ReactNode } from 'react';
+import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { BUILDING, BUILDINGS, CROPS, ITEMS, ITEM_LIST, RECIPES, unlocksAt, type BuildingDef } from '@/game/data';
 import {
   ACHIEVEMENTS,
@@ -95,6 +95,26 @@ function Sheet({ title, icon, pic, sub, onClose, children }: { title: string; ic
       </div>
     </div>
   );
+}
+
+// Whether a story task is pointing the player at this card (for a minute after the tap), and a
+// ref that scrolls the card into view the first time.
+function useGuide(id: string) {
+  const store = useStore();
+  const ref = useRef<HTMLElement | null>(null);
+  const g = store.ui.guide;
+  const on = !!g && g.id === id && Date.now() - g.at < 60e3;
+  useEffect(() => {
+    if (on) ref.current?.scrollIntoView({ block: 'center', behavior: 'smooth' });
+  }, [on]);
+  return { on, ref };
+}
+function RecipeGuide({ id, children }: { id: string; children: (g: ReturnType<typeof useGuide>) => ReactNode }) {
+  return <>{children(useGuide(id))}</>;
+}
+const GUIDE_RING = 'ring-4 ring-[#ff8a1f] shadow-[0_0_0_6px_rgba(255,138,31,0.25)]';
+function GuideMark() {
+  return <span className="emoji pointer-events-none absolute -top-3 left-1/2 z-10 -translate-x-1/2 animate-bob text-2xl drop-shadow">👇</span>;
 }
 
 function Bar({ p, color = '#5cb82e' }: { p: number; color?: string }) {
@@ -372,12 +392,15 @@ function ProductionSheet({ o }: { o: FarmObject }) {
           const locked = s.level < r.level;
           const ok = store.hasItems(r.inputs);
           return (
+            <RecipeGuide key={r.id} id={r.id}>
+            {(guide) => (
             <button
-              key={r.id}
+              ref={(el) => { guide.ref.current = el; }}
               disabled={locked}
               onClick={() => store.queueRecipe(o, r.id)}
-              className={`card flex items-center gap-3 p-2 text-left transition active:scale-[0.98] disabled:opacity-60 ${ok && !locked ? 'ring-2 ring-[#5cb82e]' : ''}`}
+              className={`card relative flex items-center gap-3 p-2 text-left transition active:scale-[0.98] disabled:opacity-60 ${guide.on ? GUIDE_RING : ok && !locked ? 'ring-2 ring-[#5cb82e]' : ''}`}
             >
+              {guide.on && <GuideMark />}
               <span className={`emoji text-3xl ${locked ? 'grayscale' : ''}`}><Ico i={it.icon} /></span>
               <div className="min-w-0 flex-1">
                 <div className="flex items-center gap-2 font-bold">
@@ -401,6 +424,8 @@ function ProductionSheet({ o }: { o: FarmObject }) {
                 <div>+{r.xp} XP</div>
               </div>
             </button>
+            )}
+            </RecipeGuide>
           );
         })}
       </div>
@@ -900,12 +925,15 @@ function ShopCard({ d }: { d: BuildingDef }) {
   const full = owned >= max;
   const cost = store.costOf(d);
   const poor = s.coins < cost;
+  const guide = useGuide(d.id);
   return (
     <button
+      ref={(el) => { guide.ref.current = el; }}
       disabled={locked || full}
       onClick={() => store.startBuy(d.id)}
-      className="card flex flex-col items-center gap-1 p-3 text-center transition active:scale-95 disabled:opacity-60"
+      className={`card relative flex flex-col items-center gap-1 p-3 text-center transition active:scale-95 disabled:opacity-60 ${guide.on ? GUIDE_RING : ''}`}
     >
+      {guide.on && <GuideMark />}
       <span className={`emoji text-4xl ${locked ? 'grayscale' : ''}`}><Ico i={d.icon} id={d.id} /></span>
       <span className="font-bold leading-tight">{d.name}</span>
       <span className="line-clamp-2 min-h-[2rem] text-[11px] leading-4 text-[#8a6a44]">{d.desc}</span>
@@ -930,8 +958,10 @@ function CropCard({ id }: { id: string }) {
   const it = ITEMS[id];
   const locked = store.s.level < cd.level;
   const have = store.s.inv[id] ?? 0;
+  const guide = useGuide(id);
   return (
-    <div className={`card flex flex-col items-center gap-1 p-3 text-center ${locked ? 'opacity-60' : ''}`}>
+    <div ref={(el) => { guide.ref.current = el; }} className={`card relative flex flex-col items-center gap-1 p-3 text-center ${locked ? 'opacity-60' : ''} ${guide.on ? GUIDE_RING : ''}`}>
+      {guide.on && <GuideMark />}
       <span className={`emoji text-4xl ${locked ? 'grayscale' : ''}`}><Ico i={it.icon} /></span>
       <span className="font-bold leading-tight">{it.name}</span>
       {locked ? (
@@ -949,7 +979,12 @@ function CropCard({ id }: { id: string }) {
 
 function ShopModal() {
   const store = useStore();
-  const [tab, setTab] = useState<ShopTab>('crops');
+  const [tab, setTab] = useState<ShopTab>(() => {
+    // opened by a story task: start on the tab that holds what it points at
+    const g = store.ui.guide;
+    const d = g && Date.now() - g.at < 60e3 ? BUILDING[g.id] : undefined;
+    return (d && SHOP_TABS.find((x) => x.filter(d))?.id) || 'crops';
+  });
   const t = SHOP_TABS.find((x) => x.id === tab)!;
   const list = BUILDINGS.filter((d) => d.buyable && t.filter(d)).sort((a, b) => a.level - b.level || a.cost - b.cost);
   const crops = [...CROPS].sort((a, b) => a.level - b.level || a.seedCost - b.seedCost);
@@ -1657,9 +1692,15 @@ function TaskRow({ ch, i }: { ch: Chapter; i: number }) {
   const t = ch.tasks[i];
   const p = Math.min(t.target, taskProgress(t, store.s));
   const done = p >= t.target;
+  // tap a task to be taken to where it is done
   return (
-    <div className={`card flex items-center gap-2 p-2 ${done ? 'ring-2 ring-[#5cb82e]' : ''}`}>
-      <span className="emoji text-2xl"><Ico i={t.icon} /></span>
+    <button
+      className={`card flex w-full items-center gap-2 p-2 text-left transition active:scale-[0.98] ${done ? 'ring-2 ring-[#5cb82e]' : 'hover:ring-2 hover:ring-[#ff8a1f]'}`}
+      disabled={done}
+      onClick={() => store.guideTask(t)}
+      title={done ? 'Done' : 'Show me where'}
+    >
+      <span className="emoji text-2xl"><Ico i={t.icon} id={t.kind === 'count' ? t.key : undefined} /></span>
       <div className="min-w-0 flex-1">
         <div className="flex items-center justify-between gap-2 text-sm font-bold">
           <span className="truncate">{t.text}</span>
@@ -1667,7 +1708,8 @@ function TaskRow({ ch, i }: { ch: Chapter; i: number }) {
         </div>
         <div className="mt-1"><Bar p={p / t.target} /></div>
       </div>
-    </div>
+      {!done && <span className="shrink-0 text-lg text-[#ff8a1f]" aria-hidden>➜</span>}
+    </button>
   );
 }
 

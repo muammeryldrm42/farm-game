@@ -1505,6 +1505,7 @@ export class Renderer {
 
     this.updateGhost(t);
     this.updateSelection(t);
+    this.updateGuideMark(t);
     this.updateBubbles(t, now);
     this.consumeFx();
     this.updateFx(dt);
@@ -1618,6 +1619,26 @@ export class Renderer {
     g.visible = false;
     this.fxLayer.add(g);
     return g;
+  }
+
+  // an orange arrow bobbing over the place a story task pointed to, for a few seconds
+  private guideMark: THREE.Sprite | null = null;
+  private updateGuideMark(t: number) {
+    const g = this.store.ui.guideAt;
+    const age = g ? Date.now() - g.at : 1e9;
+    if (!this.guideMark) {
+      this.guideMark = new THREE.Sprite(new THREE.SpriteMaterial({ map: canvasTex('guide-arrow', 128, 128, (c) => {
+        c.fillStyle = '#ff8a1f'; c.strokeStyle = '#ffffff'; c.lineWidth = 10; c.lineJoin = 'round';
+        c.beginPath(); c.moveTo(64, 118); c.lineTo(14, 58); c.lineTo(42, 58); c.lineTo(42, 10); c.lineTo(86, 10); c.lineTo(86, 58); c.lineTo(114, 58); c.closePath();
+        c.stroke(); c.fill();
+      }), transparent: true, depthTest: false }));
+      this.guideMark.renderOrder = 40;
+      this.guideMark.scale.setScalar(0.9);
+      this.fxLayer.add(this.guideMark);
+    }
+    const on = !!g && age < 9000;
+    this.guideMark.visible = on;
+    if (on) this.guideMark.position.set(g!.x, 1.6 + Math.abs(Math.sin(t / 220)) * 0.35, g!.y);
   }
 
   private updateSelection(t: number) {
