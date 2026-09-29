@@ -3615,7 +3615,7 @@ const LID: Record<string, string> = {
   gobbler: '#9ab8d8', donkey: '#6a655f', buffalo: '#2a2a2c', peacock: '#1f4fb8', ostrich: '#9a7a70',
 };
 
-const TALL = new Set(['camel', 'ostrich', 'emu', 'flamingo', 'reindeer', 'llama', 'rhea', 'cassowary', 'crane', 'bactrian_camel', 'moose', 'spotted_deer', 'vicuna', 'grey_heron', 'elk', 'clydesdale']);
+const TALL = new Set(['camel', 'ostrich', 'emu', 'flamingo', 'reindeer', 'llama', 'rhea', 'cassowary', 'crane', 'bactrian_camel', 'moose', 'spotted_deer', 'vicuna', 'grey_heron', 'elk']);
 // birds that float on their pond instead of walking
 const SWIMMERS = new Set(['duck', 'swan', 'mandarin_duck', 'black_swan', 'pekin_duck', 'khaki_campbell', 'call_duck']);
 
