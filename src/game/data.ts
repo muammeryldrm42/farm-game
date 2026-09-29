@@ -228,7 +228,6 @@ item('black_down', 'Black Swan Down', '@black_down', 'barn', 403, 120);
 item('cassowary_egg', 'Cassowary Egg', '@cassowary_egg', 'barn', 426, 128);
 item('watusi_milk', 'Watusi Milk', '@watusi_milk', 'barn', 449, 136);
 item('chinchilla_fluff', 'Chinchilla Fluff', '@chinchilla_fluff', 'barn', 476, 145);
-item('owl_feather', 'Owl Feather', '@owl_feather', 'barn', 504, 155);
 item('kiwi_egg', 'Kiwi Egg', '@kiwi_egg', 'barn', 542, 168);
 item('vicuna_wool', 'Vicuna Wool', '@vicuna_wool', 'barn', 583, 182);
 item('trout', 'Trout', '@trout', 'barn', 90, 22);
@@ -1484,7 +1483,6 @@ export const ANIMALS: AnimalDef[] = [
   { id: 'cassowary', name: 'Cassowary', icon: '@cassowary', house: 'cassowary_ranch', feed: 'wheat', product: 'cassowary_egg', time: 776, xp: 33, cost: 3830, level: 128 },
   { id: 'watusi', name: 'Watusi Cattle', icon: '@watusi', house: 'watusi_ranch', feed: 'cow_feed', product: 'watusi_milk', time: 812, xp: 35, cost: 4060, level: 136 },
   { id: 'chinchilla', name: 'Chinchilla', icon: '@chinchilla', house: 'chinchilla_hutch', feed: 'wheat', product: 'chinchilla_fluff', time: 852, xp: 37, cost: 4310, level: 145 },
-  { id: 'barn_owl', name: 'Barn Owl', icon: '🦉', house: 'owl_barn', feed: 'chicken_feed', product: 'owl_feather', time: 898, xp: 39, cost: 4590, level: 155 },
   { id: 'kiwi_bird', name: 'Kiwi Bird', icon: '@kiwi_bird', house: 'kiwi_burrow', feed: 'chicken_feed', product: 'kiwi_egg', time: 956, xp: 42, cost: 4950, level: 168 },
   { id: 'vicuna', name: 'Vicuna', icon: '@vicuna', house: 'vicuna_ranch', feed: 'wheat', product: 'vicuna_wool', time: 1019, xp: 45, cost: 5350, level: 182 },
   { id: 'golden_goose', name: 'Golden Goose', icon: '@golden_goose', house: 'golden_nest', feed: 'corn', product: 'golden_egg', time: 1200, xp: 50, cost: 6000, level: 200 },
@@ -1636,7 +1634,6 @@ export const BUILDINGS: BuildingDef[] = [
   b({ id: 'cassowary_ranch', name: 'Cassowary Ranch', icon: '@cassowary', kind: 'pen', w: 3, h: 2, cost: 28100, level: 128, xp: 290, height: 26, wall: '#8fc45a', roof: '#2a6a8a', animal: 'cassowary', capacity: 4, desc: 'Striking birds with a helmet crest and bright green eggs.' }),
   b({ id: 'watusi_ranch', name: 'Watusi Ranch', icon: '@watusi', kind: 'pen', w: 3, h: 2, cost: 29700, level: 136, xp: 305, height: 26, wall: '#c9b27a', roof: '#8a3a2a', animal: 'watusi', capacity: 4, desc: 'Cattle with the biggest horns in the world.' }),
   b({ id: 'chinchilla_hutch', name: 'Chinchilla Hutch', icon: '@chinchilla', kind: 'pen', w: 2, h: 2, cost: 31500, level: 145, xp: 321, height: 26, wall: '#86c24f', roof: '#7a8aa0', animal: 'chinchilla', capacity: 5, desc: 'Round eared puffballs leave soft fluff after dust baths.' }),
-  b({ id: 'owl_barn', name: 'Owl Barn', icon: '🦉', kind: 'pen', w: 2, h: 2, cost: 33500, level: 155, xp: 339, height: 26, wall: '#86c24f', roof: '#8a5a34', animal: 'barn_owl', capacity: 4, desc: 'Barn owls keep the farm free of mice.' }),
   b({ id: 'kiwi_burrow', name: 'Kiwi Burrow', icon: '@kiwi_bird', kind: 'pen', w: 2, h: 2, cost: 36100, level: 168, xp: 362, height: 26, wall: '#86c24f', roof: '#6b4226', animal: 'kiwi_bird', capacity: 4, desc: 'Shy round birds that lay enormous eggs.' }),
   b({ id: 'vicuna_ranch', name: 'Vicuna Ranch', icon: '@vicuna', kind: 'pen', w: 3, h: 2, cost: 38900, level: 182, xp: 388, height: 26, wall: '#d8c38e', roof: '#c0392b', animal: 'vicuna', capacity: 4, desc: 'Wild cousins of the llama. The rarest wool of all.' }),
   b({ id: 'golden_nest', name: 'Golden Nest', icon: '@golden_goose', kind: 'pen', w: 2, h: 2, cost: 50000, level: 200, xp: 500, height: 26, wall: '#e8c865', roof: '#d4a020', animal: 'golden_goose', capacity: 2, desc: 'The legend itself: a goose that lays golden eggs.' }),

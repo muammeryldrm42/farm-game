@@ -403,7 +403,6 @@ export const QUESTS: Quest[] = [
   { id: 'q35', text: 'Reach level 125', target: 125, coins: 90000, gems: 60, xp: 0, progress: (s) => s.level },
   { id: 'q36', text: 'Build a crane marsh', target: 1, coins: 80000, gems: 50, xp: 3000, progress: (s) => cnt(s, 'crane_marsh') },
   { id: 'q37', text: 'Reach level 150', target: 150, coins: 150000, gems: 80, xp: 0, progress: (s) => s.level },
-  { id: 'q38', text: 'Collect 20 barn owl feathers', target: 20, coins: 120000, gems: 60, xp: 5000, progress: (s) => st(s, 'collect:owl_feather') },
   { id: 'q39', text: 'Reach level 175', target: 175, coins: 250000, gems: 100, xp: 0, progress: (s) => s.level },
   { id: 'q40', text: 'Plant a golden apple tree', target: 1, coins: 200000, gems: 100, xp: 8000, progress: (s) => cnt(s, 'golden_apple_tree') },
   { id: 'q41', text: 'Reach level 200', target: 200, coins: 500000, gems: 200, xp: 0, progress: (s) => s.level },
@@ -524,13 +523,15 @@ export function newGame(): GameState {
 
 // Pigs and unicorns, and their goods, were taken out of the game. Saves that still hold them are paid back in
 // coins, and orders, stall slots, boat crates and queues that mention them are cleaned up.
-const REMOVED_VALUE: Record<string, number> = { bacon: 50, pig_feed: 14, rainbow_mane: 520 };
+const REMOVED_VALUE: Record<string, number> = { bacon: 50, pig_feed: 14, rainbow_mane: 520, owl_feather: 504 };
 const REMOVED_BUILDING: Record<string, { cost: number; animal: number }> = {
   pigpen: { cost: 1000, animal: 160 }, unicorn_meadow: { cost: 32000, animal: 4000 },
   // decorations taken out later: paid back in full
   chapel: { cost: 10860, animal: 0 }, pagoda: { cost: 10320, animal: 0 }, torii_gate: { cost: 6600, animal: 0 }, totem_pole: { cost: 4140, animal: 0 },
   // the boat dock and its cargo boat were taken out
   dock: { cost: 500, animal: 0 },
+  // owls are wild now, living in the trees: the owl barn was taken out
+  owl_barn: { cost: 33500, animal: 4590 },
 };
 function dropRemoved(s: GameState) {
   for (const o of s.objects) {

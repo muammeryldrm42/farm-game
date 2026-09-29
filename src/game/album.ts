@@ -1,6 +1,6 @@
 // The farm album: sets of things to find, each filled in the first time you come across one,
 // with a reward for every finished set. Fish are caught at the lake and off the shore, shore
-// life is spotted by tapping the creatures on the beach, and the pets bring home the rest.
+// life and the night's wild creatures are spotted by tapping them, and the pets bring home the rest.
 import { ITEMS, LAKE_CATCHES, SEA_CATCHES } from './data';
 
 export interface AlbumEntry { id: string; name: string; icon: string; model?: string }
@@ -47,6 +47,16 @@ export const SHORE_LIFE: AlbumEntry[] = [
   { id: 'harbor_seal', name: 'Harbour Seal', icon: '🦭', model: 'harbor_seal' },
 ];
 
+// the wild things out on the farm at night
+export const NIGHT_LIFE: AlbumEntry[] = [
+  { id: 'barn_owl', name: 'Barn Owl', icon: '🦉', model: 'barn_owl' },
+  { id: 'tawny_owl', name: 'Tawny Owl', icon: '🦉', model: 'tawny_owl' },
+  { id: 'hedgehog', name: 'Hedgehog', icon: '🦔', model: 'hedgehog' },
+  { id: 'bat', name: 'Pipistrelle Bat', icon: '🦇', model: 'bat' },
+  { id: 'toad', name: 'Common Toad', icon: '🐸', model: 'toad' },
+  { id: 'firefly', name: 'Firefly', icon: '✨' },
+];
+
 export const ALBUM: AlbumSet[] = [
   {
     id: 'lake_fish', name: 'Lake Fish', icon: '🎣', how: 'Catch them at the lake.',
@@ -62,6 +72,11 @@ export const ALBUM: AlbumSet[] = [
     id: 'shore_life', name: 'Shore Life', icon: '🦀', how: 'Tap the creatures on the beach to spot them.',
     entries: SHORE_LIFE,
     reward: { coins: 2500, gems: 20, xp: 250 },
+  },
+  {
+    id: 'night_life', name: 'Night Life', icon: '🌙', how: 'Tap the wild creatures that come out at night.',
+    entries: NIGHT_LIFE,
+    reward: { coins: 3000, gems: 25, xp: 300 },
   },
   {
     id: 'cat_finds', name: "The Cat's Treasures", icon: '🐈', how: 'Feed the cat; it brings you something every day.',

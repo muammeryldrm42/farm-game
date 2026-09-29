@@ -359,18 +359,6 @@ def awning_shade(m, color):
         rock(uid('dr'), 0.08 + k * 0.02, P(2.4 + k * 0.15, 1.2 + k * 0.2, 0.03), m['stone'][k], seed=k, squash=0.6)
 
 
-def owl_barn(m, roof):
-    wall = pm('owl_wall', '#a8452e', '#b85236', scale=6, kind='wave', stretch=(8, 8, 1))
-    cx, cy = house(m, wall, roof, 0.5, 0.5, 0.62, 0.52, 0.66, style='batten', seed=7, window_=False, rise=0.3)
-    f = Face('front', 0.62, 0.52, cx, cy)
-    f.box(0, 0.5, 0.02, 0.2, 0.2, 0.02, pm('loft_dark', '#1a120c'), bev=0)
-    f.box(0, 0.39, 0.05, 0.26, 0.03, 0.08, m['trim'], bev=0.006)
-    for gx, gz in ((1.4, 0.4), (1.6, 1.5)):
-        p = P(gx, gz)
-        cyl(uid('perch'), 0.025, 0.6, (p[0], p[1], 0.3), m['wood_dark'], verts=8)
-        box(uid('pbar'), (0.34, 0.03, 0.03), (p[0], p[1], 0.6), m['wood_dark'], bev=0)
-
-
 def kiwi(m):
     c = P(0.55, 0.5)
     grass = pm('mound', '#5a9a3a', '#6aaa44', scale=30)
@@ -570,7 +558,7 @@ LOG = {'shetland_fold', 'karakul_fold', 'alpine_yard', 'longhorn_ranch', 'elk_wo
 STONE = {'highland_pasture', 'galloway_pasture'}
 BAMBOO = {'parrot_aviary', 'silk_house', 'kiwi_burrow', 'crane_marsh', 'flamingo_lagoon', 'heron_marsh'}
 NO_TROUGH = {'beehive', 'duck_pond', 'goose_pen', 'peacock_garden', 'swan_lake', 'flamingo_lagoon', 'golden_nest', 'mandarin_pond',
-             'black_swan_lake', 'silk_house', 'parrot_aviary', 'owl_barn', 'kiwi_burrow', 'squirrel_grove', 'crane_marsh', 'heron_marsh', 'pekin_pond', 'toulouse_pen', 'runner_pen', 'white_peacock_garden', 'campbell_pond', 'call_duck_pond', 'emden_pen'}
+             'black_swan_lake', 'silk_house', 'parrot_aviary', 'kiwi_burrow', 'squirrel_grove', 'crane_marsh', 'heron_marsh', 'pekin_pond', 'toulouse_pen', 'runner_pen', 'white_peacock_garden', 'campbell_pond', 'call_duck_pond', 'emden_pen'}
 
 # id: (w, h, roof color, wall color, shelter)
 PENS = {
@@ -601,7 +589,7 @@ PENS = {
     'crane_marsh': (3, 2, '#f4efe6', None, 'marsh'), 'zebu_pasture': (3, 2, '#b5452c', None, 'thatch'),
     'musk_ox_range': (3, 2, '#4a3424', None, 'open_snow'), 'black_swan_lake': (3, 2, '#34495e', None, 'pavilion'),
     'cassowary_ranch': (3, 2, '#2a6a8a', None, 'thatch_grass'), 'watusi_ranch': (3, 2, '#8a3a2a', None, 'thatch'),
-    'owl_barn': (2, 2, '#8a5a34', None, 'owl'), 'kiwi_burrow': (2, 2, '#6b4226', None, 'kiwi'),
+    'kiwi_burrow': (2, 2, '#6b4226', None, 'kiwi'),
     'vicuna_ranch': (3, 2, '#c0392b', None, 'open'), 'golden_nest': (2, 2, '#d4a020', None, 'nest'),
     'hereford_ranch': (3, 2, '#8a3a2a', None, 'open'), 'suffolk_fold': (3, 2, '#2e4a6a', None, 'open'),
     'turkey_run': (2, 2, '#8e4a2b', '#c9a46a', 'coop'), 'saanen_yard': (3, 2, '#6b4226', None, 'goat'),
@@ -719,8 +707,6 @@ def build_pen(pid):
         if kind == 'awning_palm':
             p = P(0.45, 2.5)
             palm(p[0], p[1], 0.8, leaf_mats('#3a9a30', 'cpal'), bark_mat('palm_bark', '#8a6a44', '#a07e52'), seed=5, lean=(0.6, 0.6))
-    elif kind == 'owl':
-        owl_barn(m, roof)
     elif kind == 'kiwi':
         kiwi(m)
     elif kind == 'pines':
