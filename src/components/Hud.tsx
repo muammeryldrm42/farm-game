@@ -216,7 +216,8 @@ function PlacingBar() {
   );
 }
 
-// the story chapter on now, in a corner: who tells it and how far along its tasks are
+// the story chapter on now, in a corner: just the face of who tells it, with a small red count
+// of the tasks still to do (a green tick once the chapter is done); a tap opens the chapter
 function StoryCard() {
   const store = useStore();
   const s = store.s;
@@ -226,36 +227,21 @@ function StoryCard() {
   const who = CAST[ch.who];
   const on = s.level >= ch.n;
   const ready = store.chapterReady();
+  const left = on ? ch.tasks.filter((t) => taskProgress(t, s) < t.target).length : 0;
   return (
     <button
-      className={`pointer-events-auto absolute left-2 top-[4.6rem] flex w-44 flex-col gap-1 rounded-2xl border-[3px] border-[#5d3a1f] bg-[#fff6df]/95 p-1.5 text-left text-[#5a3a1a] shadow-[0_3px_0_#5d3a1f] sm:left-3 sm:top-20 sm:w-56 ${ready ? 'animate-bob ring-4 ring-[#5cb82e]' : ''}`}
+      className={`pointer-events-auto absolute left-2 top-[4.6rem] grid h-12 w-12 place-items-center rounded-full border-[3px] bg-[#fff6df] shadow-[0_3px_0_#5d3a1f] sm:left-3 sm:top-20 sm:h-14 sm:w-14 ${ready ? 'animate-bob ring-4 ring-[#5cb82e]' : ''}`}
+      style={{ borderColor: who.color }}
       onClick={() => store.openPanel('quests')}
-      aria-label="Story"
+      aria-label={`Story: chapter ${ch.n}, ${ch.title}${left ? `, ${left} tasks left` : ''}`}
+      title={`Chapter ${ch.n}: ${ch.title}`}
     >
-      <div className="flex items-center gap-1.5">
-        <span className="emoji grid h-8 w-8 shrink-0 place-items-center rounded-full border-2 bg-white text-lg" style={{ borderColor: who.color }}>{who.icon}</span>
-        <div className="min-w-0 leading-tight">
-          <div className="text-[9px] font-bold uppercase tracking-wide text-[#a8733f]">Chapter {ch.n}</div>
-          <div className="truncate text-xs font-bold">{ch.title}</div>
-        </div>
-      </div>
-      {!on ? (
-        <div className="text-[10px] font-bold text-[#8a6a44]">Next chapter at level {ch.n}</div>
-      ) : ready ? (
-        <div className="text-center text-xs font-bold text-[#2d5e14]">Chapter done! Tap for reward 🎉</div>
-      ) : (
-        ch.tasks.map((t) => {
-          const p = Math.min(t.target, taskProgress(t, s));
-          const done = p >= t.target;
-          return (
-            <div key={t.id} className={`flex items-center gap-1 text-[10px] font-bold leading-tight sm:text-[11px] ${done ? 'text-[#3a7d1a] line-through opacity-70' : ''}`}>
-              <span className="emoji shrink-0 text-sm"><Ico i={t.icon} /></span>
-              <span className="min-w-0 flex-1 truncate">{t.text}</span>
-              <span className="shrink-0">{done ? '✅' : `${p}/${t.target}`}</span>
-            </div>
-          );
-        })
-      )}
+      <span className="emoji text-2xl sm:text-3xl">{who.icon}</span>
+      {ready ? (
+        <span className="absolute -right-1 -top-1 grid h-5 min-w-5 place-items-center rounded-full border-2 border-white bg-[#5cb82e] px-1 text-[10px] font-bold text-white">✓</span>
+      ) : left > 0 ? (
+        <span className="absolute -right-1 -top-1 grid h-5 min-w-5 place-items-center rounded-full border-2 border-white bg-[#e0332b] px-1 text-[11px] font-bold leading-none text-white">{left}</span>
+      ) : null}
     </button>
   );
 }
