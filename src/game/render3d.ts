@@ -4714,10 +4714,11 @@ function flyPose(o: FarmObject, d: BuildingDef, a: Animal, kind: string, now: nu
     const dur = Math.min(budget, Math.max(2600, dist / FLY_SPEED));
     const t0 = late ? budget - dur : 0;
     const u = Math.max(0, Math.min(1, (t - t0) / dur));
-    const up = Math.min(2.2, 0.6 + dist * 0.12);
+    // up well clear of the roofs and trees: a climb, most of the way at height, a glide down
+    const up = Math.min(3.6, 1.4 + dist * 0.16);
     // slow off the ground, quick across, braking into the landing
     const e = u * u * (3 - 2 * u);
-    return { x: from.x + (to.x - from.x) * e, y: from.y + (to.y - from.y) * e, h: h0 + (h1 - h0) * e + Math.sin(e * Math.PI) * up, fly: u > 0 && u < 1, heading: Math.atan2(to.x - from.x, to.y - from.y), u, after: t - t0 - dur };
+    return { x: from.x + (to.x - from.x) * e, y: from.y + (to.y - from.y) * e, h: h0 + (h1 - h0) * e + Math.pow(Math.sin(e * Math.PI), 0.6) * up, fly: u > 0 && u < 1, heading: Math.atan2(to.x - from.x, to.y - from.y), u, after: t - t0 - dur };
   };
   if (gp.phase === 'leaving') {
     const r = hopAt(home, land, gp.k * walkMs, walkMs, false, 0, up0);
