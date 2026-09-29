@@ -544,6 +544,10 @@ if os.path.isdir(SCULPTS):
 _breeds = open(os.path.join(os.path.dirname(os.path.abspath(__file__)), 'breeds.py')).read()
 for _k in re.findall(r"'([a-z_]+)': [a-z_]+[,}]", _breeds[_breeds.index('MODELS = {'):]):
     MODELS.pop(f'animal_{_k}', None)
+# and the main animals modelled from scratch in fauna.py
+_fauna = open(os.path.join(os.path.dirname(os.path.abspath(__file__)), 'fauna.py')).read()
+for _k in re.findall(r"'(animal_[a-z_]+)':", _fauna[_fauna.index('MODELS = {'):]):
+    MODELS.pop(_k, None)
 
 if __name__ == '__main__':
     main(MODELS)

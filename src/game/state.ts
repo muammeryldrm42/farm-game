@@ -1,7 +1,7 @@
 // Talons Farm - game state, persistence and all player actions
 import { ANIMAL, BUILDING, BUILDINGS, CATCHES, CROP, ITEMS, ITEM_LIST, LAKE_CATCHES, RECIPE, SEA_CATCHES, type BuildingDef } from './data';
 import { isRaining } from './weather';
-import { LAST_CHAPTER, chapterAt, taskProgress, type StoryState } from './story';
+import { LAST_CHAPTER, chapterAt, taskProgress, type StoryState, type StoryTask } from './story';
 import { ALBUM, ALBUM_IDS, CAT_FINDS, DOG_FINDS, albumEntry, type AlbumEntry } from './album';
 
 export const GRID = 68;
@@ -656,6 +656,8 @@ export interface UIState {
   panelObj?: number; // the building whose panel is open (storage, orders, home, stall)
   pet?: PetId; // whose pet panel is open
   petJoy?: { id: PetId; at: number; kind: 'pat' | 'feed' | 'gift' }; // hearts over a pet just patted or fed
+  guide?: { id: string; at: number }; // a shop card, crop or recipe a task pointed the player to (shown with an orange marker)
+  guideAt?: { x: number; y: number; at: number }; // a place on the farm a task pointed to: an orange arrow bobs over it
 }
 
 export class GameStore {
@@ -669,6 +671,7 @@ export class GameStore {
   toasts: Toast[] = [];
   sound: (n: Sfx) => void = () => {};
   viewCenter: () => { x: number; y: number } = () => ({ x: GRID / 2, y: GRID / 2 });
+  focusOn: (x: number, y: number) => void = () => {};
   private listeners = new Set<() => void>();
   private saveT: ReturnType<typeof setTimeout> | null = null;
   private toastId = 0;
@@ -1655,6 +1658,73 @@ export class GameStore {
     if (!n) return;
     this.pet(id).name = n;
     this.emit();
+  }
+
+  // A task tapped in the story: take the player to where it is done. A thing to build opens the
+  // shop on its card; crops go to the fields (or the seed in the shop); goods to make open the
+  // workshop that makes them on the recipe; animal goods open their pen. What it points at wears
+  // an orange marker.
+  guideTask(t: StoryTask) {
+    const now = Date.now();
+    const s = this.s;
+    const pointAt = (id: string) => { this.ui.guide = { id, at: now }; };
+    const focus = this.focusOn;
+    this.focusOn = (x: number, y: number) => { focus(x, y); this.ui.guideAt = { x, y, at: now }; };
+    try { this.guideTo(t, now, pointAt); } finally { this.focusOn = focus; }
+  }
+
+  private guideTo(t: StoryTask, now: number, pointAt: (id: string) => void) {
+    const s = this.s;
+    const shopFor = (id: string) => { pointAt(id); this.ui.selectedId = null; this.ui.tool = null; this.openPanel('shop'); };
+    const goTo = (o: FarmObject, id?: string) => {
+      const f = footprint(o);
+      this.focusOn(o.x + f.w / 2, o.y + f.h / 2);
+      this.ui.panel = null;
+      if (id) pointAt(id);
+      this.select(o.id);
+    };
+    const own = (type: string) => s.objects.find((o) => o.type === type);
+    const [kind, key] = t.key.includes(':') ? t.key.split(':') : [t.key, ''];
+    if (t.kind === 'count') { shopFor(t.key); return; }
+    if (t.kind === 'fishing') {
+      this.focusOn(FISH_SPOT.x, FISH_SPOT.y);
+      this.ui.fishSpot = 'lake';
+      this.openPanel('fishing');
+      return;
+    }
+    if (kind === 'harvest' || kind === 'plant') {
+      const crop = key || null;
+      const plot = s.objects.find((o) => o.type === 'plot' && (crop ? o.plot?.crop === crop : false)) ?? s.objects.find((o) => o.type === 'plot' && !o.plot?.crop);
+      // no field free for it: the crop in the shop, with the fields to buy beside it
+      if (!plot) { shopFor(crop ?? 'plot'); if (crop) this.toast(`Plant ${ITEMS[crop]?.name ?? 'it'} in a free field. Buy another field if all are busy.`); return; }
+      this.ui.panel = null;
+      this.select(null);
+      const f = footprint(plot);
+      this.focusOn(plot.x + f.w / 2, plot.y + f.h / 2);
+      // an empty field: straight into planting that crop
+      if (crop && !plot.plot?.crop && CROP[crop] && s.level >= CROP[crop].level) this.setTool({ kind: 'plant', crop });
+      else if (crop && plot.plot?.crop === crop) this.select(plot.id);
+      else shopFor(crop ?? 'plot');
+      this.emit(false);
+      return;
+    }
+    if (kind === 'make') {
+      const r = RECIPE[key];
+      const o = r && own(r.building);
+      if (o) goTo(o, key);
+      else if (r) shopFor(r.building);
+      return;
+    }
+    if (kind === 'collect') {
+      const an = Object.values(ANIMAL).find((a) => a.product === key);
+      const o = an && own(an.house);
+      if (o) goTo(o);
+      else if (an) shopFor(an.house);
+      return;
+    }
+    if (kind === 'orders') { this.openPanel('orders'); return; }
+    if (kind === 'stall') { const o = s.objects.find((x) => BUILDING[x.type].kind === 'stall'); if (o) { this.focusOn(o.x + 1, o.y + 1); this.openPanel('stall', o.id); } return; }
+    if (kind === 'fish') { this.focusOn(FISH_SPOT.x, FISH_SPOT.y); this.ui.fishSpot = 'lake'; this.openPanel('fishing'); }
   }
 
   claimDaily() {
