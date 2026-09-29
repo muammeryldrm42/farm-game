@@ -3654,7 +3654,7 @@ function animalBody(kind: string) {
   }
   switch (kind) {
     case 'goat':
-      if (cp?.toon) break;
+      if (cp?.toon || g.userData.model) break;   // Blender models carry their own horns
       // ridged horns sweeping back over the neck
       for (const sx of [-1, 1]) {
         const horn = new THREE.Mesh(torus(0.05, 0.01, 8, 18, Math.PI * 0.85), M('#8d8479'));
@@ -3671,7 +3671,7 @@ function animalBody(kind: string) {
     case 'orpington': case 'brahma_chicken': case 'polish_chicken': case 'indian_runner': case 'toulouse_goose': case 'white_peacock':
     case 'leghorn': case 'rhode_island_red': case 'wyandotte': case 'marans': case 'emden_goose': g.userData.peck = true; break;
     case 'yak':
-      if (cp?.toon) break;
+      if (cp?.toon || g.userData.model) break;   // Blender models carry their own horns
       // long horns curving up and out
       for (const sx of [-1, 1]) {
         const horn = new THREE.Mesh(torus(0.07, 0.014, 8, 16, Math.PI * 0.6), M('#e8e0cc'));
@@ -3682,7 +3682,7 @@ function animalBody(kind: string) {
       }
       break;
     case 'buffalo':
-      if (cp?.toon) break;
+      if (cp?.toon || g.userData.model) break;   // Blender models carry their own horns
       // wide crescent horns sweeping back from the top of the head
       for (const sx of [-1, 1]) {
         const horn = new THREE.Mesh(torus(0.1, 0.018, 8, 20, Math.PI * 0.75), M('#5a5048'));
