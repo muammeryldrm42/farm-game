@@ -771,7 +771,7 @@ export class Renderer {
     if (a.z > 1) return null;
     const b = new THREE.Vector3(x, y + r, z).project(this.camera);
     const px = ((a.x + 1) / 2) * this.W, py = ((1 - a.y) / 2) * this.H;
-    const rr = Math.max(22, Math.hypot((b.x - a.x) / 2 * this.W, (b.y - a.y) / 2 * this.H) * 1.3);
+    const rr = Math.max(16, Math.hypot((b.x - a.x) / 2 * this.W, (b.y - a.y) / 2 * this.H) * 1.3);
     const d = Math.hypot(sx - px, sy - py);
     return d <= rr ? d : null;
   }
@@ -842,26 +842,30 @@ export class Renderer {
 
   pick(sx: number, sy: number): { obj?: FarmObject; tile: { x: number; y: number }; spot?: 'fishing' | 'seaFishing' | 'visitor'; pet?: PetId; creature?: ShoreHit } {
     const tile = this.gridAt(sx, sy);
-    // the pets and the shore creatures are small and on the move: a tap close to one counts
-    if (!this.store.ui.placing) {
-      let best: { d: number; pet?: PetId; creature?: ShoreHit } | null = null;
-      for (const id of PET_IDS) {
-        const a = id === 'dog' ? this.dog : this.cat;
-        const d = this.tapDist(sx, sy, a.g.position.x, a.g.position.y + 0.3, a.g.position.z, 0.45);
-        if (d !== null && (!best || d < best.d)) best = { d, pet: id };
-      }
-      for (const c of [...this.shore.creatures(), ...this.night.creatures()]) {
-        const d = this.tapDist(sx, sy, c.x, c.y, c.z, c.r);
-        if (d !== null && (!best || d < best.d)) best = { d, creature: c };
-      }
-      if (best) return { tile, pet: best.pet, creature: best.creature };
-    }
     const moveId = this.store.ui.placing?.moveId;
     const hits: THREE.Object3D[] = [this.fishing.hit, this.seaFishing.hit];
     const v = this.visitor;
     if (v && v.g.visible) hits.push(v.hit);
     for (const e of this.entries.values()) if (e.id !== moveId) hits.push(e.hit);
     const r = this.rayAt(sx, sy).intersectObjects(hits, false);
+    // the pets and the shore and night creatures are small and on the move: a tap close to one
+    // counts, but only if it is in sight (not behind the shop or barn the tap is on)
+    if (!this.store.ui.placing) {
+      const cam = this.camera.position;
+      const inSight = (x: number, y: number, z: number) => !r.length || cam.distanceTo(new THREE.Vector3(x, y, z)) < r[0].distance + 0.2;
+      let best: { d: number; pet?: PetId; creature?: ShoreHit } | null = null;
+      for (const id of PET_IDS) {
+        const a = id === 'dog' ? this.dog : this.cat;
+        const p = a.g.position;
+        const d = this.tapDist(sx, sy, p.x, p.y + 0.3, p.z, 0.45);
+        if (d !== null && (!best || d < best.d) && inSight(p.x, p.y + 0.3, p.z)) best = { d, pet: id };
+      }
+      for (const c of [...this.shore.creatures(), ...this.night.creatures()]) {
+        const d = this.tapDist(sx, sy, c.x, c.y, c.z, c.r);
+        if (d !== null && (!best || d < best.d) && inSight(c.x, c.y, c.z)) best = { d, creature: c };
+      }
+      if (best) return { tile, pet: best.pet, creature: best.creature };
+    }
     if (r.length) {
       if (r[0].object === this.fishing.hit) return { tile, spot: 'fishing' };
       if (r[0].object === this.seaFishing.hit) return { tile, spot: 'seaFishing' };
