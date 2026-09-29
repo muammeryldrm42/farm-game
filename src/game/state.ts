@@ -2,6 +2,7 @@
 import { ANIMAL, BUILDING, BUILDINGS, CATCHES, CROP, ITEMS, ITEM_LIST, LAKE_CATCHES, RECIPE, SEA_CATCHES, type BuildingDef } from './data';
 import { isRaining } from './weather';
 import { LAST_CHAPTER, chapterAt, taskProgress, type StoryState } from './story';
+import { ALBUM, ALBUM_IDS, CAT_FINDS, DOG_FINDS, albumEntry, type AlbumEntry } from './album';
 
 export const GRID = 68;
 // the map grew three times, from 28 to 44 tiles, then to 60, then to 68 with a sandy beach all
@@ -103,7 +104,48 @@ export interface GameState {
   starterWell?: boolean; // the free well every farm gets has been handed out
   lake?: boolean | number; // which lake site was cleared of anything built there (5: the current one)
   story?: StoryState; // the story chapter on now, where its counters stood when it began, and the last one told
+  album?: Record<string, number>; // album entries found, and when first found
+  albumDone?: string[]; // album sets whose reward was taken
+  pets?: Record<PetId, PetState>;
 }
+
+// ---------------------------------------------------------------- pets
+
+// The farm's dog and cat. Pat them and feed them once a day: a fed pet goes off searching and
+// comes back a while later with something for the album, and lends a hand on the farm all day
+// (the cat keeps the mice off the fields, the dog keeps the herds together). The more they love
+// you, the more often they help.
+export type PetId = 'dog' | 'cat';
+export interface PetState { name: string; love: number; fedDay: string; fedAt: number; petAt: number; giftDay: string }
+export const PET: Record<PetId, { name: string; kind: string; icon: string; foods: string[]; finds: AlbumEntry[]; job: string; search: string }> = {
+  cat: {
+    name: 'Whiskers', kind: 'Cat', icon: '🐈', foods: ['fish', 'sardine', 'milk'], finds: CAT_FINDS,
+    job: 'keeps the mice off the fields: a chance of an extra crop at every harvest', search: 'is off prowling the farm',
+  },
+  dog: {
+    name: 'Buddy', kind: 'Dog', icon: '🐕', foods: ['egg', 'cheese'], finds: DOG_FINDS,
+    job: 'keeps the herds together: a chance of an extra product from every pen', search: 'is off digging somewhere',
+  },
+};
+export const PET_IDS: PetId[] = ['dog', 'cat'];
+export const PET_SEARCH_MS = 15 * 60e3; // how long a fed pet is out looking for its find
+export const PET_PAT_MS = 2 * 60e3; // how often a pat still counts
+export const petHearts = (p: PetState) => Math.min(5, Math.floor(p.love / 20));
+export const petFed = (p: PetState) => p.fedDay === todayKey();
+// the chance a fed pet helps out with a harvest or a pen
+export const petHelp = (p: PetState) => (petFed(p) ? 0.06 + 0.03 * petHearts(p) : 0);
+export function petGift(p: PetState, now: number): 'ready' | 'searching' | 'hungry' | 'done' {
+  if (!petFed(p)) return 'hungry';
+  if (p.giftDay === todayKey()) return 'done';
+  return now - p.fedAt >= PET_SEARCH_MS ? 'ready' : 'searching';
+}
+const newPet = (id: PetId): PetState => ({ name: PET[id].name, love: 10, fedDay: '', fedAt: 0, petAt: 0, giftDay: '' });
+
+export const albumSetDone = (s: GameState, id: string) => {
+  const a = ALBUM.find((x) => x.id === id);
+  return !!a && a.entries.every((e) => s.album?.[e.id]);
+};
+export const claimableAlbum = (s: GameState) => ALBUM.filter((a) => albumSetDone(s, a.id) && !s.albumDone?.includes(a.id));
 
 // ---------------------------------------------------------------- helpers
 
@@ -361,7 +403,6 @@ export const QUESTS: Quest[] = [
   { id: 'q35', text: 'Reach level 125', target: 125, coins: 90000, gems: 60, xp: 0, progress: (s) => s.level },
   { id: 'q36', text: 'Build a crane marsh', target: 1, coins: 80000, gems: 50, xp: 3000, progress: (s) => cnt(s, 'crane_marsh') },
   { id: 'q37', text: 'Reach level 150', target: 150, coins: 150000, gems: 80, xp: 0, progress: (s) => s.level },
-  { id: 'q38', text: 'Collect 20 barn owl feathers', target: 20, coins: 120000, gems: 60, xp: 5000, progress: (s) => st(s, 'collect:owl_feather') },
   { id: 'q39', text: 'Reach level 175', target: 175, coins: 250000, gems: 100, xp: 0, progress: (s) => s.level },
   { id: 'q40', text: 'Plant a golden apple tree', target: 1, coins: 200000, gems: 100, xp: 8000, progress: (s) => cnt(s, 'golden_apple_tree') },
   { id: 'q41', text: 'Reach level 200', target: 200, coins: 500000, gems: 200, xp: 0, progress: (s) => s.level },
@@ -445,6 +486,7 @@ export function newGame(): GameState {
     stall: Array.from({ length: STALL_SLOTS }, emptySlot),
     boat: null,
     achievements: {},
+    album: {}, albumDone: [], pets: { dog: newPet('dog'), cat: newPet('cat') },
     tutorial: 0,
     story: { ch: 1, started: 0, base: {}, seen: 0 },
     lake: 5,
@@ -481,13 +523,15 @@ export function newGame(): GameState {
 
 // Pigs and unicorns, and their goods, were taken out of the game. Saves that still hold them are paid back in
 // coins, and orders, stall slots, boat crates and queues that mention them are cleaned up.
-const REMOVED_VALUE: Record<string, number> = { bacon: 50, pig_feed: 14, rainbow_mane: 520 };
+const REMOVED_VALUE: Record<string, number> = { bacon: 50, pig_feed: 14, rainbow_mane: 520, owl_feather: 504 };
 const REMOVED_BUILDING: Record<string, { cost: number; animal: number }> = {
   pigpen: { cost: 1000, animal: 160 }, unicorn_meadow: { cost: 32000, animal: 4000 },
   // decorations taken out later: paid back in full
   chapel: { cost: 10860, animal: 0 }, pagoda: { cost: 10320, animal: 0 }, torii_gate: { cost: 6600, animal: 0 }, totem_pole: { cost: 4140, animal: 0 },
   // the boat dock and its cargo boat were taken out
   dock: { cost: 500, animal: 0 },
+  // owls are wild now, living in the trees: the owl barn was taken out
+  owl_barn: { cost: 33500, animal: 4590 },
 };
 function dropRemoved(s: GameState) {
   for (const o of s.objects) {
@@ -560,6 +604,11 @@ function migrate(d: Partial<GameState>): GameState {
   s.stall = Array.isArray(d.stall) && d.stall.length === STALL_SLOTS ? d.stall : Array.from({ length: STALL_SLOTS }, emptySlot);
   s.boat = d.boat ?? null;
   s.starterWell = d.starterWell;
+  // the album and the pets came later: fish already in the barn count as found
+  s.album = { ...(d.album ?? {}) };
+  for (const [id, n] of Object.entries(s.inv)) if (n > 0 && ALBUM_IDS.has(id) && !s.album[id]) s.album[id] = Date.now();
+  s.albumDone = d.albumDone ?? [];
+  s.pets = { dog: { ...newPet('dog'), ...(d.pets?.dog ?? {}) }, cat: { ...newPet('cat'), ...(d.pets?.cat ?? {}) } };
   // farms from before the story pick it up at the chapter of their level
   s.story = d.story ?? { ch: Math.min(LAST_CHAPTER + 1, Math.max(1, s.level ?? 1)), started: 0, base: {}, seen: 0 };
   // saves from before the tutorial existed skip it
@@ -586,7 +635,7 @@ export type Sfx = 'harvest' | 'plant' | 'coin' | 'build' | 'error' | 'levelup' |
 export interface Fx { kind: 'float' | 'burst'; gx: number; gy: number; text?: string; color?: string; z?: number }
 export interface Placing { type: string; x: number; y: number; moveId?: number }
 export interface Tool { kind: 'plant'; crop: string }
-export type Panel = 'shop' | 'orders' | 'storage' | 'settings' | 'quests' | 'stall' | 'boat' | 'fishing' | 'home' | null;
+export type Panel = 'shop' | 'orders' | 'storage' | 'settings' | 'quests' | 'stall' | 'boat' | 'fishing' | 'home' | 'pet' | null;
 export interface Flyer { icon: string; gx: number; gy: number; z: number; target: 'storage' | 'coins' | 'xp' }
 export interface Toast { id: number; text: string; tone: 'info' | 'bad' | 'good'; at: number }
 
@@ -605,6 +654,8 @@ export interface UIState {
   say: { text: string; until: number } | null; // the farmer's speech bubble
   fishSpot?: FishSpot; // which fishing spot the fishing panel is about
   panelObj?: number; // the building whose panel is open (storage, orders, home, stall)
+  pet?: PetId; // whose pet panel is open
+  petJoy?: { id: PetId; at: number; kind: 'pat' | 'feed' | 'gift' }; // hearts over a pet just patted or fed
 }
 
 export class GameStore {
@@ -936,6 +987,7 @@ export class GameStore {
     const qty = lobster ? 1 : 1 + (Math.random() < 0.4 ? 1 : 0);
     if (!this.canStore(id, qty)) { this.fullToast(id); return; }
     this.add(id, qty);
+    this.discover(id);
     f.castAt = null;
     f.catchAt = null;
     this.stat('fish', qty);
@@ -984,9 +1036,12 @@ export class GameStore {
     if (!pp.ready || !pp.crop || !o.plot) return false;
     if (!this.canStore(pp.crop, 2)) { this.fullToast(pp.crop); return false; }
     const c = CROP[pp.crop];
-    this.add(pp.crop, 2);
-    this.stat('harvest', 2);
-    this.stat(`harvest:${pp.crop}`, 2);
+    // the cat kept the mice off: now and then a crop more
+    const extra = Math.random() < petHelp(this.pet('cat')) && this.canStore(pp.crop, 3) ? 1 : 0;
+    this.add(pp.crop, 2 + extra);
+    this.stat('harvest', 2 + extra);
+    this.stat(`harvest:${pp.crop}`, 2 + extra);
+    if (extra) this.float(o, `🐈 +1 ${ITEMS[pp.crop].icon}`, '#ffe3f0', 55);
     o.plot.crop = null;
     o.plot.watered = false;
     this.addXp(c.xp);
@@ -1178,6 +1233,11 @@ export class GameStore {
       this.stat(`collect:${pi.animal.product}`);
       this.addXp(pi.animal.xp);
       n++;
+    }
+    // the dog kept the herd together: now and then one product more
+    if (n && Math.random() < petHelp(this.pet('dog')) && this.canStore(pi.animal.product, 1)) {
+      this.add(pi.animal.product, 1);
+      this.float(o, `🐕 +1 ${ITEMS[pi.animal.product].icon}`, '#ffe3f0', 60);
     }
     if (n) {
       this.float(o, `+${n} ${ITEMS[pi.animal.product].icon}`, '#fff6c8', 40);
@@ -1491,6 +1551,109 @@ export class GameStore {
         this.toast(`Well rested! +${coins} coins, +10 XP`, 'good');
       } else this.toast('Up already? Sleep a little longer for the rested bonus.');
     }
+    this.emit();
+  }
+
+  // ------------------------------------------------ album and pets
+
+  // fill in an album entry the first time it turns up; true if it was new
+  discover(id: string) {
+    const s = this.s;
+    s.album ??= {};
+    if (s.album[id] || !ALBUM_IDS.has(id)) return false;
+    s.album[id] = Date.now();
+    const e = albumEntry(id)!;
+    this.toast(`New in your album: ${e.name}!`, 'good');
+    const set = ALBUM.find((a) => a.entries.some((x) => x.id === id));
+    if (set && albumSetDone(s, set.id)) this.toast(`Album set complete: ${set.name}! Claim it in Goals.`, 'good');
+    return true;
+  }
+
+  // a creature on the shore tapped: spotted for the album
+  spotCreature(kind: string) {
+    const e = albumEntry(kind);
+    if (!e) return;
+    if (!this.discover(kind)) this.toast(`${e.icon} ${e.name}`);
+    this.sound('click');
+    this.emit();
+  }
+
+  claimAlbum(id: string) {
+    const a = ALBUM.find((x) => x.id === id);
+    const s = this.s;
+    if (!a || !albumSetDone(s, id) || s.albumDone?.includes(id)) return;
+    (s.albumDone ??= []).push(id);
+    this.earn(a.reward.coins);
+    s.gems += a.reward.gems;
+    this.addXp(a.reward.xp);
+    this.sound('levelup');
+    this.toast(`${a.name} complete! +${fmtNum(a.reward.coins)} coins, +${a.reward.gems} gems`, 'good');
+    this.emit();
+  }
+
+  pet(id: PetId): PetState {
+    const s = this.s;
+    s.pets ??= { dog: newPet('dog'), cat: newPet('cat') };
+    return s.pets[id];
+  }
+
+  tapPet(id: PetId) {
+    this.ui.selectedId = null;
+    this.ui.pet = id;
+    this.ui.panel = 'pet';
+    this.sound('click');
+    this.emit(false);
+  }
+
+  patPet(id: PetId) {
+    const p = this.pet(id), now = Date.now();
+    this.ui.petJoy = { id, at: now, kind: 'pat' };
+    if (now - p.petAt >= PET_PAT_MS) { p.love = Math.min(100, p.love + 3); p.petAt = now; }
+    this.sound('click');
+    this.emit();
+  }
+
+  petFood(id: PetId) { return PET[id].foods.find((f) => (this.s.inv[f] ?? 0) > 0) ?? null; }
+
+  feedPet(id: PetId) {
+    const p = this.pet(id);
+    if (petFed(p)) { this.toast(`${p.name} has eaten today already.`); return; }
+    const food = this.petFood(id);
+    if (!food) { this.toast(`${p.name} would like ${PET[id].foods.map((f) => ITEMS[f].name.toLowerCase()).join(' or ')}.`, 'bad'); return; }
+    this.s.inv[food]--;
+    p.fedDay = todayKey();
+    p.fedAt = Date.now();
+    p.love = Math.min(100, p.love + 8);
+    this.ui.petJoy = { id, at: Date.now(), kind: 'feed' };
+    this.sound('collect');
+    this.toast(p.giftDay === todayKey() ? `${p.name} loved that!` : `${p.name} loved that, and ${PET[id].search} for you.`, 'good');
+    this.emit();
+  }
+
+  // what the pet brought back: most often something not yet in the album; a find it already
+  // brought before is sold on for a few coins
+  openPetGift(id: PetId) {
+    const p = this.pet(id), now = Date.now();
+    if (petGift(p, now) !== 'ready') return;
+    p.giftDay = todayKey();
+    p.love = Math.min(100, p.love + 2);
+    const finds = PET[id].finds;
+    const fresh = finds.filter((f) => !this.s.album?.[f.id]);
+    const pick = fresh.length && Math.random() < 0.75 ? fresh[Math.floor(Math.random() * fresh.length)] : finds[Math.floor(Math.random() * finds.length)];
+    this.ui.petJoy = { id, at: now, kind: 'gift' };
+    if (!this.discover(pick.id)) {
+      const coins = 60 + petHearts(p) * 40 + this.s.level * 3;
+      this.earn(coins);
+      this.sound('coin');
+      this.toast(`${p.name} brought another ${pick.icon} ${pick.name}. You sell it for ${fmtNum(coins)} coins.`, 'good');
+    } else this.sound('levelup');
+    this.emit();
+  }
+
+  renamePet(id: PetId, name: string) {
+    const n = name.replace(/[^A-Za-z0-9 '-]/g, '').trim().slice(0, 14);
+    if (!n) return;
+    this.pet(id).name = n;
     this.emit();
   }
 

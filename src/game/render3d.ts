@@ -21,7 +21,7 @@ import { SCULPT_MAT, TOON_MAT, TOON_WOOL, WOOL_MAT } from './gfx/sdf';
 import { leafShell, leafTexture, meterBox, meterHip, meterRoof, surface, surfaceMat, type SurfaceKind } from './gfx/textures';
 import { ANIMAL, BUILDING, CROP, ITEMS, type BuildingDef, type CropDef } from './data';
 import {
-  CHUNK, FARM_OFF, FISH_SPOT, footprint, SEA_FISH_SPOT, fishSpotAt, type FishSpot, GRAZE, GRID, LAKE, MAP_OFF2, MAP_OFF3, NCH, isBeachTile, lakeE, animalReady, fishingInfo, boatState, canFulfill, chunkState, grazePhase, penInfo, plotProgress, prodInfo, treeInfo,
+  CHUNK, FARM_OFF, FISH_SPOT, footprint, PET_IDS, petGift, type PetId, SEA_FISH_SPOT, fishSpotAt, type FishSpot, GRAZE, GRID, LAKE, MAP_OFF2, MAP_OFF3, NCH, isBeachTile, lakeE, animalReady, fishingInfo, boatState, canFulfill, chunkState, grazePhase, penInfo, plotProgress, prodInfo, treeInfo,
   type Animal, type FarmObject, type GameStore,
 } from './state';
 
@@ -529,7 +529,7 @@ const TREE_FORM: Record<string, { cy: number; r: number; h?: number; trunk?: boo
 };
 const FRUIT_COLOR: Record<string, string> = { apple: '#e53935', cherry: '#b0102a', orange: '#ff9800', peach: '#ffa274', lemon: '#ffe03a', coconut: '#7a4a26', pear: '#c8c040', plum: '#5a2070', mango: '#f0902a', avocado: '#2f4a1a', pomegranate: '#c0282a', banana: '#f2d23a', apricot: '#f6a23a', lime: '#6ab82a', fig: '#5a2a4a', olive: '#5a6a1a', walnut: '#5a8a2a', quince: '#e8c83a', almond: '#9ab880', mulberry: '#3a0a2a', grapefruit: '#f2b04a', persimmon: '#f07a1a', date: '#7a3a14', lychee: '#d83a3a', hazelnut: '#8a5a2a', starfruit: '#e8c21a', maple_syrup: '#b8321a', cocoa_pod: '#c0601a', sakura: '#f4b0c8', golden_apple: '#f2c230', tangerine: '#f08a1a', nectarine: '#f0603a', chestnut: '#7a4a22', papaya: '#f0a040', kumquat: '#f8a020', guava: '#b8d060', pistachio: '#b8c860', elderberry: '#2a1a3a', dragon_fruit: '#e8307a', pecan: '#8a5a2a', blood_orange: '#c8301a', jackfruit: '#a8b040', macadamia: '#d8c8a0', yuzu: '#f0d020', passion_fruit: '#6a2a6a', cashew: '#e8b040', white_peach: '#f8d0c0', loquat: '#f0a830', crabapple: '#c02a3a', cinnamon: '#8a4a22', mangosteen: '#5a1a3a', durian: '#b8a840', black_cherry: '#4a0a1a', silver_pear: '#d8d8c8', damson: '#3a1a5a', greengage: '#9ac050', sour_cherry: '#c0102a', nashi: '#d8c060', medlar: '#8a5a2a', hawthorn: '#c01a1a', rowan: '#f0501a', sloe: '#2a2a5a', pomelo: '#d8e070', citron: '#f0d840', bergamot: '#b8d040', jujube: '#8a2a1a', feijoa: '#5a8a3a', acerola: '#e02a1a', carob: '#4a2a1a', hickory: '#8a7a4a', kiwifruit: '#8a6a3a', plantain: '#8ab040', pine_nut: '#b89060', tamarind: '#8a5a2a', pawpaw: '#b8c050', longan: '#c8a060', rambutan: '#d8201a', sea_buckthorn: '#f0901a', finger_lime: '#6a8a2a', sapodilla: '#8a6a4a', soursop: '#5a8a3a', jabuticaba: '#1a0a2a', breadfruit: '#9ab840', cherimoya: '#8ab060', mamey: '#a86a3a', salak: '#6a2a1a', brazil_nut: '#5a3a1a', nutmeg: '#e8c060', clementine: '#f07a10', mirabelle: '#f0c020', chokecherry: '#3a0a1a', star_apple: '#6a2a5a', wax_apple: '#e8305a', lucuma: '#b0a040', marula: '#e8d040', ackee: '#d8301a', black_sapote: '#3a5a2a', ugli_fruit: '#b8c040' };
 const TREE_LEAF: Record<string, string> = { apple_tree: '#4f9e36', cherry_tree: '#3f8a3a', orange_tree: '#2f7d32', peach_tree: '#5aa53a', lemon_tree: '#3b8f3c', coconut_palm: '#4c9a38', pear_tree: '#58a03a', plum_tree: '#3f7f3a', banana_tree: '#5aa844', mango_tree: '#2f7a32', avocado_tree: '#2a6a2e', pomegranate_tree: '#4a8a36', apricot_tree: '#5aa03a', lime_tree: '#2f7f32', fig_tree: '#4a9a3a', olive_tree: '#8a9a7a', walnut_tree: '#3f7a2e', quince_tree: '#5a9a3a', almond_tree: '#6aa84a', mulberry_tree: '#3f8a34', grapefruit_tree: '#3a8a3a', persimmon_tree: '#6a9a2a', date_palm: '#5a8a3a', lychee_tree: '#2f7a32', hazelnut_tree: '#5a9a34', starfruit_tree: '#3f8f3c', maple_tree: '#d8542a', cocoa_tree: '#2f6a2e', sakura_tree: '#f2a6c4', golden_apple_tree: '#7ab84a', tangerine_tree: '#2a7a2e', nectarine_tree: '#52a036', chestnut_tree: '#3a7a2c', papaya_tree: '#3a8a3a', kumquat_tree: '#2a7a30', guava_tree: '#469636', pistachio_tree: '#6a9a4a', elderberry_tree: '#3a8a36', dragon_fruit_tree: '#4a9a3a', pecan_tree: '#3a762c', blood_orange_tree: '#2a7a2e', jackfruit_tree: '#2a7a30', macadamia_tree: '#3a8a36', yuzu_tree: '#358a36', passion_fruit_tree: '#3a8a36', cashew_tree: '#469636', white_peach_tree: '#52a036', loquat_tree: '#3a7a2e', crabapple_tree: '#4a9a32', cinnamon_tree: '#2f7a32', mangosteen_tree: '#2a6a2e', durian_tree: '#3a7a2c', black_cherry_tree: '#3a7a36', silver_pear_tree: '#8aa890', damson_tree: '#3a7a36', greengage_tree: '#4a8a36', sour_cherry_tree: '#3f8a3a', nashi_tree: '#4a9a36', medlar_tree: '#4a8a30', hawthorn_tree: '#3a7a30', rowan_tree: '#4a8a36', sloe_tree: '#3a6a30', pomelo_tree: '#2a7a2e', citron_tree: '#3a8a36', bergamot_tree: '#2f7a30', jujube_tree: '#4a8a3a', feijoa_tree: '#6a8a6a', acerola_tree: '#2f7a32', carob_tree: '#2a6a2e', hickory_tree: '#4a8a30', kiwifruit_tree: '#3a8a30', plantain_tree: '#4a9a3a', pine_nut_tree: '#2a5a3a', tamarind_tree: '#4a8a30', pawpaw_tree: '#4a9a36', longan_tree: '#2a6a2e', rambutan_tree: '#2a7a30', sea_buckthorn_tree: '#8aa890', finger_lime_tree: '#2a6a2e', sapodilla_tree: '#2a6a2e', soursop_tree: '#3a7a32', jabuticaba_tree: '#3a7a36', breadfruit_tree: '#2a7a30', cherimoya_tree: '#4a8a36', mamey_tree: '#2f6a2e', salak_tree: '#3a6a2a', brazil_nut_tree: '#2a6a2e', nutmeg_tree: '#2a5a2e', clementine_tree: '#2a7a2e', mirabelle_tree: '#4a8a36', chokecherry_tree: '#3a7a32', star_apple_tree: '#2a6a2e', wax_apple_tree: '#3a8a36', lucuma_tree: '#2f6a2e', marula_tree: '#5a8a3a', ackee_tree: '#2a7a30', black_sapote_tree: '#2a6a2e', ugli_fruit_tree: '#2f7a30' };
-const GRASSY_PEN = new Set(['guernsey_pasture', 'swiss_pasture', 'dexter_pasture', 'shetland_fold', 'karakul_fold', 'dutch_hutch', 'emden_pen', 'angus_ranch', 'charolais_pasture', 'longhorn_ranch', 'valais_fold', 'dorper_fold', 'mule_paddock', 'elk_woods', 'lop_hutch', 'angora_hutch', 'white_peacock_garden', 'toulouse_pen', 'runner_pen', 'hereford_ranch', 'suffolk_fold', 'heron_marsh', 'highland_pasture', 'pheasant_run', 'llama_ranch', 'pony_paddock', 'black_sheepfold', 'jersey_pasture', 'merino_fold', 'galloway_pasture', 'jacob_fold', 'deer_park', 'moose_woods', 'squirrel_grove', 'parrot_aviary', 'kiwi_burrow', 'owl_barn', 'silk_house', 'crane_marsh', 'muscovy_pond', 'pasture', 'sheepfold', 'beehive', 'rabbit_hutch', 'alpaca_ranch', 'goose_pen', 'peacock_garden', 'donkey_paddock', 'yak_pasture']);
+const GRASSY_PEN = new Set(['guernsey_pasture', 'swiss_pasture', 'dexter_pasture', 'shetland_fold', 'karakul_fold', 'dutch_hutch', 'emden_pen', 'angus_ranch', 'charolais_pasture', 'longhorn_ranch', 'valais_fold', 'dorper_fold', 'mule_paddock', 'elk_woods', 'lop_hutch', 'angora_hutch', 'white_peacock_garden', 'toulouse_pen', 'runner_pen', 'hereford_ranch', 'suffolk_fold', 'heron_marsh', 'highland_pasture', 'pheasant_run', 'llama_ranch', 'pony_paddock', 'black_sheepfold', 'jersey_pasture', 'merino_fold', 'galloway_pasture', 'jacob_fold', 'deer_park', 'moose_woods', 'squirrel_grove', 'parrot_aviary', 'kiwi_burrow', 'silk_house', 'crane_marsh', 'muscovy_pond', 'pasture', 'sheepfold', 'beehive', 'rabbit_hutch', 'alpaca_ranch', 'goose_pen', 'peacock_garden', 'donkey_paddock', 'yak_pasture']);
 const PEN_GROUND: Record<string, string> = {
   rabbit_hutch: '#86c24f', alpaca_ranch: '#8fc45a', goose_pen: '#86c24f', gobbler_run: '#c9a46a', quail_coop: '#d9c08a', camel_corral: '#e2cf98', buffalo_wallow: '#8a6a44', ostrich_ranch: '#d8c38e',
   coop: '#d9c08a', pasture: '#86c24f', sheepfold: '#9ccc5a',
@@ -568,6 +568,7 @@ export class Renderer {
   private life!: Life;
   private turtles!: TurtleBeach;
   private shore!: ShoreLife;
+  private night!: NightLife;
   private sky = new Sky();
   private foliage = new Foliage();
   private foliageKey = '';
@@ -625,6 +626,13 @@ export class Renderer {
     this.turtles = new TurtleBeach(this.scene);
     this.shore = new ShoreLife(this.scene, (x, y) => { this.rebuildNav(); return this.free(x, y); }, this.shoreRocks,
       () => [this.farmer, this.dog].filter(Boolean).map((a) => [a.g.position.x, a.g.position.z] as [number, number]));
+    this.night = new NightLife(this.scene, {
+      trees: () => this.treeSpots(),
+      roofs: () => this.roofSpots(),
+      top: (id, x, z) => this.roofTop(id, x, z),
+      grass: (x, y) => { this.rebuildNav(); return this.free(x, y) && !pathTiles.has(y * GRID + x) && !fieldTiles.has(y * GRID + x); },
+      threats: () => [this.farmer, this.dog, this.cat].filter(Boolean).map((a) => [a.g.position.x, a.g.position.z] as [number, number]),
+    });
     this.sel = this.buildSelection();
     // start fetching the Blender models right away, so they are usually in before the farm shows
     if (artStyle() === 'toon') {
@@ -756,6 +764,20 @@ export class Renderer {
     return g ? { x: Math.floor(g.x), y: Math.floor(g.z) } : { x: -99, y: -99 };
   }
 
+  // how far a tap is from a thing at (x, y, z) about `r` tiles across, in pixels; null when it
+  // is not on it (with a little slack round small things)
+  private tapDist(sx: number, sy: number, x: number, y: number, z: number, r: number) {
+    const a = new THREE.Vector3(x, y, z).project(this.camera);
+    if (a.z > 1) return null;
+    const b = new THREE.Vector3(x, y + r, z).project(this.camera);
+    const px = ((a.x + 1) / 2) * this.W, py = ((1 - a.y) / 2) * this.H;
+    const rr = Math.max(22, Math.hypot((b.x - a.x) / 2 * this.W, (b.y - a.y) / 2 * this.H) * 1.3);
+    const d = Math.hypot(sx - px, sy - py);
+    return d <= rr ? d : null;
+  }
+
+  startle(c: ShoreHit) { this.shore.startle(c); }
+
   toScreen(gx: number, gy: number, z = 0) {
     const v = new THREE.Vector3(gx, z * ZU, gy).project(this.camera);
     return { x: ((v.x + 1) / 2) * this.W, y: ((1 - v.y) / 2) * this.H };
@@ -818,8 +840,22 @@ export class Renderer {
 
   // ------------------------------------------------ picking
 
-  pick(sx: number, sy: number): { obj?: FarmObject; tile: { x: number; y: number }; spot?: 'fishing' | 'seaFishing' | 'visitor' } {
+  pick(sx: number, sy: number): { obj?: FarmObject; tile: { x: number; y: number }; spot?: 'fishing' | 'seaFishing' | 'visitor'; pet?: PetId; creature?: ShoreHit } {
     const tile = this.gridAt(sx, sy);
+    // the pets and the shore creatures are small and on the move: a tap close to one counts
+    if (!this.store.ui.placing) {
+      let best: { d: number; pet?: PetId; creature?: ShoreHit } | null = null;
+      for (const id of PET_IDS) {
+        const a = id === 'dog' ? this.dog : this.cat;
+        const d = this.tapDist(sx, sy, a.g.position.x, a.g.position.y + 0.3, a.g.position.z, 0.45);
+        if (d !== null && (!best || d < best.d)) best = { d, pet: id };
+      }
+      for (const c of [...this.shore.creatures(), ...this.night.creatures()]) {
+        const d = this.tapDist(sx, sy, c.x, c.y, c.z, c.r);
+        if (d !== null && (!best || d < best.d)) best = { d, creature: c };
+      }
+      if (best) return { tile, pet: best.pet, creature: best.creature };
+    }
     const moveId = this.store.ui.placing?.moveId;
     const hits: THREE.Object3D[] = [this.fishing.hit, this.seaFishing.hit];
     const v = this.visitor;
@@ -1470,11 +1506,13 @@ export class Renderer {
     this.updateFx(dt);
     this.updateActors(dt, t, now);
     this.updateCat(dt, t);
+    this.updatePets(t, now);
     this.updateClouds(dt);
     this.updateFishing(t, now);
     this.life.update(dt, t, this.nightNow(now), this.target);
     this.turtles.update(t);
     this.shore.update(dt, t);
+    this.night.update(dt, t, this.nightNow(now), this.target);
     this.followSun();
     this.cullBlocks();
     const wk = this.updateWeather(dt, now);
@@ -2648,6 +2686,43 @@ export class Renderer {
     }
   }
 
+  // over each pet: hearts rising while it is patted or fed (and a happy hop and a wag), or a
+  // gift box once it is back from its search with something for you
+  private petMarks = new Map<PetId, THREE.Sprite>();
+  private updatePets(t: number, now: number) {
+    const joy = this.store.ui.petJoy;
+    for (const id of PET_IDS) {
+      const a = id === 'dog' ? this.dog : this.cat;
+      let m = this.petMarks.get(id);
+      if (!m) {
+        m = new THREE.Sprite(new THREE.SpriteMaterial({ transparent: true, depthTest: false, depthWrite: false }));
+        m.renderOrder = 30;
+        this.fxLayer.add(m);
+        this.petMarks.set(id, m);
+      }
+      const k = joy && joy.id === id ? (now - joy.at) / 1800 : 1;
+      const mat = m.material, was = mat.map;
+      const p = a.g.position;
+      if (k < 1) {
+        mat.map = emojiTex(joy!.kind === 'gift' ? '✨' : '💕');
+        mat.opacity = Math.min(1, (1 - k) * 2.5);
+        m.scale.setScalar(0.45 + k * 0.25);
+        m.position.set(p.x, p.y + 0.85 + k * 0.6, p.z);
+        m.visible = true;
+        if (!a.sleeping) p.y += Math.abs(Math.sin(t / 85)) * 0.07 * (1 - k);
+        const tail = a.g.userData.tail as THREE.Object3D | undefined;
+        if (tail) tail.rotation.z = Math.sin(t / 55) * 0.8;
+      } else if (petGift(this.store.pet(id), now) === 'ready') {
+        mat.map = emojiTex('🎁', true);
+        mat.opacity = 1;
+        m.scale.setScalar(0.5);
+        m.position.set(p.x, p.y + 0.95 + Math.sin(t / 300) * 0.06, p.z);
+        m.visible = true;
+      } else m.visible = false;
+      if (mat.map !== was) mat.needsUpdate = true;
+    }
+  }
+
   // The farm cat does as it pleases: it strolls between the house and wherever the farmer is,
   // sits for a while, and curls up by the door at night or while the farmer naps.
   private updateCat(dt: number, t: number) {
@@ -2929,12 +3004,12 @@ function fourLegs(g: THREE.Group, w: number, d: number, len: number, th: number,
 // Birds that can fly flutter about their pen and fly (rather than walk) out through the open
 // gate to feed. The water birds find their food at sea: they fly to the shallows and fish there.
 const FLIERS = new Set(['chicken', 'duck', 'goose', 'gobbler', 'peacock', 'quail', 'guinea_fowl', 'pheasant', 'swan', 'flamingo', 'silkie_chicken',
-  'muscovy_duck', 'mandarin_duck', 'parrot', 'crane', 'black_swan', 'barn_owl', 'golden_goose', 'bronze_turkey', 'ayam_cemani', 'grey_heron',
+  'muscovy_duck', 'mandarin_duck', 'parrot', 'crane', 'black_swan', 'golden_goose', 'bronze_turkey', 'ayam_cemani', 'grey_heron',
   'pekin_duck', 'orpington', 'brahma_chicken', 'toulouse_goose', 'polish_chicken', 'indian_runner', 'white_peacock', 'leghorn',
   'khaki_campbell', 'rhode_island_red', 'call_duck', 'emden_goose', 'wyandotte', 'marans']);
 const SEA_BIRDS = new Set(['flamingo', 'crane', 'grey_heron', 'swan', 'black_swan']);
 // and the tree birds do not graze either: they fly to a tree nearby and sit in its crown
-const TREE_BIRDS = new Set(['barn_owl', 'parrot']);
+const TREE_BIRDS = new Set(['parrot']);
 // and ducks and geese would rather swim: on a garden pond near their pen, or on the lake
 const WATER_FOWL = new Set(['duck', 'pekin_duck', 'khaki_campbell', 'call_duck', 'indian_runner', 'muscovy_duck', 'mandarin_duck',
   'goose', 'toulouse_goose', 'emden_goose', 'golden_goose']);
@@ -2985,7 +3060,7 @@ function treePerch(o: FarmObject, d: BuildingDef, id: number) {
 }
 const WING: Record<string, string> = {
   flamingo: '#f47ea0', crane: '#d8d8d2', grey_heron: '#8c96a0', swan: '#f6f6f2', black_swan: '#26262a', parrot: '#2aa84a',
-  barn_owl: '#c8a070', peacock: '#2a6ab8', white_peacock: '#f6f6f2', ayam_cemani: '#1c1c20', gobbler: '#5a3a24', bronze_turkey: '#6a4a2a',
+  peacock: '#2a6ab8', white_peacock: '#f6f6f2', ayam_cemani: '#1c1c20', gobbler: '#5a3a24', bronze_turkey: '#6a4a2a',
   pheasant: '#8a4a2a', quail: '#8a6a4a', guinea_fowl: '#4a4a58', golden_goose: '#e8b83a', mandarin_duck: '#c86a2a', khaki_campbell: '#9a8458',
   rhode_island_red: '#8a2a1a', marans: '#4a3a30', orpington: '#d8a860', muscovy_duck: '#2a2a2a', toulouse_goose: '#8a8a88',
 };
@@ -3341,7 +3416,7 @@ function mergeStatic(root: THREE.Object3D) {
 // already sitting on their pivots. Until a kind's model has loaded (or if it cannot load) the
 // sculpt stands in; pens rebuild their herd when a model arrives.
 const ANIMAL_MODELS = new Set([
-  'alpaca', 'angora_goat', 'bactrian_camel', 'barn_owl', 'beaver', 'belted_galloway', 'bison', 'black_sheep',
+  'alpaca', 'angora_goat', 'bactrian_camel', 'beaver', 'belted_galloway', 'bison', 'black_sheep',
   'black_swan', 'buffalo', 'camel', 'cashmere_goat', 'cassowary', 'cat', 'chicken', 'chinchilla', 'cow',
   'crane', 'dog', 'donkey', 'duck', 'emu', 'flamingo', 'goat', 'gobbler', 'golden_goose', 'goose',
   'guinea_fowl', 'highland_cow', 'horse', 'jacob_sheep', 'jersey_cow', 'kiwi_bird', 'llama', 'mandarin_duck',
@@ -3540,7 +3615,7 @@ const LID: Record<string, string> = {
   gobbler: '#9ab8d8', donkey: '#6a655f', buffalo: '#2a2a2c', peacock: '#1f4fb8', ostrich: '#9a7a70',
 };
 
-const TALL = new Set(['camel', 'ostrich', 'emu', 'flamingo', 'reindeer', 'llama', 'rhea', 'cassowary', 'crane', 'bactrian_camel', 'moose', 'spotted_deer', 'vicuna', 'grey_heron', 'elk', 'clydesdale']);
+const TALL = new Set(['camel', 'ostrich', 'emu', 'flamingo', 'reindeer', 'llama', 'rhea', 'cassowary', 'crane', 'bactrian_camel', 'moose', 'spotted_deer', 'vicuna', 'grey_heron', 'elk']);
 // birds that float on their pond instead of walking
 const SWIMMERS = new Set(['duck', 'swan', 'mandarin_duck', 'black_swan', 'pekin_duck', 'khaki_campbell', 'call_duck']);
 
@@ -4712,14 +4787,6 @@ function buildPen(e: Entry, d: BuildingDef) {
       }
       { const p = palmTree(g, '#4c9a38'); p.crown.position.set(0.4, 0, 0.4); p.crown.scale.setScalar(0.55); }
       break;
-    case 'owl_barn':
-      // a tall little barn with an open loft window where the owls roost
-      bxT(g, 0.6, 0.6, 0.5, 'boards', '#a8452e', 0.45, 0.04, 0.45, 2);
-      roofT(g, 0.74, 0.3, 0.64, d.roof, surfaceMat('boards', '#a8452e', 2), 0.45, 0.64, 0.45, 0.06);
-      bx(g, 0.18, 0.18, 0.02, '#2a1a12', 0.45, 0.42, 0.71);
-      bx(g, 0.22, 0.03, 0.06, '#f4efe6', 0.45, 0.4, 0.72);
-      e.top = 1.2;
-      break;
     case 'kiwi_burrow':
       // a grassy mound with a burrow and some ferns
       mk(g, G.dome, M('#6aa84a'), 0.45, 0.25, 0.4, 0.5, 0.02, 0.5);
@@ -4841,7 +4908,7 @@ function buildPen(e: Entry, d: BuildingDef) {
       c.scale.z *= h / 3;
     }
   }
-  if (!['beehive', 'duck_pond', 'goose_pen', 'peacock_garden', 'swan_lake', 'flamingo_lagoon', 'golden_nest', 'mandarin_pond', 'black_swan_lake', 'silk_house', 'parrot_aviary', 'owl_barn', 'kiwi_burrow', 'squirrel_grove', 'crane_marsh', 'heron_marsh', 'pekin_pond', 'toulouse_pen', 'runner_pen', 'white_peacock_garden', 'campbell_pond', 'call_duck_pond', 'emden_pen'].includes(d.id)) {
+  if (!['beehive', 'duck_pond', 'goose_pen', 'peacock_garden', 'swan_lake', 'flamingo_lagoon', 'golden_nest', 'mandarin_pond', 'black_swan_lake', 'silk_house', 'parrot_aviary', 'kiwi_burrow', 'squirrel_grove', 'crane_marsh', 'heron_marsh', 'pekin_pond', 'toulouse_pen', 'runner_pen', 'white_peacock_garden', 'campbell_pond', 'call_duck_pond', 'emden_pen'].includes(d.id)) {
     bx(g, 0.55, 0.12, 0.18, '#8a5a2b', w - 0.55, 0.04, h - 0.35);
     bx(g, 0.47, 0.03, 0.12, '#e2c15a', w - 0.55, 0.14, h - 0.35, false);
   }
@@ -6268,7 +6335,11 @@ function shoreY(out: number) {
 const SEA_ROCKS: [number, number, number][] = [[0, 15, 1.15], [0, 46, 1.3], [1, 22, 1.25], [1, 52, 1.1], [3, 17, 1.2], [3, 44, 1.35]];
 const SEAL_TINTS: [number, number, number][] = [[1, 1, 1], [0.55, 0.54, 0.56], [0.92, 0.84, 0.76], [0.7, 0.66, 0.64]];
 
+// a creature on the shore under a tap: what it is, where, and which one
+interface ShoreHit { kind: string; x: number; y: number; z: number; r: number; crab?: Crab; flock?: Flock; poke?: () => void }
+
 class ShoreLife {
+  private lastT = 0;
   private crabs: Crab[] = [];
   private seals: Seal[] = [];
   private flocks: Flock[] = [];
@@ -6625,7 +6696,32 @@ class ShoreLife {
     return true;
   }
 
+  // the creatures showing now, for a tap to find
+  creatures(): ShoreHit[] {
+    const out: ShoreHit[] = [];
+    for (const c of this.crabs) if (c.g.visible && c.mode !== 'sea') out.push({ kind: c.kind, x: c.g.position.x, y: c.g.position.y + 0.05, z: c.g.position.z, r: 0.3, crab: c });
+    for (const s of this.seals) if (s.ready && s.g.visible && s.y > SEA_Y - 0.35) out.push({ kind: 'harbor_seal', x: s.x, y: s.y + 0.15, z: s.z, r: 0.6 });
+    for (const f of this.flocks) for (const b of f.birds) if (b.g.visible) out.push({ kind: 'sandpiper', x: b.x, y: b.y + 0.08, z: b.z, r: 0.22, flock: f });
+    return out;
+  }
+
+  // a tapped creature minds it: a crab dives into its burrow or its shell, or scuttles off; a
+  // flock of sanderlings takes off
+  startle(h: ShoreHit) {
+    h.poke?.();
+    const c = h.crab;
+    if (c) {
+      if (BURROW_CRABS.has(c.kind) || FORWARD_CRABS.has(c.kind)) { c.hide = 3 + Math.random() * 3; c.wait = 0; }
+      else if (c.mode === 'beach') {
+        const p = this.spot(c, Math.floor(this.lastT / 1000) + 31);
+        c.tx = p.x; c.tz = p.z; c.wait = 0;
+      }
+    }
+    if (h.flock && !h.flock.fly) this.startFlight(h.flock, this.lastT);
+  }
+
   update(dt: number, t: number) {
+    this.lastT = t;
     this.updateSeals(dt, t);
     this.updateFlocks(dt, t);
     for (const c of this.crabs) {
@@ -6708,6 +6804,424 @@ class ShoreLife {
       c.body.rotation.z = moving ? Math.sin(ph * 2) * 0.03 : 0;
     }
   }
+}
+
+// ------------------------------------------------------------------ night life
+
+// When night falls the farm's wild things come out. Barn owls and tawny owls live in the farm's
+// trees: they sit up on the crowns turning their heads, glide from tree to tree and drop onto a
+// mouse in the grass. Hedgehogs snuffle about the meadows and roll up when someone comes near,
+// pipistrelle bats flit round the barns, toads sit on the lake bank and hop along it, and
+// fireflies blink over the grass. By day they are all tucked away.
+interface NightHelp {
+  trees: () => { id: number; x: number; y: number }[];
+  roofs: () => { id: number; x: number; y: number; h: number }[];
+  top: (id: number, x: number, z: number) => number | null;
+  grass: (x: number, y: number) => boolean;
+  threats: () => [number, number][];
+}
+interface NightOwl {
+  g: THREE.Group; kind: string; seed: number; ready: boolean; head?: THREE.Object3D; wings: THREE.Object3D[];
+  perch: THREE.Vector3 | null; state: 'perch' | 'fly' | 'hunt'; t0: number; dur: number;
+  from: THREE.Vector3; to: THREE.Vector3; ground: THREE.Vector3 | null; heading: number;
+}
+interface Critter {
+  kind: string; g: THREE.Group; body: THREE.Group; head?: THREE.Object3D; legs: THREE.Object3D[]; wings: THREE.Object3D[];
+  seed: number; ready: boolean; x: number; z: number; tx: number; tz: number; wait: number; curl: number; heading: number;
+  hop: number; a: number; a1: number;
+}
+interface Fly { x: number; z: number; ph: number; sp: number }
+const NIGHT_ON = 0.45;
+const FIREFLIES = 70;
+
+class NightLife {
+  private owls: NightOwl[] = [];
+  private hogs: Critter[] = [];
+  private toads: Critter[] = [];
+  private bats: Critter[] = [];
+  private flies: Fly[] = [];
+  private flyPts: THREE.Points;
+  private flyCol: Float32Array;
+  private flyPos: Float32Array;
+  private lastT = 0;
+  private on = false;
+
+  constructor(scene: THREE.Scene, private help: NightHelp) {
+    const toon = artStyle() === 'toon';
+    // two barn owls and a tawny owl
+    for (let k = 0; k < 3; k++) {
+      const g = new THREE.Group();
+      g.visible = false;
+      scene.add(g);
+      const o: NightOwl = { g, kind: k === 2 ? 'tawny_owl' : 'barn_owl', seed: k * 3.7 + 1, ready: false, wings: [], perch: null, state: 'perch', t0: 0, dur: 0, from: new THREE.Vector3(), to: new THREE.Vector3(), ground: null, heading: 0 };
+      this.owls.push(o);
+    }
+    if (toon) {
+      for (const o of this.owls) {
+        loadModel(o.kind).then((m) => {
+          const c = m.clone();
+          c.traverse((x) => { x.castShadow = true; });
+          c.scale.setScalar(1.25);
+          o.g.add(c);
+          o.head = c.getObjectByName('head') ?? undefined;
+          o.wings = [0, 1].map((i) => c.getObjectByName(`wing${i}`)).filter((x): x is THREE.Object3D => !!x);
+          o.ready = true;
+        }).catch(() => {});
+      }
+    }
+    const critter = (kind: string, n: number, size: number, list: Critter[]) => {
+      for (let k = 0; k < n; k++) {
+        const g = new THREE.Group();
+        const body = new THREE.Group();
+        body.scale.setScalar(size);
+        g.add(body);
+        if (kind !== 'bat') contactShadow(g, 0.14 * size, 0.18 * size);
+        g.visible = false;
+        scene.add(g);
+        const c: Critter = { kind, g, body, legs: [], wings: [], seed: k * 5.3 + kind.length, ready: false, x: 0, z: 0, tx: 0, tz: 0, wait: 0, curl: 0, heading: 0, hop: -1, a: 0, a1: 0 };
+        list.push(c);
+        if (toon) {
+          loadModel(kind).then((m) => {
+            const mc = m.clone();
+            mc.traverse((o) => { o.castShadow = kind !== 'bat'; });
+            body.add(mc);
+            c.head = mc.getObjectByName('head') ?? undefined;
+            c.legs = [0, 1, 2, 3].map((i) => mc.getObjectByName(`leg${i}`)).filter((o): o is THREE.Object3D => !!o);
+            c.wings = [0, 1].map((i) => mc.getObjectByName(`wing${i}`)).filter((o): o is THREE.Object3D => !!o);
+            c.ready = true;
+          }).catch(() => {});
+        }
+      }
+    };
+    critter('hedgehog', 3, 1.5, this.hogs);
+    critter('toad', 3, 1.6, this.toads);
+    critter('bat', 4, 1.6, this.bats);
+    // the fireflies: soft glowing points, each blinking on its own
+    this.flyPos = new Float32Array(FIREFLIES * 3);
+    this.flyCol = new Float32Array(FIREFLIES * 3);
+    const geo = new THREE.BufferGeometry();
+    geo.setAttribute('position', new THREE.BufferAttribute(this.flyPos, 3));
+    geo.setAttribute('color', new THREE.BufferAttribute(this.flyCol, 3));
+    const glow = canvasTex('firefly', 64, 64, (c) => {
+      const gr = c.createRadialGradient(32, 32, 0, 32, 32, 32);
+      gr.addColorStop(0, 'rgba(255,255,255,1)');
+      gr.addColorStop(0.25, 'rgba(255,255,255,0.8)');
+      gr.addColorStop(1, 'rgba(255,255,255,0)');
+      c.fillStyle = gr;
+      c.fillRect(0, 0, 64, 64);
+    });
+    this.flyPts = new THREE.Points(geo, new THREE.PointsMaterial({ size: 0.28, map: glow, vertexColors: true, transparent: true, depthWrite: false, blending: THREE.AdditiveBlending, sizeAttenuation: true, fog: false }));
+    this.flyPts.frustumCulled = false;
+    this.flyPts.visible = false;
+    scene.add(this.flyPts);
+    for (let i = 0; i < FIREFLIES; i++) this.flies.push({ x: 0, z: 0, ph: Math.random() * 100, sp: 0.6 + Math.random() * 0.8 });
+  }
+
+  // the creatures showing now, for a tap to find
+  creatures(): ShoreHit[] {
+    const out: ShoreHit[] = [];
+    if (!this.on) return out;
+    for (const o of this.owls) if (o.g.visible) out.push({ kind: o.kind, x: o.g.position.x, y: o.g.position.y + 0.25, z: o.g.position.z, r: 0.45, poke: () => this.scare(o) });
+    for (const c of [...this.hogs, ...this.toads, ...this.bats]) {
+      if (c.g.visible) out.push({ kind: c.kind, x: c.g.position.x, y: c.g.position.y + 0.08, z: c.g.position.z, r: c.kind === 'bat' ? 0.5 : 0.35, poke: () => { if (c.kind === 'hedgehog') c.curl = 6; else if (c.kind === 'toad') this.startHop(c); } });
+    }
+    for (let i = 0; i < FIREFLIES; i++) {
+      if (this.flyCol[i * 3 + 1] > 0.5) out.push({ kind: 'firefly', x: this.flyPos[i * 3], y: this.flyPos[i * 3 + 1], z: this.flyPos[i * 3 + 2], r: 0.3 });
+    }
+    return out;
+  }
+
+  update(dt: number, t: number, night: number, target: THREE.Vector3) {
+    this.lastT = t;
+    const on = night > NIGHT_ON;
+    if (on !== this.on) {
+      this.on = on;
+      // at dusk they take up their places again
+      if (on) {
+        for (const o of this.owls) { o.perch = null; o.state = 'perch'; o.t0 = t; o.dur = 8000 + hash(o.seed, 1, 2) * 15000; }
+        for (const c of this.hogs) c.x = 0;
+        for (const c of this.toads) { c.hop = -1; c.x = 0; }
+      }
+    }
+    for (const o of this.owls) o.g.visible = on && o.ready && !!this.updateOwl(o, t);
+    for (const c of this.hogs) c.g.visible = on && c.ready && this.updateHog(c, dt, t);
+    for (const c of this.toads) c.g.visible = on && c.ready && this.updateToad(c, dt, t);
+    for (const c of this.bats) c.g.visible = on && c.ready && this.updateBat(c, t);
+    this.flyPts.visible = on;
+    if (on) this.updateFlies(t, target, Math.min(1, (night - NIGHT_ON) / 0.2));
+  }
+
+  // a place up in a tree crown (or on a roof when the farm has no trees yet)
+  private pickPerch(o: NightOwl, salt: number) {
+    const trees = this.help.trees();
+    for (let k = 0; k < 4 && trees.length; k++) {
+      const tr = trees[Math.floor(hash(o.seed, salt, k) * trees.length)];
+      const x = tr.x + (hash(o.seed, salt, k + 5) - 0.5) * 0.3, z = tr.y + (hash(o.seed, salt, k + 9) - 0.5) * 0.3;
+      const h = this.help.top(tr.id, x, z);
+      if (h && h > 0.5) return new THREE.Vector3(x, h, z);
+    }
+    const roofs = this.help.roofs();
+    if (!roofs.length) return null;
+    const r = roofs[Math.floor(hash(o.seed, salt, 3) * roofs.length)];
+    const h = this.help.top(r.id, r.x, r.y) ?? r.h;
+    return new THREE.Vector3(r.x, h, r.y);
+  }
+
+  private scare(o: NightOwl) {
+    if (o.state !== 'perch') return;
+    const to = this.pickPerch(o, Math.floor(this.lastT / 1000) + 7);
+    if (to) this.flyTo(o, to, this.lastT);
+  }
+
+  private flyTo(o: NightOwl, to: THREE.Vector3, t: number) {
+    o.from.copy(o.g.position);
+    o.to.copy(to);
+    o.state = 'fly';
+    o.t0 = t;
+    o.dur = Math.max(1500, o.from.distanceTo(to) / 2.4 * 1000);
+    o.perch = to;
+  }
+
+  private updateOwl(o: NightOwl, t: number) {
+    if (!o.perch) {
+      o.perch = this.pickPerch(o, 1);
+      if (!o.perch) return false;
+      o.g.position.copy(o.perch);
+    }
+    const g = o.g, head = o.head;
+    const u = (t - o.t0) / o.dur;
+    if (o.state === 'perch') {
+      g.position.copy(o.perch);
+      this.wingsOf(o, 0, t);
+      // an owl turns its head a long way round to look and listen, in slow steps
+      if (head) head.rotation.y = Math.round(Math.sin(t / 2600 + o.seed * 3) * 3) * 0.45;
+      if (u >= 1) {
+        if (hash(o.seed, Math.floor(t / 1000), 4) < 0.55) {
+          // a mouse in the grass below: somewhere free on the ground near the tree
+          for (let k = 0; k < 6; k++) {
+            const x = Math.floor(o.perch.x + (hash(o.seed, Math.floor(t / 1000), 10 + k) - 0.5) * 7), z = Math.floor(o.perch.z + (hash(o.seed, Math.floor(t / 1000), 20 + k) - 0.5) * 7);
+            if (this.help.grass(x, z)) { o.ground = new THREE.Vector3(x + 0.5, 0, z + 0.5); break; }
+          }
+          if (o.ground) { o.state = 'hunt'; o.t0 = t; o.dur = 5200; o.from.copy(o.perch); return true; }
+        }
+        const to = this.pickPerch(o, Math.floor(t / 1000));
+        if (to && to.distanceTo(o.perch) > 1) this.flyTo(o, to, t);
+        else { o.t0 = t; o.dur = 10000; }
+      }
+      return true;
+    }
+    if (o.state === 'fly') {
+      const k = Math.min(1, u), e = k * k * (3 - 2 * k);
+      const p = o.from.clone().lerp(o.to, e);
+      p.y += Math.sin(Math.PI * k) * (0.6 + o.from.distanceTo(o.to) * 0.08);
+      this.faceTo(o, p);
+      g.position.copy(p);
+      g.rotation.x = 0.12;
+      this.wingsOf(o, 1, t, Math.sin(t / 700 + o.seed) > 0.2 ? 0.15 : 0.7);
+      if (k >= 1) { o.state = 'perch'; o.t0 = t; o.dur = 15000 + hash(o.seed, Math.floor(t / 1000), 5) * 25000; g.rotation.x = 0; }
+      return true;
+    }
+    // the hunt: a silent glide down, a pounce and a moment on the ground, and back up
+    const gr = o.ground!;
+    const back = o.perch;
+    if (u < 0.35) {
+      const k = u / 0.35, e = k * k;
+      const p = o.from.clone().lerp(gr, e);
+      p.y += Math.sin(Math.PI * k) * 0.3;
+      this.faceTo(o, p);
+      g.position.copy(p);
+      g.rotation.x = 0.35 * (1 - k);
+      this.wingsOf(o, 1, t, k < 0.8 ? 0.1 : 0.8);
+    } else if (u < 0.6) {
+      g.position.copy(gr);
+      g.rotation.x = 0;
+      // wings mantled over the prey a moment, then folded
+      this.wingsOf(o, Math.max(0, 1 - (u - 0.35) / 0.08) * 0.7, t, 0.2);
+      if (head) head.rotation.x = Math.sin((u - 0.35) / 0.25 * Math.PI) * 0.5;
+    } else if (u < 1) {
+      const k = (u - 0.6) / 0.4, e = k * (2 - k);
+      const p = gr.clone().lerp(back, e);
+      p.y += Math.sin(Math.PI * k) * 0.4;
+      this.faceTo(o, p);
+      g.position.copy(p);
+      g.rotation.x = -0.15;
+      this.wingsOf(o, 1, t, 0.8);
+      if (head) head.rotation.x = 0;
+    } else {
+      g.position.copy(back);
+      g.rotation.x = 0;
+      o.state = 'perch'; o.ground = null; o.t0 = t; o.dur = 15000 + hash(o.seed, Math.floor(t / 1000), 6) * 20000;
+    }
+    return true;
+  }
+
+  // wings: `open` 0 folded back along the body, 1 spread; `beat` how hard they flap (slow,
+  // deep owl strokes)
+  private wingsOf(o: NightOwl, open: number, t: number, beat = 0.7) {
+    const b = Math.sin(t / 110 + o.seed) * beat * open;
+    o.wings.forEach((w, i) => {
+      const s = i ? 1 : -1;
+      w.rotation.set(0, s * 1.5 * (1 - open), s * b);
+      // folded, the long hand tucks in under the tail rather than sticking out past it
+      w.scale.x = 1 - 0.5 * (1 - open);
+    });
+  }
+
+  private faceTo(o: NightOwl, p: THREE.Vector3) {
+    const dx = p.x - o.g.position.x, dz = p.z - o.g.position.z;
+    if (Math.hypot(dx, dz) > 0.002) o.heading = Math.atan2(dx, dz);
+    o.g.rotation.y = o.heading;
+  }
+
+  // somewhere on open grass, near (x, z) when given
+  private grassSpot(seed: number, salt: number, x?: number, z?: number, r = 3) {
+    for (let k = 0; k < 20; k++) {
+      const gx = x === undefined ? 4 + hash(seed, salt, k) * (GRID - 8) : x + (hash(seed, salt, k) - 0.5) * r * 2;
+      const gz = z === undefined ? 4 + hash(seed, salt, k + 40) * (GRID - 8) : z + (hash(seed, salt, k + 40) - 0.5) * r * 2;
+      if (this.help.grass(Math.floor(gx), Math.floor(gz)) && (x === undefined || this.clearWalk(x, z!, gx, gz))) return { x: gx, z: gz };
+    }
+    return null;
+  }
+  private clearWalk(x0: number, z0: number, x1: number, z1: number) {
+    const n = Math.ceil(Math.hypot(x1 - x0, z1 - z0) / 0.4);
+    for (let i = 1; i <= n; i++) {
+      const k = i / n;
+      if (!this.help.grass(Math.floor(x0 + (x1 - x0) * k), Math.floor(z0 + (z1 - z0) * k))) return false;
+    }
+    return true;
+  }
+
+  private updateHog(c: Critter, dt: number, t: number) {
+    if (!c.x) {
+      const p = this.grassSpot(c.seed, Math.floor(t / 60000));
+      if (!p) return false;
+      c.x = c.tx = p.x; c.z = c.tz = p.z;
+    }
+    // someone close: it rolls up into a spiky ball until they are gone
+    const near = this.help.threats().some(([x, z]) => Math.hypot(x - c.x, z - c.z) < 1.2);
+    if (near) c.curl = Math.max(c.curl, 2);
+    let moving = false;
+    if (c.curl > 0) c.curl -= dt;
+    else if (c.wait > 0) c.wait -= dt;
+    else {
+      const dx = c.tx - c.x, dz = c.tz - c.z, d = Math.hypot(dx, dz);
+      if (d > 0.03) {
+        const step = Math.min(d, 0.28 * dt);
+        c.x += (dx / d) * step; c.z += (dz / d) * step;
+        c.heading = turnTo(c.heading, Math.atan2(dx, dz), dt * 4);
+        moving = true;
+      } else {
+        c.wait = 1.5 + hash(c.seed, Math.floor(t / 1000), 3) * 4;
+        const p = this.grassSpot(c.seed, Math.floor(t / 1000), c.x, c.z, 2.5);
+        if (p) { c.tx = p.x; c.tz = p.z; }
+      }
+    }
+    const curled = c.curl > 0 ? 1 : 0;
+    c.g.position.set(c.x, 0, c.z);
+    c.g.rotation.y = c.heading;
+    c.body.scale.y = c.body.scale.x * (1 - curled * 0.12);
+    c.legs.forEach((l, i) => {
+      l.visible = !curled;
+      l.rotation.x = moving ? Math.sin(t / 90 + (i % 2 ? Math.PI : 0) + (i > 1 ? Math.PI / 2 : 0)) * 0.6 : 0;
+    });
+    // tucked in when rolled up; snuffling along the ground otherwise
+    if (c.head) c.head.rotation.x = curled ? 0.9 : 0.15 + Math.max(0, Math.sin(t / 160 + c.seed)) * (moving ? 0.1 : 0.25);
+    c.body.position.y = curled ? -0.02 : Math.abs(Math.sin(t / 90)) * (moving ? 0.004 : 0);
+    return true;
+  }
+
+  private startHop(c: Critter) {
+    if (c.hop >= 0) return;
+    c.hop = 0;
+    c.a1 = c.a + (hash(c.seed, Math.floor(this.lastT / 1000), 7) < 0.5 ? -1 : 1) * (0.06 + hash(c.seed, Math.floor(this.lastT / 1000), 8) * 0.06);
+  }
+
+  // on the sandy lake bank, just up from the water; clear of the jetty on the west bank
+  private toadAt(a: number) {
+    const e = 1.1;
+    if (a > 2.4 && a < 3.5) a = a < 2.95 ? 2.4 : 3.5;
+    return { x: LAKE.x + Math.cos(a) * LAKE.rx * e, z: LAKE.z + Math.sin(a) * LAKE.rz * e, y: -0.14 * (1 - THREE.MathUtils.smoothstep(e, 1, 1.3)) };
+  }
+
+  private updateToad(c: Critter, dt: number, t: number) {
+    if (!c.x) {
+      c.a = hash(c.seed, 1, 3) * Math.PI * 2;
+      c.x = 1;
+      c.wait = 2 + hash(c.seed, 2, 4) * 6;
+    }
+    let y = 0;
+    if (c.hop >= 0) {
+      c.hop += dt / 0.45;
+      const k = Math.min(1, c.hop);
+      const a = c.a + (c.a1 - c.a) * k;
+      const p = this.toadAt(a), q = this.toadAt(c.a1);
+      c.heading = Math.atan2(q.x - p.x, q.z - p.z);
+      c.g.position.set(p.x, p.y, p.z);
+      y = Math.sin(Math.PI * k) * 0.1;
+      c.legs.forEach((l, i) => { l.rotation.x = i > 1 ? -Math.sin(Math.PI * k) * 1.1 : Math.sin(Math.PI * k) * 0.4; });
+      if (k >= 1) { c.a = c.a1; c.hop = -1; c.wait = 4 + hash(c.seed, Math.floor(t / 1000), 5) * 10; }
+    } else {
+      const p = this.toadAt(c.a);
+      c.g.position.set(p.x, p.y, p.z);
+      // facing out over the water, its throat pulsing
+      c.heading = Math.atan2(LAKE.x - p.x, LAKE.z - p.z);
+      c.legs.forEach((l) => { l.rotation.x = 0; });
+      c.wait -= dt;
+      if (c.wait <= 0) this.startHop(c);
+    }
+    c.g.rotation.y = c.heading;
+    c.body.position.y = y;
+    c.body.scale.y = c.body.scale.x * (1 + (c.hop < 0 ? Math.max(0, Math.sin(t / 240 + c.seed)) * 0.05 : 0));
+    return true;
+  }
+
+  // round and round a barn roof on quick, jinking wing beats
+  private updateBat(c: Critter, t: number) {
+    const roofs = this.help.roofs();
+    if (!roofs.length) return false;
+    const r = roofs[Math.floor(hash(c.seed, 1, 5) * roofs.length)];
+    const a = t / 1000 * (1.1 + hash(c.seed, 2, 6) * 0.6) + c.seed;
+    const R = 1.6 + hash(c.seed, 3, 7) * 1.2;
+    const x = r.x + Math.cos(a) * R + Math.sin(a * 2.7) * 0.35;
+    const z = r.y + Math.sin(a) * R + Math.cos(a * 3.1) * 0.35;
+    const y = r.h + 0.6 + Math.sin(a * 1.9) * 0.35 + Math.sin(a * 5.3) * 0.08;
+    const p = c.g.position;
+    const dx = x - p.x, dz = z - p.z;
+    if (Math.hypot(dx, dz) > 0.001) c.heading = Math.atan2(dx, dz);
+    p.set(x, y, z);
+    c.g.rotation.set(0, c.heading, Math.sin(a * 2.7) * 0.4);
+    const beat = Math.sin(t / 38 + c.seed) * 0.9;
+    c.wings.forEach((w, i) => { w.rotation.z = (i ? -1 : 1) * beat; });
+    return true;
+  }
+
+  private updateFlies(t: number, target: THREE.Vector3, fade: number) {
+    for (let i = 0; i < FIREFLIES; i++) {
+      const f = this.flies[i];
+      if (!f.x || Math.hypot(f.x - target.x, f.z - target.z) > 15) {
+        const p = this.grassSpot(i * 7.1 + 3, Math.floor(t / 20000) + i, target.x, target.z, 12);
+        if (p) { f.x = p.x; f.z = p.z; } else { this.flyCol[i * 3] = this.flyCol[i * 3 + 1] = this.flyCol[i * 3 + 2] = 0; continue; }
+      }
+      const k = t / 1000 * f.sp + f.ph;
+      this.flyPos[i * 3] = f.x + Math.sin(k * 0.7) * 0.6 + Math.sin(k * 1.9) * 0.15;
+      this.flyPos[i * 3 + 1] = 0.25 + Math.sin(k * 1.3) * 0.15 + Math.sin(k * 0.4) * 0.1;
+      this.flyPos[i * 3 + 2] = f.z + Math.cos(k * 0.6) * 0.6 + Math.cos(k * 2.2) * 0.15;
+      // a slow glow up and fade, then dark for a while
+      const b = Math.pow(Math.max(0, Math.sin(k * 1.1)), 3) * fade;
+      this.flyCol[i * 3] = 0.75 * b;
+      this.flyCol[i * 3 + 1] = 1.0 * b;
+      this.flyCol[i * 3 + 2] = 0.3 * b;
+    }
+    const geo = this.flyPts.geometry;
+    geo.attributes.position.needsUpdate = true;
+    geo.attributes.color.needsUpdate = true;
+  }
+}
+function turnTo(h: number, want: number, k: number) {
+  let d = want - h;
+  while (d > Math.PI) d -= Math.PI * 2;
+  while (d < -Math.PI) d += Math.PI * 2;
+  return h + d * Math.min(1, k);
 }
 
 // Butterflies over the grass, gulls circling above the shore, fish leaping in the sea and a

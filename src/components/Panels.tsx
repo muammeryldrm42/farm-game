@@ -39,8 +39,18 @@ import {
   GRAZE,
   storyReward,
   type FarmObject,
+  PET,
+  PET_PAT_MS,
+  PET_SEARCH_MS,
+  petFed,
+  petGift,
+  petHearts,
+  petHelp,
+  claimableAlbum,
+  albumSetDone,
 } from '@/game/state';
 import { CAST, LAST_CHAPTER, chapterAt, taskProgress, type Chapter } from '@/game/story';
+import { ALBUM } from '@/game/album';
 import { getQuality, setQuality, type Quality } from '@/game/quality';
 import { artStyle, setArtStyle, type ArtStyle } from '@/game/gfx/creatures';
 import { Coin } from './Hud';
@@ -141,6 +151,7 @@ export default function Panels() {
       {ui.panel === 'boat' && <BoatModal />}
       {ui.panel === 'fishing' && <FishingModal />}
       {ui.panel === 'home' && <HomeModal />}
+      {ui.panel === 'pet' && <PetModal />}
       {ui.napping && <SleepOverlay />}
       {ui.expand && <ExpandModal />}
       {ui.daily && ui.levelUp === null && <DailyModal />}
@@ -1117,10 +1128,13 @@ function StorageModal() {
 function QuestsModal() {
   const store = useStore();
   const s = store.s;
-  const [tab, setTab] = useState<'story' | 'goals' | 'badges'>('story');
+  const [tab, setTab] = useState<'story' | 'goals' | 'badges' | 'album'>('story');
   const badgeCount = claimableBadges(s).length;
+  const albumCount = claimableAlbum(s).length;
+  const title = { story: 'Farm Story', goals: 'Farm Goals', badges: 'Badges', album: 'Farm Album' }[tab];
+  const icon = { story: '📖', goals: '🏆', badges: '🎖️', album: '📔' }[tab];
   return (
-    <Modal title={tab === 'story' ? 'Farm Story' : tab === 'goals' ? 'Farm Goals' : 'Badges'} icon={tab === 'story' ? '📖' : tab === 'goals' ? '🏆' : '🎖️'} onClose={() => store.openPanel(null)}>
+    <Modal title={title} icon={icon} onClose={() => store.openPanel(null)}>
       <div className="mb-3 flex gap-1.5">
         <button className={`btn relative ${tab === 'story' ? 'btn-yellow' : 'btn-ghost'}`} onClick={() => setTab('story')}>
           Story
@@ -1133,8 +1147,131 @@ function QuestsModal() {
           Badges
           {badgeCount > 0 && <span className="badge">{badgeCount}</span>}
         </button>
+        <button className={`btn relative ${tab === 'album' ? 'btn-yellow' : 'btn-ghost'}`} onClick={() => setTab('album')}>
+          Album
+          {albumCount > 0 && <span className="badge">{albumCount}</span>}
+        </button>
       </div>
-      {tab === 'story' ? <StoryPage /> : tab === 'goals' ? <GoalsList /> : <BadgesList />}
+      {tab === 'story' ? <StoryPage /> : tab === 'goals' ? <GoalsList /> : tab === 'badges' ? <BadgesList /> : <AlbumList />}
+    </Modal>
+  );
+}
+
+// The album: every set with what has been found so far (the rest a question mark), and the
+// reward for a finished set
+function AlbumList() {
+  const store = useStore();
+  const s = store.s;
+  const [open, setOpen] = useState<string | null>(null);
+  return (
+    <div className="flex flex-col gap-2">
+      {ALBUM.map((a) => {
+        const got = a.entries.filter((e) => s.album?.[e.id]).length;
+        const done = albumSetDone(s, a.id);
+        const taken = !!s.albumDone?.includes(a.id);
+        return (
+          <div key={a.id} className={`card p-3 ${done && !taken ? 'ring-2 ring-[#5cb82e]' : ''}`}>
+            <div className="flex items-center gap-2">
+              <button className="flex min-w-0 flex-1 items-center gap-2 text-left" onClick={() => setOpen(open === a.id ? null : a.id)} aria-expanded={open === a.id}>
+                <span className="emoji text-2xl">{a.icon}</span>
+                <span className="min-w-0 flex-1">
+                  <span className="block font-bold">{a.name} <span className="text-xs text-[#8a6a44]">{got}/{a.entries.length}</span></span>
+                  <span className="block text-[11px] text-[#8a6a44]">{a.how}</span>
+                </span>
+                <span className="text-xs text-[#8a6a44]">{open === a.id ? '▲' : '▼'}</span>
+              </button>
+              {taken ? (
+                <span className="emoji text-xl" title="Reward taken">✅</span>
+              ) : (
+                <button className="btn btn-green shrink-0 py-1.5 text-xs" disabled={!done} onClick={() => store.claimAlbum(a.id)}>
+                  <Coins n={a.reward.coins} /> <Gems n={a.reward.gems} />
+                </button>
+              )}
+            </div>
+            <div className="my-1.5"><Bar p={got / a.entries.length} color={taken ? '#f5b92b' : '#5cb82e'} /></div>
+            {open === a.id && <div className="grid grid-cols-4 gap-1.5 sm:grid-cols-6">
+              {a.entries.map((e) => {
+                const f = !!s.album?.[e.id];
+                return (
+                  <div key={e.id} className={`flex flex-col items-center rounded-xl border-2 p-1 text-center ${f ? 'border-[#e0c48f] bg-white' : 'border-dashed border-[#d8c49e] bg-[#f4ead4]'}`} title={f ? e.name : 'Not found yet'}>
+                    <span className={`emoji text-2xl ${f ? '' : 'opacity-50'}`}>{f ? <Ico i={e.icon} id={e.model} /> : '❔'}</span>
+                    <span className="line-clamp-2 text-[9px] font-bold leading-tight">{f ? e.name : '???'}</span>
+                  </div>
+                );
+              })}
+            </div>}
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
+// The dog or the cat: pat it, feed it once a day, open what it brings back, give it a name
+function PetModal() {
+  const store = useStore();
+  const [, tick] = useState(0);
+  useEffect(() => {
+    const t = setInterval(() => tick((n) => n + 1), 1000);
+    return () => clearInterval(t);
+  }, []);
+  const id = store.ui.pet ?? 'dog';
+  const def = PET[id];
+  const p = store.pet(id);
+  const now = Date.now();
+  const [name, setName] = useState(p.name);
+  const hearts = petHearts(p);
+  const gift = petGift(p, now);
+  const food = store.petFood(id);
+  const patted = now - p.petAt < PET_PAT_MS;
+  const help = Math.round(petHelp({ ...p, fedDay: todayKey() }) * 100);
+  return (
+    <Modal title={p.name} icon={def.icon} onClose={() => store.openPanel(null)}>
+      <div className="flex flex-col items-center gap-2 py-1 text-center">
+        <span className="emoji text-6xl"><Ico i={def.icon} id={`animal_${id}`} /></span>
+        <div className="flex items-center gap-1.5">
+          <input
+            className="w-36 rounded-xl border-2 border-[#d8c49e] bg-white px-2 py-1 text-center font-bold"
+            value={name}
+            maxLength={14}
+            aria-label="Name"
+            onChange={(e) => setName(e.target.value)}
+            onBlur={() => store.renamePet(id, name)}
+            onKeyDown={(e) => { if (e.key === 'Enter') (e.target as HTMLInputElement).blur(); }}
+          />
+          <span className="text-xs text-[#8a6a44]">the {def.kind.toLowerCase()}</span>
+        </div>
+        <div className="emoji text-xl" aria-label={`${hearts} of 5 hearts`}>{'❤️'.repeat(hearts)}{'🤍'.repeat(5 - hearts)}</div>
+        <div className="w-40"><Bar p={hearts >= 5 ? 1 : (p.love % 20) / 20} color="#f06292" /></div>
+        <p className="text-sm">
+          {p.name} {def.job}.{' '}
+          <b>{petFed(p) ? `Fed today: ${help}% chance.` : `Hungry: feed ${p.name} for ${help}% today.`}</b>
+        </p>
+        <div className="flex flex-wrap justify-center gap-2">
+          <button className="btn btn-wood" onClick={() => store.patPet(id)}>
+            <span className="emoji">💕</span> {patted ? 'Pat again' : 'Pat'}
+          </button>
+          <button className="btn btn-green" disabled={petFed(p)} onClick={() => store.feedPet(id)}>
+            {petFed(p) ? 'Fed today' : food ? <>Feed 1 <Ico i={ITEMS[food].icon} /></> : 'No food'}
+          </button>
+        </div>
+        {!petFed(p) && !food && (
+          <p className="text-xs text-[#b0442c]">{p.name} eats {def.foods.map((f) => ITEMS[f].name.toLowerCase()).join(' or ')}.</p>
+        )}
+        <div className="card w-full p-2 text-sm">
+          {gift === 'ready' ? (
+            <button className="btn btn-yellow w-full" onClick={() => store.openPetGift(id)}>
+              <span className="emoji inline-block animate-bob">🎁</span> {p.name} brought you something!
+            </button>
+          ) : gift === 'searching' ? (
+            <span>{p.name} {def.search}... back in {fmtTime(Math.max(0, PET_SEARCH_MS - (now - p.fedAt)))}</span>
+          ) : gift === 'done' ? (
+            <span>Today&apos;s find is in. Feed {p.name} again tomorrow for another.</span>
+          ) : (
+            <span>Feed {p.name} and it goes looking for something for your album.</span>
+          )}
+        </div>
+      </div>
     </Modal>
   );
 }

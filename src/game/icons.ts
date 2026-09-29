@@ -312,7 +312,6 @@ const PAINTERS: Record<string, Painter> = {
       c.beginPath(); c.arc(x, y, r, 0, Math.PI * 2); outline(c, 2.5);
     }
   },
-  owl_feather: feather(['#f2d8a8', '#b07a3a']),
   kiwi_egg: egg(['#fffcf2', '#e8e0cc']),
   vicuna_wool: skein(['#f2c888', '#b87a3a']),
   // ---- more farm animals: badges

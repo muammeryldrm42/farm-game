@@ -7,6 +7,7 @@
 # Run: python3 tools/blender/animals.py [names...]   (see kit.main)
 import math
 import os
+import re
 import sys
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
@@ -538,6 +539,11 @@ if os.path.isdir(SCULPTS):
         k = f[:-5]
         if f.endswith('.json') and not k.startswith(('crop_', 'real_')):
             MODELS[f'animal_{k}'] = (lambda kk=k: from_sculpt(kk))
+
+# the breeds built in breeds.py (on the realistic sculpts, or modelled there) are left to it
+_breeds = open(os.path.join(os.path.dirname(os.path.abspath(__file__)), 'breeds.py')).read()
+for _k in re.findall(r"'([a-z_]+)': [a-z_]+[,}]", _breeds[_breeds.index('MODELS = {'):]):
+    MODELS.pop(f'animal_{_k}', None)
 
 if __name__ == '__main__':
     main(MODELS)
