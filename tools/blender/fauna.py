@@ -85,6 +85,8 @@ def scale_all(S):
     import mathutils
     import bpy
     M = mathutils.Matrix.Scale(S, 4)
+    # settle what was just set (the eye mark's size) before reading the matrices back
+    bpy.context.view_layer.update()
     for o in bpy.context.scene.objects:
         o.matrix_world = M @ o.matrix_world
     from kit import ANIM
