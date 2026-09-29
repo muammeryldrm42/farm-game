@@ -711,16 +711,39 @@ def ostrich():
     finish('animal_ostrich', tex=1024, vivid=1.06, ao_min=0.62, ao_dist=0.08)
 
 
-def peacock():
-    """A peacock with its train folded behind it: a shining blue neck and breast, a bronze green
-    back, barred brown wings, the long train of eyed feathers trailing on the ground, and a fan
-    shaped crest."""
+def peacock(kind='peacock', white=False):
+    """A peacock: a shining blue neck and breast, a bronze green back, barred brown wings, and a
+    fan shaped crest. Its long train of eyed feathers trails behind (`train`), and it can raise it
+    into the great upright fan of its display (`fan`, built open; the game folds it away and
+    raises it now and then). The white peacock is the same bird all in white."""
     def paint(part, x, y, z):
+        if white:
+            return '#f6f5f0' if part not in ('wing',) else '#ecebe4'
+        if part == 'fan':
+            # an eye near the end of each feather, and a second row of them further in
+            ang = math.atan2(x, max(1e-4, y - 0.2))
+            r = math.hypot(x, y - 0.2)
+            best = 1.0
+            for row, frac, off in ((0, 0.86, 0.0), (1, 0.6, 0.5)):
+                k = round(ang / (math.pi * 1.05 / 30) - off)
+                a = (k + off) * math.pi * 1.05 / 30
+                L = (0.36 - abs(a) * 0.05) * frac
+                best = min(best, math.hypot(x - math.sin(a) * L, (y - 0.2) - math.cos(a) * L) / (1.0 if row == 0 else 0.8))
+            if best < 0.012:
+                return '#141a4a'
+            if best < 0.018:
+                return '#2a8a8a'
+            if best < 0.026:
+                return '#c8a030'
+            return '#3a7a3a' if r > 0.12 else '#2a6a4a'
         if part == 'train':
-            # the eye spots down the train
-            u = (-z - 0.1) * 18
-            if math.sin(u * 2.4) > 0.75 and abs(math.sin(x * 60 + u)) > 0.3:
-                return '#1a2a6a' if math.sin(u * 2.4) > 0.9 else '#c8a030'
+            # the eyes down the folded train
+            u = (-z - 0.1) / 0.04
+            d = math.hypot((u - round(u)) * 0.04, (x - round(x / 0.02) * 0.02))
+            if -z > 0.18 and d < 0.006:
+                return '#141a4a'
+            if -z > 0.18 and d < 0.01:
+                return '#c8a030'
             return '#3a7a3a' if noise(x, y, z, 80) < 0.2 else '#2a6a4a'
         if part == 'wing':
             return '#a07a4a' if math.sin(z * 150) > 0 else '#3a2a1a'
@@ -738,12 +761,27 @@ def peacock():
         w = Blob(0.0025)
         w.ell((sx * 0.045, 0.2, -0.02), 0.012, 0.035, 0.06)
         w.build(by(paint, 'wing'), 300)
-    tr = Blob(0.003)
-    for k in range(7):
-        x = (k - 3) * 0.01
-        tr.cap((x * 0.5, 0.2, -0.07), (x * 1.8, 0.1, -0.22), 0.022, 0.02)
-        tr.cap((x * 1.8, 0.1, -0.22), (x * 1.2, 0.015, -0.42), 0.02, 0.008)
-    tr.build(by(paint, 'train'), 2000)
+    with anim_group('train', B(0, 0.2, -0.07)):
+        tr = Blob(0.003)
+        for k in range(7):
+            x = (k - 3) * 0.01
+            tr.cap((x * 0.5, 0.2, -0.07), (x * 1.8, 0.1, -0.22), 0.022, 0.02)
+            tr.cap((x * 1.8, 0.1, -0.22), (x * 1.2, 0.015, -0.42), 0.02, 0.008)
+        tr.build(by(paint, 'train'), 2000)
+    with anim_group('fan', B(0, 0.2, -0.07)):
+        # the display: some thirty feathers raised in a half wheel behind the bird, each a quill
+        # widening to a rounded vane with its eye near the tip
+        fn = Blob(0.0022)
+        for k in range(31):
+            a = (k / 30 - 0.5) * math.pi * 1.05
+            d = (math.sin(a), math.cos(a))
+            L = 0.36 - abs(a) * 0.05
+            base = (d[0] * 0.03, 0.2 + d[1] * 0.03, -0.075)
+            mid = (d[0] * L * 0.55, 0.2 + d[1] * L * 0.55, -0.09)
+            tip = (d[0] * L, 0.2 + d[1] * L, -0.1)
+            fn.cap(base, mid, 0.008, 0.016)
+            fn.cap(mid, tip, 0.016, 0.022)
+        fn.build(by(paint, 'fan'), 12000)
     with anim_group('head', B(0, 0.23, 0.06)):
         n = Blob(0.002)
         n.cap((0, 0.23, 0.06), (0, 0.32, 0.09), 0.02, 0.012)
@@ -758,12 +796,16 @@ def peacock():
             tip = (math.sin(a) * 0.014, 0.37, 0.09 + math.cos(a) * 0.004)
             cr.cap((0, 0.345, 0.092), tip, 0.0012, 0.0009)
             cr.ball(tip, 0.004)
-        cr.build(pm('pc_crest', '#1e4ab0'), 200)
+        cr.build(pm('pc_crest_w' if white else 'pc_crest', '#f0efe8' if white else '#1e4ab0'), 200)
     eye_mark((0.011, 0.337, 0.103), 0.004, 1.0)
     for i, sx in enumerate((-1, 1)):
         with anim_group(f'leg{i}', B(sx * 0.024, 0.13, 0.0)):
-            bird_leg(sx * 0.024, 0.14, 0.0, 0.006, '#8a8684')
-    finish('animal_peacock', tex=1024, vivid=1.06, ao_min=0.62, ao_dist=0.06)
+            bird_leg(sx * 0.024, 0.14, 0.0, 0.006, '#b8b4ae' if white else '#8a8684')
+    finish(f'animal_{kind}', tex=1024, vivid=1.06, ao_min=0.62, ao_dist=0.06)
+
+
+def white_peacock():
+    peacock('white_peacock', white=True)
 
 
 def quail():
@@ -884,7 +926,7 @@ def rabbit():
 
 
 MODELS = {'animal_cow': cow, 'animal_camel': camel, 'animal_alpaca': alpaca, 'animal_yak': yak, 'animal_buffalo': buffalo,
-          'animal_gobbler': gobbler, 'animal_ostrich': ostrich, 'animal_peacock': peacock, 'animal_quail': quail, 'animal_duck': duck,
+          'animal_gobbler': gobbler, 'animal_ostrich': ostrich, 'animal_peacock': peacock, 'animal_white_peacock': white_peacock, 'animal_quail': quail, 'animal_duck': duck,
           'animal_rabbit': rabbit, 'animal_horse': horse, 'animal_donkey': donkey, 'animal_sheep': sheep, 'animal_dog': dog}
 
 if __name__ == '__main__':

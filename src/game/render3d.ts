@@ -3073,7 +3073,8 @@ const WING: Record<string, string> = {
 function addWings(g: THREE.Group, kind: string) {
   g.updateMatrixWorld(true);
   const bb = new THREE.Box3();
-  for (const c of g.children) if (c !== g.userData.shadow) bb.expandByObject(c);
+  // the body only: not the shadow, nor a peacock's train or fan, which would make huge wings
+  for (const c of g.children) if (c !== g.userData.shadow && c !== g.userData.fan && c !== g.userData.train) bb.expandByObject(c);
   if (bb.isEmpty()) return;
   const k = g.scale.x || 1;
   const w = (bb.max.x - bb.min.x) / k, h = (bb.max.y - bb.min.y) / k, l = (bb.max.z - bb.min.z) / k;
@@ -3089,6 +3090,29 @@ function addWings(g: THREE.Group, kind: string) {
   }
   g.userData.wings = wings;
 }
+// A peacock now and then stops and raises its train into the great fan of its display, holds
+// it up with a shiver of the feathers and a slow turn, then lets it fold down again. Not while
+// it walks, flies or sits up on a roof.
+function peacockShow(m: THREE.Object3D, t: number, id: number, dt: number) {
+  const fan = m.userData.fan as THREE.Object3D, train = m.userData.train as THREE.Object3D | undefined;
+  const last = (m.userData.lastPos as THREE.Vector3 | undefined) ?? (m.userData.lastPos = m.position.clone());
+  const speed = dt > 0 ? m.position.distanceTo(last) / dt : 0;
+  last.copy(m.position);
+  const P = 38000 + hash(id, 21, 5) * 22000, u = (t + hash(id, 22, 6) * P) % P;
+  const want = u < 9000 && speed < 0.05 && m.position.y < 0.2 ? 1 : 0;
+  let k = (m.userData.fanK as number | undefined) ?? 0;
+  k += Math.sign(want - k) * Math.min(Math.abs(want - k), dt / 0.9);
+  m.userData.fanK = k;
+  const e = k * k * (3 - 2 * k);
+  fan.visible = e > 0.01;
+  // it rises from lying back along the train, spreading as it comes up
+  fan.scale.set(Math.max(0.01, e), Math.max(0.01, 0.35 + 0.65 * e), 1);
+  fan.rotation.x = (1 - e) * 1.25;
+  // fully up: the rattle of the quills
+  fan.rotation.z = e > 0.97 ? Math.sin(t / 28) * 0.018 : 0;
+  if (train) train.visible = e < 0.5;
+}
+
 // flight pose: wings out and beating (or held for a glide), legs tucked
 function flap(m: THREE.Object3D, on: boolean, t: number, id: number, fast = 1, glide = false) {
   const wings = m.userData.wings as THREE.Object3D[] | undefined;
@@ -3452,6 +3476,7 @@ function assembleModel(src: THREE.Object3D) {
     }
     if (c.name === 'head') g.userData.head = c;
     else if (c.name === 'tail') g.userData.tail = c;
+    else if (c.name === 'fan' || c.name === 'train') g.userData[c.name] = c;   // a peacock's display and its folded train
     else if (/^leg\d$/.test(c.name)) legs[+c.name.slice(3)] = c;
     else if ((c as THREE.Mesh).isMesh) {
       const bb = new THREE.Box3().setFromObject(c);
@@ -5032,6 +5057,7 @@ function buildPen(e: Entry, d: BuildingDef) {
       }
       const head = m.userData.head as THREE.Object3D | undefined;
       const tail = m.userData.tail as THREE.Object3D | undefined;
+      if (m.userData.fan) peacockShow(m, t, id, dt);
       const fp = a?.graze && an && FLIERS.has(an.id) ? flyPose(o, d, a, an.id, now) : null;
       if (fp) {
         const cs = m.userData.shadow as THREE.Object3D | undefined;
