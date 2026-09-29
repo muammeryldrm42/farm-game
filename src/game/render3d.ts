@@ -21,7 +21,7 @@ import { SCULPT_MAT, TOON_MAT, TOON_WOOL, WOOL_MAT } from './gfx/sdf';
 import { leafShell, leafTexture, meterBox, meterHip, meterRoof, surface, surfaceMat, type SurfaceKind } from './gfx/textures';
 import { ANIMAL, BUILDING, CROP, ITEMS, type BuildingDef, type CropDef } from './data';
 import {
-  CHUNK, FARM_OFF, FISH_SPOT, footprint, SEA_FISH_SPOT, fishSpotAt, type FishSpot, GRAZE, GRID, LAKE, MAP_OFF2, MAP_OFF3, NCH, isBeachTile, lakeE, animalReady, fishingInfo, boatState, canFulfill, chunkState, grazePhase, penInfo, plotProgress, prodInfo, treeInfo,
+  CHUNK, FARM_OFF, FISH_SPOT, footprint, PET_IDS, petGift, type PetId, SEA_FISH_SPOT, fishSpotAt, type FishSpot, GRAZE, GRID, LAKE, MAP_OFF2, MAP_OFF3, NCH, isBeachTile, lakeE, animalReady, fishingInfo, boatState, canFulfill, chunkState, grazePhase, penInfo, plotProgress, prodInfo, treeInfo,
   type Animal, type FarmObject, type GameStore,
 } from './state';
 
@@ -756,6 +756,20 @@ export class Renderer {
     return g ? { x: Math.floor(g.x), y: Math.floor(g.z) } : { x: -99, y: -99 };
   }
 
+  // how far a tap is from a thing at (x, y, z) about `r` tiles across, in pixels; null when it
+  // is not on it (with a little slack round small things)
+  private tapDist(sx: number, sy: number, x: number, y: number, z: number, r: number) {
+    const a = new THREE.Vector3(x, y, z).project(this.camera);
+    if (a.z > 1) return null;
+    const b = new THREE.Vector3(x, y + r, z).project(this.camera);
+    const px = ((a.x + 1) / 2) * this.W, py = ((1 - a.y) / 2) * this.H;
+    const rr = Math.max(22, Math.hypot((b.x - a.x) / 2 * this.W, (b.y - a.y) / 2 * this.H) * 1.3);
+    const d = Math.hypot(sx - px, sy - py);
+    return d <= rr ? d : null;
+  }
+
+  startle(c: ShoreHit) { this.shore.startle(c); }
+
   toScreen(gx: number, gy: number, z = 0) {
     const v = new THREE.Vector3(gx, z * ZU, gy).project(this.camera);
     return { x: ((v.x + 1) / 2) * this.W, y: ((1 - v.y) / 2) * this.H };
@@ -818,8 +832,22 @@ export class Renderer {
 
   // ------------------------------------------------ picking
 
-  pick(sx: number, sy: number): { obj?: FarmObject; tile: { x: number; y: number }; spot?: 'fishing' | 'seaFishing' | 'visitor' } {
+  pick(sx: number, sy: number): { obj?: FarmObject; tile: { x: number; y: number }; spot?: 'fishing' | 'seaFishing' | 'visitor'; pet?: PetId; creature?: ShoreHit } {
     const tile = this.gridAt(sx, sy);
+    // the pets and the shore creatures are small and on the move: a tap close to one counts
+    if (!this.store.ui.placing) {
+      let best: { d: number; pet?: PetId; creature?: ShoreHit } | null = null;
+      for (const id of PET_IDS) {
+        const a = id === 'dog' ? this.dog : this.cat;
+        const d = this.tapDist(sx, sy, a.g.position.x, a.g.position.y + 0.3, a.g.position.z, 0.45);
+        if (d !== null && (!best || d < best.d)) best = { d, pet: id };
+      }
+      for (const c of this.shore.creatures()) {
+        const d = this.tapDist(sx, sy, c.x, c.y, c.z, c.r);
+        if (d !== null && (!best || d < best.d)) best = { d, creature: c };
+      }
+      if (best) return { tile, pet: best.pet, creature: best.creature };
+    }
     const moveId = this.store.ui.placing?.moveId;
     const hits: THREE.Object3D[] = [this.fishing.hit, this.seaFishing.hit];
     const v = this.visitor;
@@ -1470,6 +1498,7 @@ export class Renderer {
     this.updateFx(dt);
     this.updateActors(dt, t, now);
     this.updateCat(dt, t);
+    this.updatePets(t, now);
     this.updateClouds(dt);
     this.updateFishing(t, now);
     this.life.update(dt, t, this.nightNow(now), this.target);
@@ -2645,6 +2674,43 @@ export class Renderer {
       this.homeZzz.position.set(home.door.x + 0.6 + k * 0.3, 2.2 + k * 0.8, home.door.y - 1);
       this.homeZzz.scale.set(1.4 + k * 0.4, 0.27 + k * 0.08, 1);
       this.homeZzz.material.opacity = Math.sin(k * Math.PI) * 0.9;
+    }
+  }
+
+  // over each pet: hearts rising while it is patted or fed (and a happy hop and a wag), or a
+  // gift box once it is back from its search with something for you
+  private petMarks = new Map<PetId, THREE.Sprite>();
+  private updatePets(t: number, now: number) {
+    const joy = this.store.ui.petJoy;
+    for (const id of PET_IDS) {
+      const a = id === 'dog' ? this.dog : this.cat;
+      let m = this.petMarks.get(id);
+      if (!m) {
+        m = new THREE.Sprite(new THREE.SpriteMaterial({ transparent: true, depthTest: false, depthWrite: false }));
+        m.renderOrder = 30;
+        this.fxLayer.add(m);
+        this.petMarks.set(id, m);
+      }
+      const k = joy && joy.id === id ? (now - joy.at) / 1800 : 1;
+      const mat = m.material, was = mat.map;
+      const p = a.g.position;
+      if (k < 1) {
+        mat.map = emojiTex(joy!.kind === 'gift' ? '✨' : '💕');
+        mat.opacity = Math.min(1, (1 - k) * 2.5);
+        m.scale.setScalar(0.45 + k * 0.25);
+        m.position.set(p.x, p.y + 0.85 + k * 0.6, p.z);
+        m.visible = true;
+        if (!a.sleeping) p.y += Math.abs(Math.sin(t / 85)) * 0.07 * (1 - k);
+        const tail = a.g.userData.tail as THREE.Object3D | undefined;
+        if (tail) tail.rotation.z = Math.sin(t / 55) * 0.8;
+      } else if (petGift(this.store.pet(id), now) === 'ready') {
+        mat.map = emojiTex('🎁', true);
+        mat.opacity = 1;
+        m.scale.setScalar(0.5);
+        m.position.set(p.x, p.y + 0.95 + Math.sin(t / 300) * 0.06, p.z);
+        m.visible = true;
+      } else m.visible = false;
+      if (mat.map !== was) mat.needsUpdate = true;
     }
   }
 
@@ -6268,7 +6334,11 @@ function shoreY(out: number) {
 const SEA_ROCKS: [number, number, number][] = [[0, 15, 1.15], [0, 46, 1.3], [1, 22, 1.25], [1, 52, 1.1], [3, 17, 1.2], [3, 44, 1.35]];
 const SEAL_TINTS: [number, number, number][] = [[1, 1, 1], [0.55, 0.54, 0.56], [0.92, 0.84, 0.76], [0.7, 0.66, 0.64]];
 
+// a creature on the shore under a tap: what it is, where, and which one
+interface ShoreHit { kind: string; x: number; y: number; z: number; r: number; crab?: Crab; flock?: Flock }
+
 class ShoreLife {
+  private lastT = 0;
   private crabs: Crab[] = [];
   private seals: Seal[] = [];
   private flocks: Flock[] = [];
@@ -6625,7 +6695,31 @@ class ShoreLife {
     return true;
   }
 
+  // the creatures showing now, for a tap to find
+  creatures(): ShoreHit[] {
+    const out: ShoreHit[] = [];
+    for (const c of this.crabs) if (c.g.visible && c.mode !== 'sea') out.push({ kind: c.kind, x: c.g.position.x, y: c.g.position.y + 0.05, z: c.g.position.z, r: 0.3, crab: c });
+    for (const s of this.seals) if (s.ready && s.g.visible && s.y > SEA_Y - 0.35) out.push({ kind: 'harbor_seal', x: s.x, y: s.y + 0.15, z: s.z, r: 0.6 });
+    for (const f of this.flocks) for (const b of f.birds) if (b.g.visible) out.push({ kind: 'sandpiper', x: b.x, y: b.y + 0.08, z: b.z, r: 0.22, flock: f });
+    return out;
+  }
+
+  // a tapped creature minds it: a crab dives into its burrow or its shell, or scuttles off; a
+  // flock of sanderlings takes off
+  startle(h: ShoreHit) {
+    const c = h.crab;
+    if (c) {
+      if (BURROW_CRABS.has(c.kind) || FORWARD_CRABS.has(c.kind)) { c.hide = 3 + Math.random() * 3; c.wait = 0; }
+      else if (c.mode === 'beach') {
+        const p = this.spot(c, Math.floor(this.lastT / 1000) + 31);
+        c.tx = p.x; c.tz = p.z; c.wait = 0;
+      }
+    }
+    if (h.flock && !h.flock.fly) this.startFlight(h.flock, this.lastT);
+  }
+
   update(dt: number, t: number) {
+    this.lastT = t;
     this.updateSeals(dt, t);
     this.updateFlocks(dt, t);
     for (const c of this.crabs) {

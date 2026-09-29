@@ -98,6 +98,7 @@ function FarmCanvas() {
     let sx = 0, sy = 0, pinchD = 1, pinchZ = 1, pinchA = 0;
     let hitObj: FarmObject | null = null;
     let hitSpot: 'fishing' | 'seaFishing' | 'visitor' | null = null;
+    let hitPick: ReturnType<typeof r.pick> | null = null;
     let hitTile = { x: 0, y: 0 };
     let ghostOff = { x: 0, y: 0 };
     let lp: ReturnType<typeof setTimeout> | null = null;
@@ -130,6 +131,7 @@ function FarmCanvas() {
       const hit = r.pick(p.x, p.y);
       hitObj = hit.obj ?? null;
       hitSpot = hit.spot ?? null;
+      hitPick = hit;
       hitTile = hit.tile;
       const ui = store.ui;
 
@@ -218,6 +220,11 @@ function FarmCanvas() {
           const d = store.placingFootprint();
           const g = r.gridAt(p.x, p.y);
           store.setPlacingPos(g.x - Math.floor((d.w - 1) / 2), g.y - Math.floor((d.h - 1) / 2));
+        } else if (hitPick?.pet) {
+          store.tapPet(hitPick.pet);
+        } else if (hitPick?.creature) {
+          store.spotCreature(hitPick.creature.kind);
+          r.startle(hitPick.creature);
         } else if (hitObj) {
           // the farmer walks over to whatever you tap
           store.wake();
