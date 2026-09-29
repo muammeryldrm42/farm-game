@@ -3092,14 +3092,28 @@ const WING: Record<string, string> = {
 
 // two wings folded out of sight, opened and flapped only in flight
 function addWings(g: THREE.Group, kind: string) {
-  g.updateMatrixWorld(true);
-  const bb = new THREE.Box3();
-  // the body only: not the shadow, nor a peacock's train or fan, which would make huge wings
-  for (const c of g.children) if (c !== g.userData.shadow && c !== g.userData.fan && c !== g.userData.train) bb.expandByObject(c);
+  // measured in the bird's own space from its body alone (not the shadow, legs, a peacock's
+  // train or fan, nor anything a parent's scale may add), and kept to a bird's proportions:
+  // a bad measure must never give wings bigger than the pen
+  const skip = new Set<THREE.Object3D>([g.userData.shadow, g.userData.fan, g.userData.train,
+    ...((g.userData.legs as THREE.Object3D[] | undefined) ?? [])].filter(Boolean));
+  const bb = new THREE.Box3(), mb = new THREE.Box3(), mm = new THREE.Matrix4();
+  const walk = (o: THREE.Object3D, parent: THREE.Matrix4) => {
+    if (skip.has(o)) return;
+    o.updateMatrix();
+    const local = new THREE.Matrix4().multiplyMatrices(parent, o.matrix);
+    const mesh = o as THREE.Mesh;
+    if (mesh.isMesh && mesh.geometry) {
+      if (!mesh.geometry.boundingBox) mesh.geometry.computeBoundingBox();
+      mb.copy(mesh.geometry.boundingBox!).applyMatrix4(mm.copy(local));
+      bb.union(mb);
+    }
+    for (const c of o.children) walk(c, local);
+  };
+  for (const c of g.children) walk(c, new THREE.Matrix4());
   if (bb.isEmpty()) return;
-  const k = g.scale.x || 1;
-  const w = (bb.max.x - bb.min.x) / k, h = (bb.max.y - bb.min.y) / k, l = (bb.max.z - bb.min.z) / k;
-  const cz = (bb.max.z + bb.min.z) / 2 / k;
+  const w = Math.min(0.3, bb.max.x - bb.min.x), h = Math.min(0.6, bb.max.y - bb.min.y), l = Math.min(0.45, bb.max.z - bb.min.z);
+  const cz = THREE.MathUtils.clamp((bb.max.z + bb.min.z) / 2, -0.2, 0.2);
   const mat = M(WING[kind] ?? '#efeae0');
   const wings: THREE.Object3D[] = [];
   for (const sx of [-1, 1]) {
