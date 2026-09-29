@@ -3740,10 +3740,12 @@ function buildHive() {
 
 // where an animal wanders in its pen, in the pen's own tiles; a turned pen turns its yard too
 function animalSpot(o: FarmObject, d: BuildingDef, id: number, t: number) {
-  const sp = penSpot(d, id, t);
+  const list = o.pen?.animals ?? [];
+  const slot = Math.max(0, list.findIndex((a) => a.id === id));
+  const sp = penSpot(d, id, t, slot, Math.max(list.length, d.capacity ?? 1));
   if (!o.rot) return sp;
   const q = penPt(o, d, sp.x, sp.z);
-  return { x: q.x, z: q.z, heading: sp.heading - o.rot * Math.PI / 2 };
+  return { ...sp, x: q.x, z: q.z, heading: sp.heading - o.rot * Math.PI / 2 };
 }
 // a point in a pen's own tiles as built, where it is on the turned pen's footprint: the model's
 // middle sits on the footprint's middle (they differ once an oblong pen stands the other way)
@@ -3753,16 +3755,55 @@ function penPt(o: FarmObject, d: BuildingDef, x: number, z: number) {
   const c = Math.cos(th), s = Math.sin(th), dx = x - d.w / 2, dz = z - d.h / 2;
   return { x: f.w / 2 + dx * c + dz * s, z: f.h / 2 - dx * s + dz * c };
 }
-function penSpot(d: BuildingDef, id: number, t: number) {
-  const u = hash(id, 1, 3), v = hash(id, 2, 5);
-  const m = d.w >= 3 ? 0.55 : 0.45;
-  let cx = m + u * (d.w - m * 2), cz = m + v * (d.h - m * 2);
-  if (cx < 1.1 && cz < 1.1) { cx += 0.6; cz += 0.3; }
-  const ph = (t / 5200) * (0.5 + u * 0.5) + id * 1.3 + 0.35 * Math.sin(t / 2300 + id);
-  const r = 0.2 + v * 0.14;
-  const x = clamp(cx + Math.cos(ph) * r, 0.3, d.w - 0.3);
-  const z = clamp(cz + Math.sin(ph) * r * 0.8, 0.3, d.h - 0.3);
-  return { x, z, heading: Math.atan2(-Math.sin(ph), Math.cos(ph) * 0.8) };
+// An animal's wandering in its pen: it stands a while (cropping the grass or looking about),
+// then walks at an easy pace to another spot and stands again. A pure function of time, like the
+// rest of the herd. `dist` is how far it has walked this stretch, for its legs.
+const PEN_SPEED = 0.32 / 1000; // tiles per ms
+// each animal has its own patch of the pen (the pen split into as many cells as it holds), so
+// the herd spreads out instead of walking through one another
+function penWay(d: BuildingDef, id: number, seg: number, slot: number, count: number) {
+  const m = d.w >= 3 ? 0.5 : 0.4;
+  const cols = Math.max(1, Math.round(Math.sqrt(count * (d.w - m * 2) / Math.max(0.5, d.h - m * 2))));
+  const rows = Math.max(1, Math.ceil(count / cols));
+  const cw = (d.w - m * 2) / cols, ch = (d.h - m * 2) / rows;
+  const c = slot % cols, r = Math.floor(slot / cols) % rows;
+  let x = m + (c + 0.15 + hash(id, seg, 11) * 0.7) * cw, z = m + (r + 0.15 + hash(id, seg, 13) * 0.7) * ch;
+  // not in under the shelter in the back corner
+  if (x < 1.1 && z < 1.1) { x += 0.6; z += 0.3; }
+  return { x: clamp(x, 0.3, d.w - 0.3), z: clamp(z, 0.3, d.h - 0.3) };
+}
+function penSpot(d: BuildingDef, id: number, t: number, slot = 0, count = 1) {
+  const P = 9000 + hash(id, 3, 7) * 9000;
+  const tt = t + hash(id, 4, 8) * P;
+  const seg = Math.floor(tt / P), u = tt - seg * P;
+  const a = penWay(d, id, seg, slot, count), b = penWay(d, id, seg + 1, slot, count), prev = penWay(d, id, seg - 1, slot, count);
+  const len = Math.hypot(b.x - a.x, b.z - a.z);
+  const walk = Math.min(len / PEN_SPEED, P * 0.6);
+  const hTo = Math.atan2(b.x - a.x, b.z - a.z), hFrom = Math.atan2(a.x - prev.x, a.z - prev.z);
+  const graze = hash(id, seg, 17) < 0.65;
+  if (u >= walk) return { x: b.x, z: b.z, heading: hTo, moving: false, dist: 0, graze };
+  // eased in and out, turning toward where it is going as it sets off
+  const k = u / walk, e = k * k * (3 - 2 * k);
+  let dh = hTo - hFrom;
+  while (dh > Math.PI) dh -= Math.PI * 2;
+  while (dh < -Math.PI) dh += Math.PI * 2;
+  return { x: a.x + (b.x - a.x) * e, z: a.z + (b.z - a.z) * e, heading: hFrom + dh * Math.min(1, u / 700), moving: true, dist: len * e, graze: false };
+}
+
+// how far an animal goes in one full step of its legs, from its height: a cow strides out, a
+// hen takes little steps
+function strideOf(m: THREE.Object3D) {
+  let s = m.userData.stride as number | undefined;
+  if (s === undefined) {
+    m.updateWorldMatrix(true, true);
+    const bb = new THREE.Box3().setFromObject(m);
+    // its own height, whatever the pen around it is scaled to (it pops in when bought)
+    const ws = m.getWorldScale(new THREE.Vector3());
+    const h = bb.isEmpty() || ws.y < 1e-4 ? 0.4 : (bb.max.y - bb.min.y) / ws.y * m.scale.y;
+    s = clamp(h * 0.55, 0.07, 0.4);
+    if (!bb.isEmpty()) m.userData.stride = s;
+  }
+  return s;
 }
 
 // ------------------------------------------------------------------ crops
@@ -4507,16 +4548,17 @@ function walkLeg(pts: P2[], t: number, budget: number, late = false) {
   const need = polyLen(pts) / WALK_SPEED, dur = Math.min(need, budget);
   const t0 = late ? budget - dur : 0;
   const u = dur > 0 ? (t - t0) / dur : 1;
-  return { pt: along(pts, u), moving: u > 0 && u < 1 };
+  // `dist`: how far along it has walked, so the legs step in time with the ground covered
+  return { pt: along(pts, u), moving: u > 0 && u < 1, dist: Math.max(0, Math.min(1, u)) * polyLen(pts) };
 }
 
 // where a grazing animal is at time `now`: world x, y, heading, walking or eating
-function grazePose(o: FarmObject, d: BuildingDef, a: Animal, now: number): { x: number; y: number; heading: number; moving: boolean } | null {
+function grazePose(o: FarmObject, d: BuildingDef, a: Animal, now: number): { x: number; y: number; heading: number; moving: boolean; dist: number } | null {
   const tr = tripFor(o, d, a);
   if (!tr) return null;
   const gp = grazePhase(a, now);
   const { walkMs, eatMs } = GRAZE;
-  let leg: { pt: { x: number; y: number; dx: number; dy: number }; moving: boolean };
+  let leg: { pt: { x: number; y: number; dx: number; dy: number }; moving: boolean; dist?: number };
   if (gp.phase === 'leaving') leg = walkLeg(tr.out, gp.k * walkMs, walkMs);
   else if (gp.phase === 'eating') {
     // eat, stroll to the next patch, eat, stroll, eat
@@ -4535,7 +4577,7 @@ function grazePose(o: FarmObject, d: BuildingDef, a: Animal, now: number): { x: 
     leg = walkLeg(tr.recall.path, gp.k * walkMs, walkMs, true);
   } else if (gp.phase === 'returning') leg = walkLeg(tr.back, gp.k * walkMs, walkMs, true);
   else return null;
-  return { x: leg.pt.x, y: leg.pt.y, heading: Math.atan2(leg.pt.dx, leg.pt.dy), moving: leg.moving };
+  return { x: leg.pt.x, y: leg.pt.y, heading: Math.atan2(leg.pt.dx, leg.pt.dy), moving: leg.moving, dist: leg.dist ?? 0 };
 }
 
 // A flying bird's trip: it takes off at the pen, flies straight out to its feeding ground and
@@ -5038,10 +5080,11 @@ function buildPen(e: Entry, d: BuildingDef) {
       const gz = a?.graze ? grazePose(o, d, a, now) : null;
       if (gz) {
         // out grazing: walking the path, or head down nibbling the grass
-        m.position.set(gz.x - o.x, 0.04 + (gz.moving ? Math.abs(Math.sin(t / 110 + id)) * 0.012 : 0), gz.y - o.y);
+        const step = gz.dist / strideOf(m) * Math.PI * 2;
+        m.position.set(gz.x - o.x, 0.04 + (gz.moving ? Math.abs(Math.sin(step)) * 0.01 : 0), gz.y - o.y);
         m.rotation.y = gz.heading;
         m.rotation.z = 0;
-        animateLegs(m, gz.moving ? Math.sin(t / 110 + id) * 0.32 : 0);
+        animateLegs(m, gz.moving ? Math.sin(step) * 0.34 : 0);
         if (head) head.rotation.x = gz.moving ? 0 : 0.55 + Math.max(0, Math.sin(t / 260 + id)) * 0.25;
         if (tail) tail.rotation.z = Math.sin(t / 300 + id) * 0.4;
         blink(m, t, id);
@@ -5066,9 +5109,14 @@ function buildPen(e: Entry, d: BuildingDef) {
       const sp = animalSpot(o, d, id, t);
       blink(m, t, id);
       const cs = m.userData.shadow as THREE.Object3D | undefined;
-      m.position.set(sp.x, 0.04 + jump + Math.abs(Math.sin(t / 110 + id)) * 0.008, sp.z);
+      // walking: legs stepping in time with the ground covered; standing: still, often head
+      // down cropping the grass or pecking
+      const step = sp.dist / strideOf(m) * Math.PI * 2;
+      m.position.set(sp.x, 0.04 + jump + (sp.moving ? Math.abs(Math.sin(step)) * 0.008 : 0), sp.z);
       m.rotation.y = sp.heading;
-      animateLegs(m, Math.sin(t / 110 + id) * 0.28);
+      animateLegs(m, sp.moving ? Math.sin(step) * 0.32 : 0);
+      if (head && !sp.moving && sp.graze) head.rotation.x = 0.5 + Math.max(0, Math.sin(t / 260 + id)) * 0.25;
+      else if (head) head.rotation.x = Math.min(head.rotation.x, 0.05);
       if (cs) cs.position.y = 0.006 - (m.position.y - 0.04);
       if (m.userData.wings && !SWIMMERS.has(an?.id ?? '') && !a?.graze) {
         // some birds now and then fly up to a roof nearby, sit there a while and come back
