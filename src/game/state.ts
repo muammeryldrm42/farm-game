@@ -1,5 +1,5 @@
 // Talons Farm - game state, persistence and all player actions
-import { ANIMAL, BUILDING, BUILDINGS, CATCHES, CROP, ITEMS, ITEM_LIST, LAKE_CATCHES, RECIPE, SEA_CATCHES, type BuildingDef } from './data';
+import { ANIMAL, BUILDING, CATCHES, CROP, ITEMS, ITEM_LIST, LAKE_CATCHES, RECIPE, SEA_CATCHES, type BuildingDef } from './data';
 import { isRaining } from './weather';
 import { LAST_CHAPTER, chapterAt, taskProgress, type StoryState, type StoryTask } from './story';
 import { ALBUM, ALBUM_IDS, CAT_FINDS, DOG_FINDS, albumEntry, type AlbumEntry } from './album';
@@ -364,6 +364,8 @@ export function dailyReward(streak: number) {
 export interface Quest { id: string; text: string; target: number; coins: number; gems: number; xp: number; progress: (s: GameState) => number }
 const st = (s: GameState, k: string) => s.stats[k] ?? 0;
 const cnt = (s: GameState, type: string) => s.objects.filter((o) => o.type === type).length;
+// every animal good ever collected, whatever the animal
+const collected = (s: GameState) => Object.entries(s.stats).reduce((a, [k, v]) => (k.startsWith('collect:') ? a + v : a), 0);
 
 export const QUESTS: Quest[] = [
   { id: 'q1', text: 'Harvest 10 wheat', target: 10, coins: 40, gems: 0, xp: 5, progress: (s) => st(s, 'harvest:wheat') },
@@ -386,7 +388,7 @@ export const QUESTS: Quest[] = [
   { id: 'q18', text: 'Collect 30 wool', target: 30, coins: 1500, gems: 5, xp: 80, progress: (s) => st(s, 'collect:wool') },
   { id: 'q20', text: 'Sell 5 things at your stall', target: 5, coins: 400, gems: 2, xp: 30, progress: (s) => st(s, 'stall') },
   { id: 'q21', text: 'Pick 20 apples', target: 20, coins: 500, gems: 2, xp: 40, progress: (s) => st(s, 'harvest:apple') },
-  { id: 'q23', text: 'Catch 15 fish', target: 15, coins: 700, gems: 3, xp: 50, progress: (s) => st(s, 'make:fish') },
+  { id: 'q23', text: 'Catch 15 fish', target: 15, coins: 700, gems: 3, xp: 50, progress: (s) => st(s, 'make:fish') + st(s, 'fish') },
   { id: 'q19', text: 'Reach level 20', target: 20, coins: 3000, gems: 10, xp: 0, progress: (s) => s.level },
   { id: 'q24', text: 'Make 10 sushi', target: 10, coins: 2500, gems: 6, xp: 120, progress: (s) => st(s, 'make:sushi') },
   // the long road to level 200
@@ -416,9 +418,9 @@ export const BADGE_GEMS = [2, 5, 10];
 export const ACHIEVEMENTS: Achievement[] = [
   { id: 'harvester', name: 'Harvester', icon: '🌾', unit: 'crops harvested', tiers: [100, 1000, 5000], progress: (s) => st(s, 'harvest') },
   { id: 'maker', name: 'Master Maker', icon: '🍞', unit: 'goods made', tiers: [50, 500, 2500], progress: (s) => st(s, 'make') },
-  { id: 'rancher', name: 'Rancher', icon: '🐄', unit: 'animal goods collected', tiers: [50, 500, 2000], progress: (s) => ['egg', 'milk', 'wool', 'feather', 'goat_milk', 'honey', 'horseshoe', 'angora', 'alpaca_wool'].reduce((a, k) => a + st(s, `collect:${k}`), 0) },
+  { id: 'rancher', name: 'Rancher', icon: '🐄', unit: 'animal goods collected', tiers: [50, 500, 2000], progress: (s) => collected(s) },
   { id: 'orchard', name: 'Orchard Keeper', icon: '🍎', unit: 'fruit picked', tiers: [50, 500, 2000], progress: (s) => st(s, 'fruit') },
-  { id: 'fisher', name: 'Angler', icon: '🎣', unit: 'catches', tiers: [20, 200, 1000], progress: (s) => st(s, 'make:fish') + st(s, 'make:lobster') },
+  { id: 'fisher', name: 'Angler', icon: '🎣', unit: 'catches', tiers: [20, 200, 1000], progress: (s) => st(s, 'make:fish') + st(s, 'make:lobster') + st(s, 'fish') },
   { id: 'trader', name: 'Order Hero', icon: '📋', unit: 'orders delivered', tiers: [25, 200, 1000], progress: (s) => st(s, 'orders') },
   { id: 'merchant', name: 'Merchant', icon: '🏪', unit: 'stall sales', tiers: [10, 100, 500], progress: (s) => st(s, 'stall') },
   { id: 'tycoon', name: 'Tycoon', icon: '💰', unit: 'coins earned', tiers: [10000, 100000, 1000000], progress: (s) => st(s, 'earned') },
@@ -695,7 +697,6 @@ export class GameStore {
     s.chunks = s.chunks.filter((k) => { const [cx, cy] = k.split(',').map(Number); return !isLakeChunk(cx, cy); });
     if (s.chunks.length < before) s.coins += (before - s.chunks.length) * 2000;
     const on = (o: FarmObject) => {
-      const d = BUILDING[o.type];
       const f = footprint(o);
       for (let i = 0; i < f.w; i++) for (let j = 0; j < f.h; j++) if (isLakeTile(o.x + i, o.y + j)) return true;
       return false;
@@ -1382,6 +1383,13 @@ export class GameStore {
     const d = BUILDING[o.type];
     if (d.kind === 'plot' && o.plot?.crop) { this.toast('Harvest the field before removing it.', 'bad'); return; }
     if (!this.canSell(o)) { this.toast(d.kind === 'silo' || d.kind === 'barn' ? `Your last ${d.name.toLowerCase()} has to stay.` : `The ${d.name} cannot be sold.`, 'bad'); return; }
+    // a workshop sold with goods still in it: the finished ones are collected first, and the
+    // rest give their ingredients back rather than vanishing with it
+    if (o.prod?.queue.length) {
+      this.collectProd(o);
+      for (const e of o.prod.queue) for (const [k, n] of Object.entries(RECIPE[e.recipe]?.inputs ?? {})) this.add(k, n);
+      o.prod.queue = [];
+    }
     const refund = this.sellValue(o);
     this.s.coins += refund;
     this.s.objects = this.s.objects.filter((x) => x.id !== id);
@@ -1623,7 +1631,7 @@ export class GameStore {
     if (petFed(p)) { this.toast(`${p.name} has eaten today already.`); return; }
     const food = this.petFood(id);
     if (!food) { this.toast(`${p.name} would like ${PET[id].foods.map((f) => ITEMS[f].name.toLowerCase()).join(' or ')}.`, 'bad'); return; }
-    this.s.inv[food]--;
+    this.take(food, 1);
     p.fedDay = todayKey();
     p.fedAt = Date.now();
     p.love = Math.min(100, p.love + 8);
@@ -1666,11 +1674,13 @@ export class GameStore {
   // an orange marker.
   guideTask(t: StoryTask) {
     const now = Date.now();
-    const s = this.s;
     const pointAt = (id: string) => { this.ui.guide = { id, at: now }; };
+    // tapped in the story dialog: it steps aside so the place it points to can be seen
+    this.ui.story = null;
     const focus = this.focusOn;
     this.focusOn = (x: number, y: number) => { focus(x, y); this.ui.guideAt = { x, y, at: now }; };
     try { this.guideTo(t, now, pointAt); } finally { this.focusOn = focus; }
+    this.emit(false);
   }
 
   private guideTo(t: StoryTask, now: number, pointAt: (id: string) => void) {
@@ -2085,6 +2095,9 @@ export class GameStore {
   private replace(s: GameState) {
     this.s = testBoost(s); // TEMP test mode
     this.ui = { selectedId: null, placing: null, tool: null, panel: null, storageTab: 'silo', expand: null, levelUp: null, daily: this.canDaily(), napping: false, napAt: 0, story: null, say: null };
+    // the story cheers belong to the farm that was loaded before
+    this.told.clear();
+    this.toldReady = false;
     this.ensureOrders();
     this.giveStarterWell();
     this.makeRoomForLake();

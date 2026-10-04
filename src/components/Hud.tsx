@@ -2,7 +2,7 @@
 import Ico from './Ico';
 import { BUILDING, CROP, ITEMS } from '@/game/data';
 import { TUTORIAL, TUTORIAL_DONE, canFulfill, claimableAlbum, claimableBadges, claimableQuests, fmtNum, xpNeed } from '@/game/state';
-import { useNow, useStore, useVersion } from './ctx';
+import { useStore, useVersion } from './ctx';
 import { CAST, LAST_CHAPTER, taskProgress } from '@/game/story';
 
 export function Coin({ className = '' }: { className?: string }) {

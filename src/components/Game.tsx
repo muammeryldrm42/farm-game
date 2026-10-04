@@ -252,6 +252,9 @@ function FarmCanvas() {
     };
 
     const onKey = (e: KeyboardEvent) => {
+      // typing a pet's name, a price or a save code must not turn or zoom the farm
+      const el = e.target as HTMLElement | null;
+      if (el && (el.tagName === 'INPUT' || el.tagName === 'TEXTAREA' || el.tagName === 'SELECT' || el.isContentEditable)) return;
       if (e.key === 'Escape') store.cancelAll();
       if (e.key === 'Enter' && store.ui.placing) store.confirmPlace();
       if (e.key === '+' || e.key === '=') r.zoomAt(r.W / 2, r.H / 2, r.cam.zoom * 1.15);
