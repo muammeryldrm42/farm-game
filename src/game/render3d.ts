@@ -3092,34 +3092,66 @@ const WING: Record<string, string> = {
 
 // two wings folded out of sight, opened and flapped only in flight
 function addWings(g: THREE.Group, kind: string) {
-  // measured in the bird's own space from its body alone (not the shadow, legs, a peacock's
-  // train or fan, nor anything a parent's scale may add), and kept to a bird's proportions:
-  // a bad measure must never give wings bigger than the pen
-  const skip = new Set<THREE.Object3D>([g.userData.shadow, g.userData.fan, g.userData.train,
+  // The wings grow from the shoulders of the torso itself. It is found in the bird's own space
+  // from the body mesh alone (not the head, tail, legs, shadow or a peacock's train or fan), as
+  // the widest band of the body, so a long neck or long legs never pull the wings off the bird.
+  const skip = new Set<THREE.Object3D>([g.userData.shadow, g.userData.fan, g.userData.train, g.userData.head, g.userData.tail,
     ...((g.userData.legs as THREE.Object3D[] | undefined) ?? [])].filter(Boolean));
-  const bb = new THREE.Box3(), mb = new THREE.Box3(), mm = new THREE.Matrix4();
+  const pts: number[] = [];
+  const v = new THREE.Vector3();
   const walk = (o: THREE.Object3D, parent: THREE.Matrix4) => {
     if (skip.has(o)) return;
     o.updateMatrix();
     const local = new THREE.Matrix4().multiplyMatrices(parent, o.matrix);
     const mesh = o as THREE.Mesh;
-    if (mesh.isMesh && mesh.geometry) {
-      if (!mesh.geometry.boundingBox) mesh.geometry.computeBoundingBox();
-      mb.copy(mesh.geometry.boundingBox!).applyMatrix4(mm.copy(local));
-      bb.union(mb);
+    const pos = mesh.isMesh ? mesh.geometry?.getAttribute('position') : undefined;
+    if (pos) {
+      const step = Math.max(1, Math.floor(pos.count / 6000));
+      for (let i = 0; i < pos.count; i += step) {
+        v.fromBufferAttribute(pos, i).applyMatrix4(local);
+        pts.push(v.x, v.y, v.z);
+      }
     }
     for (const c of o.children) walk(c, local);
   };
   for (const c of g.children) walk(c, new THREE.Matrix4());
-  if (bb.isEmpty()) return;
-  const w = Math.min(0.3, bb.max.x - bb.min.x), h = Math.min(0.6, bb.max.y - bb.min.y), l = Math.min(0.45, bb.max.z - bb.min.z);
-  const cz = THREE.MathUtils.clamp((bb.max.z + bb.min.z) / 2, -0.2, 0.2);
+  if (!pts.length) return;
+  let y0 = Infinity, y1 = -Infinity;
+  for (let i = 1; i < pts.length; i += 3) { y0 = Math.min(y0, pts[i]); y1 = Math.max(y1, pts[i]); }
+  // the body's half width in bands from bottom to top: the torso is the widest run of bands
+  const N = 24, bh = Math.max(1e-4, (y1 - y0) / N);
+  const half = new Array<number>(N).fill(0);
+  for (let i = 0; i < pts.length; i += 3) {
+    const k = Math.min(N - 1, Math.floor((pts[i + 1] - y0) / bh));
+    half[k] = Math.max(half[k], Math.abs(pts[i]));
+  }
+  let top = 0;
+  for (let k = 1; k < N; k++) if (half[k] > half[top]) top = k;
+  let lo = top, hi = top;
+  while (lo > 0 && half[lo - 1] > half[top] * 0.6) lo--;
+  while (hi < N - 1 && half[hi + 1] > half[top] * 0.6) hi++;
+  const ty0 = y0 + lo * bh, ty1 = y0 + (hi + 1) * bh;
+  // the torso's length, from the full width part of it only (a neck is thin and stays out)
+  let z0 = Infinity, z1 = -Infinity;
+  for (let i = 0; i < pts.length; i += 3) {
+    if (pts[i + 1] < ty0 || pts[i + 1] > ty1 || Math.abs(pts[i]) < half[top] * 0.35) continue;
+    z0 = Math.min(z0, pts[i + 2]); z1 = Math.max(z1, pts[i + 2]);
+  }
+  if (!(z1 > z0)) { z0 = -0.1; z1 = 0.1; }
+  const hw = half[top], len = z1 - z0;
+  // the shoulder: high on the side of the torso, a little ahead of its middle
+  const sy = ty0 + (ty1 - ty0) * 0.72, sz = z0 + len * 0.58;
+  let sw = 0;
+  for (let i = 0; i < pts.length; i += 3) {
+    if (Math.abs(pts[i + 1] - sy) < bh && Math.abs(pts[i + 2] - sz) < len * 0.2) sw = Math.max(sw, Math.abs(pts[i]));
+  }
+  const root = (sw || hw) * 0.8;
+  const span = THREE.MathUtils.clamp(len * 0.85, 0.12, 0.5), chord = THREE.MathUtils.clamp(len * 0.24, 0.05, 0.16);
   const mat = M(WING[kind] ?? '#efeae0');
   const wings: THREE.Object3D[] = [];
   for (const sx of [-1, 1]) {
-    const piv = group(g, sx * w * 0.3, h * 0.55, cz);
-    const len = Math.max(0.12, w * 0.9);
-    mk(piv, G.ball, mat, len / 2, 0.012, Math.max(0.06, l * 0.22), sx * len / 2, 0, 0, false);
+    const piv = group(g, sx * root, sy, sz - chord * 0.3);
+    mk(piv, G.ball, mat, span / 2, 0.014, chord, sx * span / 2, 0, 0, false);
     piv.visible = false;
     wings.push(piv);
   }
