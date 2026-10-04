@@ -3455,6 +3455,39 @@ function lodMesh(m: THREE.Mesh, kind: string, part: LodPart) {
   };
 }
 
+// Level of detail for the Blender animals: each has a thinned twin (tools/blender/lod.py, about a
+// third of the triangles) used while the animal is far from the camera. Only the geometry is
+// swapped, so the far animal keeps its baked coat. Close up (on any quality) the full model shows.
+const modelLodSrc = new Map<string, Map<string, THREE.BufferGeometry> | null>();
+function modelLodGeos(kind: string) {
+  if (!modelLodSrc.has(kind)) {
+    modelLodSrc.set(kind, null);
+    loadModel(`lod/animal_${kind}`).then((m) => {
+      const map = new Map<string, THREE.BufferGeometry>();
+      m.traverse((o) => { if ((o as THREE.Mesh).isMesh) map.set(o.name, (o as THREE.Mesh).geometry); });
+      modelLodSrc.set(kind, map);
+    }).catch(() => { /* no far model: the full one stays */ });
+  }
+  return modelLodSrc.get(kind) ?? null;
+}
+function modelLod(g: THREE.Object3D, kind: string) {
+  g.traverse((o) => {
+    const m = o as THREE.Mesh;
+    if (!m.isMesh || m.onBeforeRender.length || o === g.userData.shadow) return;
+    const full = m.geometry;
+    let far = false;
+    m.onBeforeRender = (_r, _s, cam) => {
+      const d = cam.position.distanceTo(lodPos.setFromMatrixPosition(m.matrixWorld));
+      const want = far ? d > LOD_NEAR : d > LOD_FAR;
+      if (want === far) return;
+      const geo = want ? modelLodGeos(kind)?.get(m.name) : full;
+      if (!geo) return;
+      far = want;
+      m.geometry = geo;
+    };
+  });
+}
+
 // ------------------------------------------------------------------ static batching
 // Pens, fences and sheds are built from dozens of little boxes and cylinders. Once built they
 // never move, so they are baked into one mesh per material: a pen goes from ~60 draw calls
@@ -3575,7 +3608,11 @@ function modelEyes(g: THREE.Object3D, kind: string) {
 
 function assemble(kind: string) {
   const src = animalModel(kind);
-  if (src) return assembleModel(src);
+  if (src) {
+    const g = assembleModel(src);
+    modelLod(g, kind);
+    return g;
+  }
   const g = new THREE.Group();
   const cp = creature(kind);
   if (!cp) return g;
