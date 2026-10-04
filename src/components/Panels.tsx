@@ -52,7 +52,6 @@ import {
 import { CAST, LAST_CHAPTER, chapterAt, taskProgress, type Chapter } from '@/game/story';
 import { ALBUM } from '@/game/album';
 import { getQuality, setQuality, type Quality } from '@/game/quality';
-import { artStyle, setArtStyle, type ArtStyle } from '@/game/gfx/creatures';
 import { Coin } from './Hud';
 import { useStore, useVersion } from './ctx';
 
@@ -1435,30 +1434,6 @@ function QualityPicker() {
   );
 }
 
-// Animal art style. The sculpts are built once per page, so switching saves and reloads.
-function StylePicker() {
-  const store = useStore();
-  const [a] = useState<ArtStyle>(artStyle);
-  const pick = (v: ArtStyle) => {
-    if (v === a) return;
-    store.saveNow();
-    setArtStyle(v);
-    window.location.reload();
-  };
-  return (
-    <div className="card flex w-full items-center justify-between gap-2 p-3">
-      <span className="font-bold">Animal style</span>
-      <span className="flex gap-1">
-        {(['toon', 'real'] as const).map((v) => (
-          <button key={v} className={`btn px-3 py-1 text-sm ${a === v ? 'btn-green' : 'btn-wood'}`} onClick={() => pick(v)}>
-            {v === 'toon' ? 'Cartoon' : 'Realistic'}
-          </button>
-        ))}
-      </span>
-    </div>
-  );
-}
-
 function SettingsModal() {
   const store = useStore();
   const st = store.s.settings;
@@ -1480,7 +1455,6 @@ function SettingsModal() {
         <Toggle label="Weather and seasons" on={st.weather} onChange={(v) => set('weather', v)} />
         <Toggle label="Soft shadows (turn off on slow phones)" on={st.shadows} onChange={(v) => set('shadows', v)} />
         <QualityPicker />
-        <StylePicker />
       </div>
 
       <h3 className="mb-2 mt-4 font-bold">Save data</h3>
