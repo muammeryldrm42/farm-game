@@ -5203,7 +5203,12 @@ function buildPen(e: Entry, d: BuildingDef) {
             animateLegs(m, 0);
             m.rotation.z = Math.sin(t / 520 + id) * 0.05;
             waterRing(herd, m, fw.water!, (fp as { after?: number }).after ?? -1, t, id);
-          } else animateLegs(m, fp.fly ? 0 : (fp as { moving?: boolean }).moving ? Math.sin(t / 110 + id) * 0.3 : 0);
+          } else if (fp.fly) {
+            // in the air the legs go back: waders stretch theirs out behind, the rest tuck them
+            // up under the tail; they swing down again for the landing
+            const sweep = fu > 0.85 ? 0.25 : WADE[an!.id] !== undefined ? 1.45 : 1.0;
+            for (const l of (m.userData.legs as THREE.Object3D[] | undefined) ?? []) l.rotation.x += (sweep - l.rotation.x) * Math.min(1, dt * 5);
+          } else animateLegs(m, (fp as { moving?: boolean }).moving ? Math.sin(t / 110 + id) * 0.3 : 0);
           // feeding on land: pecking the grass
           if (head) head.rotation.x = fp.fly ? -0.2 : fp.feeding ? 0.55 + Math.max(0, Math.sin(t / 260 + id)) * 0.25 : 0;
         }
