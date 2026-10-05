@@ -471,13 +471,10 @@ function camel(): CreatureParts {
 }
 
 
-// Art style: 'real' sculpts or 'toon' cartoon ones (see toon.ts). Stored per device, like the quality setting, so saves are untouched.
+// Art style: the animals always use the cartoon sculpts (see toon.ts); the realistic option was retired.
 export type ArtStyle = 'real' | 'toon';
 export function artStyle(): ArtStyle {
-  try { return localStorage.getItem('talons-farm-style') === 'real' ? 'real' : 'toon'; } catch { return 'toon'; }
-}
-export function setArtStyle(a: ArtStyle) {
-  try { localStorage.setItem('talons-farm-style', a); } catch { /* storage blocked */ }
+  return 'toon';
 }
 
 const makers: Record<string, () => CreatureParts> = { quail, yak, camel, gobbler, donkey, buffalo, peacock, ostrich, cow, sheep, goat, horse, chicken, duck, rabbit, alpaca, goose, dog: dogParts };

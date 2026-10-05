@@ -1430,7 +1430,7 @@ export class Renderer {
       r.scale.set(s, s * (1 + Math.sin(k * Math.PI) * 0.3), s);
       r.position.set(p0.x + mx * (1 - s), k * 0.2, p0.z + mz * (1 - s));
       r.rotation.y = th0 + k * 0.6;
-    }, () => FX_ROOT.remove(r));
+    }, () => { FX_ROOT.remove(r); dropOwned(r); });
     if (e.bubble) { this.fxLayer.remove(e.bubble); e.bubble.material.dispose(); }
     this.entries.delete(e.id);
   }
@@ -2999,7 +2999,7 @@ function farmerFromModel(src: THREE.Object3D) {
 
 export function buildCat() {
   const g = assemble('cat');
-  const cp = creature('cat');
+  const cp = g.userData.model ? null : creature('cat');
   if (g.userData.model) modelEyes(g, 'cat');
   else if (cp?.eye) toonEyes(g.userData.head as THREE.Group, cp.eye, '#3a2e28');
   g.scale.setScalar(1.25);
@@ -3008,7 +3008,7 @@ export function buildCat() {
 
 export function buildDog() {
   const g = assemble('dog');
-  const dp = creature('dog');
+  const dp = g.userData.model ? null : creature('dog');
   if (g.userData.model) modelEyes(g, 'dog');
   else if (dp?.eye && dp.toon) toonEyes(g.userData.head as THREE.Group, dp.eye, '#3a2e28');
   else if (dp?.eye) realEyes(g.userData.head as THREE.Group, dp.eye, LID.dog);
@@ -3092,34 +3092,66 @@ const WING: Record<string, string> = {
 
 // two wings folded out of sight, opened and flapped only in flight
 function addWings(g: THREE.Group, kind: string) {
-  // measured in the bird's own space from its body alone (not the shadow, legs, a peacock's
-  // train or fan, nor anything a parent's scale may add), and kept to a bird's proportions:
-  // a bad measure must never give wings bigger than the pen
-  const skip = new Set<THREE.Object3D>([g.userData.shadow, g.userData.fan, g.userData.train,
+  // The wings grow from the shoulders of the torso itself. It is found in the bird's own space
+  // from the body mesh alone (not the head, tail, legs, shadow or a peacock's train or fan), as
+  // the widest band of the body, so a long neck or long legs never pull the wings off the bird.
+  const skip = new Set<THREE.Object3D>([g.userData.shadow, g.userData.fan, g.userData.train, g.userData.head, g.userData.tail,
     ...((g.userData.legs as THREE.Object3D[] | undefined) ?? [])].filter(Boolean));
-  const bb = new THREE.Box3(), mb = new THREE.Box3(), mm = new THREE.Matrix4();
+  const pts: number[] = [];
+  const v = new THREE.Vector3();
   const walk = (o: THREE.Object3D, parent: THREE.Matrix4) => {
     if (skip.has(o)) return;
     o.updateMatrix();
     const local = new THREE.Matrix4().multiplyMatrices(parent, o.matrix);
     const mesh = o as THREE.Mesh;
-    if (mesh.isMesh && mesh.geometry) {
-      if (!mesh.geometry.boundingBox) mesh.geometry.computeBoundingBox();
-      mb.copy(mesh.geometry.boundingBox!).applyMatrix4(mm.copy(local));
-      bb.union(mb);
+    const pos = mesh.isMesh ? mesh.geometry?.getAttribute('position') : undefined;
+    if (pos) {
+      const step = Math.max(1, Math.floor(pos.count / 6000));
+      for (let i = 0; i < pos.count; i += step) {
+        v.fromBufferAttribute(pos, i).applyMatrix4(local);
+        pts.push(v.x, v.y, v.z);
+      }
     }
     for (const c of o.children) walk(c, local);
   };
   for (const c of g.children) walk(c, new THREE.Matrix4());
-  if (bb.isEmpty()) return;
-  const w = Math.min(0.3, bb.max.x - bb.min.x), h = Math.min(0.6, bb.max.y - bb.min.y), l = Math.min(0.45, bb.max.z - bb.min.z);
-  const cz = THREE.MathUtils.clamp((bb.max.z + bb.min.z) / 2, -0.2, 0.2);
+  if (!pts.length) return;
+  let y0 = Infinity, y1 = -Infinity;
+  for (let i = 1; i < pts.length; i += 3) { y0 = Math.min(y0, pts[i]); y1 = Math.max(y1, pts[i]); }
+  // the body's half width in bands from bottom to top: the torso is the widest run of bands
+  const N = 24, bh = Math.max(1e-4, (y1 - y0) / N);
+  const half = new Array<number>(N).fill(0);
+  for (let i = 0; i < pts.length; i += 3) {
+    const k = Math.min(N - 1, Math.floor((pts[i + 1] - y0) / bh));
+    half[k] = Math.max(half[k], Math.abs(pts[i]));
+  }
+  let top = 0;
+  for (let k = 1; k < N; k++) if (half[k] > half[top]) top = k;
+  let lo = top, hi = top;
+  while (lo > 0 && half[lo - 1] > half[top] * 0.6) lo--;
+  while (hi < N - 1 && half[hi + 1] > half[top] * 0.6) hi++;
+  const ty0 = y0 + lo * bh, ty1 = y0 + (hi + 1) * bh;
+  // the torso's length, from the full width part of it only (a neck is thin and stays out)
+  let z0 = Infinity, z1 = -Infinity;
+  for (let i = 0; i < pts.length; i += 3) {
+    if (pts[i + 1] < ty0 || pts[i + 1] > ty1 || Math.abs(pts[i]) < half[top] * 0.35) continue;
+    z0 = Math.min(z0, pts[i + 2]); z1 = Math.max(z1, pts[i + 2]);
+  }
+  if (!(z1 > z0)) { z0 = -0.1; z1 = 0.1; }
+  const hw = half[top], len = z1 - z0;
+  // the shoulder: high on the side of the torso, a little ahead of its middle
+  const sy = ty0 + (ty1 - ty0) * 0.72, sz = z0 + len * 0.58;
+  let sw = 0;
+  for (let i = 0; i < pts.length; i += 3) {
+    if (Math.abs(pts[i + 1] - sy) < bh && Math.abs(pts[i + 2] - sz) < len * 0.2) sw = Math.max(sw, Math.abs(pts[i]));
+  }
+  const root = (sw || hw) * 0.8;
+  const span = THREE.MathUtils.clamp(len * 0.85, 0.12, 0.5), chord = THREE.MathUtils.clamp(len * 0.24, 0.05, 0.16);
   const mat = M(WING[kind] ?? '#efeae0');
   const wings: THREE.Object3D[] = [];
   for (const sx of [-1, 1]) {
-    const piv = group(g, sx * w * 0.3, h * 0.55, cz);
-    const len = Math.max(0.12, w * 0.9);
-    mk(piv, G.ball, mat, len / 2, 0.012, Math.max(0.06, l * 0.22), sx * len / 2, 0, 0, false);
+    const piv = group(g, sx * root, sy, sz - chord * 0.3);
+    mk(piv, G.ball, mat, span / 2, 0.014, chord, sx * span / 2, 0, 0, false);
     piv.visible = false;
     wings.push(piv);
   }
@@ -3200,6 +3232,10 @@ function hideCatch(m: THREE.Object3D) {
 
 // how deep each wader stands in the sea, in its own height units
 const WADE: Record<string, number> = { flamingo: 0.3, crane: 0.24, grey_heron: 0.2 };
+// how far the neck (the head part, pivoting at the neck's base) leans forward in flight
+const NECK_FLY: Record<string, number> = {
+  flamingo: 1.3, crane: 1.3, swan: 1.15, black_swan: 1.15, grey_heron: 0.45,
+};
 
 // One round of hunting in the shallows. `stand` runs 0 to 1 while the bird stands still at its
 // spot (-1 while it steps to the next one): it stares down, lowers its neck slowly, strikes,
@@ -3423,6 +3459,39 @@ function lodMesh(m: THREE.Mesh, kind: string, part: LodPart) {
   };
 }
 
+// Level of detail for the Blender animals: each has a thinned twin (tools/blender/lod.py, about a
+// third of the triangles) used while the animal is far from the camera. Only the geometry is
+// swapped, so the far animal keeps its baked coat. Close up (on any quality) the full model shows.
+const modelLodSrc = new Map<string, Map<string, THREE.BufferGeometry> | null>();
+function modelLodGeos(kind: string) {
+  if (!modelLodSrc.has(kind)) {
+    modelLodSrc.set(kind, null);
+    loadModel(`lod/animal_${kind}`).then((m) => {
+      const map = new Map<string, THREE.BufferGeometry>();
+      m.traverse((o) => { if ((o as THREE.Mesh).isMesh) map.set(o.name, (o as THREE.Mesh).geometry); });
+      modelLodSrc.set(kind, map);
+    }).catch(() => { /* no far model: the full one stays */ });
+  }
+  return modelLodSrc.get(kind) ?? null;
+}
+function modelLod(g: THREE.Object3D, kind: string) {
+  g.traverse((o) => {
+    const m = o as THREE.Mesh;
+    if (!m.isMesh || m.onBeforeRender.length || o === g.userData.shadow) return;
+    const full = m.geometry;
+    let far = false;
+    m.onBeforeRender = (_r, _s, cam) => {
+      const d = cam.position.distanceTo(lodPos.setFromMatrixPosition(m.matrixWorld));
+      const want = far ? d > LOD_NEAR : d > LOD_FAR;
+      if (want === far) return;
+      const geo = want ? modelLodGeos(kind)?.get(m.name) : full;
+      if (!geo) return;
+      far = want;
+      m.geometry = geo;
+    };
+  });
+}
+
 // ------------------------------------------------------------------ static batching
 // Pens, fences and sheds are built from dozens of little boxes and cylinders. Once built they
 // never move, so they are baked into one mesh per material: a pen goes from ~60 draw calls
@@ -3469,8 +3538,14 @@ function mergeStatic(root: THREE.Object3D) {
     const mesh = new THREE.Mesh(merged, b.mat);
     mesh.castShadow = b.cast;
     mesh.receiveShadow = b.recv;
+    // this geometry belongs to this object alone: freed with it (see dropOwned)
+    mesh.userData.ownGeo = true;
     root.add(mesh);
   }
+}
+// frees the GPU buffers of the baked geometries in a part of the scene that is thrown away
+function dropOwned(o: THREE.Object3D) {
+  o.traverse((c) => { if (c.userData.ownGeo) (c as THREE.Mesh).geometry.dispose(); });
 }
 
 // Puts a sculpted creature together on pivots: legs swing from the hips, the head nods from
@@ -3491,14 +3566,27 @@ const ANIMAL_MODELS = new Set([
   'leghorn', 'khaki_campbell', 'dutch_rabbit', 'rhode_island_red', 'guernsey', 'shetland_sheep', 'call_duck', 'alpine_goat', 'wyandotte', 'brown_swiss', 'emden_goose', 'karakul', 'palomino', 'marans', 'dexter', 'friesian',
 ]);
 const animalSrc = new Map<string, THREE.Object3D>();
-let animalVer = 0;
+// a count per kind of the models that have arrived, so a pen rebuilds its herd only when its
+// own animal's model comes in (not every pen on every arrival)
+const animalVer = new Map<string, number>();
+const bumpAnimalVer = (kind: string) => animalVer.set(kind, (animalVer.get(kind) ?? 0) + 1);
+const animalVerOf = (kind: string) => animalVer.get(kind) ?? 0;
 function animalModel(kind: string) {
   if (!ANIMAL_MODELS.has(kind) || artStyle() !== 'toon') return null;
   const src = animalSrc.get(kind);
   if (!src && !modelCache.has(`animal_${kind}`)) {
-    loadModel(`animal_${kind}`).then((m) => { animalSrc.set(kind, m); animalVer++; }).catch(() => {});
+    loadModel(`animal_${kind}`).then((m) => { animalSrc.set(kind, m); bumpAnimalVer(kind); })
+      .catch(() => { animalFailed.add(kind); bumpAnimalVer(kind); });
   }
   return src ?? null;
+}
+// a kind whose Blender model is still on its way: its pen waits for it (a second or two) rather
+// than sculpting a stand in that is thrown away the moment the model lands. If the model cannot
+// load, the sculpt is used after all.
+const animalFailed = new Set<string>();
+function modelPending(kind: string) {
+  if (!ANIMAL_MODELS.has(kind) || artStyle() !== 'toon' || animalFailed.has(kind)) return false;
+  return !animalModel(kind);
 }
 function assembleModel(src: THREE.Object3D) {
   const g = new THREE.Group();
@@ -3543,7 +3631,11 @@ function modelEyes(g: THREE.Object3D, kind: string) {
 
 function assemble(kind: string) {
   const src = animalModel(kind);
-  if (src) return assembleModel(src);
+  if (src) {
+    const g = assembleModel(src);
+    modelLod(g, kind);
+    return g;
+  }
   const g = new THREE.Group();
   const cp = creature(kind);
   if (!cp) return g;
@@ -3691,7 +3783,8 @@ function animalBody(kind: string) {
   const g = assemble(kind);
   const head = g.userData.head as THREE.Group | undefined;
   if (!head) return g;
-  const cp = creature(kind);
+  // the sculpt is only needed when there is no Blender model (it is costly to make)
+  const cp = g.userData.model ? null : creature(kind);
   if (g.userData.model) {
     // Blender animals: natural proportions and small natural eyes, a little larger than life so
     // they still read well against their pens
@@ -3783,7 +3876,7 @@ function buildHive() {
   const g = new THREE.Group();
   if (artStyle() === 'toon' && !hiveSrc && !modelCache.has('beehive_skep')) {
     // the bee garden rebuilds its hives (like a herd) once the Blender skep is in
-    loadModel('beehive_skep').then((m) => { hiveSrc = m; animalVer++; }).catch(() => {});
+    loadModel('beehive_skep').then((m) => { hiveSrc = m; bumpAnimalVer('bee'); }).catch(() => {});
   }
   if (hiveSrc) g.add(hiveSrc.clone());
   else {
@@ -4126,7 +4219,7 @@ function swapInModel(e: Entry, name: string, x: number, z: number, scale: number
     const m = src.clone();
     m.position.set(x, 0, z);
     m.scale.setScalar(scale);
-    for (const c of standIn) e.root.remove(c);
+    for (const c of standIn) { e.root.remove(c); dropOwned(c); }
     e.root.add(m);
     onSwap?.();
   }).catch(() => { /* keep the procedural building */ });
@@ -4177,7 +4270,7 @@ function useModel(e: Entry, o: FarmObject, d: BuildingDef) {
     // trees: the model's foliage joins the stand in's swaying crown group, beside its fruit
     const leaves = m.getObjectByName('crown');
     const crown = leaves && standIn.find((c) => c.userData.crown);
-    for (const c of standIn) if (c !== crown) g.remove(c);
+    for (const c of standIn) if (c !== crown) { g.remove(c); dropOwned(c); }
     g.add(m);
     if (leaves && crown) {
       for (const c of [...crown.children]) if (!c.userData.keep) crown.remove(c);
@@ -5032,7 +5125,7 @@ function buildPen(e: Entry, d: BuildingDef) {
   const herdFx = keep(group(g));
   herd.userData.fx = herdFx;
   e.counter = [herd, herdFx];
-  let count = -1, ver = animalVer;
+  let count = -1, ver = -1;
   const an = ANIMAL[d.animal ?? ''];
   const fed = new Map<number, number | null>();
   const hop = new Map<number, number>();
@@ -5040,12 +5133,14 @@ function buildPen(e: Entry, d: BuildingDef) {
     const list = o.pen?.animals ?? [];
     // sculpting a new kind takes a moment, so at most one new kind is sculpted per frame;
     // a farm full of pens fills in over a few frames instead of freezing on load
-    if (list.length !== count && an && an.id !== 'bee' && !hasCreature(an.id, 1)) {
+    const waiting = !!an && an.id !== 'bee' && modelPending(an.id);
+    if (!waiting && list.length !== count && an && an.id !== 'bee' && !animalSrc.has(an.id) && !hasCreature(an.id, 1)) {
       if (sculptBudget <= 0) return;
       sculptBudget--;
     }
-    if (list.length !== count || ver !== animalVer) {
-      ver = animalVer;
+    const kv = animalVerOf(an?.id ?? '');
+    if (!waiting && (list.length !== count || ver !== kv)) {
+      ver = kv;
       const grew = count >= 0 && list.length > count;
       for (const c of herd.children) (c.userData.ripple as THREE.Object3D | undefined)?.removeFromParent();
       herd.clear();
@@ -5134,9 +5229,18 @@ function buildPen(e: Entry, d: BuildingDef) {
             animateLegs(m, 0);
             m.rotation.z = Math.sin(t / 520 + id) * 0.05;
             waterRing(herd, m, fw.water!, (fp as { after?: number }).after ?? -1, t, id);
-          } else animateLegs(m, fp.fly ? 0 : (fp as { moving?: boolean }).moving ? Math.sin(t / 110 + id) * 0.3 : 0);
+          } else if (fp.fly) {
+            // in the air the legs go back: waders stretch theirs out behind, the rest tuck them
+            // up under the tail; they swing down again for the landing
+            const sweep = fu > 0.85 ? 0.25 : WADE[an!.id] !== undefined ? 1.45 : 1.0;
+            for (const l of (m.userData.legs as THREE.Object3D[] | undefined) ?? []) l.rotation.x += (sweep - l.rotation.x) * Math.min(1, dt * 5);
+          } else animateLegs(m, (fp as { moving?: boolean }).moving ? Math.sin(t / 110 + id) * 0.3 : 0);
           // feeding on land: pecking the grass
-          if (head) head.rotation.x = fp.fly ? -0.2 : fp.feeding ? 0.55 + Math.max(0, Math.sin(t / 260 + id)) * 0.25 : 0;
+          if (head && fp.fly) {
+            // long necked birds fly with the neck stretched out ahead (a heron draws its in)
+            const reach = NECK_FLY[an!.id] ?? -0.2;
+            head.rotation.x += ((fu > 0.85 ? reach * 0.4 : reach) - head.rotation.x) * Math.min(1, dt * 4);
+          } else if (head) head.rotation.x = fp.feeding ? 0.55 + Math.max(0, Math.sin(t / 260 + id)) * 0.25 : 0;
         }
         blink(m, t, id);
         if (cs) { cs.visible = !onWater && !(fw.water !== undefined && fp.feeding); cs.position.y = 0.006 - (m.position.y - 0.04); }
