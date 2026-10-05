@@ -3232,6 +3232,10 @@ function hideCatch(m: THREE.Object3D) {
 
 // how deep each wader stands in the sea, in its own height units
 const WADE: Record<string, number> = { flamingo: 0.3, crane: 0.24, grey_heron: 0.2 };
+// how far the neck (the head part, pivoting at the neck's base) leans forward in flight
+const NECK_FLY: Record<string, number> = {
+  flamingo: 1.3, crane: 1.3, swan: 1.15, black_swan: 1.15, grey_heron: 0.45,
+};
 
 // One round of hunting in the shallows. `stand` runs 0 to 1 while the bird stands still at its
 // spot (-1 while it steps to the next one): it stares down, lowers its neck slowly, strikes,
@@ -5210,7 +5214,11 @@ function buildPen(e: Entry, d: BuildingDef) {
             for (const l of (m.userData.legs as THREE.Object3D[] | undefined) ?? []) l.rotation.x += (sweep - l.rotation.x) * Math.min(1, dt * 5);
           } else animateLegs(m, (fp as { moving?: boolean }).moving ? Math.sin(t / 110 + id) * 0.3 : 0);
           // feeding on land: pecking the grass
-          if (head) head.rotation.x = fp.fly ? -0.2 : fp.feeding ? 0.55 + Math.max(0, Math.sin(t / 260 + id)) * 0.25 : 0;
+          if (head && fp.fly) {
+            // long necked birds fly with the neck stretched out ahead (a heron draws its in)
+            const reach = NECK_FLY[an!.id] ?? -0.2;
+            head.rotation.x += ((fu > 0.85 ? reach * 0.4 : reach) - head.rotation.x) * Math.min(1, dt * 4);
+          } else if (head) head.rotation.x = fp.feeding ? 0.55 + Math.max(0, Math.sin(t / 260 + id)) * 0.25 : 0;
         }
         blink(m, t, id);
         if (cs) { cs.visible = !onWater && !(fw.water !== undefined && fp.feeding); cs.position.y = 0.006 - (m.position.y - 0.04); }
