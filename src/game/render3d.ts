@@ -1430,7 +1430,7 @@ export class Renderer {
       r.scale.set(s, s * (1 + Math.sin(k * Math.PI) * 0.3), s);
       r.position.set(p0.x + mx * (1 - s), k * 0.2, p0.z + mz * (1 - s));
       r.rotation.y = th0 + k * 0.6;
-    }, () => FX_ROOT.remove(r));
+    }, () => { FX_ROOT.remove(r); dropOwned(r); });
     if (e.bubble) { this.fxLayer.remove(e.bubble); e.bubble.material.dispose(); }
     this.entries.delete(e.id);
   }
@@ -3538,8 +3538,14 @@ function mergeStatic(root: THREE.Object3D) {
     const mesh = new THREE.Mesh(merged, b.mat);
     mesh.castShadow = b.cast;
     mesh.receiveShadow = b.recv;
+    // this geometry belongs to this object alone: freed with it (see dropOwned)
+    mesh.userData.ownGeo = true;
     root.add(mesh);
   }
+}
+// frees the GPU buffers of the baked geometries in a part of the scene that is thrown away
+function dropOwned(o: THREE.Object3D) {
+  o.traverse((c) => { if (c.userData.ownGeo) (c as THREE.Mesh).geometry.dispose(); });
 }
 
 // Puts a sculpted creature together on pivots: legs swing from the hips, the head nods from
@@ -4199,7 +4205,7 @@ function swapInModel(e: Entry, name: string, x: number, z: number, scale: number
     const m = src.clone();
     m.position.set(x, 0, z);
     m.scale.setScalar(scale);
-    for (const c of standIn) e.root.remove(c);
+    for (const c of standIn) { e.root.remove(c); dropOwned(c); }
     e.root.add(m);
     onSwap?.();
   }).catch(() => { /* keep the procedural building */ });
@@ -4250,7 +4256,7 @@ function useModel(e: Entry, o: FarmObject, d: BuildingDef) {
     // trees: the model's foliage joins the stand in's swaying crown group, beside its fruit
     const leaves = m.getObjectByName('crown');
     const crown = leaves && standIn.find((c) => c.userData.crown);
-    for (const c of standIn) if (c !== crown) g.remove(c);
+    for (const c of standIn) if (c !== crown) { g.remove(c); dropOwned(c); }
     g.add(m);
     if (leaves && crown) {
       for (const c of [...crown.children]) if (!c.userData.keep) crown.remove(c);
