@@ -3464,7 +3464,9 @@ function lodMesh(m: THREE.Mesh, kind: string, part: LodPart) {
 // swapped, so the far animal keeps its baked coat. Close up (on any quality) the full model shows.
 const modelLodSrc = new Map<string, Map<string, THREE.BufferGeometry> | null>();
 function modelLodGeos(kind: string) {
-  if (!modelLodSrc.has(kind)) {
+  // the far models are only a saving: they never queue ahead of the farm's own models, and come
+  // in a few at a time (the full model stays until its twin arrives)
+  if (!modelLodSrc.has(kind) && modelsLoading < 3) {
     modelLodSrc.set(kind, null);
     loadModel(`lod/animal_${kind}`).then((m) => {
       const map = new Map<string, THREE.BufferGeometry>();
@@ -3575,6 +3577,7 @@ function animalModel(kind: string) {
   if (!ANIMAL_MODELS.has(kind) || artStyle() !== 'toon') return null;
   const src = animalSrc.get(kind);
   if (!src && !modelCache.has(`animal_${kind}`)) {
+    animalAsked.set(kind, performance.now());
     loadModel(`animal_${kind}`).then((m) => { animalSrc.set(kind, m); bumpAnimalVer(kind); })
       .catch(() => { animalFailed.add(kind); bumpAnimalVer(kind); });
   }
@@ -3582,11 +3585,16 @@ function animalModel(kind: string) {
 }
 // a kind whose Blender model is still on its way: its pen waits for it (a second or two) rather
 // than sculpting a stand in that is thrown away the moment the model lands. If the model cannot
-// load, the sculpt is used after all.
+// load, or is slow to come (a slow connection, a big farm loading many models at once), the
+// sculpt shows after all and the model takes its place when it arrives: the animals are never
+// left out.
+const MODEL_WAIT_MS = 3000;
 const animalFailed = new Set<string>();
+const animalAsked = new Map<string, number>();
 function modelPending(kind: string) {
   if (!ANIMAL_MODELS.has(kind) || artStyle() !== 'toon' || animalFailed.has(kind)) return false;
-  return !animalModel(kind);
+  if (animalModel(kind)) return false;
+  return performance.now() - (animalAsked.get(kind) ?? 0) < MODEL_WAIT_MS;
 }
 function assembleModel(src: THREE.Object3D) {
   const g = new THREE.Group();
@@ -4177,10 +4185,14 @@ const gltfLoader = new GLTFLoader().setDRACOLoader(new DRACOLoader().setDecoderP
 const modelCache = new Map<string, Promise<THREE.Object3D>>();
 // model materials with a baked emission mask (windows, lamps), lit up at night like WIN
 const MODEL_GLOW = new Set<THREE.MeshStandardMaterial>();
+// models being fetched right now: the optional far detail models wait for a quiet moment
+let modelsLoading = 0;
 function loadModel(name: string) {
   let p = modelCache.get(name);
   if (!p) {
-    p = gltfLoader.loadAsync(`/models/${name}.glb`).then((gl) => {
+    modelsLoading++;
+    const done = () => { modelsLoading--; };
+    p = gltfLoader.loadAsync(`/models/${name}.glb`).finally(done).then((gl) => {
       gl.scene.traverse((o) => {
         const m = o as THREE.Mesh;
         if (!m.isMesh) return;
