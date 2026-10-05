@@ -2999,7 +2999,7 @@ function farmerFromModel(src: THREE.Object3D) {
 
 export function buildCat() {
   const g = assemble('cat');
-  const cp = creature('cat');
+  const cp = g.userData.model ? null : creature('cat');
   if (g.userData.model) modelEyes(g, 'cat');
   else if (cp?.eye) toonEyes(g.userData.head as THREE.Group, cp.eye, '#3a2e28');
   g.scale.setScalar(1.25);
@@ -3008,7 +3008,7 @@ export function buildCat() {
 
 export function buildDog() {
   const g = assemble('dog');
-  const dp = creature('dog');
+  const dp = g.userData.model ? null : creature('dog');
   if (g.userData.model) modelEyes(g, 'dog');
   else if (dp?.eye && dp.toon) toonEyes(g.userData.head as THREE.Group, dp.eye, '#3a2e28');
   else if (dp?.eye) realEyes(g.userData.head as THREE.Group, dp.eye, LID.dog);
@@ -3566,14 +3566,27 @@ const ANIMAL_MODELS = new Set([
   'leghorn', 'khaki_campbell', 'dutch_rabbit', 'rhode_island_red', 'guernsey', 'shetland_sheep', 'call_duck', 'alpine_goat', 'wyandotte', 'brown_swiss', 'emden_goose', 'karakul', 'palomino', 'marans', 'dexter', 'friesian',
 ]);
 const animalSrc = new Map<string, THREE.Object3D>();
-let animalVer = 0;
+// a count per kind of the models that have arrived, so a pen rebuilds its herd only when its
+// own animal's model comes in (not every pen on every arrival)
+const animalVer = new Map<string, number>();
+const bumpAnimalVer = (kind: string) => animalVer.set(kind, (animalVer.get(kind) ?? 0) + 1);
+const animalVerOf = (kind: string) => animalVer.get(kind) ?? 0;
 function animalModel(kind: string) {
   if (!ANIMAL_MODELS.has(kind) || artStyle() !== 'toon') return null;
   const src = animalSrc.get(kind);
   if (!src && !modelCache.has(`animal_${kind}`)) {
-    loadModel(`animal_${kind}`).then((m) => { animalSrc.set(kind, m); animalVer++; }).catch(() => {});
+    loadModel(`animal_${kind}`).then((m) => { animalSrc.set(kind, m); bumpAnimalVer(kind); })
+      .catch(() => { animalFailed.add(kind); bumpAnimalVer(kind); });
   }
   return src ?? null;
+}
+// a kind whose Blender model is still on its way: its pen waits for it (a second or two) rather
+// than sculpting a stand in that is thrown away the moment the model lands. If the model cannot
+// load, the sculpt is used after all.
+const animalFailed = new Set<string>();
+function modelPending(kind: string) {
+  if (!ANIMAL_MODELS.has(kind) || artStyle() !== 'toon' || animalFailed.has(kind)) return false;
+  return !animalModel(kind);
 }
 function assembleModel(src: THREE.Object3D) {
   const g = new THREE.Group();
@@ -3770,7 +3783,8 @@ function animalBody(kind: string) {
   const g = assemble(kind);
   const head = g.userData.head as THREE.Group | undefined;
   if (!head) return g;
-  const cp = creature(kind);
+  // the sculpt is only needed when there is no Blender model (it is costly to make)
+  const cp = g.userData.model ? null : creature(kind);
   if (g.userData.model) {
     // Blender animals: natural proportions and small natural eyes, a little larger than life so
     // they still read well against their pens
@@ -3862,7 +3876,7 @@ function buildHive() {
   const g = new THREE.Group();
   if (artStyle() === 'toon' && !hiveSrc && !modelCache.has('beehive_skep')) {
     // the bee garden rebuilds its hives (like a herd) once the Blender skep is in
-    loadModel('beehive_skep').then((m) => { hiveSrc = m; animalVer++; }).catch(() => {});
+    loadModel('beehive_skep').then((m) => { hiveSrc = m; bumpAnimalVer('bee'); }).catch(() => {});
   }
   if (hiveSrc) g.add(hiveSrc.clone());
   else {
@@ -5111,7 +5125,7 @@ function buildPen(e: Entry, d: BuildingDef) {
   const herdFx = keep(group(g));
   herd.userData.fx = herdFx;
   e.counter = [herd, herdFx];
-  let count = -1, ver = animalVer;
+  let count = -1, ver = -1;
   const an = ANIMAL[d.animal ?? ''];
   const fed = new Map<number, number | null>();
   const hop = new Map<number, number>();
@@ -5119,12 +5133,14 @@ function buildPen(e: Entry, d: BuildingDef) {
     const list = o.pen?.animals ?? [];
     // sculpting a new kind takes a moment, so at most one new kind is sculpted per frame;
     // a farm full of pens fills in over a few frames instead of freezing on load
-    if (list.length !== count && an && an.id !== 'bee' && !hasCreature(an.id, 1)) {
+    const waiting = !!an && an.id !== 'bee' && modelPending(an.id);
+    if (!waiting && list.length !== count && an && an.id !== 'bee' && !animalSrc.has(an.id) && !hasCreature(an.id, 1)) {
       if (sculptBudget <= 0) return;
       sculptBudget--;
     }
-    if (list.length !== count || ver !== animalVer) {
-      ver = animalVer;
+    const kv = animalVerOf(an?.id ?? '');
+    if (!waiting && (list.length !== count || ver !== kv)) {
+      ver = kv;
       const grew = count >= 0 && list.length > count;
       for (const c of herd.children) (c.userData.ripple as THREE.Object3D | undefined)?.removeFromParent();
       herd.clear();
