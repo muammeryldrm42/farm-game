@@ -4,6 +4,8 @@ import { GameStore, loadGame, plotProgress, type FarmObject } from '@/game/state
 import { BUILDING } from '@/game/data';
 import { Renderer } from '@/game/render3d';
 import { sfx, startMusic, stopMusic } from '@/game/audio';
+import { Capacitor } from '@capacitor/core';
+import { App } from '@capacitor/app';
 import { StoreCtx, useStore } from './ctx';
 import Hud from './Hud';
 import Panels from './Panels';
@@ -32,8 +34,24 @@ export default function Game() {
     window.addEventListener('keydown', unlock, { once: true });
     document.addEventListener('visibilitychange', syncMusic);
     const unsub = st.subscribe(syncMusic);
+    // the Android app: the back button closes whatever is open (and only then leaves the game),
+    // and the farm is saved whenever the app goes to the background
+    const native: Promise<{ remove: () => Promise<void> }>[] = [];
+    if (Capacitor.isNativePlatform()) {
+      native.push(App.addListener('backButton', () => {
+        const ui = st.ui;
+        if (ui.story) { ui.story = null; st.emit(false); }
+        else if (ui.levelUp !== null) { ui.levelUp = null; st.emit(false); }
+        else if (ui.daily) { ui.daily = false; st.emit(false); }
+        else if (ui.napping) st.wake();
+        else if (ui.panel || ui.placing || ui.tool || ui.expand || ui.selectedId !== null) st.cancelAll();
+        else { save(); App.minimizeApp(); }
+      }));
+      native.push(App.addListener('pause', save));
+    }
     return () => {
       unsub();
+      for (const h of native) h.then((x) => x.remove());
       stopMusic();
       document.removeEventListener('visibilitychange', syncMusic);
       window.removeEventListener('beforeunload', save);
