@@ -4211,6 +4211,35 @@ const gltfLoader = new GLTFLoader().setDRACOLoader(new DRACOLoader().setDecoderP
 const modelCache = new Map<string, Promise<THREE.Object3D>>();
 // model materials with a baked emission mask (windows, lamps), lit up at night like WIN
 const MODEL_GLOW = new Set<THREE.MeshStandardMaterial>();
+// Low quality (phones): a model's baked textures are scaled down to 512 px as it loads. A model
+// is a hundred or two pixels tall on a phone, and a busy farm of 1024 px textures takes some
+// 800 MB of GPU memory, far past what a phone can spare (the app then stalls or is closed).
+const LOW_TEX = 512;
+function shrinkTextures(root: THREE.Object3D) {
+  if (getQuality() === 'high' || typeof createImageBitmap === 'undefined') return Promise.resolve();
+  const seen = new Set<THREE.Texture>();
+  const jobs: Promise<void>[] = [];
+  root.traverse((o) => {
+    const mats = (o as THREE.Mesh).material;
+    for (const m of (Array.isArray(mats) ? mats : mats ? [mats] : []) as THREE.MeshStandardMaterial[]) {
+      for (const t of [m.map, m.emissiveMap, m.normalMap, m.roughnessMap, m.aoMap]) {
+        const img = t?.image as { width?: number; height?: number } | undefined;
+        if (!t || seen.has(t) || !img?.width || !img.height || Math.max(img.width, img.height) <= LOW_TEX) continue;
+        seen.add(t);
+        const k = LOW_TEX / Math.max(img.width, img.height);
+        jobs.push(createImageBitmap(img as ImageBitmapSource, { resizeWidth: Math.round(img.width * k), resizeHeight: Math.round(img.height * k), resizeQuality: 'high' })
+          .then((bm) => {
+            const old = t.image as ImageBitmap;
+            t.image = bm;
+            t.needsUpdate = true;
+            if (typeof old.close === 'function') old.close();
+          }, () => { /* keep the full texture */ }));
+      }
+    }
+  });
+  return Promise.all(jobs).then(() => undefined);
+}
+
 // set by the renderer: compiles a loaded model's shaders without blocking
 let precompile: ((o: THREE.Object3D) => Promise<unknown>) | null = null;
 // models being fetched right now: the optional far detail models wait for a quiet moment
@@ -4234,10 +4263,12 @@ function loadModel(name: string) {
         }
       });
       gl.scene.userData.top = new THREE.Box3().setFromObject(gl.scene).max.y;
-      // its shaders compile in the background before it is used, so a model arriving mid game
-      // never freezes the picture while the GPU compiles
-      const ready = () => gl.scene;
-      return precompile ? precompile(gl.scene).then(ready, ready) : gl.scene;
+      return shrinkTextures(gl.scene).then(() => {
+        // its shaders compile in the background before it is used, so a model arriving mid
+        // game never freezes the picture while the GPU compiles
+        const ready = () => gl.scene;
+        return precompile ? precompile(gl.scene).then(ready, ready) : gl.scene;
+      });
     });
     modelCache.set(name, p);
   }
