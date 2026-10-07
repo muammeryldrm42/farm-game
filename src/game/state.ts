@@ -485,7 +485,7 @@ export function newGame(): GameState {
     siloLevel: 0, barnLevel: 0,
     chunks: [], objects: [], orders: [], nextId: 1,
     lastDaily: '', streak: 0, stats: {}, quests: [],
-    settings: { sound: true, dayNight: true, clouds: true, music: true, weather: true, shadows: true },
+    settings: { sound: true, dayNight: true, clouds: true, music: true, weather: true, shadows: false, saver: false },
     createdAt: now,
     stall: Array.from({ length: STALL_SLOTS }, emptySlot),
     boat: null,

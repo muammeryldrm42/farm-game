@@ -1411,8 +1411,8 @@ function GoalsList() {
 function Toggle({ label, on, onChange }: { label: string; on: boolean; onChange: (v: boolean) => void }) {
   return (
     <button className="card flex w-full items-center justify-between p-3" onClick={() => onChange(!on)}>
-      <span className="font-bold">{t(label)}</span>
-      <span className={`relative h-7 w-12 rounded-full transition ${on ? 'bg-[#5cb82e]' : 'bg-[#cdb482]'}`}>
+      <span className="text-left font-bold">{t(label)}</span>
+      <span className={`relative h-7 w-12 shrink-0 rounded-full transition ${on ? 'bg-[#5cb82e]' : 'bg-[#cdb482]'}`}>
         <span className={`absolute top-1 h-5 w-5 rounded-full bg-white shadow transition-all ${on ? 'left-6' : 'left-1'}`} />
       </span>
     </button>
