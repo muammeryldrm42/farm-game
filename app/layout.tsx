@@ -2,7 +2,7 @@ import type { Metadata, Viewport } from 'next';
 import { Fredoka } from 'next/font/google';
 import './globals.css';
 
-const fredoka = Fredoka({ subsets: ['latin'], weight: ['400', '500', '600', '700'], variable: '--font-game' });
+const fredoka = Fredoka({ subsets: ['latin', 'latin-ext'], weight: ['400', '500', '600', '700'], variable: '--font-game' });
 
 export const metadata: Metadata = {
   title: 'Talons Farm',

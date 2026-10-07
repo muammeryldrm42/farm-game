@@ -7,6 +7,7 @@ import { sfx, startMusic, stopMusic } from '@/game/audio';
 import { Capacitor } from '@capacitor/core';
 import { App } from '@capacitor/app';
 import { StoreCtx, useStore } from './ctx';
+import { initLang, onLang } from '@/game/i18n';
 import Hud from './Hud';
 import Panels from './Panels';
 import Flyers from './Flyers';
@@ -17,7 +18,10 @@ export default function Game() {
   useEffect(() => {
     const st = new GameStore(loadGame());
     st.sound = (n) => { if (st.s.settings.sound) sfx(n); };
-    setStore(st);
+    // the farm shows once the chosen language is in (a moment), and redraws when it changes
+    let alive = true;
+    initLang().finally(() => { if (alive) setStore(st); });
+    const offLang = onLang(() => st.emit(false));
     const save = () => st.saveNow();
     const vis = () => { if (document.visibilityState === 'hidden') save(); };
     window.addEventListener('beforeunload', save);
@@ -50,6 +54,8 @@ export default function Game() {
       native.push(App.addListener('pause', save));
     }
     return () => {
+      alive = false;
+      offLang();
       unsub();
       for (const h of native) h.then((x) => x.remove());
       stopMusic();

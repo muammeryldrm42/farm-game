@@ -1,6 +1,7 @@
 // Talons Farm - game state, persistence and all player actions
 import { ANIMAL, BUILDING, CATCHES, CROP, ITEMS, ITEM_LIST, LAKE_CATCHES, RECIPE, SEA_CATCHES, type BuildingDef } from './data';
 import { isRaining } from './weather';
+import { t as tr } from './i18n';
 import { LAST_CHAPTER, chapterAt, taskProgress, type StoryState, type StoryTask } from './story';
 import { ALBUM, ALBUM_IDS, CAT_FINDS, DOG_FINDS, albumEntry, type AlbumEntry } from './album';
 
@@ -302,8 +303,8 @@ export function genBoat(s: GameState, now: number): Boat {
 
 export function feedHint(feed: string) {
   const r = RECIPE[feed];
-  if (r) return `Make it at the ${BUILDING[r.building].name}.`;
-  if (CROP[feed]) return 'Grow it in your fields.';
+  if (r) return tr('Make it at the {name}.', { name: tr(BUILDING[r.building].name) });
+  if (CROP[feed]) return tr('Grow it in your fields.');
   return '';
 }
 
@@ -863,7 +864,7 @@ export class GameStore {
   private take(id: string, qty: number) { this.s.inv[id] = (this.s.inv[id] ?? 0) - qty; if (this.s.inv[id] <= 0) delete this.s.inv[id]; }
 
   private fullToast(id: string) {
-    this.toast(ITEMS[id].storage === 'silo' ? 'Silo is full. Sell or use crops, or upgrade it.' : 'Barn is full. Sell or use goods, or upgrade it.', 'bad');
+    this.toast(tr(ITEMS[id].storage === 'silo' ? 'Silo is full. Sell or use crops, or upgrade it.' : 'Barn is full. Sell or use goods, or upgrade it.'), 'bad');
   }
 
   // ------------------------------------------------ ui
@@ -938,7 +939,7 @@ export class GameStore {
   // fill the bucket to the brim at a well
   fillBucket(o: FarmObject) {
     const wi = waterInfo(this.s);
-    if (wi.n >= wi.max) { this.toast('Your bucket is already full. Tap a growing field to water it.', 'info'); return; }
+    if (wi.n >= wi.max) { this.toast(tr('Your bucket is already full. Tap a growing field to water it.'), 'info'); return; }
     this.s.water = { n: wi.max, at: Date.now() };
     this.sound('collect');
     this.burst(o, '#6fc8ff');
@@ -959,15 +960,15 @@ export class GameStore {
 
   buyFishing(spot: FishSpot = 'lake') {
     if (this.fishData(spot)?.open) return;
-    if (this.s.level < FISHING.level) { this.toast(`The fishing spot opens at level ${FISHING.level}.`, 'bad'); return; }
-    if (this.s.coins < FISHING.cost) { this.toast('Not enough coins.', 'bad'); return; }
+    if (this.s.level < FISHING.level) { this.toast(tr('The fishing spot opens at level {n}.', { n: FISHING.level }), 'bad'); return; }
+    if (this.s.coins < FISHING.cost) { this.toast(tr('Not enough coins.'), 'bad'); return; }
     this.s.coins -= FISHING.cost;
     const f = { open: true, castAt: null, catchAt: null };
     if (spot === 'sea') this.s.seaFishing = f; else this.s.fishing = f;
     this.sound('build');
     const p = fishSpotAt(spot);
     this.fx.push({ kind: 'burst', gx: p.x, gy: p.y, color: '#8fd3ff', z: 10 });
-    this.fx.push({ kind: 'float', gx: p.x, gy: p.y, text: 'Fishing spot open!', color: '#e6f7ff', z: 30 });
+    this.fx.push({ kind: 'float', gx: p.x, gy: p.y, text: tr('Fishing spot open!'), color: '#e6f7ff', z: 30 });
     this.emit();
   }
 
@@ -1012,7 +1013,7 @@ export class GameStore {
       const cx = Math.floor(x / CHUNK), cy = Math.floor(y / CHUNK);
       const cs = chunkState(this.s, cx, cy);
       if (cs === 'buyable') { this.ui.expand = { cx, cy }; this.sound('click'); }
-      else if (cs === 'locked') this.toast('Expand the land next to this area first.');
+      else if (cs === 'locked') this.toast(tr('Expand the land next to this area first.'));
     }
     this.emit(false);
   }
@@ -1022,10 +1023,10 @@ export class GameStore {
   plant(o: FarmObject, cropId: string, quiet = false) {
     const c = CROP[cropId];
     if (!o.plot || o.plot.crop || !c) return false;
-    if (this.s.level < c.level) { this.toast(`${ITEMS[cropId].name} unlocks at level ${c.level}.`, 'bad'); return false; }
+    if (this.s.level < c.level) { this.toast(tr('{item} unlocks at level {n}.', { item: tr(ITEMS[cropId].name), n: c.level }), 'bad'); return false; }
     if ((this.s.inv[cropId] ?? 0) > 0) this.take(cropId, 1);
     else if (this.s.coins >= c.seedCost) this.s.coins -= c.seedCost;
-    else { if (!quiet) this.toast('Not enough coins for seeds.', 'bad'); else this.toast('Out of seeds.', 'bad'); this.ui.tool = null; this.emit(); return false; }
+    else { if (!quiet) this.toast(tr('Not enough coins for seeds.'), 'bad'); else this.toast(tr('Out of seeds.'), 'bad'); this.ui.tool = null; this.emit(); return false; }
     o.plot.crop = cropId;
     o.plot.plantedAt = Date.now();
     o.plot.watered = false;
@@ -1068,7 +1069,7 @@ export class GameStore {
     if (!free) {
       const wi = waterInfo(this.s);
       if (wi.n <= 0) {
-        this.toast(wi.wells ? 'Your bucket is empty. Tap a well to fill it.' : 'Your bucket is empty. Build a well to fill it.', 'bad');
+        this.toast(tr(wi.wells ? 'Your bucket is empty. Tap a well to fill it.' : 'Your bucket is empty. Build a well to fill it.'), 'bad');
         return false;
       }
       this.s.water = { n: wi.n - 1, at: this.s.water?.at ?? Date.now() };
@@ -1088,7 +1089,7 @@ export class GameStore {
     const pp = plotProgress(o, Date.now());
     if (!pp.crop || pp.ready || !o.plot) return;
     const cost = gemCost(pp.remaining);
-    if (this.s.gems < cost) { this.toast('Not enough gems.', 'bad'); return; }
+    if (this.s.gems < cost) { this.toast(tr('Not enough gems.'), 'bad'); return; }
     this.s.gems -= cost;
     o.plot.plantedAt = Date.now() - CROP[pp.crop].time * 1000;
     this.sound('coin');
@@ -1101,9 +1102,9 @@ export class GameStore {
     const r = RECIPE[recipeId];
     if (!o.prod || !r) return;
     const now = Date.now();
-    if (this.s.level < r.level) { this.toast(`Unlocks at level ${r.level}.`, 'bad'); return; }
-    if (o.prod.queue.length >= o.prod.slots) { this.toast('Queue is full. Collect goods or add a slot.', 'bad'); return; }
-    if (!this.hasItems(r.inputs)) { this.toast('Missing ingredients.', 'bad'); return; }
+    if (this.s.level < r.level) { this.toast(tr('Unlocks at level {n}.', { n: r.level }), 'bad'); return; }
+    if (o.prod.queue.length >= o.prod.slots) { this.toast(tr('Queue is full. Collect goods or add a slot.'), 'bad'); return; }
+    if (!this.hasItems(r.inputs)) { this.toast(tr('Missing ingredients.'), 'bad'); return; }
     for (const [id, n] of Object.entries(r.inputs)) this.take(id, n);
     const last = o.prod.queue[o.prod.queue.length - 1];
     const start = Math.max(now, last ? last.endsAt : now);
@@ -1140,7 +1141,7 @@ export class GameStore {
     if (!cur) return;
     const rem = cur.endsAt - Math.max(now, cur.startAt);
     const cost = gemCost(cur.endsAt - now);
-    if (this.s.gems < cost) { this.toast('Not enough gems.', 'bad'); return; }
+    if (this.s.gems < cost) { this.toast(tr('Not enough gems.'), 'bad'); return; }
     this.s.gems -= cost;
     const shift = cur.endsAt - now;
     for (const e of o.prod.queue) {
@@ -1157,7 +1158,7 @@ export class GameStore {
     if (!o.prod) return;
     if (o.prod.slots >= MAX_SLOTS) return;
     const cost = slotCost(o.prod.slots);
-    if (this.s.gems < cost) { this.toast('Not enough gems.', 'bad'); return; }
+    if (this.s.gems < cost) { this.toast(tr('Not enough gems.'), 'bad'); return; }
     this.s.gems -= cost;
     o.prod.slots++;
     this.sound('build');
@@ -1170,9 +1171,9 @@ export class GameStore {
     const d = BUILDING[o.type];
     const an = ANIMAL[d.animal ?? ''];
     if (!o.pen || !an) return;
-    if (this.s.level < an.level) { this.toast(`${an.name}s unlock at level ${an.level}.`, 'bad'); return; }
-    if (o.pen.animals.length >= (d.capacity ?? 0)) { this.toast('This home is full.', 'bad'); return; }
-    if (this.s.coins < an.cost) { this.toast('Not enough coins.', 'bad'); return; }
+    if (this.s.level < an.level) { this.toast(tr('{animal} unlocks at level {n}.', { animal: tr(an.name), n: an.level }), 'bad'); return; }
+    if (o.pen.animals.length >= (d.capacity ?? 0)) { this.toast(tr('This home is full.'), 'bad'); return; }
+    if (this.s.coins < an.cost) { this.toast(tr('Not enough coins.'), 'bad'); return; }
     this.s.coins -= an.cost;
     o.pen.animals.push({ id: this.s.nextId++, fedAt: null });
     this.addXp(2);
@@ -1192,8 +1193,8 @@ export class GameStore {
       a.fedAt = Date.now();
       n++;
     }
-    if (n) { this.sound('plant'); this.float(o, `Fed ${n} ${pi.animal.icon}`, '#ffffff', 40); this.emit(); }
-    else if (pi.hungry) this.toast(`You need ${ITEMS[pi.animal.feed].name}. ${feedHint(pi.animal.feed)}`, 'bad');
+    if (n) { this.sound('plant'); this.float(o, tr('Fed {n}', { n }) + ` ${pi.animal.icon}`, '#ffffff', 40); this.emit(); }
+    else if (pi.hungry) this.toast(`${tr('You need {item}.', { item: tr(ITEMS[pi.animal.feed].name) })} ${feedHint(pi.animal.feed)}`, 'bad');
   }
 
   // Open the gate: every hungry animal walks out to graze (bees fly off to the flowers) and
@@ -1204,9 +1205,9 @@ export class GameStore {
     let n = 0;
     for (const a of o.pen.animals) if (a.fedAt === null && !a.graze) { a.graze = { at: now }; n++; }
     const an = penInfo(o, now).animal;
-    if (!n) { this.toast(`No hungry ${an.name.toLowerCase()}s to let out.`); return; }
+    if (!n) { this.toast(tr('No hungry {animal} to let out.', { animal: tr(an.name) })); return; }
     this.sound('click');
-    this.float(o, an.id === 'bee' ? `🌼 ${n} off to the flowers` : `🌿 ${n} out to graze`, '#ffffff', 40);
+    this.float(o, an.id === 'bee' ? `🌼 ${tr('{n} off to the flowers', { n })}` : `🌿 ${tr('{n} out to graze', { n })}`, '#ffffff', 40);
     this.stat('graze', n);
     this.emit();
   }
@@ -1222,7 +1223,7 @@ export class GameStore {
       const ph = grazePhase(a, now, bee).phase;
       if (ph === 'leaving' || ph === 'eating') { a.graze.back = now; n++; }
     }
-    if (n) { this.sound('click'); this.float(o, `📣 ${n} coming home`, '#ffffff', 40); this.emit(); }
+    if (n) { this.sound('click'); this.float(o, `📣 ${tr('{n} coming home', { n })}`, '#ffffff', 40); this.emit(); }
   }
 
   collectPen(o: FarmObject) {
@@ -1260,7 +1261,7 @@ export class GameStore {
     let maxRem = 0;
     for (const a of o.pen.animals) if (a.fedAt !== null && !animalReady(a, pi.animal.time, now)) maxRem = Math.max(maxRem, a.fedAt + pi.animal.time * 1000 - now);
     const cost = gemCost(maxRem);
-    if (this.s.gems < cost) { this.toast('Not enough gems.', 'bad'); return; }
+    if (this.s.gems < cost) { this.toast(tr('Not enough gems.'), 'bad'); return; }
     this.s.gems -= cost;
     for (const a of o.pen.animals) if (a.fedAt !== null) a.fedAt = Math.min(a.fedAt, now - pi.animal.time * 1000);
     this.sound('coin');
@@ -1271,9 +1272,9 @@ export class GameStore {
 
   startBuy(type: string) {
     const d = BUILDING[type];
-    if (this.s.level < d.level) { this.toast(`Unlocks at level ${d.level}.`, 'bad'); return; }
-    if (this.countType(type) >= this.maxOf(d)) { this.toast(d.kind === 'plot' ? 'Field limit reached. Level up for more.' : 'You already own the maximum.', 'bad'); return; }
-    if (this.s.coins < this.costOf(d)) { this.toast('Not enough coins.', 'bad'); return; }
+    if (this.s.level < d.level) { this.toast(tr('Unlocks at level {n}.', { n: d.level }), 'bad'); return; }
+    if (this.countType(type) >= this.maxOf(d)) { this.toast(tr(d.kind === 'plot' ? 'Field limit reached. Level up for more.' : 'You already own the maximum.'), 'bad'); return; }
+    if (this.s.coins < this.costOf(d)) { this.toast(tr('Not enough coins.'), 'bad'); return; }
     const c = this.viewCenter();
     const spot = this.findSpot(type, c.x - Math.floor(d.w / 2), c.y - Math.floor(d.h / 2));
     this.ui.placing = { type, x: spot.x, y: spot.y };
@@ -1293,7 +1294,7 @@ export class GameStore {
     this.ui.selectedId = null;
     this.ui.panel = null;
     this.ui.tool = null;
-    this.toast(`Moving ${d.name}. Drag it, then press the check mark.`);
+    this.toast(tr('Moving {name}. Drag it, then press the check mark.', { name: tr(d.name) }));
     this.emit(false);
   }
 
@@ -1318,7 +1319,7 @@ export class GameStore {
   confirmPlace() {
     const p = this.ui.placing;
     if (!p) return;
-    if (!this.canPlace(p.type, p.x, p.y, p.moveId)) { this.toast('You cannot place it there.', 'bad'); return; }
+    if (!this.canPlace(p.type, p.x, p.y, p.moveId)) { this.toast(tr('You cannot place it there.'), 'bad'); return; }
     const d = BUILDING[p.type];
     if (p.moveId !== undefined) {
       const o = this.obj(p.moveId);
@@ -1330,7 +1331,7 @@ export class GameStore {
       return;
     }
     const cost = this.costOf(d);
-    if (this.s.coins < cost) { this.toast('Not enough coins.', 'bad'); this.ui.placing = null; this.emit(false); return; }
+    if (this.s.coins < cost) { this.toast(tr('Not enough coins.'), 'bad'); this.ui.placing = null; this.emit(false); return; }
     if (this.countType(p.type) >= this.maxOf(d)) { this.ui.placing = null; this.emit(false); return; }
     this.s.coins -= cost;
     const o: FarmObject = { id: this.s.nextId++, type: p.type, x: p.x, y: p.y };
@@ -1382,8 +1383,8 @@ export class GameStore {
     const o = this.obj(id);
     if (!o) return;
     const d = BUILDING[o.type];
-    if (d.kind === 'plot' && o.plot?.crop) { this.toast('Harvest the field before removing it.', 'bad'); return; }
-    if (!this.canSell(o)) { this.toast(d.kind === 'silo' || d.kind === 'barn' ? `Your last ${d.name.toLowerCase()} has to stay.` : `The ${d.name} cannot be sold.`, 'bad'); return; }
+    if (d.kind === 'plot' && o.plot?.crop) { this.toast(tr('Harvest the field before removing it.'), 'bad'); return; }
+    if (!this.canSell(o)) { this.toast(d.kind === 'silo' || d.kind === 'barn' ? tr('Your last {name} has to stay.', { name: tr(d.name) }) : tr('The {name} cannot be sold.', { name: tr(d.name) }), 'bad'); return; }
     // a workshop sold with goods still in it: the finished ones are collected first, and the
     // rest give their ingredients back rather than vanishing with it
     if (o.prod?.queue.length) {
@@ -1398,7 +1399,7 @@ export class GameStore {
     if (this.ui.panelObj === id) { this.ui.panelObj = undefined; this.ui.panel = null; }
     this.objVersion++;
     this.sound('coin');
-    if (refund) this.toast(`Sold ${d.name} for ${refund} coins.`, 'good');
+    if (refund) this.toast(tr('Sold {name} for {n} coins.', { name: tr(d.name), n: refund }), 'good');
     this.emit();
   }
 
@@ -1408,7 +1409,7 @@ export class GameStore {
     const o = this.obj(id);
     if (!o) return;
     const rot = ((o.rot ?? 0) + 1) % 4;
-    if (!this.canPlace(o.type, o.x, o.y, o.id, rot)) { this.toast('There is no room to turn it that way here. Move it first.', 'bad'); return; }
+    if (!this.canPlace(o.type, o.x, o.y, o.id, rot)) { this.toast(tr('There is no room to turn it that way here. Move it first.'), 'bad'); return; }
     o.rot = rot;
     this.objVersion++;
     this.sound('click');
@@ -1431,7 +1432,7 @@ export class GameStore {
     if (!o) return;
     const d = BUILDING[o.type];
     const cost = d.clearCost ?? 0;
-    if (this.s.coins < cost) { this.toast('Not enough coins.', 'bad'); return; }
+    if (this.s.coins < cost) { this.toast(tr('Not enough coins.'), 'bad'); return; }
     this.s.coins -= cost;
     this.s.objects = this.s.objects.filter((x) => x.id !== id);
     this.stat('clear');
@@ -1451,8 +1452,8 @@ export class GameStore {
     if (!e) return;
     if (chunkState(this.s, e.cx, e.cy) !== 'buyable') { this.ui.expand = null; this.emit(false); return; }
     const info = expandInfo(this.s);
-    if (this.s.level < info.level) { this.toast(`Reach level ${info.level} to expand.`, 'bad'); return; }
-    if (this.s.coins < info.cost) { this.toast('Not enough coins.', 'bad'); return; }
+    if (this.s.level < info.level) { this.toast(tr('Reach level {n} to expand.', { n: info.level }), 'bad'); return; }
+    if (this.s.coins < info.cost) { this.toast(tr('Not enough coins.'), 'bad'); return; }
     this.s.coins -= info.cost;
     this.s.chunks.push(`${e.cx},${e.cy}`);
     // new land comes with a few things to clear
@@ -1466,7 +1467,7 @@ export class GameStore {
     this.stat('expand');
     this.addXp(10);
     this.fx.push({ kind: 'burst', gx: e.cx * CHUNK + 2, gy: e.cy * CHUNK + 2, color: '#ffe066', z: 10 });
-    this.fx.push({ kind: 'float', gx: e.cx * CHUNK + 2, gy: e.cy * CHUNK + 2, text: 'New land!', color: '#fff6c8', z: 30 });
+    this.fx.push({ kind: 'float', gx: e.cx * CHUNK + 2, gy: e.cy * CHUNK + 2, text: tr('New land!'), color: '#fff6c8', z: 30 });
     this.ui.expand = null;
     this.objVersion++;
     this.sound('levelup');
@@ -1478,11 +1479,11 @@ export class GameStore {
   upgradeStorage(k: 'silo' | 'barn') {
     const lvl = k === 'silo' ? this.s.siloLevel : this.s.barnLevel;
     const cost = upgradeCost(lvl);
-    if (this.s.coins < cost) { this.toast('Not enough coins.', 'bad'); return; }
+    if (this.s.coins < cost) { this.toast(tr('Not enough coins.'), 'bad'); return; }
     this.s.coins -= cost;
     if (k === 'silo') this.s.siloLevel++; else this.s.barnLevel++;
     this.addXp(5 + lvl * 2);
-    this.toast(`${k === 'silo' ? 'Silo' : 'Barn'} upgraded to ${storageCap(this.s, k)}.`, 'good');
+    this.toast(tr(k === 'silo' ? 'Silo upgraded to {n}.' : 'Barn upgraded to {n}.', { n: storageCap(this.s, k) }), 'good');
     this.sound('build');
     this.emit();
   }
@@ -1507,7 +1508,7 @@ export class GameStore {
   fulfillOrder(id: number) {
     const o = this.s.orders.find((x) => x.id === id);
     if (!o) return;
-    if (!canFulfill(this.s, o, Date.now())) { this.toast('You do not have everything for this order yet.', 'bad'); return; }
+    if (!canFulfill(this.s, o, Date.now())) { this.toast(tr('You do not have everything for this order yet.'), 'bad'); return; }
     for (const it of o.items) this.take(it.id, it.qty);
     const coins = Math.round(o.coins * (1 + horseBonus(this.s)));
     this.earn(coins);
@@ -1515,7 +1516,7 @@ export class GameStore {
     this.stat('orders');
     this.addXp(o.xp);
     const board = this.s.objects.find((x) => x.type === 'board');
-    if (board) { this.float(board, `+${coins} coins`, '#ffe066', 60); this.fly(board, '🪙', 'coins', 60); }
+    if (board) { this.float(board, tr('+{n} coins', { n: coins }), '#ffe066', 60); this.fly(board, '🪙', 'coins', 60); }
     this.s.orders = this.s.orders.map((x) => (x.id === id ? genOrder(this.s, Date.now() + 5000) : x));
     this.sound('coin');
     this.emit();
@@ -1560,8 +1561,8 @@ export class GameStore {
         this.earn(coins);
         this.addXp(10);
         this.sound('levelup');
-        this.toast(`Well rested! +${coins} coins, +10 XP`, 'good');
-      } else this.toast('Up already? Sleep a little longer for the rested bonus.');
+        this.toast(tr('Well rested! +{n} coins, +10 XP', { n: coins }), 'good');
+      } else this.toast(tr('Up already? Sleep a little longer for the rested bonus.'));
     }
     this.emit();
   }
@@ -1575,9 +1576,9 @@ export class GameStore {
     if (s.album[id] || !ALBUM_IDS.has(id)) return false;
     s.album[id] = Date.now();
     const e = albumEntry(id)!;
-    this.toast(`New in your album: ${e.name}!`, 'good');
+    this.toast(tr('New in your album: {name}!', { name: tr(e.name) }), 'good');
     const set = ALBUM.find((a) => a.entries.some((x) => x.id === id));
-    if (set && albumSetDone(s, set.id)) this.toast(`Album set complete: ${set.name}! Claim it in Goals.`, 'good');
+    if (set && albumSetDone(s, set.id)) this.toast(tr('Album set complete: {name}! Claim it in Goals.', { name: tr(set.name) }), 'good');
     return true;
   }
 
@@ -1585,7 +1586,7 @@ export class GameStore {
   spotCreature(kind: string) {
     const e = albumEntry(kind);
     if (!e) return;
-    if (!this.discover(kind)) this.toast(`${e.icon} ${e.name}`);
+    if (!this.discover(kind)) this.toast(`${e.icon} ${tr(e.name)}`);
     this.sound('click');
     this.emit();
   }
@@ -1599,7 +1600,7 @@ export class GameStore {
     s.gems += a.reward.gems;
     this.addXp(a.reward.xp);
     this.sound('levelup');
-    this.toast(`${a.name} complete! +${fmtNum(a.reward.coins)} coins, +${a.reward.gems} gems`, 'good');
+    this.toast(tr('{name} complete! +{coins} coins, +{gems} gems', { name: tr(a.name), coins: fmtNum(a.reward.coins), gems: a.reward.gems }), 'good');
     this.emit();
   }
 
@@ -1629,16 +1630,16 @@ export class GameStore {
 
   feedPet(id: PetId) {
     const p = this.pet(id);
-    if (petFed(p)) { this.toast(`${p.name} has eaten today already.`); return; }
+    if (petFed(p)) { this.toast(tr('{name} has eaten today already.', { name: p.name })); return; }
     const food = this.petFood(id);
-    if (!food) { this.toast(`${p.name} would like ${PET[id].foods.map((f) => ITEMS[f].name.toLowerCase()).join(' or ')}.`, 'bad'); return; }
+    if (!food) { this.toast(tr('{name} would like {foods}.', { name: p.name, foods: PET[id].foods.map((f) => tr(ITEMS[f].name)).join(' / ') }), 'bad'); return; }
     this.take(food, 1);
     p.fedDay = todayKey();
     p.fedAt = Date.now();
     p.love = Math.min(100, p.love + 8);
     this.ui.petJoy = { id, at: Date.now(), kind: 'feed' };
     this.sound('collect');
-    this.toast(p.giftDay === todayKey() ? `${p.name} loved that!` : `${p.name} loved that, and ${PET[id].search} for you.`, 'good');
+    this.toast(p.giftDay === todayKey() ? tr('{name} loved that!', { name: p.name }) : `${tr('{name} loved that!', { name: p.name })} ${p.name} ${tr(PET[id].search)}.`, 'good');
     this.emit();
   }
 
@@ -1657,7 +1658,7 @@ export class GameStore {
       const coins = 60 + petHearts(p) * 40 + this.s.level * 3;
       this.earn(coins);
       this.sound('coin');
-      this.toast(`${p.name} brought another ${pick.icon} ${pick.name}. You sell it for ${fmtNum(coins)} coins.`, 'good');
+      this.toast(tr('{name} brought another {find}. You sell it for {n} coins.', { name: p.name, find: `${pick.icon} ${tr(pick.name)}`, n: fmtNum(coins) }), 'good');
     } else this.sound('levelup');
     this.emit();
   }
@@ -1707,7 +1708,7 @@ export class GameStore {
       const crop = key || null;
       const plot = s.objects.find((o) => o.type === 'plot' && (crop ? o.plot?.crop === crop : false)) ?? s.objects.find((o) => o.type === 'plot' && !o.plot?.crop);
       // no field free for it: the crop in the shop, with the fields to buy beside it
-      if (!plot) { shopFor(crop ?? 'plot'); if (crop) this.toast(`Plant ${ITEMS[crop]?.name ?? 'it'} in a free field. Buy another field if all are busy.`); return; }
+      if (!plot) { shopFor(crop ?? 'plot'); if (crop) this.toast(tr('Plant {item} in a free field. Buy another field if all are busy.', { item: tr(ITEMS[crop]?.name ?? 'it') })); return; }
       this.ui.panel = null;
       this.select(null);
       const f = footprint(plot);
@@ -1748,7 +1749,7 @@ export class GameStore {
     this.s.gems += r.gems;
     this.ui.daily = false;
     this.sound('coin');
-    this.toast(`Daily reward: ${r.coins} coins${r.gems ? ` and ${r.gems} gems` : ''}.`, 'good');
+    this.toast(r.gems ? tr('Daily reward: {coins} coins and {gems} gems.', { coins: r.coins, gems: r.gems }) : tr('Daily reward: {coins} coins.', { coins: r.coins }), 'good');
     this.emit();
   }
 
@@ -1760,7 +1761,7 @@ export class GameStore {
     this.s.gems += q.gems;
     if (q.xp) this.addXp(q.xp);
     this.sound('coin');
-    this.toast(`Goal complete: ${q.text}!`, 'good');
+    this.toast(tr('Goal complete: {goal}!', { goal: tr(q.text) }), 'good');
     this.emit();
   }
 
@@ -1789,7 +1790,7 @@ export class GameStore {
     const ti = treeInfo(o, Date.now());
     if (ti.ready || !o.tree) return;
     const cost = gemCost(ti.remaining);
-    if (this.s.gems < cost) { this.toast('Not enough gems.', 'bad'); return; }
+    if (this.s.gems < cost) { this.toast(tr('Not enough gems.'), 'bad'); return; }
     this.s.gems -= cost;
     o.tree.startAt = Date.now() - (BUILDING[o.type].growTime ?? 60) * 1000;
     this.sound('coin');
@@ -1802,7 +1803,7 @@ export class GameStore {
     const sl = this.s.stall[slot];
     if (!sl || sl.item) return;
     const have = this.s.inv[item] ?? 0;
-    if (!ITEMS[item] || qty < 1 || have < qty) { this.toast('You do not have that many.', 'bad'); return; }
+    if (!ITEMS[item] || qty < 1 || have < qty) { this.toast(tr('You do not have that many.'), 'bad'); return; }
     const base = stallValue(item, qty);
     const pr = Math.max(1, Math.min(base * 2, Math.round(price)));
     const ratio = pr / base;
@@ -1845,7 +1846,7 @@ export class GameStore {
     if (!b || boatState(this.s, now) !== 'docked') return;
     const c = b.crates[i];
     if (!c || c.filled) return;
-    if ((this.s.inv[c.item] ?? 0) < c.qty) { this.toast(`You need ${c.qty} ${ITEMS[c.item].name}.`, 'bad'); return; }
+    if ((this.s.inv[c.item] ?? 0) < c.qty) { this.toast(tr('You need {n} {item}.', { n: c.qty, item: tr(ITEMS[c.item].name) }), 'bad'); return; }
     this.take(c.item, c.qty);
     c.filled = true;
     this.earn(c.coins);
@@ -1863,7 +1864,7 @@ export class GameStore {
     this.s.gems += b.bonusGems;
     this.stat('boat');
     this.addXp(20);
-    this.toast(`Boat sent! Bonus ${b.bonusCoins} coins and ${b.bonusGems} gems.`, 'good');
+    this.toast(tr('Boat sent! Bonus {coins} coins and {gems} gems.', { coins: b.bonusCoins, gems: b.bonusGems }), 'good');
     this.s.boat = { ...b, crates: [], returnAt: Date.now() + 8 * 60e3 };
     this.sound('levelup');
     this.emit();
@@ -1886,8 +1887,8 @@ export class GameStore {
         if (gp.phase === 'home') { delete a.graze; hungryN++; changed = true; }
         else if (gp.phase === 'full') { a.fedAt = gp.doneAt; delete a.graze; fedN++; changed = true; }
       }
-      if (fedN) this.float(o, bee ? `🍯 ${fedN} bees full of nectar` : `😋 ${fedN} full and home`, '#ffffff', 40);
-      if (hungryN) this.float(o, `🍽️ ${hungryN} home, still hungry`, '#ffffff', 40);
+      if (fedN) this.float(o, bee ? `🍯 ${tr('{n} bees full of nectar', { n: fedN })}` : `😋 ${tr('{n} full and home', { n: fedN })}`, '#ffffff', 40);
+      if (hungryN) this.float(o, `🍽️ ${tr('{n} home, still hungry', { n: hungryN })}`, '#ffffff', 40);
     }
     return changed;
   }
@@ -1912,17 +1913,17 @@ export class GameStore {
       // one note per shower, not one per field
       if (rained && now - this.rainNoteAt > 5 * 60e3) {
         this.rainNoteAt = now;
-        this.toast('Rain is watering your fields! 🌧️', 'good');
+        this.toast(tr('Rain is watering your fields! 🌧️'), 'good');
       }
     }
     const b = this.s.boat;
     if (b && this.countType('dock') > 0) {
       if (b.crates.length && now >= b.leavesAt) {
         this.s.boat = { ...b, crates: [], returnAt: now + 8 * 60e3 };
-        this.toast('The boat left the dock. It will be back soon.');
+        this.toast(tr('The boat left the dock. It will be back soon.'));
       } else if (!b.crates.length && now >= b.returnAt) {
         this.s.boat = genBoat(this.s, now);
-        this.toast('A cargo boat arrived at your dock!', 'good');
+        this.toast(tr('A cargo boat arrived at your dock!'), 'good');
       }
     }
     this.emit(false);
@@ -1968,7 +1969,7 @@ export class GameStore {
     this.ui.story = null;
     if (d.part === 'intro') {
       const t = ch.tasks.find((x) => taskProgress(x, this.s) < x.target);
-      if (t) { this.say(`${t.icon} ${t.text}`, 5000); this.hintAt = Date.now() + 60e3; }
+      if (t) { this.say(`${t.icon} ${tr(t.text)}`, 5000); this.hintAt = Date.now() + 60e3; }
     }
     this.emit(false);
   }
@@ -2000,7 +2001,7 @@ export class GameStore {
     this.ui.panel = null;
     this.ui.say = null;
     this.ui.story = { ch: n, part: 'outro', i: 0 };
-    this.toast(`Chapter ${n} complete! +${fmtNum(r.coins)} coins${r.gems ? `, +${r.gems} gems` : ''}`, 'good');
+    this.toast(r.gems ? tr('Chapter {n} complete! +{coins} coins, +{gems} gems', { n, coins: fmtNum(r.coins), gems: r.gems }) : tr('Chapter {n} complete! +{coins} coins', { n, coins: fmtNum(r.coins) }), 'good');
     this.sound('levelup');
     this.addXp(r.xp);
     this.emit();
@@ -2023,14 +2024,14 @@ export class GameStore {
     for (const t of done) {
       if (this.told.has(t.id)) continue;
       this.told.add(t.id);
-      this.say(`✅ ${t.text}`, 4000);
-      this.toast(`Story task done: ${t.text}`, 'good');
+      this.say(`✅ ${tr(t.text)}`, 4000);
+      this.toast(tr('Story task done: {task}', { task: tr(t.text) }), 'good');
       this.hintAt = now + 30e3;
     }
     if (now < this.hintAt || this.ui.napping) return;
     const next = ch.tasks.find((t) => taskProgress(t, this.s) < t.target);
-    if (next) this.say(`${next.icon} ${next.text}  ${taskProgress(next, this.s)}/${next.target}`, 5000);
-    else this.say(`📖 Chapter ${ch.n} is done! Open Goals for your reward.`, 5000);
+    if (next) this.say(`${next.icon} ${tr(next.text)}  ${taskProgress(next, this.s)}/${next.target}`, 5000);
+    else this.say(`📖 ${tr('Chapter {n} is done! Open Goals for your reward.', { n: ch.n })}`, 5000);
     this.hintAt = now + 90e3;
   }
 
@@ -2044,7 +2045,7 @@ export class GameStore {
     this.s.achievements[id] = k + 1;
     this.s.gems += BADGE_GEMS[k];
     this.sound('levelup');
-    this.toast(`${a.name} badge ${['bronze', 'silver', 'gold'][k]}! +${BADGE_GEMS[k]} gems`, 'good');
+    this.toast(tr(['{name} badge bronze! +{n} gems', '{name} badge silver! +{n} gems', '{name} badge gold! +{n} gems'][k], { name: tr(a.name), n: BADGE_GEMS[k] }), 'good');
     this.emit();
   }
 
@@ -2080,17 +2081,17 @@ export class GameStore {
       const d = JSON.parse(json);
       if (!d || d.v !== 1) throw new Error('bad');
       this.replace(migrate(d));
-      this.toast('Farm loaded.', 'good');
+      this.toast(tr('Farm loaded.'), 'good');
       return true;
     } catch {
-      this.toast('That save code is not valid.', 'bad');
+      this.toast(tr('That save code is not valid.'), 'bad');
       return false;
     }
   }
 
   reset() {
     this.replace(newGame());
-    this.toast('A fresh farm is ready.', 'good');
+    this.toast(tr('A fresh farm is ready.'), 'good');
   }
 
   private replace(s: GameState) {

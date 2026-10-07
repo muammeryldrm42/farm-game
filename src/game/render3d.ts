@@ -20,6 +20,7 @@ import { toonCrown, toonPersonParts } from './gfx/toon';
 import { SCULPT_MAT, TOON_MAT, TOON_WOOL, WOOL_MAT } from './gfx/sdf';
 import { leafShell, leafTexture, meterBox, meterHip, meterRoof, surface, surfaceMat, surfacesReady, type SurfaceKind } from './gfx/textures';
 import { ANIMAL, BUILDING, CROP, ITEMS, type BuildingDef, type CropDef } from './data';
+import { t as tr } from './i18n';
 import {
   CHUNK, FARM_OFF, FISH_SPOT, footprint, PET_IDS, petGift, type PetId, SEA_FISH_SPOT, fishSpotAt, type FishSpot, GRAZE, GRID, LAKE, MAP_OFF2, MAP_OFF3, NCH, isBeachTile, lakeE, animalReady, fishingInfo, boatState, canFulfill, chunkState, grazePhase, penInfo, plotProgress, prodInfo, treeInfo,
   type Animal, type FarmObject, type GameStore,
@@ -1363,7 +1364,7 @@ export class Renderer {
       c.fillStyle = '#c98a45'; c.fillRect(0, 0, 256, 128);
       c.strokeStyle = '#6b4226'; c.lineWidth = 12; c.strokeRect(6, 6, 244, 116);
       c.fillStyle = '#fff8e6'; c.font = '900 48px ui-rounded, "Trebuchet MS", system-ui, sans-serif';
-      c.textAlign = 'center'; c.textBaseline = 'middle'; c.fillText('FOR SALE', 128, 66);
+      c.textAlign = 'center'; c.textBaseline = 'middle'; c.fillText(tr('FOR SALE'), 128, 66);
     });
     const board = new THREE.Mesh(G.box, [M('#a8733f'), M('#a8733f'), M('#a8733f'), M('#a8733f'), new THREE.MeshLambertMaterial({ map: tex }), new THREE.MeshLambertMaterial({ map: tex })]);
     board.scale.set(0.9, 0.45, 0.06);
