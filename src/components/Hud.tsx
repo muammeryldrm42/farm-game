@@ -5,6 +5,9 @@ import { TUTORIAL, TUTORIAL_DONE, canFulfill, claimableAlbum, claimableBadges, c
 import { useStore, useVersion } from './ctx';
 import { CAST, LAST_CHAPTER, taskProgress } from '@/game/story';
 
+// the HUD keeps clear of a phone's camera cutout and rounded corners (zero on a desktop)
+const SAFE = { top: 'env(safe-area-inset-top)', right: 'env(safe-area-inset-right)', bottom: 'env(safe-area-inset-bottom)', left: 'env(safe-area-inset-left)' };
+
 export function Coin({ className = '' }: { className?: string }) {
   return <span className={`coin ${className}`} aria-label="coins" />;
 }
@@ -26,7 +29,7 @@ export default function Hud() {
   const tut = s.tutorial < TUTORIAL.length && s.tutorial !== TUTORIAL_DONE ? TUTORIAL[s.tutorial] : null;
 
   return (
-    <div className="pointer-events-none fixed inset-0 z-10 font-game">
+    <div className="pointer-events-none fixed z-10 font-game" style={SAFE}>
       {/* top bar */}
       <div className="flex items-start justify-between gap-1 p-2 sm:p-3">
         <div className="pointer-events-auto flex items-center">
