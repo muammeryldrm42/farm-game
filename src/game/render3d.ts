@@ -2578,6 +2578,23 @@ export class Renderer {
     return { door, kennel, step };
   }
 
+  // bedtime: the farmer walks to his door and goes in, the dog to its kennel or beside the door
+  private idleNight = 0;
+  private walkHome(now: number) {
+    const f = this.farmer, g = this.dog;
+    const h = this.homeDoor();
+    if (!h) { f.inside = true; f.path = []; return; }
+    this.homeBy = now + 25000;
+    const d = this.free(h.door.x, h.door.y) ? h.door : this.nearestFree(h.door.x, h.door.y, 4);
+    const walking = d ? this.send(f, d.x, d.y) : false;
+    // walled in on every side: he still walks to the door, straight over whatever is there
+    if (!walking && !f.inside) f.path = [{ x: h.door.x + 0.5, y: h.door.y + 0.5 }];
+    if (d === h.door && h.step) f.path.push(h.step);
+    f.goHome = true;
+    const ds = h.kennel ? this.nearestFree(Math.floor(h.kennel.x), Math.floor(h.kennel.y + 0.6), 3) : d ? this.dogSpot(d.x, d.y) : null;
+    if (ds) { this.send(g, ds.x, ds.y); g.goHome = true; }
+  }
+
   private updateActors(dt: number, t: number, now: number) {
     const f = this.farmer, g = this.dog;
     this.rebuildNav();
@@ -2602,33 +2619,28 @@ export class Renderer {
     const nightNow = nf.night > 0.55 || this.store.ui.napping;
     if (nightNow !== this.nightMode) {
       this.nightMode = nightNow;
-      const h = this.homeDoor();
-      if (nightNow && this.store.ui.napping) {
-        // sent to nap: he is home at once, no walk across the farm
-        f.inside = true;
-        f.path = [];
-        f.goHome = false;
-        g.sleeping = true;
-        g.path = [];
-        g.goHome = false;
-      } else if (nightNow && h) {
-        this.homeBy = now + 25000;
-        const d = this.free(h.door.x, h.door.y) ? h.door : this.nearestFree(h.door.x, h.door.y, 4);
-        const walking = d ? this.send(f, d.x, d.y) : false;
-        // walled in on every side: he still walks to the door, straight over whatever is there
-        if (!walking && !f.inside) f.path = [{ x: h.door.x + 0.5, y: h.door.y + 0.5 }];
-        if (d === h.door && h.step) f.path.push(h.step);
-        f.goHome = true;
-        const ds = h.kennel ? this.nearestFree(Math.floor(h.kennel.x), Math.floor(h.kennel.y + 0.6), 3) : d ? this.dogSpot(d.x, d.y) : null;
-        if (ds) { this.send(g, ds.x, ds.y); g.goHome = true; }
-      } else if (nightNow) {
-        f.inside = true;
-      } else if (!nightNow) {
+      if (nightNow && !this.store.ui.napping) this.walkHome(now);
+      else if (!nightNow) {
         if (f.inside) { f.inside = false; }
         g.sleeping = false;
         f.goHome = g.goHome = false;
       }
     }
+    // sent to nap: he is home at once, no walk across the farm. Checked every frame, not only when
+    // bedtime starts: at night the player may have walked him out before sending him to nap.
+    if (this.store.ui.napping && !f.inside) {
+      f.inside = true;
+      f.path = [];
+      f.goHome = false;
+      g.sleeping = true;
+      g.path = [];
+      g.goHome = false;
+    }
+    // walked out on the farm at night: once he has stood idle a little while, back to bed
+    if (this.nightMode && !f.inside && !f.goHome && !f.path.length) {
+      if (!this.idleNight) this.idleNight = now;
+      else if (now - this.idleNight > 12000) { this.idleNight = 0; this.walkHome(now); }
+    } else this.idleNight = 0;
 
     this.step(f, 1.3, dt);
     this.step(g, 2.0, dt);
