@@ -2534,11 +2534,6 @@ export class Renderer {
     this.roam = false;
   }
 
-  // walk up to a building: to the free tile nearest the middle of its front
-  walkToObject(o: FarmObject) {
-    const d = footprint(o);
-    this.walkTo(o.x + Math.floor(d.w / 2), o.y + d.h);
-  }
 
   private sendNear(a: Actor, tx: number, ty: number) {
     const cands: { x: number; y: number; d: number }[] = [];

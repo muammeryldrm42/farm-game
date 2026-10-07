@@ -260,18 +260,24 @@ function FarmCanvas() {
           store.spotCreature(hitPick.creature.kind);
           r.startle(hitPick.creature);
         } else if (hitObj) {
-          // the farmer walks over to whatever you tap
-          store.wake();
-          r.walkToObject(hitObj);
+          // tapping a building, pen, field or decoration opens it; the farmer stays where he is.
+          // Only a path is ground to walk on.
+          if (hitObj.type === 'dirt_path' || hitObj.type === 'stone_path') {
+            store.wake();
+            r.walkTo(hitObj.x, hitObj.y);
+          }
           store.tapObject(hitObj);
         }
         else if (hitSpot === 'fishing') store.tapFishing('lake');
         else if (hitSpot === 'seaFishing') store.tapFishing('sea');
         else if (hitSpot === 'visitor') store.tapVisitor();
         else {
-          // tapping free farmland sends the farmer (and the dog) walking there
-          store.wake();
-          r.walkTo(hitTile.x, hitTile.y);
+          // tapping empty farmland sends the farmer (and the dog) walking there; land still for
+          // sale is no place to walk to
+          if (store.isUnlocked(hitTile.x, hitTile.y)) {
+            store.wake();
+            r.walkTo(hitTile.x, hitTile.y);
+          }
           store.tapTile(hitTile.x, hitTile.y);
         }
       }
