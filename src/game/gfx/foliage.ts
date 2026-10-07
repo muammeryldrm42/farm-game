@@ -215,8 +215,8 @@ export class Foliage {
     }
   }
 
-  // tiles: every free tile the grass may grow on; density: tufts per open tile
-  rebuild(tiles: Spot[], density: number) {
+  // tiles: every free tile the grass may grow on; density: tufts per open tile; lite: low quality
+  rebuild(tiles: Spot[], density: number, lite = false) {
     // everything in the group goes, shadow twins of the batches included
     for (const m of [...this.group.children]) { this.group.remove(m); (m as THREE.InstancedMesh).dispose(); }
     this.batches = [];
@@ -285,7 +285,7 @@ export class Foliage {
     SPIKE_COLORS.forEach((sc, ci) => {
       const list = spikes.filter(([, , , c]) => Math.floor(c * SPIKE_COLORS.length) === ci);
       if (!list.length) return;
-      const im = new THREE.InstancedMesh(flowerKit('spike', sc, 0.16), this.flowerMat, list.length);
+      const im = new THREE.InstancedMesh(flowerKit('spike', sc, 0.16, lite), this.flowerMat, list.length);
       list.forEach(([x, z, r], i) => {
         q.setFromAxisAngle(up, r);
         m4.compose(pv.set(x, 0, z), q, sv.setScalar(1 + rnd(i, 57) * 0.6));
@@ -347,8 +347,9 @@ function blade(len: number, wid: number, thick: number) {
   return g;
 }
 
-export function flowerKit(kind: FlowerKind, petal: string, h = 0.22) {
-  const key = `${kind}|${petal}|${h}`;
+// `lite`: fewer, simpler florets on a lupine, for low quality (they are a few pixels on a phone)
+export function flowerKit(kind: FlowerKind, petal: string, h = 0.22, lite = false) {
+  const key = `${kind}|${petal}|${h}|${lite}`;
   const hit = kitCache.get(key);
   if (hit) return hit;
   const parts: THREE.BufferGeometry[] = [];
@@ -388,9 +389,10 @@ export function flowerKit(kind: FlowerKind, petal: string, h = 0.22) {
     }
   } else if (kind === 'spike') {
     // lupine or lavender: little florets stacked up the top of the stem, smaller toward the tip
-    for (let i = 0; i < 9; i++) {
-      const t = i / 8, r = 0.013 * (1 - t * 0.55);
-      const fl = new THREE.SphereGeometry(r, 5, 3);
+    const n = lite ? 6 : 9;
+    for (let i = 0; i < n; i++) {
+      const t = i / (n - 1), r = 0.013 * (1 - t * 0.55) * (lite ? 1.15 : 1);
+      const fl = lite ? new THREE.SphereGeometry(r, 4, 2) : new THREE.SphereGeometry(r, 5, 3);
       fl.translate(Math.cos(i * 2.4) * r * 0.6, h * (0.62 + t * 0.4), Math.sin(i * 2.4) * r * 0.6);
       parts.push(painted(fl, i % 2 ? petal : dark));
     }

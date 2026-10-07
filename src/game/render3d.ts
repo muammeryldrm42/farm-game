@@ -1222,7 +1222,7 @@ export class Renderer {
       const cs = chunkState(s, Math.floor(x / CHUNK), Math.floor(y / CHUNK));
       spots.push({ x, z: y, open: cs === 'open' });
     }
-    this.foliage.rebuild(spots, dens);
+    this.foliage.rebuild(spots, dens, this.quality !== 'high');
   }
 
   private dynLand = new THREE.Group();
@@ -1733,9 +1733,10 @@ export class Renderer {
     this.sun.target.position.set(x, 0, z);
     this.sun.position.set(x + 14, 26, z + 8);
     this.sun.target.updateMatrixWorld();
-    // the shadow map is redrawn every other frame, or at once when the view moves
+    // the shadow map is redrawn every other frame (every third in low quality), or at once when
+    // the view moves
     const key = x * 1000 + z + half * 1e7;
-    if (key !== this.shadowKey || this.frameNo % 2 === 0) this.sun.shadow.needsUpdate = true;
+    if (key !== this.shadowKey || this.frameNo % (this.quality === 'high' ? 2 : 3) === 0) this.sun.shadow.needsUpdate = true;
     this.shadowKey = key;
   }
   private shadowKey = 0;
