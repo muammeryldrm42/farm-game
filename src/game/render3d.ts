@@ -772,10 +772,12 @@ export class Renderer {
   // is not on it (with a little slack round small things)
   private tapDist(sx: number, sy: number, x: number, y: number, z: number, r: number) {
     const a = new THREE.Vector3(x, y, z).project(this.camera);
-    if (a.z > 1) return null;
+    // behind the camera (or past its near or far plane) the projection turns inside out and
+    // a creature out of sight would seem to cover the whole screen: those cannot be tapped
+    if (a.z < -1 || a.z > 1 || Math.abs(a.x) > 1.2 || Math.abs(a.y) > 1.2) return null;
     const b = new THREE.Vector3(x, y + r, z).project(this.camera);
     const px = ((a.x + 1) / 2) * this.W, py = ((1 - a.y) / 2) * this.H;
-    const rr = Math.max(16, Math.hypot((b.x - a.x) / 2 * this.W, (b.y - a.y) / 2 * this.H) * 1.3);
+    const rr = Math.min(90, Math.max(16, Math.hypot((b.x - a.x) / 2 * this.W, (b.y - a.y) / 2 * this.H) * 1.3));
     const d = Math.hypot(sx - px, sy - py);
     return d <= rr ? d : null;
   }
