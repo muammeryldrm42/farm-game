@@ -1989,7 +1989,7 @@ export class Renderer {
   // so neither walks through buildings.
 
   private nav = new Uint8Array(GRID * GRID); // 1 = blocked
-  private navKey = '';
+  private navKey = { land: '\u0000', ver: -1, n: -1 };
   private marker: THREE.Mesh | null = null;
   private markerT = 0;
   private homeZzz: THREE.Sprite | null = null;
@@ -2383,9 +2383,11 @@ export class Renderer {
 
   private rebuildNav() {
     const s = this.store.s;
-    const key = `${this.landKey}|${this.store.objVersion}|${s.objects.length}`;
-    if (key === this.navKey) return false;
-    this.navKey = key;
+    // asked many times a frame (grazing animals, birds, the farmer): compare the parts one by one
+    // rather than gluing the long land key into a fresh string every call
+    const nk = this.navKey;
+    if (nk.land === this.landKey && nk.ver === this.store.objVersion && nk.n === s.objects.length) return false;
+    nk.land = this.landKey; nk.ver = this.store.objVersion; nk.n = s.objects.length;
     this.nav.fill(0);
     for (let y = 0; y < GRID; y++) for (let x = 0; x < GRID; x++) {
       // locked land, and the lake's water (its bank is for walking)
