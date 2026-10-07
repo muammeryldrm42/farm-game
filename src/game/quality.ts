@@ -5,15 +5,10 @@ export type Quality = 'high' | 'low';
 
 const KEY = 'talons-farm-gfx';
 
+// every new player starts on low: the farm runs smoothly everywhere, and a strong computer can
+// switch to high in the settings
 function guess(): Quality {
-  if (typeof window === 'undefined') return 'high';
-  const small = window.innerWidth < 700;
-  const cores = navigator.hardwareConcurrency ?? 4;
-  // phones and tablets (and the Android app) start on low: a phone held sideways is wider than
-  // 700 px and has eight cores, yet its GPU is far from a desktop's
-  const touch = window.matchMedia?.('(pointer: coarse)').matches ?? false;
-  const mobile = touch || /Android|iPhone|iPad|iPod|Mobile/i.test(navigator.userAgent);
-  return small || mobile || cores <= 4 ? 'low' : 'high';
+  return 'low';
 }
 
 let current: Quality | null = null;

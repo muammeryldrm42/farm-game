@@ -1411,8 +1411,8 @@ function GoalsList() {
 function Toggle({ label, on, onChange }: { label: string; on: boolean; onChange: (v: boolean) => void }) {
   return (
     <button className="card flex w-full items-center justify-between p-3" onClick={() => onChange(!on)}>
-      <span className="font-bold">{t(label)}</span>
-      <span className={`relative h-7 w-12 rounded-full transition ${on ? 'bg-[#5cb82e]' : 'bg-[#cdb482]'}`}>
+      <span className="text-left font-bold">{t(label)}</span>
+      <span className={`relative h-7 w-12 shrink-0 rounded-full transition ${on ? 'bg-[#5cb82e]' : 'bg-[#cdb482]'}`}>
         <span className={`absolute top-1 h-5 w-5 rounded-full bg-white shadow transition-all ${on ? 'left-6' : 'left-1'}`} />
       </span>
     </button>
@@ -1436,20 +1436,39 @@ function QualityPicker() {
   );
 }
 
-// The game's language, 21 of them; the choice is kept on this device
+// The game's language, 21 of them; the choice is kept on this device. One menu button that
+// opens the list, so the settings stay short.
 function LanguagePicker() {
   const [l, setL] = useState<Lang>(getLang);
+  const [open, setOpen] = useState(false);
+  const list = useRef<HTMLDivElement>(null);
   const names = LANG_NAMES as Record<string, string>;
+  // bring the opened list into view, it sits at the bottom of the settings
+  useEffect(() => { if (open) list.current?.scrollIntoView({ block: 'nearest', behavior: 'smooth' }); }, [open]);
   return (
     <div className="card w-full p-3">
-      <div className="mb-2 font-bold">{t('Language')}</div>
-      <div className="grid grid-cols-2 gap-1.5 sm:grid-cols-3">
-        {LANG_IDS.map((id) => (
-          <button key={id} className={`btn px-2 py-1.5 text-sm ${l === id ? 'btn-green' : 'btn-wood'}`} onClick={() => { setL(id); setLang(id); }}>
-            {names[id]}
-          </button>
-        ))}
+      <div className="flex items-center justify-between gap-2">
+        <span className="font-bold">{t('Language')}</span>
+        <button className="btn btn-wood flex items-center gap-2 px-3 py-1 text-sm" onClick={() => setOpen((o) => !o)} aria-expanded={open}>
+          <span className="text-base leading-none">☰</span>
+          <span>{names[l]}</span>
+          <span className={`text-xs transition-transform ${open ? 'rotate-180' : ''}`}>▾</span>
+        </button>
       </div>
+      {open && (
+        <div ref={list} className="mt-2 max-h-64 overflow-y-auto rounded-xl border-2 border-[#d9c08f] bg-[#fffaf0]">
+          {LANG_IDS.map((id) => (
+            <button
+              key={id}
+              className={`flex w-full items-center justify-between border-b border-[#efe0bd] px-3 py-2 text-left text-sm font-bold last:border-b-0 ${l === id ? 'bg-[#dff3c8] text-[#2f6b14]' : 'text-[#5a3a1a] active:bg-[#f3e6c8]'}`}
+              onClick={() => { setL(id); setLang(id); setOpen(false); }}
+            >
+              <span>{names[id]}</span>
+              {l === id && <span>✓</span>}
+            </button>
+          ))}
+        </div>
+      )}
     </div>
   );
 }
