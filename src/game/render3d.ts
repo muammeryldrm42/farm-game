@@ -18,7 +18,7 @@ import { ribs, ruffledLeaf } from './gfx/kit';
 import { artStyle, creature, hasCreature, personParts } from './gfx/creatures';
 import { toonCrown, toonPersonParts } from './gfx/toon';
 import { SCULPT_MAT, TOON_MAT, TOON_WOOL, WOOL_MAT } from './gfx/sdf';
-import { leafShell, leafTexture, meterBox, meterHip, meterRoof, surface, surfaceMat, type SurfaceKind } from './gfx/textures';
+import { leafShell, leafTexture, meterBox, meterHip, meterRoof, surface, surfaceMat, surfacesReady, type SurfaceKind } from './gfx/textures';
 import { ANIMAL, BUILDING, CROP, ITEMS, type BuildingDef, type CropDef } from './data';
 import {
   CHUNK, FARM_OFF, FISH_SPOT, footprint, PET_IDS, petGift, type PetId, SEA_FISH_SPOT, fishSpotAt, type FishSpot, GRAZE, GRID, LAKE, MAP_OFF2, MAP_OFF3, NCH, isBeachTile, lakeE, animalReady, fishingInfo, boatState, canFulfill, chunkState, grazePhase, penInfo, plotProgress, prodInfo, treeInfo,
@@ -634,6 +634,7 @@ export class Renderer {
       threats: () => [this.farmer, this.dog, this.cat].filter(Boolean).map((a) => [a.g.position.x, a.g.position.z] as [number, number]),
     });
     this.sel = this.buildSelection();
+    precompile = (o) => this.gl.compileAsync(o, this.camera, this.scene);
     // start fetching the Blender models right away, so they are usually in before the farm shows
     if (artStyle() === 'toon') {
       loadModel('farmhouse').catch(() => {});
@@ -642,7 +643,8 @@ export class Renderer {
         loadModel(name).then((m) => { WORLD_MODELS[name] = m; this.landKey = ''; }).catch(() => {});
       }
     }
-    this.farmer = actor(FARM_C.x - 0.5, FARM_C.y + 0.5, buildFarmer());
+    // the farmer's Blender model takes over in a moment (below): the sculpt stand in is coarse
+    this.farmer = actor(FARM_C.x - 0.5, FARM_C.y + 0.5, buildFarmer(undefined, undefined, undefined, artStyle() === 'toon'));
     this.dog = actor(FARM_C.x + 0.5, FARM_C.y + 0.5, buildDog());
     this.cat = actor(FARM_C.x + 1.5, FARM_C.y + 1.5, buildCat());
     // grazing animals borrow the farmer's walk grid; bees look for blossoms
@@ -682,6 +684,7 @@ export class Renderer {
   }
 
   dispose() {
+    precompile = null;
     this.offQuality();
     this.post?.dispose();
     this.gl.dispose();
@@ -1530,9 +1533,24 @@ export class Renderer {
 
     this.sky.mesh.position.copy(this.camera.position);
     drawBlobs(this.scene);
+    // the first picture waits until the scene's shaders are compiled in the background (in
+    // parallel where the browser can): no long freeze at start up on a phone, and the page stays
+    // responsive meanwhile
+    // (and the ground's textures, painted in the background, are in)
+    if (this.warm !== 'done') {
+      if (this.warm === 'cold') {
+        this.warm = 'warming';
+        const go = () => { this.warm = 'compiled'; };
+        this.gl.compileAsync(this.scene, this.camera).then(go, go);
+        setTimeout(() => { this.warm = 'done'; }, 8000);
+      }
+      if (this.warm === 'compiled' && surfacesReady()) this.warm = 'done';
+      else return;
+    }
     if (this.post) this.post.render();
     else this.gl.render(this.scene, this.camera);
   }
+  private warm: 'cold' | 'warming' | 'compiled' | 'done' = 'cold';
 
   private tmpC = new THREE.Color();
   private skyTop = new THREE.Color();
@@ -2891,8 +2909,8 @@ function animateLegs(g: THREE.Object3D, s: number) {
   if (arms) arms.forEach((a, i) => { a.rotation.x = s * (i ? 0.8 : -0.8); });
 }
 
-export function buildFarmer(shirt = '#d64541', overall = '#3b6fa8', jeans = '#2f5d8a') {
-  if (artStyle() === 'toon') return buildToonFarmer(shirt, overall, jeans);
+export function buildFarmer(shirt = '#d64541', overall = '#3b6fa8', jeans = '#2f5d8a', quick = false) {
+  if (artStyle() === 'toon') return buildToonFarmer(shirt, overall, jeans, quick);
   const g = new THREE.Group();
   const legs: THREE.Object3D[] = [];
   legPivot(g, -0.05, 0.3, 0, 0.28, 0.08, jeans, legs);
@@ -2934,14 +2952,14 @@ export function buildFarmer(shirt = '#d64541', overall = '#3b6fa8', jeans = '#2f
 }
 
 // Cartoon farmer to match the cartoon animals: big head, round belly, chunky boots and hands
-function buildToonFarmer(shirt: string, overall: string, jeans: string) {
+function buildToonFarmer(shirt: string, overall: string, jeans: string, quick = false) {
   const g = new THREE.Group();
   const legs: THREE.Object3D[] = [];
   legPivot(g, -0.06, 0.28, 0, 0.26, 0.095, jeans, legs);
   legPivot(g, 0.06, 0.28, 0, 0.26, 0.095, jeans, legs);
   legs.forEach((l) => ball(l, 0.062, '#6a3e1c', 0, -0.26, 0.03, 0.95, 0.7, 1.45));
   const body = group(g);
-  const pp = toonPersonParts(shirt, overall);
+  const pp = toonPersonParts(shirt, overall, quick);
   const torso = new THREE.Mesh(pp.torso, TOON_MAT);
   torso.castShadow = torso.receiveShadow = true;
   body.add(torso);
@@ -4192,6 +4210,8 @@ const gltfLoader = new GLTFLoader().setDRACOLoader(new DRACOLoader().setDecoderP
 const modelCache = new Map<string, Promise<THREE.Object3D>>();
 // model materials with a baked emission mask (windows, lamps), lit up at night like WIN
 const MODEL_GLOW = new Set<THREE.MeshStandardMaterial>();
+// set by the renderer: compiles a loaded model's shaders without blocking
+let precompile: ((o: THREE.Object3D) => Promise<unknown>) | null = null;
 // models being fetched right now: the optional far detail models wait for a quiet moment
 let modelsLoading = 0;
 function loadModel(name: string) {
@@ -4213,7 +4233,10 @@ function loadModel(name: string) {
         }
       });
       gl.scene.userData.top = new THREE.Box3().setFromObject(gl.scene).max.y;
-      return gl.scene;
+      // its shaders compile in the background before it is used, so a model arriving mid game
+      // never freezes the picture while the GPU compiles
+      const ready = () => gl.scene;
+      return precompile ? precompile(gl.scene).then(ready, ready) : gl.scene;
     });
     modelCache.set(name, p);
   }
@@ -4992,12 +5015,12 @@ function buildPen(e: Entry, d: BuildingDef) {
       // a little paper lantern shed among mulberry bushes
       bxT(g, 0.55, 0.4, 0.45, 'boards', '#f4efe6', 0.45, 0.04, 0.45, 2);
       roofT(g, 0.7, 0.24, 0.6, d.roof, surfaceMat('boards', '#f4efe6', 2), 0.45, 0.44, 0.45, 0.06);
-      for (const [x, z] of [[1.5, 0.4], [1.55, 1.5], [0.5, 1.5]]) mk(g, toonCrown(5), toonLeafMat('#3f8a33'), 0.42, 0.42, 0.42, x, -0.12, z);
+      for (const [x, z] of [[1.5, 0.4], [1.55, 1.5], [0.5, 1.5]]) mk(g, toonCrown(5, MODELS[d.id] ? 0.042 : 0.014), toonLeafMat('#3f8a33'), 0.42, 0.42, 0.42, x, -0.12, z);
       break;
     }
     case 'squirrel_grove': {
       // a big oak in the corner with a knot hole, and acorns on the grass
-      const t = leafyTree(g, 0.55, 0.55, '#4f9e36', 0.9, 7);
+      const t = leafyTree(g, 0.55, 0.55, '#4f9e36', 0.9, 7, !!MODELS[d.id]);
       mk(t.crown, G.ball, M('#3a2418'), 0.06, 0.07, 0.03, 0.06, 0.4, 0.08);
       for (let i = 0; i < 6; i++) ball(g, 0.025, '#8a5a2a', 0.9 + hash(i, 5) * 0.9, 0.03, 0.9 + hash(i, 6) * 0.9, 1, 1.2, 1, false);
       break;
@@ -5014,7 +5037,7 @@ function buildPen(e: Entry, d: BuildingDef) {
       // a grassy mound with a burrow and some ferns
       mk(g, G.dome, M('#6aa84a'), 0.45, 0.25, 0.4, 0.5, 0.02, 0.5);
       mk(g, G.ball, M('#2a1a12'), 0.1, 0.08, 0.03, 0.5, 0.08, 0.88);
-      for (let i = 0; i < 5; i++) mk(g, toonCrown(i), toonLeafMat('#3f8a33'), 0.22, 0.2, 0.22, 1.3 + hash(i, 7) * 0.5, -0.06, 0.4 + hash(i, 8) * 1.1);
+      for (let i = 0; i < 5; i++) mk(g, toonCrown(i, MODELS[d.id] ? 0.042 : 0.014), toonLeafMat('#3f8a33'), 0.22, 0.2, 0.22, 1.3 + hash(i, 7) * 0.5, -0.06, 0.4 + hash(i, 8) * 1.1);
       break;
     case 'moose_woods': case 'deer_park':
       // a few pines and a salt lick
@@ -5405,7 +5428,9 @@ function toonLeafMat(leaf: string) {
 }
 
 // Cartoon tree: a stout curving trunk with root flares and one puffy round crown
-function toonTree(g: P, x: number, z: number, leaf: string, k: number, seed: number) {
+// `quick`: a Blender model takes this tree's place in a moment, so its crown is sculpted coarse
+// (about 27 times less work, a big part of a phone's start up) and only shows until then
+function toonTree(g: P, x: number, z: number, leaf: string, k: number, seed: number, quick = false) {
   const bark = M('#8a5a32');
   const trunk = mk(g, cylGeo(0.07, 0.12, 12), bark, k, 0.6 * k, k, x, 0.3 * k, z);
   trunk.rotation.z = (hash(seed, 3) - 0.5) * 0.12;
@@ -5415,13 +5440,13 @@ function toonTree(g: P, x: number, z: number, leaf: string, k: number, seed: num
   }
   const crown = group(g, x, 0, z);
   crown.userData.crown = true;
-  const m = mk(crown, toonCrown(seed), toonLeafMat(leaf), k, k, k, 0, 0, 0);
+  const m = mk(crown, toonCrown(seed, quick ? 0.042 : 0.014), toonLeafMat(leaf), k, k, k, 0, 0, 0);
   m.receiveShadow = true;
   return { crown, main: m };
 }
 
-function leafyTree(g: P, x: number, z: number, leaf: string, k = 1, seed = 1) {
-  if (artStyle() === 'toon') return toonTree(g, x, z, leaf, k, seed);
+function leafyTree(g: P, x: number, z: number, leaf: string, k = 1, seed = 1, quick = false) {
+  if (artStyle() === 'toon') return toonTree(g, x, z, leaf, k, seed, quick);
   const bark = surfaceMat('bark', '#7a4b26', 3);
   mk(g, cylGeo(0.055, 0.095, 10), bark, k, 0.55 * k, k, x, 0.275 * k, z);
   for (const [a, rz] of [[0.6, 0.7], [3.4, -0.6]]) {
@@ -5500,7 +5525,7 @@ function buildFruitTree(e: Entry, d: BuildingDef) {
   const leaf = TREE_LEAF[d.id] ?? '#4f9e36';
   if (d.id === 'coconut_palm' || d.id === 'date_palm') return buildPalm(e, d, leaf);
   if (d.id === 'banana_tree' || d.id === 'plantain_tree') return buildBanana(e, leaf, d.fruit ?? 'banana');
-  const { crown } = leafyTree(g, 0.5, 0.5, leaf, d.id === 'walnut_tree' ? 1.2 : 1, d.id.length);
+  const { crown } = leafyTree(g, 0.5, 0.5, leaf, d.id === 'walnut_tree' ? 1.2 : 1, d.id.length, !!MODELS[d.id]);
   const fc = FRUIT_COLOR[d.fruit ?? 'apple'] ?? '#e53935';
   // realistic fruit: dimpled apples, paired cherries, pitted oranges, blushing peaches, lemons
   const pg = produceGeo(d.fruit ?? 'apple');
@@ -5726,7 +5751,7 @@ function buildDock(e: Entry, store: GameStore) {
 function buildObstacle(e: Entry, o: FarmObject) {
   const g = e.root;
   if (o.type === 'tree_obs') {
-    const { crown } = leafyTree(g, 0.5, 0.5, '#3f8a33', 1.08, o.id);
+    const { crown } = leafyTree(g, 0.5, 0.5, '#3f8a33', 1.08, o.id, !!MODELS.tree_obs);
     e.top = 1.3;
     e.update = (ob, _n, t) => { crown.rotation.z = Math.sin(t / 1300 + ob.id) * 0.015; };
   } else if (o.type === 'rock_obs') {
@@ -5985,7 +6010,7 @@ function buildDeco(e: Entry, d: BuildingDef) {
       break;
     }
     case 'oak': {
-      const { crown } = leafyTree(g, 0.5, 0.5, '#4f9e36', 1, 3);
+      const { crown } = leafyTree(g, 0.5, 0.5, '#4f9e36', 1, 3, !!MODELS.oak);
       e.top = 1.25;
       e.update = (o, _n, t) => { crown.rotation.z = Math.sin(t / 1200 + o.id) * 0.015; };
       break;
