@@ -71,7 +71,8 @@ export function footprint(o: { type: string; rot?: number }) {
 export interface OrderItem { id: string; qty: number }
 export interface Order { id: number; items: OrderItem[]; coins: number; xp: number; gems: number; readyAt: number }
 
-export interface Settings { sound: boolean; dayNight: boolean; clouds: boolean; music: boolean; weather: boolean; shadows: boolean }
+// `saver`: battery saver, the farm drawn at 30 frames a second (phones)
+export interface Settings { sound: boolean; dayNight: boolean; clouds: boolean; music: boolean; weather: boolean; shadows: boolean; saver?: boolean }
 
 export interface GameState {
   v: 1;

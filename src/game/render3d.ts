@@ -638,7 +638,7 @@ export class Renderer {
     if (artStyle() === 'toon') {
       loadModel('farmhouse').catch(() => {});
       // the forest and FOR SALE signs on locked land: rebuild the land once their models are in
-      for (const name of ['forest_pine', 'forest_round', 'forsale_sign'] as const) {
+      for (const name of ['forest_pine', 'forest_round', 'forsale_sign', 'lod/forest_round'] as const) {
         loadModel(name).then((m) => { WORLD_MODELS[name] = m; this.landKey = ''; }).catch(() => {});
       }
     }
@@ -727,6 +727,7 @@ export class Renderer {
   resize(w: number, h: number, dpr: number) {
     this.size = { w, h, dpr };
     this.W = w; this.H = h;
+    lodScale = clamp(h / 700, 0.65, 1);
     // phones report up to 3x; past 2x the extra pixels cost a lot and show little. The picture
     // is always drawn at full sharpness: no resolution drop, even on slower devices.
     const px = this.quality === 'high' ? Math.min(dpr, 2) : Math.min(dpr, 1.5);
@@ -1263,17 +1264,21 @@ export class Renderer {
     const mtx = new THREE.Matrix4(), q = new THREE.Quaternion(), sv = new THREE.Vector3(), pv = new THREE.Vector3();
     const pineSrc = firstMesh(WORLD_MODELS.forest_pine), roundSrc = firstMesh(WORLD_MODELS.forest_round);
     if (artStyle() === 'toon' && pineSrc && roundSrc) {
-      // Blender forest: one instanced mesh per kind, each copy turned, sized and tinted a little
+      // Blender forest: one instanced mesh per kind, each copy turned, sized and tinted a little.
+      // In low quality (phones) the leafy trees use their thinned twin (tools/blender/lod.py) and
+      // the forest on the locked land casts no shadow: about half of a phone's frame otherwise
       const up = new THREE.Vector3(0, 1, 0);
-      for (const [list, src, salt] of [[pines, pineSrc, 5], [rounds, roundSrc, 9]] as const) {
-        const im = new THREE.InstancedMesh(src.geometry, src.material, list.length);
+      const low = this.quality !== 'high';
+      const roundGeo = (low && firstMesh(WORLD_MODELS['lod/forest_round'])?.geometry) || roundSrc.geometry;
+      for (const [list, src, geo, salt] of [[pines, pineSrc, pineSrc.geometry, 5], [rounds, roundSrc, roundGeo, 9]] as const) {
+        const im = new THREE.InstancedMesh(geo, src.material, list.length);
         list.forEach(([x, z, sc], i) => {
           q.setFromAxisAngle(up, hash(i, salt, 3) * Math.PI * 2);
           mtx.compose(pv.set(x, 0, z), q, sv.setScalar(sc * 1.05));
           im.setMatrixAt(i, mtx);
           im.setColorAt(i, col.setRGB(1, 1, 1).offsetHSL((hash(i, salt) - 0.5) * 0.03, 0, (hash(i, salt, 7) - 0.5) * 0.14));
         });
-        im.castShadow = true;
+        im.castShadow = !low;
         im.receiveShadow = true;
         this.addForest(im);
       }
@@ -3423,6 +3428,8 @@ function drawBlobs(scene: THREE.Scene) {
 type LodPart = 'body' | 'head' | 'leg' | 'tail';
 // the fine sculpt only for close ups; at the usual farm view the light mesh is indistinguishable
 const LOD_NEAR = 20, LOD_FAR = 23;
+// on a small (phone) screen the animals are small too: their full models only show from closer
+let lodScale = 1;
 let sculptBudget = 1;
 const resetSculptBudget = () => { sculptBudget = 1; };
 const lodWanted = new Set<string>();
@@ -3484,7 +3491,7 @@ function modelLod(g: THREE.Object3D, kind: string) {
     let far = false;
     m.onBeforeRender = (_r, _s, cam) => {
       const d = cam.position.distanceTo(lodPos.setFromMatrixPosition(m.matrixWorld));
-      const want = far ? d > LOD_NEAR : d > LOD_FAR;
+      const want = far ? d > LOD_NEAR * lodScale : d > LOD_FAR * lodScale;
       if (want === far) return;
       const geo = want ? modelLodGeos(kind)?.get(m.name) : full;
       if (!geo) return;

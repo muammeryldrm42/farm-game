@@ -108,7 +108,16 @@ function FarmCanvas() {
     window.addEventListener('resize', resize);
 
     let raf = 0;
-    const loop = (t: number) => { r.frame(t); raf = requestAnimationFrame(loop); };
+    // at most 60 frames a second (30 with the battery saver): a 120 Hz phone would otherwise draw
+    // twice as often, for twice the heat and battery, with nothing more to see
+    let last = 0;
+    const loop = (t: number) => {
+      raf = requestAnimationFrame(loop);
+      const gap = store.s.settings.saver ? 1000 / 30 : 1000 / 60;
+      if (t - last < gap - 4) return;
+      last = t;
+      r.frame(t);
+    };
     raf = requestAnimationFrame(loop);
 
     // ---------------------------------------------- input

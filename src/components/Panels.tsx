@@ -1454,6 +1454,7 @@ function SettingsModal() {
         <Toggle label="Music" on={st.music} onChange={(v) => set('music', v)} />
         <Toggle label="Weather and seasons" on={st.weather} onChange={(v) => set('weather', v)} />
         <Toggle label="Soft shadows (turn off on slow phones)" on={st.shadows} onChange={(v) => set('shadows', v)} />
+        <Toggle label="Battery saver (30 FPS, cooler phone)" on={!!st.saver} onChange={(v) => set('saver', v)} />
         <QualityPicker />
       </div>
 
