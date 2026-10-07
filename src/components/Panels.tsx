@@ -1742,7 +1742,7 @@ function StoryDialog() {
         <div className="flex items-end gap-2">
           <div className="flex flex-col items-center">
             <div className="animate-bob"><Portrait who={ch.who} /></div>
-            <span className="mt-1 whitespace-nowrap rounded-full px-2 py-0.5 text-[11px] font-bold text-white" style={{ background: who.color }}>{who.name}</span>
+            <span className="mt-1 whitespace-nowrap rounded-full px-2 py-0.5 text-[11px] font-bold text-white" style={{ background: who.color }}>{t(who.name)}</span>
           </div>
           <div className="relative mb-6 min-w-0 flex-1 rounded-3xl border-[3px] border-[#5d3a1f] bg-white px-4 py-3 text-[#4a2e14] shadow-[0_5px_0_#5d3a1f]">
             {/* the bubble's tail points at the speaker */}
@@ -1788,7 +1788,7 @@ function StoryPage() {
     return (
       <div className="flex flex-col items-center gap-3 py-4 text-center">
         <Portrait who={ch.who} />
-        <p className="text-sm font-bold">{who.name} has something new for you at level {ch.n}.</p>
+        <p className="text-sm font-bold">{t('{name} has something new for you at level {n}.', { name: t(who.name), n: ch.n })}</p>
         <p className="text-xs text-[#8a6a44]">{t('Keep farming to reach the next chapter.')} {t('Chapters finished: {n} / {total}', { n: st.ch - 1, total: LAST_CHAPTER })}</p>
       </div>
     );
@@ -1802,7 +1802,7 @@ function StoryPage() {
         <div className="min-w-0 flex-1">
           <div className="text-xs font-bold uppercase tracking-wide text-[#a8733f]">{t('Chapter {n} of {total}', { n: ch.n, total: LAST_CHAPTER })}</div>
           <div className="text-lg font-bold leading-tight">{t(ch.title)}</div>
-          <div className="text-xs text-[#8a6a44]">{t('told by {name}', { name: who.name })}</div>
+          <div className="text-xs text-[#8a6a44]">{t('told by {name}', { name: t(who.name) })}</div>
         </div>
         <button className="btn btn-ghost shrink-0 px-3 py-1.5 text-sm" onClick={() => store.replayStory()}>
           💬 {t('Replay')}
