@@ -1,270 +1,79 @@
-// Procedural surface textures. Every texture is painted pixel by pixel into a canvas at runtime:
+// Procedural surface textures. Every texture is painted pixel by pixel at runtime (texpaint.ts):
 // an albedo map (kept close to white so the material color still tints it) and a tangent space
 // normal map derived from a height field. Everything tiles seamlessly.
 import * as THREE from 'three';
+import { h2, paintSurface, type SurfaceKind, type SurfacePixels } from './texpaint';
 
-export type SurfaceKind = 'roof' | 'boards' | 'planks' | 'siding' | 'stone' | 'grass' | 'soil' | 'bark' | 'sand' | 'metal' | 'thatch';
-
-// ------------------------------------------------------------------ tileable noise
-
-function h2(x: number, y: number, s: number) {
-  let h = Math.imul(x | 0, 374761393) ^ Math.imul(y | 0, 668265263) ^ Math.imul(s | 0, 1442695041);
-  h = Math.imul(h ^ (h >>> 13), 1274126177);
-  h ^= h >>> 16;
-  return (h >>> 0) / 4294967296;
-}
-
-const wrap = (v: number, p: number) => ((v % p) + p) % p;
-const smooth = (t: number) => t * t * (3 - 2 * t);
-const clamp01 = (v: number) => (v < 0 ? 0 : v > 1 ? 1 : v);
-
-// value noise on a lattice of `p` cells that wraps, so u,v in [0,1) tiles
-function vnoise(u: number, v: number, p: number, s: number) {
-  const x = u * p, y = v * p;
-  const x0 = Math.floor(x), y0 = Math.floor(y);
-  const fx = smooth(x - x0), fy = smooth(y - y0);
-  const a = h2(wrap(x0, p), wrap(y0, p), s), b = h2(wrap(x0 + 1, p), wrap(y0, p), s);
-  const c = h2(wrap(x0, p), wrap(y0 + 1, p), s), d = h2(wrap(x0 + 1, p), wrap(y0 + 1, p), s);
-  return a + (b - a) * fx + (c - a) * fy + (a - b - c + d) * fx * fy;
-}
-
-function fbm(u: number, v: number, p: number, s: number, oct = 4) {
-  let sum = 0, amp = 0.5, norm = 0;
-  for (let i = 0; i < oct; i++) {
-    sum += vnoise(u, v, p << i, s + i * 17) * amp;
-    norm += amp;
-    amp *= 0.5;
-  }
-  return sum / norm;
-}
-
-// cellular noise: distance to the nearest and second nearest feature point, tiled
-function cells(u: number, v: number, p: number, s: number) {
-  const x = u * p, y = v * p;
-  const xi = Math.floor(x), yi = Math.floor(y);
-  let d1 = 9, d2 = 9, id = 0;
-  for (let j = -1; j <= 1; j++) for (let i = -1; i <= 1; i++) {
-    const cx = xi + i, cy = yi + j;
-    const wx = wrap(cx, p), wy = wrap(cy, p);
-    const px = cx + 0.15 + h2(wx, wy, s) * 0.7, py = cy + 0.15 + h2(wx, wy, s + 1) * 0.7;
-    const d = Math.hypot(px - x, py - y);
-    if (d < d1) { d2 = d1; d1 = d; id = wy * p + wx; } else if (d < d2) d2 = d;
-  }
-  return { d1, d2, id };
-}
-
-// ------------------------------------------------------------------ painters
-// Each painter returns albedo rgb (0..1) and a height (0..1) for a texel at u,v.
-
-type Px = [number, number, number, number];
-type Painter = (u: number, v: number, o: Px) => void;
-
-const grey = (o: Px, k: number, h: number) => { o[0] = k; o[1] = k; o[2] = k; o[3] = h; };
-
-const PAINT: Record<SurfaceKind, { size: number; bump: number; paint: Painter }> = {
-  // overlapping clay tiles in staggered rows, 4 x 4 tiles per texture
-  roof: {
-    size: 512, bump: 5,
-    paint(u, v, o) {
-      const rows = 4, cols = 4;
-      const ry = v * rows, row = Math.floor(ry), fy = ry - row;
-      const rx = u * cols + (row % 2) * 0.5, col = Math.floor(rx), fx = rx - col;
-      const tone = 0.82 + h2(wrap(col, cols), row, 3) * 0.18;
-      // tiles are rounded across their width and thicker toward the lower edge
-      const across = Math.sin(fx * Math.PI);
-      const edge = fx < 0.04 || fx > 0.96 ? 0 : 1;
-      const lip = fy < 0.1 ? fy / 0.1 : 1;
-      const grain = fbm(u, v, 8, 7, 3) * 0.12;
-      const h = (0.35 + 0.45 * Math.pow(across, 0.6) * (0.55 + 0.45 * (1 - fy))) * edge * lip + grain * 0.3;
-      const k = tone * (0.72 + 0.28 * across) * (edge ? 1 : 0.55) * (fy < 0.06 ? 0.62 : 1) - grain * 0.3;
-      o[0] = k; o[1] = k * 0.97; o[2] = k * 0.95; o[3] = h;
-    },
-  },
-  // vertical boards with grain, used on barn walls
-  boards: {
-    size: 512, bump: 4,
-    paint(u, v, o) {
-      const n = 6, bu = u * n, b = Math.floor(bu), f = bu - b;
-      const gap = f < 0.05 || f > 0.97;
-      const grain = fbm(u * 1 + h2(b, 1, 5) * 0.3, v, 4, 11 + b, 3);
-      const streak = Math.sin((f * 5 + grain * 7 + h2(b, 2, 5) * 6) * Math.PI) * 0.5 + 0.5;
-      const knot = cells(u, v, 3, 40 + b).d1 < 0.08 ? 0.75 : 1;
-      const tone = (0.8 + h2(b, 3, 5) * 0.2) * (0.86 + streak * 0.14) * knot;
-      grey(o, gap ? 0.45 : tone, gap ? 0.1 : 0.7 + streak * 0.08 - grain * 0.1);
-    },
-  },
-  // horizontal deck planks with nails
-  planks: {
-    size: 512, bump: 4,
-    paint(u, v, o) {
-      const n = 5, bv = v * n, b = Math.floor(bv), f = bv - b;
-      const gap = f < 0.06;
-      const seam = wrap(u * 2 + h2(b, 1, 9), 1);
-      const grain = fbm(u, v * 1.2, 4, 21 + b, 3);
-      const streak = Math.sin((f * 4 + grain * 8) * Math.PI) * 0.5 + 0.5;
-      const nail = (Math.hypot((seam - 0.03) * 8, (f - 0.3) * 1.6) < 0.09 || Math.hypot((seam - 0.03) * 8, (f - 0.75) * 1.6) < 0.09);
-      const tone = (0.78 + h2(b, 3, 9) * 0.22) * (0.86 + streak * 0.14) * (seam < 0.012 ? 0.6 : 1);
-      if (nail) { grey(o, 0.35, 0.9); return; }
-      grey(o, gap ? 0.4 : tone, gap ? 0.05 : 0.7 + streak * 0.06);
-    },
-  },
-  // painted clapboard siding, 8 boards per texture
-  siding: {
-    size: 512, bump: 6,
-    paint(u, v, o) {
-      const n = 8, bv = v * n, f = bv - Math.floor(bv);
-      const paint = fbm(u, v, 8, 31, 3);
-      // each board leans outward toward its lower edge, leaving a shadow line
-      const h = 0.25 + 0.6 * (1 - f);
-      const k = (f > 0.9 ? 0.68 : 0.93 + 0.07 * (1 - f)) - paint * 0.08;
-      grey(o, k, h + paint * 0.05);
-    },
-  },
-  // fieldstone with mortar
-  stone: {
-    size: 512, bump: 7,
-    paint(u, v, o) {
-      const c = cells(u, v, 6, 51);
-      const edge = c.d2 - c.d1;
-      const mortar = edge < 0.07;
-      const rough = fbm(u, v, 8, 53, 4);
-      const tone = 0.72 + h2(c.id, 1, 57) * 0.26;
-      const bulge = Math.min(1, edge * 3.2);
-      if (mortar) { grey(o, 0.62 + rough * 0.1, 0.08 + rough * 0.05); return; }
-      const k = tone - rough * 0.16;
-      o[0] = k; o[1] = k * 0.98; o[2] = k * 0.95; o[3] = 0.3 + bulge * 0.55 + rough * 0.15;
-    },
-  },
-  // soft lawn: speckles of lighter and darker blades
-  grass: {
-    size: 512, bump: 1.2,
-    paint(u, v, o) {
-      const big = fbm(u, v, 4, 61, 3);
-      const fine = vnoise(u, v, 128, 63);
-      const blade = vnoise(u * 1.0, v * 0.25, 256, 65);
-      const k = 0.84 + big * 0.12 + (fine - 0.5) * 0.05 + (blade - 0.5) * 0.04;
-      o[0] = k * 0.96; o[1] = k; o[2] = k * 0.9; o[3] = fine * 0.6 + blade * 0.4;
-    },
-  },
-  // tilled soil with small clods
-  soil: {
-    size: 512, bump: 6,
-    paint(u, v, o) {
-      const c = cells(u, v, 14, 71);
-      const clod = Math.max(0, 1 - c.d1 * 2.2);
-      const n = fbm(u, v, 8, 73, 4);
-      const k = 0.7 + n * 0.25 + clod * 0.1 - (h2(c.id, 2, 71) < 0.08 ? 0.15 : 0);
-      o[0] = k; o[1] = k * 0.96; o[2] = k * 0.92; o[3] = clod * 0.6 + n * 0.4;
-    },
-  },
-  // vertical bark ridges
-  bark: {
-    size: 512, bump: 7,
-    paint(u, v, o) {
-      const n = fbm(u, v * 0.25, 8, 81, 4);
-      const ridge = Math.abs(Math.sin((u * 10 + n * 2.5) * Math.PI));
-      const k = 0.6 + ridge * 0.35 + n * 0.1;
-      grey(o, k, ridge * 0.8 + n * 0.2);
-    },
-  },
-  sand: {
-    size: 512, bump: 2,
-    paint(u, v, o) {
-      const n = fbm(u, v, 8, 91, 4);
-      const g = h2(Math.floor(u * 256), Math.floor(v * 256), 93);
-      const ripple = Math.sin((v * 12 + n * 3) * Math.PI * 2) * 0.5 + 0.5;
-      const k = 0.88 + n * 0.1 + (g - 0.5) * 0.08;
-      o[0] = k; o[1] = k * 0.98; o[2] = k * 0.94; o[3] = ripple * 0.4 + n * 0.4 + g * 0.2;
-    },
-  },
-  // corrugated sheet metal with a bit of wear
-  metal: {
-    size: 512, bump: 5,
-    paint(u, v, o) {
-      const rib = Math.sin(u * 16 * Math.PI * 2) * 0.5 + 0.5;
-      const wear = fbm(u, v, 6, 101, 4);
-      const k = 0.8 + rib * 0.15 - (wear > 0.62 ? (wear - 0.62) * 0.8 : 0);
-      grey(o, k, rib);
-    },
-  },
-  // straw bundles for hay and thatch
-  thatch: {
-    size: 512, bump: 5,
-    paint(u, v, o) {
-      const n = vnoise(u * 1.0, v * 0.1, 96, 111);
-      const m = vnoise(u, v * 0.2, 48, 113);
-      const k = 0.72 + n * 0.22 + m * 0.08;
-      o[0] = k; o[1] = k * 0.96; o[2] = k * 0.86; o[3] = n * 0.7 + m * 0.3;
-    },
-  },
-};
-
+export type { SurfaceKind };
 // ------------------------------------------------------------------ texture building
 
 export interface Surface { map: THREE.Texture; normalMap: THREE.Texture }
 
 const cache = new Map<SurfaceKind, Surface>();
+// every texture made for a surface (the base pair and the scaled copies materials use), so all of
+// them refresh when its pixels arrive
+const users = new Map<SurfaceKind, THREE.Texture[]>();
 
-function canvasOf(size: number) {
-  const cv = document.createElement('canvas');
-  cv.width = size; cv.height = size;
-  return cv;
+function blank(rgba: number[]) {
+  const t = new THREE.DataTexture(new Uint8Array(rgba), 1, 1);
+  t.wrapS = t.wrapT = THREE.RepeatWrapping;
+  t.magFilter = THREE.LinearFilter;
+  t.minFilter = THREE.LinearMipmapLinearFilter;
+  t.generateMipmaps = true;
+  t.anisotropy = 8;
+  t.needsUpdate = true;
+  return t;
 }
 
+function fill(kind: SurfaceKind, px: SurfacePixels) {
+  const s = cache.get(kind);
+  if (!s) return;
+  s.map.image = { data: px.albedo, width: px.size, height: px.size };
+  s.normalMap.image = { data: px.normal, width: px.size, height: px.size };
+  for (const t of users.get(kind) ?? []) t.needsUpdate = true;
+}
+
+// The pixels are painted in a background worker so the start up never waits on them (they take
+// seconds on a phone); until they arrive a surface shows its plain tint. Without workers they are
+// painted right here.
+let pool: Worker[] | null = null;
+let next = 0;
+function workers() {
+  if (pool) return pool;
+  pool = [];
+  try {
+    const n = Math.max(1, Math.min(3, (navigator.hardwareConcurrency ?? 2) - 1));
+    for (let i = 0; i < n; i++) {
+      const w = new Worker(new URL('./texpaint.worker.ts', import.meta.url));
+      w.onmessage = (e: MessageEvent<{ kind: SurfaceKind } & SurfacePixels>) => fill(e.data.kind, e.data);
+      pool.push(w);
+    }
+  } catch { pool = []; }
+  return pool;
+}
+const pending = new Set<SurfaceKind>();
+export const surfacesReady = () => pending.size === 0;
+
 function build(kind: SurfaceKind): Surface {
-  const { size, bump, paint } = PAINT[kind];
-  const heights = new Float32Array(size * size);
-  const albedo = canvasOf(size);
-  const ac = albedo.getContext('2d') as CanvasRenderingContext2D;
-  const aImg = ac.createImageData(size, size);
-  const px: Px = [0, 0, 0, 0];
-  for (let y = 0; y < size; y++) for (let x = 0; x < size; x++) {
-    paint((x + 0.5) / size, (y + 0.5) / size, px);
-    const i = y * size + x;
-    heights[i] = px[3];
-    aImg.data[i * 4] = clamp01(px[0]) * 255;
-    aImg.data[i * 4 + 1] = clamp01(px[1]) * 255;
-    aImg.data[i * 4 + 2] = clamp01(px[2]) * 255;
-    aImg.data[i * 4 + 3] = 255;
-  }
-  ac.putImageData(aImg, 0, 0);
-
-  // normal map from the height field with a wrapped Sobel filter
-  const normal = canvasOf(size);
-  const nc = normal.getContext('2d') as CanvasRenderingContext2D;
-  const nImg = nc.createImageData(size, size);
-  const H = (x: number, y: number) => heights[wrap(y, size) * size + wrap(x, size)];
-  const k = bump * (size / 256);
-  for (let y = 0; y < size; y++) for (let x = 0; x < size; x++) {
-    const dx = (H(x + 1, y - 1) + 2 * H(x + 1, y) + H(x + 1, y + 1)) - (H(x - 1, y - 1) + 2 * H(x - 1, y) + H(x - 1, y + 1));
-    const dy = (H(x - 1, y + 1) + 2 * H(x, y + 1) + H(x + 1, y + 1)) - (H(x - 1, y - 1) + 2 * H(x, y - 1) + H(x + 1, y - 1));
-    // canvas rows grow downward while texture v grows upward, so dy keeps its sign
-    let nx = -dx * k * 0.125, ny = dy * k * 0.125, nz = 1;
-    const l = Math.hypot(nx, ny, nz);
-    nx /= l; ny /= l; nz /= l;
-    const i = (y * size + x) * 4;
-    nImg.data[i] = (nx * 0.5 + 0.5) * 255;
-    nImg.data[i + 1] = (ny * 0.5 + 0.5) * 255;
-    nImg.data[i + 2] = (nz * 0.5 + 0.5) * 255;
-    nImg.data[i + 3] = 255;
-  }
-  nc.putImageData(nImg, 0, 0);
-
-  const map = new THREE.CanvasTexture(albedo);
+  const map = blank([255, 255, 255, 255]);
   map.colorSpace = THREE.SRGBColorSpace;
-  const normalMap = new THREE.CanvasTexture(normal);
-  for (const t of [map, normalMap]) {
-    t.wrapS = t.wrapT = THREE.RepeatWrapping;
-    t.anisotropy = 8;
-    t.generateMipmaps = true;
-  }
-  return { map, normalMap };
+  const normalMap = blank([128, 128, 255, 255]);
+  const s = { map, normalMap };
+  cache.set(kind, s);
+  users.set(kind, [map, normalMap]);
+  const pool = workers();
+  if (pool.length) {
+    pending.add(kind);
+    const w = pool[next++ % pool.length];
+    const done = (e: MessageEvent<{ kind: SurfaceKind }>) => { if (e.data.kind === kind) { pending.delete(kind); w.removeEventListener('message', done); } };
+    w.addEventListener('message', done);
+    w.postMessage(kind);
+  } else fill(kind, paintSurface(kind));
+  return s;
 }
 
 export function surface(kind: SurfaceKind): Surface {
-  let s = cache.get(kind);
-  if (!s) { s = build(kind); cache.set(kind, s); }
-  return s;
+  return cache.get(kind) ?? build(kind);
 }
 
 // A tinted, textured standard material. Geometry UVs are expected in meters; `scale` is how many
@@ -279,6 +88,7 @@ export function surfaceMat(kind: SurfaceKind, color: string, scale = 1, rough = 
   if (scale !== 1 || scaleY !== 1) {
     map = base.map.clone(); map.repeat.set(scale, scaleY); map.needsUpdate = true;
     normalMap = base.normalMap.clone(); normalMap.repeat.set(scale, scaleY); normalMap.needsUpdate = true;
+    users.get(kind)?.push(map, normalMap);
   }
   m = new THREE.MeshStandardMaterial({ color, map, normalMap, roughness: rough, metalness: 0 });
   m.normalScale.set(normalScale, normalScale);
@@ -372,6 +182,12 @@ export function meterHip(w: number, h: number, d: number) {
 }
 
 // ------------------------------------------------------------------ foliage cards
+
+function canvasOf(size: number) {
+  const cv = document.createElement('canvas');
+  cv.width = size; cv.height = size;
+  return cv;
+}
 
 let leafTexCache: THREE.Texture | null = null;
 // a cluster of painted leaves on a transparent background, used on tree crown cards

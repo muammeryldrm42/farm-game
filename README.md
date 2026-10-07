@@ -82,3 +82,15 @@ Push to GitHub, then import the repo on Vercel. No environment variables are nee
 - `src/components` React UI (canvas, HUD, panels)
 
 The game logic lives in `src/game` and has no React dependency, so it can be moved to another frontend or a server later.
+
+## Android app
+
+The game is exported as static files (`out/`) and wrapped in an Android app with Capacitor
+(`android/`). Everything, models included, is inside the app: no server or website is needed.
+
+1. `npm install`
+2. `npm run android` (builds the game and copies it into `android/`)
+3. Open the `android` folder in Android Studio, then Run (or Build > Build APK(s))
+
+Run `npm run android` again after every change to the game. The Android back button closes
+the open panel; the app stays fullscreen and keeps the screen on while the farm is open.

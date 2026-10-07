@@ -2,7 +2,7 @@ import type { Metadata, Viewport } from 'next';
 import { Fredoka } from 'next/font/google';
 import './globals.css';
 
-const fredoka = Fredoka({ subsets: ['latin'], weight: ['400', '500', '600', '700'], variable: '--font-game' });
+const fredoka = Fredoka({ subsets: ['latin', 'latin-ext'], weight: ['400', '500', '600', '700'], variable: '--font-game' });
 
 export const metadata: Metadata = {
   title: 'Talons Farm',
@@ -16,6 +16,8 @@ export const viewport: Viewport = {
   maximumScale: 1,
   userScalable: false,
   themeColor: '#3f9fd8',
+  // the game reaches the screen's edges (and round a camera cutout); the HUD keeps to the safe area
+  viewportFit: 'cover',
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {

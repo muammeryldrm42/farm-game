@@ -18,8 +18,9 @@ import { ribs, ruffledLeaf } from './gfx/kit';
 import { artStyle, creature, hasCreature, personParts } from './gfx/creatures';
 import { toonCrown, toonPersonParts } from './gfx/toon';
 import { SCULPT_MAT, TOON_MAT, TOON_WOOL, WOOL_MAT } from './gfx/sdf';
-import { leafShell, leafTexture, meterBox, meterHip, meterRoof, surface, surfaceMat, type SurfaceKind } from './gfx/textures';
+import { leafShell, leafTexture, meterBox, meterHip, meterRoof, surface, surfaceMat, surfacesReady, type SurfaceKind } from './gfx/textures';
 import { ANIMAL, BUILDING, CROP, ITEMS, type BuildingDef, type CropDef } from './data';
+import { t as tr } from './i18n';
 import {
   CHUNK, FARM_OFF, FISH_SPOT, footprint, PET_IDS, petGift, type PetId, SEA_FISH_SPOT, fishSpotAt, type FishSpot, GRAZE, GRID, LAKE, MAP_OFF2, MAP_OFF3, NCH, isBeachTile, lakeE, animalReady, fishingInfo, boatState, canFulfill, chunkState, grazePhase, penInfo, plotProgress, prodInfo, treeInfo,
   type Animal, type FarmObject, type GameStore,
@@ -634,15 +635,17 @@ export class Renderer {
       threats: () => [this.farmer, this.dog, this.cat].filter(Boolean).map((a) => [a.g.position.x, a.g.position.z] as [number, number]),
     });
     this.sel = this.buildSelection();
+    precompile = (o) => this.gl.compileAsync(o, this.camera, this.scene);
     // start fetching the Blender models right away, so they are usually in before the farm shows
     if (artStyle() === 'toon') {
       loadModel('farmhouse').catch(() => {});
       // the forest and FOR SALE signs on locked land: rebuild the land once their models are in
-      for (const name of ['forest_pine', 'forest_round', 'forsale_sign'] as const) {
+      for (const name of ['forest_pine', 'forest_round', 'forsale_sign', 'lod/forest_round'] as const) {
         loadModel(name).then((m) => { WORLD_MODELS[name] = m; this.landKey = ''; }).catch(() => {});
       }
     }
-    this.farmer = actor(FARM_C.x - 0.5, FARM_C.y + 0.5, buildFarmer());
+    // the farmer's Blender model takes over in a moment (below): the sculpt stand in is coarse
+    this.farmer = actor(FARM_C.x - 0.5, FARM_C.y + 0.5, buildFarmer(undefined, undefined, undefined, artStyle() === 'toon'));
     this.dog = actor(FARM_C.x + 0.5, FARM_C.y + 0.5, buildDog());
     this.cat = actor(FARM_C.x + 1.5, FARM_C.y + 1.5, buildCat());
     // grazing animals borrow the farmer's walk grid; bees look for blossoms
@@ -682,6 +685,7 @@ export class Renderer {
   }
 
   dispose() {
+    precompile = null;
     this.offQuality();
     this.post?.dispose();
     this.gl.dispose();
@@ -727,6 +731,7 @@ export class Renderer {
   resize(w: number, h: number, dpr: number) {
     this.size = { w, h, dpr };
     this.W = w; this.H = h;
+    lodScale = clamp(h / 700, 0.65, 1);
     // phones report up to 3x; past 2x the extra pixels cost a lot and show little. The picture
     // is always drawn at full sharpness: no resolution drop, even on slower devices.
     const px = this.quality === 'high' ? Math.min(dpr, 2) : Math.min(dpr, 1.5);
@@ -768,10 +773,12 @@ export class Renderer {
   // is not on it (with a little slack round small things)
   private tapDist(sx: number, sy: number, x: number, y: number, z: number, r: number) {
     const a = new THREE.Vector3(x, y, z).project(this.camera);
-    if (a.z > 1) return null;
+    // behind the camera (or past its near or far plane) the projection turns inside out and
+    // a creature out of sight would seem to cover the whole screen: those cannot be tapped
+    if (a.z < -1 || a.z > 1 || Math.abs(a.x) > 1.2 || Math.abs(a.y) > 1.2) return null;
     const b = new THREE.Vector3(x, y + r, z).project(this.camera);
     const px = ((a.x + 1) / 2) * this.W, py = ((1 - a.y) / 2) * this.H;
-    const rr = Math.max(16, Math.hypot((b.x - a.x) / 2 * this.W, (b.y - a.y) / 2 * this.H) * 1.3);
+    const rr = Math.min(90, Math.max(16, Math.hypot((b.x - a.x) / 2 * this.W, (b.y - a.y) / 2 * this.H) * 1.3));
     const d = Math.hypot(sx - px, sy - py);
     return d <= rr ? d : null;
   }
@@ -1218,7 +1225,7 @@ export class Renderer {
       const cs = chunkState(s, Math.floor(x / CHUNK), Math.floor(y / CHUNK));
       spots.push({ x, z: y, open: cs === 'open' });
     }
-    this.foliage.rebuild(spots, dens);
+    this.foliage.rebuild(spots, dens, this.quality !== 'high');
   }
 
   private dynLand = new THREE.Group();
@@ -1263,17 +1270,21 @@ export class Renderer {
     const mtx = new THREE.Matrix4(), q = new THREE.Quaternion(), sv = new THREE.Vector3(), pv = new THREE.Vector3();
     const pineSrc = firstMesh(WORLD_MODELS.forest_pine), roundSrc = firstMesh(WORLD_MODELS.forest_round);
     if (artStyle() === 'toon' && pineSrc && roundSrc) {
-      // Blender forest: one instanced mesh per kind, each copy turned, sized and tinted a little
+      // Blender forest: one instanced mesh per kind, each copy turned, sized and tinted a little.
+      // In low quality (phones) the leafy trees use their thinned twin (tools/blender/lod.py) and
+      // the forest on the locked land casts no shadow: about half of a phone's frame otherwise
       const up = new THREE.Vector3(0, 1, 0);
-      for (const [list, src, salt] of [[pines, pineSrc, 5], [rounds, roundSrc, 9]] as const) {
-        const im = new THREE.InstancedMesh(src.geometry, src.material, list.length);
+      const low = this.quality !== 'high';
+      const roundGeo = (low && firstMesh(WORLD_MODELS['lod/forest_round'])?.geometry) || roundSrc.geometry;
+      for (const [list, src, geo, salt] of [[pines, pineSrc, pineSrc.geometry, 5], [rounds, roundSrc, roundGeo, 9]] as const) {
+        const im = new THREE.InstancedMesh(geo, src.material, list.length);
         list.forEach(([x, z, sc], i) => {
           q.setFromAxisAngle(up, hash(i, salt, 3) * Math.PI * 2);
           mtx.compose(pv.set(x, 0, z), q, sv.setScalar(sc * 1.05));
           im.setMatrixAt(i, mtx);
           im.setColorAt(i, col.setRGB(1, 1, 1).offsetHSL((hash(i, salt) - 0.5) * 0.03, 0, (hash(i, salt, 7) - 0.5) * 0.14));
         });
-        im.castShadow = true;
+        im.castShadow = !low;
         im.receiveShadow = true;
         this.addForest(im);
       }
@@ -1353,7 +1364,7 @@ export class Renderer {
       c.fillStyle = '#c98a45'; c.fillRect(0, 0, 256, 128);
       c.strokeStyle = '#6b4226'; c.lineWidth = 12; c.strokeRect(6, 6, 244, 116);
       c.fillStyle = '#fff8e6'; c.font = '900 48px ui-rounded, "Trebuchet MS", system-ui, sans-serif';
-      c.textAlign = 'center'; c.textBaseline = 'middle'; c.fillText('FOR SALE', 128, 66);
+      c.textAlign = 'center'; c.textBaseline = 'middle'; c.fillText(tr('FOR SALE'), 128, 66);
     });
     const board = new THREE.Mesh(G.box, [M('#a8733f'), M('#a8733f'), M('#a8733f'), M('#a8733f'), new THREE.MeshLambertMaterial({ map: tex }), new THREE.MeshLambertMaterial({ map: tex })]);
     board.scale.set(0.9, 0.45, 0.06);
@@ -1525,9 +1536,24 @@ export class Renderer {
 
     this.sky.mesh.position.copy(this.camera.position);
     drawBlobs(this.scene);
+    // the first picture waits until the scene's shaders are compiled in the background (in
+    // parallel where the browser can): no long freeze at start up on a phone, and the page stays
+    // responsive meanwhile
+    // (and the ground's textures, painted in the background, are in)
+    if (this.warm !== 'done') {
+      if (this.warm === 'cold') {
+        this.warm = 'warming';
+        const go = () => { this.warm = 'compiled'; };
+        this.gl.compileAsync(this.scene, this.camera).then(go, go);
+        setTimeout(() => { this.warm = 'done'; }, 8000);
+      }
+      if (this.warm === 'compiled' && surfacesReady()) this.warm = 'done';
+      else return;
+    }
     if (this.post) this.post.render();
     else this.gl.render(this.scene, this.camera);
   }
+  private warm: 'cold' | 'warming' | 'compiled' | 'done' = 'cold';
 
   private tmpC = new THREE.Color();
   private skyTop = new THREE.Color();
@@ -1710,9 +1736,10 @@ export class Renderer {
     this.sun.target.position.set(x, 0, z);
     this.sun.position.set(x + 14, 26, z + 8);
     this.sun.target.updateMatrixWorld();
-    // the shadow map is redrawn every other frame, or at once when the view moves
+    // the shadow map is redrawn every other frame (every third in low quality), or at once when
+    // the view moves
     const key = x * 1000 + z + half * 1e7;
-    if (key !== this.shadowKey || this.frameNo % 2 === 0) this.sun.shadow.needsUpdate = true;
+    if (key !== this.shadowKey || this.frameNo % (this.quality === 'high' ? 2 : 3) === 0) this.sun.shadow.needsUpdate = true;
     this.shadowKey = key;
   }
   private shadowKey = 0;
@@ -2886,8 +2913,8 @@ function animateLegs(g: THREE.Object3D, s: number) {
   if (arms) arms.forEach((a, i) => { a.rotation.x = s * (i ? 0.8 : -0.8); });
 }
 
-export function buildFarmer(shirt = '#d64541', overall = '#3b6fa8', jeans = '#2f5d8a') {
-  if (artStyle() === 'toon') return buildToonFarmer(shirt, overall, jeans);
+export function buildFarmer(shirt = '#d64541', overall = '#3b6fa8', jeans = '#2f5d8a', quick = false) {
+  if (artStyle() === 'toon') return buildToonFarmer(shirt, overall, jeans, quick);
   const g = new THREE.Group();
   const legs: THREE.Object3D[] = [];
   legPivot(g, -0.05, 0.3, 0, 0.28, 0.08, jeans, legs);
@@ -2929,14 +2956,14 @@ export function buildFarmer(shirt = '#d64541', overall = '#3b6fa8', jeans = '#2f
 }
 
 // Cartoon farmer to match the cartoon animals: big head, round belly, chunky boots and hands
-function buildToonFarmer(shirt: string, overall: string, jeans: string) {
+function buildToonFarmer(shirt: string, overall: string, jeans: string, quick = false) {
   const g = new THREE.Group();
   const legs: THREE.Object3D[] = [];
   legPivot(g, -0.06, 0.28, 0, 0.26, 0.095, jeans, legs);
   legPivot(g, 0.06, 0.28, 0, 0.26, 0.095, jeans, legs);
   legs.forEach((l) => ball(l, 0.062, '#6a3e1c', 0, -0.26, 0.03, 0.95, 0.7, 1.45));
   const body = group(g);
-  const pp = toonPersonParts(shirt, overall);
+  const pp = toonPersonParts(shirt, overall, quick);
   const torso = new THREE.Mesh(pp.torso, TOON_MAT);
   torso.castShadow = torso.receiveShadow = true;
   body.add(torso);
@@ -3423,6 +3450,8 @@ function drawBlobs(scene: THREE.Scene) {
 type LodPart = 'body' | 'head' | 'leg' | 'tail';
 // the fine sculpt only for close ups; at the usual farm view the light mesh is indistinguishable
 const LOD_NEAR = 20, LOD_FAR = 23;
+// on a small (phone) screen the animals are small too: their full models only show from closer
+let lodScale = 1;
 let sculptBudget = 1;
 const resetSculptBudget = () => { sculptBudget = 1; };
 const lodWanted = new Set<string>();
@@ -3484,7 +3513,7 @@ function modelLod(g: THREE.Object3D, kind: string) {
     let far = false;
     m.onBeforeRender = (_r, _s, cam) => {
       const d = cam.position.distanceTo(lodPos.setFromMatrixPosition(m.matrixWorld));
-      const want = far ? d > LOD_NEAR : d > LOD_FAR;
+      const want = far ? d > LOD_NEAR * lodScale : d > LOD_FAR * lodScale;
       if (want === far) return;
       const geo = want ? modelLodGeos(kind)?.get(m.name) : full;
       if (!geo) return;
@@ -4185,6 +4214,37 @@ const gltfLoader = new GLTFLoader().setDRACOLoader(new DRACOLoader().setDecoderP
 const modelCache = new Map<string, Promise<THREE.Object3D>>();
 // model materials with a baked emission mask (windows, lamps), lit up at night like WIN
 const MODEL_GLOW = new Set<THREE.MeshStandardMaterial>();
+// Low quality (phones): a model's baked textures are scaled down to 512 px as it loads. A model
+// is a hundred or two pixels tall on a phone, and a busy farm of 1024 px textures takes some
+// 800 MB of GPU memory, far past what a phone can spare (the app then stalls or is closed).
+const LOW_TEX = 512;
+function shrinkTextures(root: THREE.Object3D) {
+  if (getQuality() === 'high' || typeof createImageBitmap === 'undefined') return Promise.resolve();
+  const seen = new Set<THREE.Texture>();
+  const jobs: Promise<void>[] = [];
+  root.traverse((o) => {
+    const mats = (o as THREE.Mesh).material;
+    for (const m of (Array.isArray(mats) ? mats : mats ? [mats] : []) as THREE.MeshStandardMaterial[]) {
+      for (const t of [m.map, m.emissiveMap, m.normalMap, m.roughnessMap, m.aoMap]) {
+        const img = t?.image as { width?: number; height?: number } | undefined;
+        if (!t || seen.has(t) || !img?.width || !img.height || Math.max(img.width, img.height) <= LOW_TEX) continue;
+        seen.add(t);
+        const k = LOW_TEX / Math.max(img.width, img.height);
+        jobs.push(createImageBitmap(img as ImageBitmapSource, { resizeWidth: Math.round(img.width * k), resizeHeight: Math.round(img.height * k), resizeQuality: 'high' })
+          .then((bm) => {
+            const old = t.image as ImageBitmap;
+            t.image = bm;
+            t.needsUpdate = true;
+            if (typeof old.close === 'function') old.close();
+          }, () => { /* keep the full texture */ }));
+      }
+    }
+  });
+  return Promise.all(jobs).then(() => undefined);
+}
+
+// set by the renderer: compiles a loaded model's shaders without blocking
+let precompile: ((o: THREE.Object3D) => Promise<unknown>) | null = null;
 // models being fetched right now: the optional far detail models wait for a quiet moment
 let modelsLoading = 0;
 function loadModel(name: string) {
@@ -4206,7 +4266,12 @@ function loadModel(name: string) {
         }
       });
       gl.scene.userData.top = new THREE.Box3().setFromObject(gl.scene).max.y;
-      return gl.scene;
+      return shrinkTextures(gl.scene).then(() => {
+        // its shaders compile in the background before it is used, so a model arriving mid
+        // game never freezes the picture while the GPU compiles
+        const ready = () => gl.scene;
+        return precompile ? precompile(gl.scene).then(ready, ready) : gl.scene;
+      });
     });
     modelCache.set(name, p);
   }
@@ -4985,12 +5050,12 @@ function buildPen(e: Entry, d: BuildingDef) {
       // a little paper lantern shed among mulberry bushes
       bxT(g, 0.55, 0.4, 0.45, 'boards', '#f4efe6', 0.45, 0.04, 0.45, 2);
       roofT(g, 0.7, 0.24, 0.6, d.roof, surfaceMat('boards', '#f4efe6', 2), 0.45, 0.44, 0.45, 0.06);
-      for (const [x, z] of [[1.5, 0.4], [1.55, 1.5], [0.5, 1.5]]) mk(g, toonCrown(5), toonLeafMat('#3f8a33'), 0.42, 0.42, 0.42, x, -0.12, z);
+      for (const [x, z] of [[1.5, 0.4], [1.55, 1.5], [0.5, 1.5]]) mk(g, toonCrown(5, MODELS[d.id] ? 0.042 : 0.014), toonLeafMat('#3f8a33'), 0.42, 0.42, 0.42, x, -0.12, z);
       break;
     }
     case 'squirrel_grove': {
       // a big oak in the corner with a knot hole, and acorns on the grass
-      const t = leafyTree(g, 0.55, 0.55, '#4f9e36', 0.9, 7);
+      const t = leafyTree(g, 0.55, 0.55, '#4f9e36', 0.9, 7, !!MODELS[d.id]);
       mk(t.crown, G.ball, M('#3a2418'), 0.06, 0.07, 0.03, 0.06, 0.4, 0.08);
       for (let i = 0; i < 6; i++) ball(g, 0.025, '#8a5a2a', 0.9 + hash(i, 5) * 0.9, 0.03, 0.9 + hash(i, 6) * 0.9, 1, 1.2, 1, false);
       break;
@@ -5007,7 +5072,7 @@ function buildPen(e: Entry, d: BuildingDef) {
       // a grassy mound with a burrow and some ferns
       mk(g, G.dome, M('#6aa84a'), 0.45, 0.25, 0.4, 0.5, 0.02, 0.5);
       mk(g, G.ball, M('#2a1a12'), 0.1, 0.08, 0.03, 0.5, 0.08, 0.88);
-      for (let i = 0; i < 5; i++) mk(g, toonCrown(i), toonLeafMat('#3f8a33'), 0.22, 0.2, 0.22, 1.3 + hash(i, 7) * 0.5, -0.06, 0.4 + hash(i, 8) * 1.1);
+      for (let i = 0; i < 5; i++) mk(g, toonCrown(i, MODELS[d.id] ? 0.042 : 0.014), toonLeafMat('#3f8a33'), 0.22, 0.2, 0.22, 1.3 + hash(i, 7) * 0.5, -0.06, 0.4 + hash(i, 8) * 1.1);
       break;
     case 'moose_woods': case 'deer_park':
       // a few pines and a salt lick
@@ -5398,7 +5463,9 @@ function toonLeafMat(leaf: string) {
 }
 
 // Cartoon tree: a stout curving trunk with root flares and one puffy round crown
-function toonTree(g: P, x: number, z: number, leaf: string, k: number, seed: number) {
+// `quick`: a Blender model takes this tree's place in a moment, so its crown is sculpted coarse
+// (about 27 times less work, a big part of a phone's start up) and only shows until then
+function toonTree(g: P, x: number, z: number, leaf: string, k: number, seed: number, quick = false) {
   const bark = M('#8a5a32');
   const trunk = mk(g, cylGeo(0.07, 0.12, 12), bark, k, 0.6 * k, k, x, 0.3 * k, z);
   trunk.rotation.z = (hash(seed, 3) - 0.5) * 0.12;
@@ -5408,13 +5475,13 @@ function toonTree(g: P, x: number, z: number, leaf: string, k: number, seed: num
   }
   const crown = group(g, x, 0, z);
   crown.userData.crown = true;
-  const m = mk(crown, toonCrown(seed), toonLeafMat(leaf), k, k, k, 0, 0, 0);
+  const m = mk(crown, toonCrown(seed, quick ? 0.042 : 0.014), toonLeafMat(leaf), k, k, k, 0, 0, 0);
   m.receiveShadow = true;
   return { crown, main: m };
 }
 
-function leafyTree(g: P, x: number, z: number, leaf: string, k = 1, seed = 1) {
-  if (artStyle() === 'toon') return toonTree(g, x, z, leaf, k, seed);
+function leafyTree(g: P, x: number, z: number, leaf: string, k = 1, seed = 1, quick = false) {
+  if (artStyle() === 'toon') return toonTree(g, x, z, leaf, k, seed, quick);
   const bark = surfaceMat('bark', '#7a4b26', 3);
   mk(g, cylGeo(0.055, 0.095, 10), bark, k, 0.55 * k, k, x, 0.275 * k, z);
   for (const [a, rz] of [[0.6, 0.7], [3.4, -0.6]]) {
@@ -5493,7 +5560,7 @@ function buildFruitTree(e: Entry, d: BuildingDef) {
   const leaf = TREE_LEAF[d.id] ?? '#4f9e36';
   if (d.id === 'coconut_palm' || d.id === 'date_palm') return buildPalm(e, d, leaf);
   if (d.id === 'banana_tree' || d.id === 'plantain_tree') return buildBanana(e, leaf, d.fruit ?? 'banana');
-  const { crown } = leafyTree(g, 0.5, 0.5, leaf, d.id === 'walnut_tree' ? 1.2 : 1, d.id.length);
+  const { crown } = leafyTree(g, 0.5, 0.5, leaf, d.id === 'walnut_tree' ? 1.2 : 1, d.id.length, !!MODELS[d.id]);
   const fc = FRUIT_COLOR[d.fruit ?? 'apple'] ?? '#e53935';
   // realistic fruit: dimpled apples, paired cherries, pitted oranges, blushing peaches, lemons
   const pg = produceGeo(d.fruit ?? 'apple');
@@ -5719,7 +5786,7 @@ function buildDock(e: Entry, store: GameStore) {
 function buildObstacle(e: Entry, o: FarmObject) {
   const g = e.root;
   if (o.type === 'tree_obs') {
-    const { crown } = leafyTree(g, 0.5, 0.5, '#3f8a33', 1.08, o.id);
+    const { crown } = leafyTree(g, 0.5, 0.5, '#3f8a33', 1.08, o.id, !!MODELS.tree_obs);
     e.top = 1.3;
     e.update = (ob, _n, t) => { crown.rotation.z = Math.sin(t / 1300 + ob.id) * 0.015; };
   } else if (o.type === 'rock_obs') {
@@ -5978,7 +6045,7 @@ function buildDeco(e: Entry, d: BuildingDef) {
       break;
     }
     case 'oak': {
-      const { crown } = leafyTree(g, 0.5, 0.5, '#4f9e36', 1, 3);
+      const { crown } = leafyTree(g, 0.5, 0.5, '#4f9e36', 1, 3, !!MODELS.oak);
       e.top = 1.25;
       e.update = (o, _n, t) => { crown.rotation.z = Math.sin(t / 1200 + o.id) * 0.015; };
       break;

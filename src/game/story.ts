@@ -3,6 +3,7 @@
 // crop to grow, a new animal home, a workshop, a recipe, a catch, a tree or a decoration).
 // Chapters are plain data made from the game tables, so saves only keep which chapter is on.
 import { ANIMALS, BUILDINGS, CATCHES, CROPS, ITEMS, RECIPES, type BuildingDef } from './data';
+import { getLang, t as tr } from './i18n';
 
 export const CAST = {
   grandpa: { name: 'Grandpa Walt', icon: '👴', color: '#8a5a2b' },
@@ -23,7 +24,9 @@ export interface Chapter { n: number; title: string; who: CastId; intro: string[
 
 // a steady pseudo random pick, so a chapter always reads the same
 const pick = <T,>(list: readonly T[], n: number, salt = 0) => list[Math.abs(Math.imul(n * 7919 + salt * 104729, 2654435761)) % list.length];
+// English articles; other languages drop {a} and {A} from their lines
 const an = (w: string) => (/^[aeiou]/i.test(w) ? 'an' : 'a');
+const art = (name: string) => ({ a: an(name), A: an(name) === 'an' ? 'An' : 'A', name: tr(name) });
 
 type Draft = { who: CastId; task: Omit<StoryTask, 'id'>; line: string; title: string };
 
@@ -37,129 +40,139 @@ function drafts(level: number): Draft[] {
     const home = BUILDINGS.find((b) => b.id === a.house);
     const prod = ITEMS[a.product];
     const who: CastId = level >= 60 && n % 2 ? 'hazel' : 'maya';
+    const animal = tr(a.name);
     if (home && home.level === level) {
+      const h = art(home.name);
       add({
         who,
-        task: { icon: home.icon, text: `Build ${an(home.name)} ${home.name}`, target: 1, kind: 'count', key: home.id },
+        task: { icon: home.icon, text: tr('Build {a} {name}', h), target: 1, kind: 'count', key: home.id },
         line: pick([
-          `${an(a.name) === 'an' ? 'An' : 'A'} ${a.name} family is looking for a new home. Build them ${an(home.name)} ${home.name}?`,
-          `I have been caring for some ${a.name} friends, and they need a home. ${an(home.name) === 'an' ? 'An' : 'A'} ${home.name} would be perfect!`,
-          `Word is out that your farm is the kindest in the valley. Some ${a.name} friends want to move in!`,
-        ], n, 1),
-        title: pick([`A Home for the ${a.name}`, `New Neighbors`, `The ${home.name}`], n, 2),
+          () => tr('{A} {animal} family is looking for a new home. Build them {a} {name}?', { ...h, A: an(a.name) === 'an' ? 'An' : 'A', animal }),
+          () => tr('I have been caring for some {animal} friends, and they need a home. {A} {name} would be perfect!', { ...h, animal }),
+          () => tr('Word is out that your farm is the kindest in the valley. Some {animal} friends want to move in!', { animal }),
+        ], n, 1)(),
+        title: pick([() => tr('A Home for the {animal}', { animal }), () => tr('New Neighbors'), () => tr('The {name}', h)], n, 2)(),
       });
     }
+    const item = tr(prod.name);
     add({
       who,
-      task: { icon: prod.icon, text: `Collect ${prod.name} ×3`, target: 3, kind: 'stat', key: `collect:${a.product}` },
+      task: { icon: prod.icon, text: tr('Collect {item} ×{n}', { item, n: 3 }), target: 3, kind: 'stat', key: `collect:${a.product}` },
       line: pick([
-        `Keep them fed and happy and they will give you lovely ${prod.name}.`,
-        `Happy animals give the best ${prod.name}. Bring me a little when you can!`,
-      ], n, 3),
-      title: `The ${a.name}`,
+        () => tr('Keep them fed and happy and they will give you lovely {item}.', { item }),
+        () => tr('Happy animals give the best {item}. Bring me a little when you can!', { item }),
+      ], n, 3)(),
+      title: tr('The {name}', { name: animal }),
     });
   }
   for (const b of BUILDINGS) {
     if (b.level !== level || !b.buyable) continue;
+    const h = art(b.name);
     if (b.kind === 'production') {
       add({
         who: b.id === 'bakery' ? 'rosie' : 'marco',
-        task: { icon: b.icon, text: `Build ${an(b.name)} ${b.name}`, target: 1, kind: 'count', key: b.id },
+        task: { icon: b.icon, text: tr('Build {a} {name}', h), target: 1, kind: 'count', key: b.id },
         line: pick([
-          `Imagine ${an(b.name)} ${b.name} right here on your farm! Build one and I will share my secrets.`,
-          `The valley has been waiting for ${an(b.name)} ${b.name}. You are just the farmer to build it.`,
-          `With ${an(b.name)} ${b.name}, your harvest turns into something special. Shall we?`,
-        ], n, 4),
-        title: pick([`The New ${b.name}`, `Grand Opening`, `${b.name} Dreams`], n, 5),
+          () => tr('Imagine {a} {name} right here on your farm! Build one and I will share my secrets.', h),
+          () => tr('The valley has been waiting for {a} {name}. You are just the farmer to build it.', h),
+          () => tr('With {a} {name}, your harvest turns into something special. Shall we?', h),
+        ], n, 4)(),
+        title: pick([() => tr('The New {name}', h), () => tr('Grand Opening'), () => tr('{name} Dreams', h)], n, 5)(),
       });
     } else if (b.kind === 'pen' && !ANIMALS.some((a) => a.house === b.id && a.level === level)) {
       add({
         who: 'maya',
-        task: { icon: b.icon, text: `Build ${an(b.name)} ${b.name}`, target: 1, kind: 'count', key: b.id },
-        line: `A new animal home is ready to build: the ${b.name}!`,
-        title: `The ${b.name}`,
+        task: { icon: b.icon, text: tr('Build {a} {name}', h), target: 1, kind: 'count', key: b.id },
+        line: tr('A new animal home is ready to build: the {name}!', h),
+        title: tr('The {name}', h),
       });
     }
   }
   for (const b of BUILDINGS) {
     if (b.level !== level || b.kind !== 'tree') continue;
     const fruit = b.fruit ? ITEMS[b.fruit] : null;
+    const h = art(b.name);
     add({
       who: n % 3 ? 'ivy' : 'grandpa',
-      task: { icon: b.icon, text: `Plant ${an(b.name)} ${b.name}`, target: 1, kind: 'count', key: b.id },
+      task: { icon: b.icon, text: tr('Plant {a} {name}', h), target: 1, kind: 'count', key: b.id },
       line: pick([
-        `When I was young, we had ${an(b.name)} ${b.name} by the old fence. Plant one for me?`,
-        `Saplings of ${b.name} just arrived at the nursery. ${fruit ? `The ${fruit.name} is delicious!` : 'They grow so fast!'}`,
-        `A farm needs trees, and ${an(b.name)} ${b.name} would look wonderful here.`,
-      ], n, 6),
-      title: pick([`Roots and Branches`, `The ${b.name}`, `An Orchard Grows`], n, 7),
+        () => tr('When I was young, we had {a} {name} by the old fence. Plant one for me?', h),
+        () => fruit ? tr('Saplings of {name} just arrived at the nursery. The {item} is delicious!', { ...h, item: tr(fruit.name) }) : tr('Saplings of {name} just arrived at the nursery. They grow so fast!', h),
+        () => tr('A farm needs trees, and {a} {name} would look wonderful here.', h),
+      ], n, 6)(),
+      title: pick([() => tr('Roots and Branches'), () => tr('The {name}', h), () => tr('An Orchard Grows')], n, 7)(),
     });
   }
   for (const c of CROPS) {
     if (c.level !== level) continue;
     const it = ITEMS[c.id];
+    const item = tr(it.name);
     add({
       who: n % 4 === 1 ? 'grandpa' : 'ivy',
-      task: { icon: it.icon, text: `Harvest ${it.name} ×4`, target: 4, kind: 'stat', key: `harvest:${c.id}` },
+      task: { icon: it.icon, text: tr('Harvest {item} ×{n}', { item, n: 4 }), target: 4, kind: 'stat', key: `harvest:${c.id}` },
       line: pick([
-        `Fresh ${it.name} seeds just came in, and this valley soil will love them!`,
-        `I saved you a pouch of ${it.name} seeds. Plant them, water them and watch them grow.`,
-        `Have you grown ${it.name} yet? The market folks keep asking for it.`,
-      ], n, 8),
-      title: pick([`Seeds of ${it.name}`, `The ${it.name} Patch`, `Something New to Grow`], n, 9),
+        () => tr('Fresh {item} seeds just came in, and this valley soil will love them!', { item }),
+        () => tr('I saved you a pouch of {item} seeds. Plant them, water them and watch them grow.', { item }),
+        () => tr('Have you grown {item} yet? The market folks keep asking for it.', { item }),
+      ], n, 8)(),
+      title: pick([() => tr('Seeds of {item}', { item }), () => tr('The {item} Patch', { item }), () => tr('Something New to Grow')], n, 9)(),
     });
   }
   for (const r of RECIPES) {
     if (r.level !== level) continue;
     const it = ITEMS[r.id];
     const at = BUILDINGS.find((b) => b.id === r.building);
+    const item = tr(it.name);
     add({
       who: r.building === 'bakery' ? 'rosie' : n % 2 ? 'marco' : 'rosie',
-      task: { icon: it.icon, text: `Make ${it.name} ×${2 * r.qty}`, target: 2 * r.qty, kind: 'stat', key: `make:${r.id}` },
+      task: { icon: it.icon, text: tr('Make {item} ×{n}', { item, n: 2 * r.qty }), target: 2 * r.qty, kind: 'stat', key: `make:${r.id}` },
       line: pick([
-        `I just wrote down a new recipe: ${it.name}! ${at ? `Your ${at.name} can make it.` : ''}`.trim(),
-        `Everyone at the market is talking about ${it.name}. Make some and bring me a taste!`,
-      ], n, 10),
-      title: pick([`${it.name} Day`, `A New Recipe`, `The Secret of ${it.name}`], n, 11),
+        () => at ? tr('I just wrote down a new recipe: {item}! Your {name} can make it.', { item, name: tr(at.name) }) : tr('I just wrote down a new recipe: {item}!', { item }),
+        () => tr('Everyone at the market is talking about {item}. Make some and bring me a taste!', { item }),
+      ], n, 10)(),
+      title: pick([() => tr('{item} Day', { item }), () => tr('A New Recipe'), () => tr('The Secret of {item}', { item })], n, 11)(),
     });
   }
   for (const [id, lv] of CATCHES) {
     if (lv !== level || id === 'fish') continue;
-    const it = ITEMS[id];
+    const item = tr(ITEMS[id].name);
     add({
       who: 'finn',
-      task: { icon: '🎣', text: 'Catch anything ×3', target: 3, kind: 'stat', key: 'fish' },
+      task: { icon: '🎣', text: tr('Catch anything ×{n}', { n: 3 }), target: 3, kind: 'stat', key: 'fish' },
       line: pick([
-        `The tide is strange today. I spotted ${it.name} near the pier. Cast your line and see what bites!`,
-        `Sailors say ${it.name} swims close to shore this season. Lucky you!`,
-      ], n, 12),
-      title: pick(['Something Is Biting', 'Tales of the Tide'], n, 13),
+        () => tr('The tide is strange today. I spotted {item} near the pier. Cast your line and see what bites!', { item }),
+        () => tr('Sailors say {item} swims close to shore this season. Lucky you!', { item }),
+      ], n, 12)(),
+      title: pick([() => tr('Something Is Biting'), () => tr('Tales of the Tide')], n, 13)(),
     });
   }
   for (const b of BUILDINGS) {
     if (b.level !== level || b.kind !== 'deco' || !b.buyable) continue;
+    const h = art(b.name);
     add({
       who: 'bramble',
-      task: { icon: b.icon, text: `Place ${an(b.name)} ${b.name}`, target: 1, kind: 'count', key: b.id },
+      task: { icon: b.icon, text: tr('Place {a} {name}', h), target: 1, kind: 'count', key: b.id },
       line: pick([
-        `The town council loves your farm. How about ${an(b.name)} ${b.name} to make it shine?`,
-        `Visitors keep stopping by! ${an(b.name) === 'an' ? 'An' : 'A'} ${b.name} would give them something to smile about.`,
-      ], n, 14),
-      title: pick(['A Touch of Charm', `The ${b.name}`], n, 15),
+        () => tr('The town council loves your farm. How about {a} {name} to make it shine?', h),
+        () => tr('Visitors keep stopping by! {A} {name} would give them something to smile about.', h),
+      ], n, 14)(),
+      title: pick([() => tr('A Touch of Charm'), () => tr('The {name}', h)], n, 15)(),
     });
   }
   // the bigger systems
   const sys = (kind: BuildingDef['kind']) => BUILDINGS.find((b) => b.kind === kind && b.level === level);
   const stall = sys('stall');
-  if (stall) add({ who: 'bramble', task: { icon: stall.icon, text: `Build the ${stall.name}`, target: 1, kind: 'count', key: stall.id }, line: 'Villagers would love to buy straight from your farm. A roadside stall is just the thing!', title: 'Open for Business' });
+  if (stall) add({ who: 'bramble', task: { icon: stall.icon, text: tr('Build the {name}', { name: tr(stall.name) }), target: 1, kind: 'count', key: stall.id }, line: tr('Villagers would love to buy straight from your farm. A roadside stall is just the thing!'), title: tr('Open for Business') });
   const dock = sys('dock');
-  if (dock) add({ who: 'finn', task: { icon: dock.icon, text: `Build the ${dock.name}`, target: 1, kind: 'count', key: dock.id }, line: 'Ahoy! My cargo boat could stop at your farm, if only you had a dock.', title: 'A Boat on the Horizon' });
-  if (level === 5) add({ who: 'finn', task: { icon: '🎣', text: 'Open the fishing spot', target: 1, kind: 'fishing', key: '' }, line: 'Carp and trout in the lake, sea fish off the south shore. Open a fishing spot!', title: 'Gone Fishing' });
+  if (dock) add({ who: 'finn', task: { icon: dock.icon, text: tr('Build the {name}', { name: tr(dock.name) }), target: 1, kind: 'count', key: dock.id }, line: tr('Ahoy! My cargo boat could stop at your farm, if only you had a dock.'), title: tr('A Boat on the Horizon') });
+  if (level === 5) add({ who: 'finn', task: { icon: '🎣', text: tr('Open the fishing spot'), target: 1, kind: 'fishing', key: '' }, line: tr('Carp and trout in the lake, sea fish off the south shore. Open a fishing spot!'), title: tr('Gone Fishing') });
   return out;
 }
 
 // milestone chapters carry the main tale: the farm, the Harvest Fair and the Golden Nest
-const MILESTONES: Record<number, { title: string; who: CastId; lines: string[]; outro: string; task?: Omit<StoryTask, 'id'> }> = {
+// (English here; every line goes through tr when the chapter is built)
+type Milestone = { title: string; who: CastId; lines: string[]; outro: string; task?: Omit<StoryTask, 'id'> };
+const MILESTONES: Record<number, Milestone> = {
   1: { title: 'A New Beginning', who: 'grandpa', lines: ['There you are! Welcome to Talon Valley. This old farm is yours now.', 'My knees are too old for the fields, but yours are not. Let us wake this place up!'], outro: 'Look at that, the farm is breathing again. I knew you could do it!' },
   2: { title: 'The Order Board', who: 'bramble', lines: ['Welcome, new farmer! I am Mayor Bramble.', 'The town has missed fresh food from this farm. Every order you deliver brings the valley back to life.'], outro: 'Splendid! The townsfolk are already smiling again.', task: { icon: '📋', text: 'Deliver orders ×2', target: 2, kind: 'stat', key: 'orders' } },
   5: { title: 'Gone Fishing', who: 'finn', lines: ['Ahoy there! Captain Finn, at your service.', 'Your grandpa and I used to fish off the lake jetty every morning.'], outro: 'A natural! The lake will be good to you.', task: { icon: '🎣', text: 'Open the fishing spot', target: 1, kind: 'fishing', key: '' } },
@@ -209,11 +222,13 @@ const FIRST: Omit<StoryTask, 'id'>[] = [
   { icon: BUILDINGS.find((b) => b.id === 'bakery')?.icon ?? '🍞', text: 'Build a Bakery', target: 1, kind: 'count', key: 'bakery' },
 ];
 
-const cache = new Map<number, Chapter>();
+// chapters are built in the language on screen, so the cache is kept per language
+const cache = new Map<string, Chapter>();
 export const LAST_CHAPTER = 200;
 
 export function chapterAt(n: number): Chapter {
-  const hit = cache.get(n);
+  const ck = `${getLang()}:${n}`;
+  const hit = cache.get(ck);
   if (hit) return hit;
   const m = MILESTONES[n];
   const list = drafts(n);
@@ -228,25 +243,26 @@ export function chapterAt(n: number): Chapter {
   // levels that bring little still get a task: orders keep the town fed
   if (chosen.length < 2 && n > 1) {
     const k = 2 + Math.floor(n / 40);
-    chosen.push({ who: 'bramble', task: { icon: '📋', text: `Deliver orders ×${k}`, target: k, kind: 'stat', key: 'orders' }, line: 'The order board is full again. The town is counting on you!', title: 'Busy Days' });
+    chosen.push({ who: 'bramble', task: { icon: '📋', text: tr('Deliver orders ×{n}', { n: k }), target: k, kind: 'stat', key: 'orders' }, line: tr('The order board is full again. The town is counting on you!'), title: tr('Busy Days') });
   }
-  const own = m?.task ? [m.task, ...chosen.map((d) => d.task).filter((t) => t.text !== m.task!.text).slice(0, 2)] : chosen.map((d) => d.task);
-  const tasks = (n === 1 ? FIRST : own).map((t, i) => ({ ...t, id: `${n}.${i}` }));
+  const mt = m?.task ? { ...m.task, text: tr(m.task.text) } : null;
+  const own = mt ? [mt, ...chosen.map((d) => d.task).filter((t) => t.text !== mt.text).slice(0, 2)] : chosen.map((d) => d.task);
+  const tasks = (n === 1 ? FIRST.map((t) => ({ ...t, text: tr(t.text) })) : own).map((t, i) => ({ ...t, id: `${n}.${i}` }));
   const who: CastId = m?.who ?? chosen[0]?.who ?? 'grandpa';
-  const intro = m ? [...m.lines] : [];
+  const intro = m ? m.lines.map((l) => tr(l)) : [];
   // the teller explains the first task; other folk chip in for the rest in the chapter panel
-  if (n === 1) intro.push('Harvest the wheat, plant some more, and build a bakery. Rosie will teach you to bake!');
-  else if (chosen[0]) intro.push(m ? chosen[0].line : `${pick(GREET[who], n, 17)} ${chosen[0].line}`);
+  if (n === 1) intro.push(tr('Harvest the wheat, plant some more, and build a bakery. Rosie will teach you to bake!'));
+  else if (chosen[0]) intro.push(m ? chosen[0].line : `${tr(pick(GREET[who], n, 17))} ${chosen[0].line}`);
   if (!m && chosen[1] && chosen[1].who === who) intro.push(chosen[1].line);
   const ch: Chapter = {
     n,
-    title: m?.title ?? chosen[0]?.title ?? 'A Day on the Farm',
+    title: m ? tr(m.title) : chosen[0]?.title ?? tr('A Day on the Farm'),
     who,
     intro: intro.slice(0, 4),
-    outro: m?.outro ?? pick(OUTRO[who], n, 16),
+    outro: tr(m?.outro ?? pick(OUTRO[who], n, 16)),
     tasks,
   };
-  cache.set(n, ch);
+  cache.set(ck, ch);
   return ch;
 }
 

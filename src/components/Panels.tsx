@@ -54,6 +54,8 @@ import { ALBUM } from '@/game/album';
 import { getQuality, setQuality, type Quality } from '@/game/quality';
 import { Coin } from './Hud';
 import { useStore, useVersion } from './ctx';
+import { LANG_IDS, getLang, setLang, t, type Lang } from '@/game/i18n';
+import LANG_NAMES from '@/locales/names.json';
 
 // ------------------------------------------------------------------ primitives
 
@@ -66,7 +68,7 @@ function Modal({ title, icon, onClose, children, wide = false }: { title: string
           <h2 className="text-xl font-bold tracking-wide" style={{ textShadow: '0 2px 0 #5d3a1f' }}>
             {title}
           </h2>
-          <button className="btn btn-red absolute right-2 top-1.5 h-9 w-9 rounded-full p-0 text-lg" onClick={onClose} aria-label="Close">
+          <button className="btn btn-red absolute right-2 top-1.5 h-9 w-9 rounded-full p-0 text-lg" onClick={onClose} aria-label={t('Close')}>
             ✕
           </button>
         </div>
@@ -86,7 +88,7 @@ function Sheet({ title, icon, pic, sub, onClose, children }: { title: string; ic
             <div className="truncate text-lg font-bold">{title}</div>
             {sub && <div className="text-xs text-[#8a6a44]">{sub}</div>}
           </div>
-          <button className="btn btn-red h-9 w-9 rounded-full p-0 text-lg" onClick={onClose} aria-label="Close">
+          <button className="btn btn-red h-9 w-9 rounded-full p-0 text-lg" onClick={onClose} aria-label={t('Close')}>
             ✕
           </button>
         </div>
@@ -145,7 +147,7 @@ function Coins({ n }: { n: number }) {
 function Lock({ level }: { level: number }) {
   return (
     <span className="inline-flex items-center gap-1 rounded-full bg-[#5a3a1a] px-2 py-0.5 text-[11px] font-bold text-white">
-      <span className="emoji text-[10px]">🔒</span>Lv {level}
+      <span className="emoji text-[10px]">🔒</span>{t('Lv {n}', { n: level })}
     </span>
   );
 }
@@ -209,13 +211,13 @@ function PlotSheet({ o }: { o: FarmObject }) {
   if (pp.crop) {
     const it = ITEMS[pp.crop];
     return (
-      <Sheet title={it.name} icon={it.icon} sub={pp.ready ? 'Ready to harvest' : 'Growing'} onClose={close}>
+      <Sheet title={t(it.name)} icon={it.icon} sub={pp.ready ? t('Ready to harvest') : t('Growing')} onClose={close}>
         {pp.ready ? (
           <div className="flex flex-col items-center gap-3 py-2">
             <button className="btn btn-green px-8 py-3 text-lg" onClick={() => { store.harvest(o); store.select(null); }}>
-              Harvest +2 <Ico i={it.icon} />
+              {t('Harvest +2')} <Ico i={it.icon} />
             </button>
-            <p className="text-center text-xs text-[#8a6a44]">Tip: press and drag across ready fields to harvest many at once.</p>
+            <p className="text-center text-xs text-[#8a6a44]">{t('Tip: press and drag across ready fields to harvest many at once.')}</p>
           </div>
         ) : (
           <div className="flex flex-col gap-3">
@@ -226,7 +228,7 @@ function PlotSheet({ o }: { o: FarmObject }) {
             <WaterRow o={o} />
             <div className="flex justify-center">
               <button className="btn btn-blue" onClick={() => store.speedPlot(o)} disabled={s.gems < gemCost(pp.remaining)}>
-                Finish now <Gems n={gemCost(pp.remaining)} />
+                {t('Finish now')} <Gems n={gemCost(pp.remaining)} />
               </button>
             </div>
           </div>
@@ -236,7 +238,7 @@ function PlotSheet({ o }: { o: FarmObject }) {
   }
 
   return (
-    <Sheet title="Empty Field" icon="🟫" sub="Pick a seed, then tap or drag over empty fields" onClose={close}>
+    <Sheet title={t('Empty Field')} icon="🟫" sub={t('Pick a seed, then tap or drag over empty fields')} onClose={close}>
       <div className="grid grid-cols-3 gap-2 sm:grid-cols-5">
         {CROPS.map((c) => {
           const it = ITEMS[c.id];
@@ -255,12 +257,12 @@ function PlotSheet({ o }: { o: FarmObject }) {
               }}
             >
               <span className={`emoji text-3xl ${locked ? 'grayscale' : ''}`}><Ico i={it.icon} /></span>
-              <span className="text-xs font-bold">{it.name}</span>
+              <span className="text-xs font-bold">{t(it.name)}</span>
               {locked ? (
                 <Lock level={c.level} />
               ) : (
                 <span className="text-[11px] text-[#8a6a44]">
-                  {have > 0 ? `Have ${have}` : <span className="inline-flex items-center gap-1">{c.seedCost} <Coin /></span>} · {fmtTime(c.time * 1000)}
+                  {have > 0 ? t('Have {n}', { n: have }) : <span className="inline-flex items-center gap-1">{c.seedCost} <Coin /></span>} · {fmtTime(c.time * 1000)}
                 </span>
               )}
             </button>
@@ -279,8 +281,8 @@ function ObjectActions({ o, move = true }: { o: FarmObject; move?: boolean }) {
   const [sure, setSure] = useState(false);
   useEffect(() => {
     if (!sure) return;
-    const t = setTimeout(() => setSure(false), 6000);
-    return () => clearTimeout(t);
+    const tm = setTimeout(() => setSure(false), 6000);
+    return () => clearTimeout(tm);
   }, [sure]);
   const value = store.sellValue(o);
   const plot = d.kind === 'plot';
@@ -288,25 +290,25 @@ function ObjectActions({ o, move = true }: { o: FarmObject; move?: boolean }) {
     <div className="mt-3 flex flex-wrap justify-center gap-2">
       {move && (
         <button className="btn btn-wood" onClick={() => store.startMove(o.id)}>
-          Move
+          {t('Move')}
         </button>
       )}
-      <button className="btn btn-wood" onClick={() => store.rotateObject(o.id)} title="Turn it round">
-        <span className="emoji">🔄</span> Rotate
+      <button className="btn btn-wood" onClick={() => store.rotateObject(o.id)} title={t('Turn it round')}>
+        <span className="emoji">🔄</span> {t('Rotate')}
       </button>
       {d.w !== d.h && (
-        <button className="btn btn-wood" onClick={() => store.turnSideways(o.id)} title="Stand it the other way: wide becomes long">
-          <span className="emoji">↔️</span> Sideways
+        <button className="btn btn-wood" onClick={() => store.turnSideways(o.id)} title={t('Stand it the other way: wide becomes long')}>
+          <span className="emoji">↔️</span> {t('Sideways')}
         </button>
       )}
       {store.canSell(o) && (
         sure ? (
           <button className="btn btn-red" onClick={() => { setSure(false); store.removeObject(o.id); }}>
-            {plot ? 'Yes, remove it' : <>Yes, sell for <Coins n={value} /></>}
+            {plot ? t('Yes, remove it') : <>{t('Yes, sell for')} <Coins n={value} /></>}
           </button>
         ) : (
           <button className="btn btn-ghost" onClick={() => setSure(true)}>
-            {plot ? 'Remove field' : <>Sell for <Coins n={value} /></>}
+            {plot ? t('Remove field') : <>{t('Sell for')} <Coins n={value} /></>}
           </button>
         )
       )}
@@ -335,9 +337,9 @@ function ProductionSheet({ o }: { o: FarmObject }) {
 
   return (
     <Sheet
-      title={d.name}
+      title={t(d.name)}
       icon={d.icon}
-      sub={info.current ? `Making ${ITEMS[info.current.recipe].name}, ${fmtTime(info.current.endsAt - now)} left` : q.length ? 'Goods are ready' : 'Idle. Pick something to make.'}
+      sub={info.current ? t('Making {item}, {time} left', { item: t(ITEMS[info.current.recipe].name), time: fmtTime(info.current.endsAt - now) }) : q.length ? t('Goods are ready') : t('Idle. Pick something to make.')}
       onClose={() => store.select(null)}
     >
       {/* queue */}
@@ -373,12 +375,12 @@ function ProductionSheet({ o }: { o: FarmObject }) {
       <div className="mt-2 flex flex-wrap gap-2">
         {info.done.length > 0 && (
           <button className="btn btn-green" onClick={() => store.collectProd(o)}>
-            Collect {info.done.length}
+            {t('Collect {n}', { n: info.done.length })}
           </button>
         )}
         {info.current && (
           <button className="btn btn-blue" onClick={() => store.speedProd(o)} disabled={s.gems < gemCost(info.current.endsAt - now)}>
-            Finish now <Gems n={gemCost(info.current.endsAt - now)} />
+            {t('Finish now')} <Gems n={gemCost(info.current.endsAt - now)} />
           </button>
         )}
       </div>
@@ -403,7 +405,7 @@ function ProductionSheet({ o }: { o: FarmObject }) {
               <span className={`emoji text-3xl ${locked ? 'grayscale' : ''}`}><Ico i={it.icon} /></span>
               <div className="min-w-0 flex-1">
                 <div className="flex items-center gap-2 font-bold">
-                  {it.name}
+                  {t(it.name)}
                   {r.qty > 1 && <span className="text-xs text-[#8a6a44]">x{r.qty}</span>}
                   {locked && <Lock level={r.level} />}
                 </div>
@@ -447,13 +449,13 @@ function PenSheet({ o }: { o: FarmObject }) {
 
   return (
     <Sheet
-      title={d.name}
+      title={t(d.name)}
       icon={d.icon}
-      sub={`${pi.total}/${cap} ${an.name.toLowerCase()}s · makes ${ITEMS[an.product].name} every ${fmtTime(an.time * 1000)}`}
+      sub={t('{n}/{cap} {animal} · makes {item} every {time}', { n: pi.total, cap, animal: t(an.name), item: t(ITEMS[an.product].name), time: fmtTime(an.time * 1000) })}
       onClose={() => store.select(null)}
     >
       {pi.total === 0 ? (
-        <p className="py-2 text-center text-sm text-[#8a6a44]">No animals yet. Buy your first {an.name.toLowerCase()} below.</p>
+        <p className="py-2 text-center text-sm text-[#8a6a44]">{t('No animals yet. Buy your first {animal} below.', { animal: t(an.name) })}</p>
       ) : (
         <div className="flex flex-wrap gap-2">
           {(o.pen?.animals ?? []).map((a) => {
@@ -470,14 +472,14 @@ function PenSheet({ o }: { o: FarmObject }) {
                       const g = a.graze!;
                       // back home (and full) at: the end of the trip, or a walk after being called
                       const home = g.back !== undefined ? g.back + GRAZE.walkMs : g.at + 2 * GRAZE.walkMs + (bee ? GRAZE.beeEatMs : GRAZE.eatMs);
-                      const label = ph === 'leaving' ? (bee ? 'Flying out' : 'Heading out') : ph === 'eating' ? (bee ? 'On flowers' : 'Grazing') : 'Coming home';
+                      const label = t(ph === 'leaving' ? (bee ? 'Flying out' : 'Heading out') : ph === 'eating' ? (bee ? 'On flowers' : 'Grazing') : 'Coming home');
                       return <>{label}<br /><span className="font-semibold text-[#8a6a44]">{fmtTime(home - now)}</span></>;
                     })()}
                   </span>
                 ) : ready ? (
                   <span className="emoji text-lg"><Ico i={ITEMS[an.product].icon} /></span>
                 ) : a.fedAt === null ? (
-                  <span className="text-[10px] font-bold text-[#c0392b]">Hungry</span>
+                  <span className="text-[10px] font-bold text-[#c0392b]">{t('Hungry')}</span>
                 ) : (
                   <>
                     <Bar p={p} color="#f5b92b" />
@@ -494,39 +496,39 @@ function PenSheet({ o }: { o: FarmObject }) {
       <div className="mt-3 flex flex-wrap items-center gap-2">
         {pi.ready > 0 && (
           <button className="btn btn-green" onClick={() => store.collectPen(o)}>
-            Collect {pi.ready} <Ico i={ITEMS[an.product].icon} />
+            {t('Collect {n}', { n: pi.ready })} <Ico i={ITEMS[an.product].icon} />
           </button>
         )}
         {pi.hungry > 0 && (
           <button className="btn btn-yellow" onClick={() => store.feedPen(o)} disabled={feedHave === 0}>
-            Feed {Math.min(pi.hungry, feedHave) || ''} <span className="emoji"><Ico i={ITEMS[an.feed].icon} /></span>
+            {t('Feed')} {Math.min(pi.hungry, feedHave) || ''} <span className="emoji"><Ico i={ITEMS[an.feed].icon} /></span>
           </button>
         )}
         {pi.hungry > 0 && (
-          <button className="btn btn-green" onClick={() => store.openGate(o)} title={an.id === 'bee' ? 'Let the bees fly to the flowers' : 'Open the gate: hungry animals walk out to graze and come back full'}>
-            <span className="emoji">{an.id === 'bee' ? '🌼' : '🚪'}</span> {an.id === 'bee' ? 'Send to flowers' : 'Open gate'}
+          <button className="btn btn-green" onClick={() => store.openGate(o)} title={an.id === 'bee' ? t('Let the bees fly to the flowers') : t('Open the gate: hungry animals walk out to graze and come back full')}>
+            <span className="emoji">{an.id === 'bee' ? '🌼' : '🚪'}</span> {an.id === 'bee' ? t('Send to flowers') : t('Open gate')}
           </button>
         )}
         {(o.pen?.animals ?? []).some((a) => { const ph = grazePhase(a, now, an.id === 'bee').phase; return ph === 'leaving' || ph === 'eating'; }) && (
           <button className="btn btn-wood" onClick={() => store.recallPen(o)}>
-            <span className="emoji">📣</span> Call back
+            <span className="emoji">📣</span> {t('Call back')}
           </button>
         )}
         {pi.fed > 0 && (
           <button className="btn btn-blue" onClick={() => store.speedPen(o)} disabled={s.gems < gemCost(maxRem)}>
-            Finish now <Gems n={gemCost(maxRem)} />
+            {t('Finish now')} <Gems n={gemCost(maxRem)} />
           </button>
         )}
         {pi.total < cap && (
           <button className="btn btn-wood" onClick={() => store.buyAnimal(o)} disabled={locked || s.coins < an.cost}>
-            Buy <Ico i={an.icon} /> <Coins n={an.cost} />
+            {t('Buy')} <Ico i={an.icon} /> <Coins n={an.cost} />
           </button>
         )}
       </div>
       <ObjectActions o={o} />
       <p className="mt-2 text-xs text-[#8a6a44]">
-        {ITEMS[an.feed].name} in storage: <b>{feedHave}</b>. {feedHint(an.feed)}{' '}
-        {an.id === 'bee' ? 'Or send the bees to the flowers: they come back full of nectar.' : 'Or open the gate: they graze on the grass and walk back full.'}
+        {t('{item} in storage:', { item: t(ITEMS[an.feed].name) })} <b>{feedHave}</b>. {feedHint(an.feed)}{' '}
+        {an.id === 'bee' ? t('Or send the bees to the flowers: they come back full of nectar.') : t('Or open the gate: they graze on the grass and walk back full.')}
       </p>
     </Sheet>
   );
@@ -536,7 +538,7 @@ function DecoSheet({ o }: { o: FarmObject }) {
   const store = useStore();
   const d = BUILDING[o.type];
   return (
-    <Sheet title={d.name} icon={d.icon} pic={d.id} sub={d.desc} onClose={() => store.select(null)}>
+    <Sheet title={t(d.name)} icon={d.icon} pic={d.id} sub={t(d.desc)} onClose={() => store.select(null)}>
       <ObjectActions o={o} />
     </Sheet>
   );
@@ -547,10 +549,10 @@ function ObstacleSheet({ o }: { o: FarmObject }) {
   const d = BUILDING[o.type];
   const cost = d.clearCost ?? 0;
   return (
-    <Sheet title={d.name} icon={d.icon} sub={`${d.desc} Gives ${d.xp} XP and sometimes a gem.`} onClose={() => store.select(null)}>
+    <Sheet title={t(d.name)} icon={d.icon} sub={`${t(d.desc)} ${t('Gives {xp} XP and sometimes a gem.', { xp: d.xp })}`} onClose={() => store.select(null)}>
       <div className="flex justify-center">
         <button className="btn btn-green px-6" onClick={() => store.clearObstacle(o.id)} disabled={store.s.coins < cost}>
-          Clear for <Coins n={cost} />
+          {t('Clear for')} <Coins n={cost} />
         </button>
       </div>
     </Sheet>
@@ -567,11 +569,11 @@ function TreeSheet({ o }: { o: FarmObject }) {
   const ti = treeInfo(o, Date.now());
   const it = ITEMS[ti.fruit];
   return (
-    <Sheet title={d.name} icon={d.icon} sub={ti.ready ? `Ready: 2 ${it.name.toLowerCase()}s` : `Growing ${it.name.toLowerCase()}s`} onClose={() => store.select(null)}>
+    <Sheet title={t(d.name)} icon={d.icon} sub={ti.ready ? t('Ready: 2 × {item}', { item: t(it.name) }) : t('Growing: {item}', { item: t(it.name) })} onClose={() => store.select(null)}>
       {ti.ready ? (
         <div className="flex justify-center py-1">
           <button className="btn btn-green px-8 py-3 text-lg" onClick={() => store.collectTree(o)}>
-            Pick +2 <Ico i={it.icon} />
+            {t('Pick +2')} <Ico i={it.icon} />
           </button>
         </div>
       ) : (
@@ -582,7 +584,7 @@ function TreeSheet({ o }: { o: FarmObject }) {
           </div>
           <div className="flex justify-center">
             <button className="btn btn-blue" onClick={() => store.speedTree(o)} disabled={s.gems < gemCost(ti.remaining)}>
-              Finish now <Gems n={gemCost(ti.remaining)} />
+              {t('Finish now')} <Gems n={gemCost(ti.remaining)} />
             </button>
           </div>
         </div>
@@ -621,11 +623,11 @@ function StallModal() {
       if (item) setPrice(Math.round(stallValue(item, nq) * 1.3));
     };
     const ratio = base ? price / base : 1;
-    const wait = ratio <= 1.05 ? 'Sells fast' : ratio <= 1.5 ? 'Sells in a few minutes' : 'Takes a while to sell';
+    const wait = t(ratio <= 1.05 ? 'Sells fast' : ratio <= 1.5 ? 'Sells in a few minutes' : 'Takes a while to sell');
     return (
-      <Modal title="List an item" icon="🏪" onClose={() => store.openPanel(null)} wide>
+      <Modal title={t('List an item')} icon="🏪" onClose={() => store.openPanel(null)} wide>
         {owned.length === 0 ? (
-          <p className="py-8 text-center text-sm text-[#8a6a44]">Your storage is empty. Harvest or make something to sell first.</p>
+          <p className="py-8 text-center text-sm text-[#8a6a44]">{t('Your storage is empty. Harvest or make something to sell first.')}</p>
         ) : (
           <div className="grid grid-cols-4 gap-2 sm:grid-cols-6 md:grid-cols-8">
             {owned.map((i) => (
@@ -639,26 +641,26 @@ function StallModal() {
         {item && (
           <div className="card mt-3 flex flex-col gap-3 p-3">
             <div className="flex items-center gap-2 font-bold">
-              <span className="emoji text-2xl"><Ico i={ITEMS[item].icon} /></span> {ITEMS[item].name}
+              <span className="emoji text-2xl"><Ico i={ITEMS[item].icon} /></span> {t(ITEMS[item].name)}
             </div>
             <div className="flex flex-wrap items-center gap-2">
-              <span className="w-16 text-sm font-bold">Amount</span>
+              <span className="w-16 text-sm font-bold">{t('Amount')}</span>
               <button className="btn btn-ghost h-9 w-9 p-0" onClick={() => setQ(qty - 1)}>−</button>
               <span className="w-8 text-center font-bold">{qty}</span>
               <button className="btn btn-ghost h-9 w-9 p-0" onClick={() => setQ(qty + 1)}>+</button>
             </div>
             <div className="flex flex-wrap items-center gap-2">
-              <span className="w-16 text-sm font-bold">Price</span>
+              <span className="w-16 text-sm font-bold">{t('Price')}</span>
               <button className="btn btn-ghost h-9 w-9 p-0" onClick={() => setPrice(Math.max(1, price - Math.max(1, Math.round(base * 0.1))))}>−</button>
               <span className="min-w-[4rem] text-center font-bold"><Coins n={price} /></span>
               <button className="btn btn-ghost h-9 w-9 p-0" onClick={() => setPrice(Math.min(base * 2, price + Math.max(1, Math.round(base * 0.1))))}>+</button>
-              <button className="btn btn-yellow px-2 py-1 text-xs" onClick={() => setPrice(base * 2)}>Max</button>
+              <button className="btn btn-yellow px-2 py-1 text-xs" onClick={() => setPrice(base * 2)}>{t('Max')}</button>
             </div>
             <div className="text-xs text-[#8a6a44]">
-              Storage price is {base} coins. You can ask up to {base * 2}. {wait}.
+              {t('Storage price is {base} coins. You can ask up to {max}.', { base, max: base * 2 })} {wait}.
             </div>
             <div className="flex gap-2">
-              <button className="btn btn-ghost" onClick={reset}>Back</button>
+              <button className="btn btn-ghost" onClick={reset}>{t('Back')}</button>
               <button
                 className="btn btn-green flex-1"
                 onClick={() => {
@@ -666,14 +668,14 @@ function StallModal() {
                   reset();
                 }}
               >
-                Put on stall
+                {t('Put on stall')}
               </button>
             </div>
           </div>
         )}
         {!item && (
           <div className="mt-3 flex justify-center">
-            <button className="btn btn-ghost" onClick={reset}>Back</button>
+            <button className="btn btn-ghost" onClick={reset}>{t('Back')}</button>
           </div>
         )}
       </Modal>
@@ -681,15 +683,15 @@ function StallModal() {
   }
 
   return (
-    <Modal title="Roadside Stall" icon="🏪" onClose={() => store.openPanel(null)} wide>
-      <p className="mb-3 text-center text-xs text-[#8a6a44]">Villagers passing by buy what you put out. Higher prices take longer to sell.</p>
+    <Modal title={t('Roadside Stall')} icon="🏪" onClose={() => store.openPanel(null)} wide>
+      <p className="mb-3 text-center text-xs text-[#8a6a44]">{t('Villagers passing by buy what you put out. Higher prices take longer to sell.')}</p>
       <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
         {s.stall.map((sl, i) => {
           if (!sl.item) {
             return (
               <button key={i} className="card flex min-h-[9rem] flex-col items-center justify-center gap-1 border-dashed p-3 text-[#8a6a44]" onClick={() => { setPick(i); setItem(null); }}>
                 <span className="text-3xl leading-none">+</span>
-                <span className="text-sm font-bold">Sell something</span>
+                <span className="text-sm font-bold">{t('Sell something')}</span>
               </button>
             );
           }
@@ -697,14 +699,14 @@ function StallModal() {
           return (
             <div key={i} className={`card flex min-h-[9rem] flex-col items-center gap-1 p-3 ${sold ? 'ring-2 ring-[#5cb82e]' : ''}`}>
               <span className="emoji text-3xl"><Ico i={ITEMS[sl.item].icon} /></span>
-              <span className="text-sm font-bold">x{sl.qty} {ITEMS[sl.item].name}</span>
+              <span className="text-sm font-bold">x{sl.qty} {t(ITEMS[sl.item].name)}</span>
               <span className="text-sm font-bold"><Coins n={sl.price} /></span>
               {sold ? (
-                <button className="btn btn-green mt-auto w-full py-1.5" onClick={() => store.collectSale(i)}>Collect</button>
+                <button className="btn btn-green mt-auto w-full py-1.5" onClick={() => store.collectSale(i)}>{t('Collect')}</button>
               ) : (
                 <>
-                  <span className="text-[11px] text-[#8a6a44]">Waiting for a buyer</span>
-                  <button className="btn btn-ghost mt-auto w-full py-1 text-xs" onClick={() => store.cancelListing(i)}>Take back</button>
+                  <span className="text-[11px] text-[#8a6a44]">{t('Waiting for a buyer')}</span>
+                  <button className="btn btn-ghost mt-auto w-full py-1 text-xs" onClick={() => store.cancelListing(i)}>{t('Take back')}</button>
                 </>
               )}
             </div>
@@ -725,18 +727,18 @@ function HomeModal() {
   const manor = s.objects.some((o) => o.type === 'manor');
   const close = () => store.openPanel(null);
   return (
-    <Modal title={manor ? 'Manor' : 'Farmhouse'} icon={manor ? '🏰' : '🏡'} onClose={close}>
+    <Modal title={t(manor ? 'Manor' : 'Farmhouse')} icon={manor ? '🏰' : '🏡'} onClose={close}>
       <div className="flex flex-col items-center gap-3 py-2 text-center">
         <span className="emoji animate-bob text-5xl">🛏️</span>
-        <p className="font-bold">{manor ? 'A grand bedroom with a soft four poster bed.' : 'A cozy bed under the eaves.'}</p>
+        <p className="font-bold">{t(manor ? 'A grand bedroom with a soft four poster bed.' : 'A cozy bed under the eaves.')}</p>
         <p className="text-sm text-[#8a6a44]">
           {store.canRest()
-            ? `Take a nap of ${NAP_MS / 1000} seconds or more to wake up well rested: +${restBonus(s.level)} coins and +10 XP, once a day. You can keep farming while the farmer sleeps.`
-            : 'You already woke up well rested today. You can still nap as much as you like.'}
+            ? t('Take a nap of {s} seconds or more to wake up well rested: +{coins} coins and +10 XP, once a day. You can keep farming while the farmer sleeps.', { s: NAP_MS / 1000, coins: restBonus(s.level) })
+            : t('You already woke up well rested today. You can still nap as much as you like.')}
         </p>
         <div className="flex flex-wrap justify-center gap-2">
-          <button className="btn btn-blue px-6 py-2" onClick={() => store.sleep()}>Go to sleep</button>
-          <button className="btn btn-wood px-6 py-2" onClick={() => store.openPanel('quests')}>Goals</button>
+          <button className="btn btn-blue px-6 py-2" onClick={() => store.sleep()}>{t('Go to sleep')}</button>
+          <button className="btn btn-wood px-6 py-2" onClick={() => store.openPanel('quests')}>{t('Goals')}</button>
         </div>
       </div>
       <PanelObjectActions />
@@ -762,10 +764,10 @@ function SleepOverlay() {
       <div className="panel pointer-events-auto fixed left-1/2 top-16 z-20 flex -translate-x-1/2 items-center gap-3 px-4 py-2 text-[#5a3a1a]">
         <span className="emoji animate-bob text-2xl">{home ? '😴' : '🚶'}</span>
         <div className="flex flex-col text-left leading-tight">
-          <span className="font-bold">{home ? 'Sleeping... z Z z' : 'Walking home to bed...'}</span>
-          {rest && home && <span className="text-xs">{left > 0 ? `Well rested in ${left}s` : 'Well rested! Wake up for your bonus.'}</span>}
+          <span className="font-bold">{t(home ? 'Sleeping... z Z z' : 'Walking home to bed...')}</span>
+          {rest && home && <span className="text-xs">{left > 0 ? t('Well rested in {n}s', { n: left }) : t('Well rested! Wake up for your bonus.')}</span>}
         </div>
-        <button className="btn btn-green px-4 py-1 text-sm" onClick={() => store.wake()}>Wake up</button>
+        <button className="btn btn-green px-4 py-1 text-sm" onClick={() => store.wake()}>{t('Wake up')}</button>
       </div>
     </>
   );
@@ -780,43 +782,43 @@ function FishingModal() {
   const fi = fishingInfo(s, now, spot);
   const close = () => store.openPanel(null);
   return (
-    <Modal title={sea ? 'Sea Fishing' : 'Lake Fishing'} icon="🎣" onClose={close}>
+    <Modal title={t(sea ? 'Sea Fishing' : 'Lake Fishing')} icon="🎣" onClose={close}>
       <div className="flex flex-col items-center gap-3 py-2 text-center">
         <span className="emoji animate-bob text-5xl">{fi.state === 'ready' ? '🐟' : '🌊'}</span>
         {fi.state === 'locked' && (
           <>
-            <p className="font-bold">{sea ? 'Open a fishing spot on the jetty off the south shore.' : 'Open a fishing spot on the jetty at the lake.'}</p>
+            <p className="font-bold">{t(sea ? 'Open a fishing spot on the jetty off the south shore.' : 'Open a fishing spot on the jetty at the lake.')}</p>
             <p className="text-sm text-[#8a6a44]">
-              {sea
+              {t(sea
                 ? 'Cast a line into the sea and reel in salt water fish: sardines, mackerel and sea bream early on, then tuna, mahi mahi, clownfish, marlin and anglerfish as you level up.'
-                : 'Cast a line into the lake and reel in fresh water fish: bluegill, bass, carp and crayfish early on, then pike, walleye, koi, sturgeon and, at level 195, the golden fish.'}
+                : 'Cast a line into the lake and reel in fresh water fish: bluegill, bass, carp and crayfish early on, then pike, walleye, koi, sturgeon and, at level 195, the golden fish.')}
             </p>
             {s.level < FISHING.level ? (
               <Lock level={FISHING.level} />
             ) : (
               <button className="btn btn-green px-8 py-2" disabled={s.coins < FISHING.cost} onClick={() => store.buyFishing(spot)}>
-                Open for <Coins n={FISHING.cost} />
+                {t('Open for')} <Coins n={FISHING.cost} />
               </button>
             )}
           </>
         )}
         {fi.state === 'idle' && (
           <>
-            <p className="font-bold">The water is calm. Cast your line!</p>
-            <button className="btn btn-blue px-8 py-2" onClick={() => { store.castLine(spot); close(); }}>Cast line</button>
+            <p className="font-bold">{t('The water is calm. Cast your line!')}</p>
+            <button className="btn btn-blue px-8 py-2" onClick={() => { store.castLine(spot); close(); }}>{t('Cast line')}</button>
           </>
         )}
         {fi.state === 'waiting' && (
           <>
-            <p className="font-bold">Waiting for a bite...</p>
+            <p className="font-bold">{t('Waiting for a bite...')}</p>
             <div className="h-3 w-48 overflow-hidden rounded-full bg-[#e6e0d0]">
               <div className="h-full bg-[#2f8fd0]" style={{ width: `${Math.round(fi.p * 100)}%` }} />
             </div>
-            <p className="text-sm text-[#8a6a44]">{fmtTime(fi.remaining)} left</p>
+            <p className="text-sm text-[#8a6a44]">{t('{time} left', { time: fmtTime(fi.remaining) })}</p>
           </>
         )}
         {fi.state === 'ready' && (
-          <button className="btn btn-green px-8 py-2" onClick={() => { store.reelIn(spot); close(); }}>Reel in</button>
+          <button className="btn btn-green px-8 py-2" onClick={() => { store.reelIn(spot); close(); }}>{t('Reel in')}</button>
         )}
       </div>
     </Modal>
@@ -833,22 +835,22 @@ function BoatModal() {
 
   if (state !== 'docked' || !b) {
     return (
-      <Modal title="Boat Dock" icon="⛵" onClose={close}>
+      <Modal title={t('Boat Dock')} icon="⛵" onClose={close}>
         <div className="flex flex-col items-center gap-2 py-4 text-center">
           <span className="emoji animate-bob text-5xl">🌊</span>
-          <p className="font-bold">The boat is out at sea.</p>
-          {b && <p className="text-sm text-[#8a6a44]">It comes back in {fmtTime(b.returnAt - now)}.</p>}
+          <p className="font-bold">{t('The boat is out at sea.')}</p>
+          {b && <p className="text-sm text-[#8a6a44]">{t('It comes back in {time}.', { time: fmtTime(b.returnAt - now) })}</p>}
         </div>
       </Modal>
     );
   }
   const all = b.crates.every((c) => c.filled);
   return (
-    <Modal title="Cargo Boat" icon="⛵" onClose={close} wide>
+    <Modal title={t('Cargo Boat')} icon="⛵" onClose={close} wide>
       <div className="mb-3 flex flex-wrap items-center justify-between gap-2 text-sm">
-        <span className="text-[#8a6a44]">Leaves in <b>{fmtTime(b.leavesAt - now)}</b></span>
+        <span className="text-[#8a6a44]">{t('Leaves in')} <b>{fmtTime(b.leavesAt - now)}</b></span>
         <span className="flex items-center gap-2 font-bold">
-          Full boat bonus: <Coins n={b.bonusCoins} /> <Gems n={b.bonusGems} />
+          {t('Full boat bonus:')} <Coins n={b.bonusCoins} /> <Gems n={b.bonusGems} />
         </span>
       </div>
       <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
@@ -858,16 +860,16 @@ function BoatModal() {
           return (
             <div key={i} className={`card flex flex-col items-center gap-1 p-3 ${c.filled ? 'bg-[#e6f8d8]' : ok ? 'ring-2 ring-[#5cb82e]' : ''}`}>
               <span className="emoji text-3xl">{c.filled ? '📦' : <Ico i={ITEMS[c.item].icon} />}</span>
-              <span className="text-sm font-bold">{ITEMS[c.item].name}</span>
+              <span className="text-sm font-bold">{t(ITEMS[c.item].name)}</span>
               {c.filled ? (
-                <span className="text-sm font-bold text-[#2d5e14]">Packed</span>
+                <span className="text-sm font-bold text-[#2d5e14]">{t('Packed')}</span>
               ) : (
                 <>
                   <span className={`text-xs font-bold ${ok ? 'text-[#2d5e14]' : 'text-[#c0392b]'}`}>{have}/{c.qty}</span>
                   <span className="flex items-center gap-2 text-xs font-bold">
                     <Coins n={c.coins} /> <span className="text-[#2f8fd0]">+{c.xp} XP</span>
                   </span>
-                  <button className="btn btn-green mt-1 w-full py-1.5" disabled={!ok} onClick={() => store.fillCrate(i)}>Fill</button>
+                  <button className="btn btn-green mt-1 w-full py-1.5" disabled={!ok} onClick={() => store.fillCrate(i)}>{t('Fill')}</button>
                 </>
               )}
             </div>
@@ -876,7 +878,7 @@ function BoatModal() {
       </div>
       <div className="mt-4 flex justify-center">
         <button className="btn btn-yellow px-8 py-3 text-lg" disabled={!all} onClick={() => store.sendBoat()}>
-          Send boat
+          {t('Send boat')}
         </button>
       </div>
     </Modal>
@@ -888,15 +890,15 @@ function WaterRow({ o }: { o: FarmObject }) {
   const store = useStore();
   const wi = waterInfo(store.s);
   if (o.plot?.watered) {
-    return <p className="text-center text-sm font-bold text-[#2f8fd0]"><span className="emoji">💧</span> Watered: growing 30% faster</p>;
+    return <p className="text-center text-sm font-bold text-[#2f8fd0]"><span className="emoji">💧</span> {t('Watered: growing 30% faster')}</p>;
   }
   return (
     <div className="flex flex-col items-center gap-1">
-      <button className="btn btn-blue flex items-center gap-2 px-6 py-2 text-lg" onClick={() => store.waterPlot(o)} disabled={wi.n <= 0} title="Water it">
-        <span className="emoji text-2xl">🪣</span> Water
+      <button className="btn btn-blue flex items-center gap-2 px-6 py-2 text-lg" onClick={() => store.waterPlot(o)} disabled={wi.n <= 0} title={t('Water it')}>
+        <span className="emoji text-2xl">🪣</span> {t('Water')}
       </button>
       <span className="text-[11px] text-[#8a6a44]">
-        {wi.n > 0 ? `Bucket: ${wi.n}/${wi.max} pours` : wi.wells ? 'The bucket is empty. Tap a well to fill it.' : 'The bucket is empty. Build a well to fill it.'}
+        {wi.n > 0 ? t('Bucket: {n}/{max} pours', { n: wi.n, max: wi.max }) : wi.wells ? t('The bucket is empty. Tap a well to fill it.') : t('The bucket is empty. Build a well to fill it.')}
       </span>
     </div>
   );
@@ -934,8 +936,8 @@ function ShopCard({ d }: { d: BuildingDef }) {
     >
       {guide.on && <GuideMark />}
       <span className={`emoji text-4xl ${locked ? 'grayscale' : ''}`}><Ico i={d.icon} id={d.id} /></span>
-      <span className="font-bold leading-tight">{d.name}</span>
-      <span className="line-clamp-2 min-h-[2rem] text-[11px] leading-4 text-[#8a6a44]">{d.desc}</span>
+      <span className="font-bold leading-tight">{t(d.name)}</span>
+      <span className="line-clamp-2 min-h-[2rem] text-[11px] leading-4 text-[#8a6a44]">{t(d.desc)}</span>
       {locked ? (
         <Lock level={d.level} />
       ) : (
@@ -943,7 +945,7 @@ function ShopCard({ d }: { d: BuildingDef }) {
           <span className={`text-sm font-bold ${poor ? 'text-[#c0392b]' : ''}`}>
             <Coins n={cost} />
           </span>
-          <span className="text-[11px] text-[#8a6a44]">{full ? 'Max owned' : Number.isFinite(max) ? `Owned ${owned}/${max}` : `Owned ${owned}`}</span>
+          <span className="text-[11px] text-[#8a6a44]">{full ? t('Max owned') : Number.isFinite(max) ? t('Owned {n}/{max}', { n: owned, max }) : t('Owned {n}', { n: owned })}</span>
         </>
       )}
     </button>
@@ -962,14 +964,14 @@ function CropCard({ id }: { id: string }) {
     <div ref={(el) => { guide.ref.current = el; }} className={`card relative flex flex-col items-center gap-1 p-3 text-center ${locked ? 'opacity-60' : ''} ${guide.on ? GUIDE_RING : ''}`}>
       {guide.on && <GuideMark />}
       <span className={`emoji text-4xl ${locked ? 'grayscale' : ''}`}><Ico i={it.icon} /></span>
-      <span className="font-bold leading-tight">{it.name}</span>
+      <span className="font-bold leading-tight">{t(it.name)}</span>
       {locked ? (
         <Lock level={cd.level} />
       ) : (
         <>
           <span className="text-[11px] text-[#8a6a44]">⏱ {fmtTime(cd.time * 1000)} · +{cd.xp} XP</span>
-          <span className="text-sm font-bold"><Coins n={cd.seedCost} /> <span className="text-[11px] font-normal text-[#8a6a44]">seed</span></span>
-          <span className="text-[11px] text-[#8a6a44]">In storage: {have}</span>
+          <span className="text-sm font-bold"><Coins n={cd.seedCost} /> <span className="text-[11px] font-normal text-[#8a6a44]">{t('seed')}</span></span>
+          <span className="text-[11px] text-[#8a6a44]">{t('In storage: {n}', { n: have })}</span>
         </>
       )}
     </div>
@@ -984,25 +986,25 @@ function ShopModal() {
     const d = g && Date.now() - g.at < 60e3 ? BUILDING[g.id] : undefined;
     return (d && SHOP_TABS.find((x) => x.filter(d))?.id) || 'crops';
   });
-  const t = SHOP_TABS.find((x) => x.id === tab)!;
-  const list = BUILDINGS.filter((d) => d.buyable && t.filter(d)).sort((a, b) => a.level - b.level || a.cost - b.cost);
+  const st = SHOP_TABS.find((x) => x.id === tab)!;
+  const list = BUILDINGS.filter((d) => d.buyable && st.filter(d)).sort((a, b) => a.level - b.level || a.cost - b.cost);
   const crops = [...CROPS].sort((a, b) => a.level - b.level || a.seedCost - b.seedCost);
   return (
-    <Modal title="Shop" icon="🛒" onClose={() => store.openPanel(null)} wide>
+    <Modal title={t('Shop')} icon="🛒" onClose={() => store.openPanel(null)} wide>
       <div className="mb-3 flex gap-1.5 overflow-x-auto pb-1">
         {SHOP_TABS.map((x) => (
           <button key={x.id} className={`btn shrink-0 ${tab === x.id ? 'btn-yellow' : 'btn-ghost'}`} onClick={() => setTab(x.id)}>
-            <span className="emoji"><Ico i={x.icon} /></span> {x.label}
+            <span className="emoji"><Ico i={x.icon} /></span> {t(x.label)}
           </button>
         ))}
       </div>
-      {t.hint && <p className="mb-2 text-center text-xs text-[#8a6a44]">{t.hint}</p>}
+      {st.hint && <p className="mb-2 text-center text-xs text-[#8a6a44]">{t(st.hint)}</p>}
       <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 md:grid-cols-4">
         {list.map((d) => <ShopCard key={d.id} d={d} />)}
       </div>
       {tab === 'crops' && (
         <>
-          <h3 className="mb-2 mt-4 text-center font-bold text-[#6b4226]">Crops you can grow</h3>
+          <h3 className="mb-2 mt-4 text-center font-bold text-[#6b4226]">{t('Crops you can grow')}</h3>
           <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 md:grid-cols-4">
             {crops.map((c) => <CropCard key={c.id} id={c.id} />)}
           </div>
@@ -1020,10 +1022,10 @@ function OrdersModal() {
   const now = Date.now();
   const bonus = horseBonus(s);
   return (
-    <Modal title="Order Board" icon="📋" onClose={() => store.openPanel(null)} wide>
+    <Modal title={t('Order Board')} icon="📋" onClose={() => store.openPanel(null)} wide>
       {bonus > 0 && (
         <p className="mb-2 text-center text-xs font-bold text-[#2d5e14]">
-          <span className="emoji">🐎</span> Horse bonus: +{Math.round(bonus * 100)}% coins on every order
+          <span className="emoji">🐎</span> {t('Horse bonus: +{n}% coins on every order', { n: Math.round(bonus * 100) })}
         </p>
       )}
       <div className="grid grid-cols-1 gap-2 sm:grid-cols-2 md:grid-cols-3">
@@ -1032,7 +1034,7 @@ function OrdersModal() {
             return (
               <div key={o.id} className="card flex min-h-[9rem] flex-col items-center justify-center gap-1 p-3 text-center text-[#8a6a44]">
                 <span className="emoji animate-bob text-3xl">🚚</span>
-                <span className="text-sm font-bold">New order arriving</span>
+                <span className="text-sm font-bold">{t('New order arriving')}</span>
                 <span className="text-sm">{fmtTime(o.readyAt - now)}</span>
               </div>
             );
@@ -1060,9 +1062,9 @@ function OrdersModal() {
               </div>
               <div className="flex gap-2">
                 <button className="btn btn-green flex-1" disabled={!ok} onClick={() => store.fulfillOrder(o.id)}>
-                  Deliver
+                  {t('Deliver')}
                 </button>
-                <button className="btn btn-ghost px-3" onClick={() => store.discardOrder(o.id)} aria-label="Discard order" title="Discard, a new one comes in 45s">
+                <button className="btn btn-ghost px-3" onClick={() => store.discardOrder(o.id)} aria-label={t('Discard order')} title={t('Discard, a new one comes in 45s')}>
                   <span className="emoji">🗑️</span>
                 </button>
               </div>
@@ -1089,7 +1091,7 @@ function StorageModal() {
   const [sure, setSure] = useState<{ id: string; all: boolean } | null>(null);
 
   return (
-    <Modal title={k === 'silo' ? 'Silo' : 'Barn'} icon={k === 'silo' ? '🌾' : '🏚️'} onClose={() => store.openPanel(null)} wide>
+    <Modal title={t(k === 'silo' ? 'Silo' : 'Barn')} icon={k === 'silo' ? '🌾' : '🏚️'} onClose={() => store.openPanel(null)} wide>
       <div className="mb-3 flex gap-1.5">
         {(['silo', 'barn'] as const).map((x) => (
           <button
@@ -1100,14 +1102,14 @@ function StorageModal() {
               store.emit(false);
             }}
           >
-            {x === 'silo' ? 'Silo (crops)' : 'Barn (goods)'}
+            {t(x === 'silo' ? 'Silo (crops)' : 'Barn (goods)')}
           </button>
         ))}
       </div>
       <div className="card mb-3 flex flex-wrap items-center gap-3 p-3">
         <div className="min-w-[10rem] flex-1">
           <div className="mb-1 flex justify-between text-sm font-bold">
-            <span>Capacity</span>
+            <span>{t('Capacity')}</span>
             <span className={used >= cap ? 'text-[#c0392b]' : ''}>
               {used}/{cap}
             </span>
@@ -1115,12 +1117,12 @@ function StorageModal() {
           <Bar p={used / cap} color={used >= cap ? '#e0533d' : used / cap > 0.8 ? '#f5b92b' : '#5cb82e'} />
         </div>
         <button className="btn btn-wood" onClick={() => store.upgradeStorage(k)} disabled={s.coins < cost}>
-          Upgrade +{upgradeStep(lvl)} <Coins n={cost} />
+          {t('Upgrade +{n}', { n: upgradeStep(lvl) })} <Coins n={cost} />
         </button>
       </div>
       {items.length === 0 ? (
         <p className="py-8 text-center text-sm text-[#8a6a44]">
-          {k === 'silo' ? 'Your silo is empty. Harvest crops to fill it.' : 'Your barn is empty. Make goods and collect animal products to fill it.'}
+          {t(k === 'silo' ? 'Your silo is empty. Harvest crops to fill it.' : 'Your barn is empty. Make goods and collect animal products to fill it.')}
         </p>
       ) : (
         <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 md:grid-cols-4">
@@ -1135,16 +1137,16 @@ function StorageModal() {
             return (
               <div key={i.id} className="card flex flex-col items-center gap-1 p-2">
                 <span className="emoji text-3xl"><Ico i={i.icon} /></span>
-                <span className="text-sm font-bold">{i.name}</span>
+                <span className="text-sm font-bold">{t(i.name)}</span>
                 <span className="text-xs text-[#8a6a44]">
-                  x{n} · <span className="inline-flex items-center gap-0.5">{i.sell} <Coin /></span> each
+                  x{n} · <span className="inline-flex items-center gap-0.5">{i.sell} <Coin /></span> {t('each')}
                 </span>
                 <div className="flex w-full gap-1">
                   <button className={`btn flex-1 px-1 py-1 text-xs ${armed === false ? 'btn-red' : 'btn-ghost'}`} onClick={() => sell(false)}>
-                    {armed === false ? 'Sure?' : 'Sell 1'}
+                    {armed === false ? t('Sure?') : t('Sell 1')}
                   </button>
                   <button className={`btn flex-1 px-1 py-1 text-xs ${armed === true ? 'btn-red' : 'btn-yellow'}`} onClick={() => sell(true)}>
-                    {armed === true ? `Sell all ${fmtNum(i.sell * n)}?` : `All ${fmtNum(i.sell * n)}`}
+                    {armed === true ? t('Sell all {n}?', { n: fmtNum(i.sell * n) }) : t('All {n}', { n: fmtNum(i.sell * n) })}
                   </button>
                 </div>
               </div>
@@ -1168,21 +1170,21 @@ function QuestsModal() {
   const title = { story: 'Farm Story', goals: 'Farm Goals', badges: 'Badges', album: 'Farm Album' }[tab];
   const icon = { story: '📖', goals: '🏆', badges: '🎖️', album: '📔' }[tab];
   return (
-    <Modal title={title} icon={icon} onClose={() => store.openPanel(null)}>
+    <Modal title={t(title)} icon={icon} onClose={() => store.openPanel(null)}>
       <div className="mb-3 flex gap-1.5">
         <button className={`btn relative ${tab === 'story' ? 'btn-yellow' : 'btn-ghost'}`} onClick={() => setTab('story')}>
-          Story
+          {t('Story')}
           {store.chapterReady() && <span className="badge">1</span>}
         </button>
         <button className={`btn ${tab === 'goals' ? 'btn-yellow' : 'btn-ghost'}`} onClick={() => setTab('goals')}>
-          Goals
+          {t('Goals')}
         </button>
         <button className={`btn relative ${tab === 'badges' ? 'btn-yellow' : 'btn-ghost'}`} onClick={() => setTab('badges')}>
-          Badges
+          {t('Badges')}
           {badgeCount > 0 && <span className="badge">{badgeCount}</span>}
         </button>
         <button className={`btn relative ${tab === 'album' ? 'btn-yellow' : 'btn-ghost'}`} onClick={() => setTab('album')}>
-          Album
+          {t('Album')}
           {albumCount > 0 && <span className="badge">{albumCount}</span>}
         </button>
       </div>
@@ -1209,13 +1211,13 @@ function AlbumList() {
               <button className="flex min-w-0 flex-1 items-center gap-2 text-left" onClick={() => setOpen(open === a.id ? null : a.id)} aria-expanded={open === a.id}>
                 <span className="emoji text-2xl">{a.icon}</span>
                 <span className="min-w-0 flex-1">
-                  <span className="block font-bold">{a.name} <span className="text-xs text-[#8a6a44]">{got}/{a.entries.length}</span></span>
-                  <span className="block text-[11px] text-[#8a6a44]">{a.how}</span>
+                  <span className="block font-bold">{t(a.name)} <span className="text-xs text-[#8a6a44]">{got}/{a.entries.length}</span></span>
+                  <span className="block text-[11px] text-[#8a6a44]">{t(a.how)}</span>
                 </span>
                 <span className="text-xs text-[#8a6a44]">{open === a.id ? '▲' : '▼'}</span>
               </button>
               {taken ? (
-                <span className="emoji text-xl" title="Reward taken">✅</span>
+                <span className="emoji text-xl" title={t('Reward taken')}>✅</span>
               ) : (
                 <button className="btn btn-green shrink-0 py-1.5 text-xs" disabled={!done} onClick={() => store.claimAlbum(a.id)}>
                   <Coins n={a.reward.coins} /> <Gems n={a.reward.gems} />
@@ -1227,9 +1229,9 @@ function AlbumList() {
               {a.entries.map((e) => {
                 const f = !!s.album?.[e.id];
                 return (
-                  <div key={e.id} className={`flex flex-col items-center rounded-xl border-2 p-1 text-center ${f ? 'border-[#e0c48f] bg-white' : 'border-dashed border-[#d8c49e] bg-[#f4ead4]'}`} title={f ? e.name : 'Not found yet'}>
+                  <div key={e.id} className={`flex flex-col items-center rounded-xl border-2 p-1 text-center ${f ? 'border-[#e0c48f] bg-white' : 'border-dashed border-[#d8c49e] bg-[#f4ead4]'}`} title={f ? t(e.name) : t('Not found yet')}>
                     <span className={`emoji text-2xl ${f ? '' : 'opacity-50'}`}>{f ? <Ico i={e.icon} id={e.model} /> : '❔'}</span>
-                    <span className="line-clamp-2 text-[9px] font-bold leading-tight">{f ? e.name : '???'}</span>
+                    <span className="line-clamp-2 text-[9px] font-bold leading-tight">{f ? t(e.name) : '???'}</span>
                   </div>
                 );
               })}
@@ -1246,8 +1248,8 @@ function PetModal() {
   const store = useStore();
   const [, tick] = useState(0);
   useEffect(() => {
-    const t = setInterval(() => tick((n) => n + 1), 1000);
-    return () => clearInterval(t);
+    const tm = setInterval(() => tick((n) => n + 1), 1000);
+    return () => clearInterval(tm);
   }, []);
   const id = store.ui.pet ?? 'dog';
   const def = PET[id];
@@ -1268,41 +1270,41 @@ function PetModal() {
             className="w-36 rounded-xl border-2 border-[#d8c49e] bg-white px-2 py-1 text-center font-bold"
             value={name}
             maxLength={14}
-            aria-label="Name"
+            aria-label={t('Name')}
             onChange={(e) => setName(e.target.value)}
             onBlur={() => store.renamePet(id, name)}
             onKeyDown={(e) => { if (e.key === 'Enter') (e.target as HTMLInputElement).blur(); }}
           />
-          <span className="text-xs text-[#8a6a44]">the {def.kind.toLowerCase()}</span>
+          <span className="text-xs text-[#8a6a44]">{t(def.kind === 'Dog' ? 'the dog' : 'the cat')}</span>
         </div>
-        <div className="emoji text-xl" aria-label={`${hearts} of 5 hearts`}>{'❤️'.repeat(hearts)}{'🤍'.repeat(5 - hearts)}</div>
+        <div className="emoji text-xl" aria-label={t('{n} of 5 hearts', { n: hearts })}>{'❤️'.repeat(hearts)}{'🤍'.repeat(5 - hearts)}</div>
         <div className="w-40"><Bar p={hearts >= 5 ? 1 : (p.love % 20) / 20} color="#f06292" /></div>
         <p className="text-sm">
-          {p.name} {def.job}.{' '}
-          <b>{petFed(p) ? `Fed today: ${help}% chance.` : `Hungry: feed ${p.name} for ${help}% today.`}</b>
+          {p.name} {t(def.job)}.{' '}
+          <b>{petFed(p) ? t('Fed today: {n}% chance.', { n: help }) : t('Hungry: feed {name} for {n}% today.', { name: p.name, n: help })}</b>
         </p>
         <div className="flex flex-wrap justify-center gap-2">
           <button className="btn btn-wood" onClick={() => store.patPet(id)}>
-            <span className="emoji">💕</span> {patted ? 'Pat again' : 'Pat'}
+            <span className="emoji">💕</span> {t(patted ? 'Pat again' : 'Pat')}
           </button>
           <button className="btn btn-green" disabled={petFed(p)} onClick={() => store.feedPet(id)}>
-            {petFed(p) ? 'Fed today' : food ? <>Feed 1 <Ico i={ITEMS[food].icon} /></> : 'No food'}
+            {petFed(p) ? t('Fed today') : food ? <>{t('Feed 1')} <Ico i={ITEMS[food].icon} /></> : t('No food')}
           </button>
         </div>
         {!petFed(p) && !food && (
-          <p className="text-xs text-[#b0442c]">{p.name} eats {def.foods.map((f) => ITEMS[f].name.toLowerCase()).join(' or ')}.</p>
+          <p className="text-xs text-[#b0442c]">{t('{name} eats {foods}.', { name: p.name, foods: def.foods.map((f) => t(ITEMS[f].name)).join(' / ') })}</p>
         )}
         <div className="card w-full p-2 text-sm">
           {gift === 'ready' ? (
             <button className="btn btn-yellow w-full" onClick={() => store.openPetGift(id)}>
-              <span className="emoji inline-block animate-bob">🎁</span> {p.name} brought you something!
+              <span className="emoji inline-block animate-bob">🎁</span> {t('{name} brought you something!', { name: p.name })}
             </button>
           ) : gift === 'searching' ? (
-            <span>{p.name} {def.search}... back in {fmtTime(Math.max(0, PET_SEARCH_MS - (now - p.fedAt)))}</span>
+            <span>{p.name} {t(def.search)}... {t('back in {time}', { time: fmtTime(Math.max(0, PET_SEARCH_MS - (now - p.fedAt))) })}</span>
           ) : gift === 'done' ? (
-            <span>Today&apos;s find is in. Feed {p.name} again tomorrow for another.</span>
+            <span>{t("Today's find is in. Feed {name} again tomorrow for another.", { name: p.name })}</span>
           ) : (
-            <span>Feed {p.name} and it goes looking for something for your album.</span>
+            <span>{t('Feed {name} and it goes looking for something for your album.', { name: p.name })}</span>
           )}
         </div>
       </div>
@@ -1327,14 +1329,14 @@ function BadgesList() {
             <span className="emoji text-3xl"><Ico i={a.icon} /></span>
             <div className="min-w-0 flex-1">
               <div className="flex items-center gap-1.5 font-bold">
-                {a.name}
+                {t(a.name)}
                 <span className="emoji text-sm">{medal.slice(0, k).join('')}</span>
               </div>
               <div className="my-1">
                 <Bar p={p / target} color={done ? '#f5b92b' : '#5cb82e'} />
               </div>
               <div className="text-[11px] text-[#8a6a44]">
-                {done ? `All tiers done. ${fmtNum(a.progress(s))} ${a.unit}.` : `${fmtNum(p)}/${fmtNum(target)} ${a.unit}`}
+                {done ? `${t('All tiers done.')} ${fmtNum(a.progress(s))} ${t(a.unit)}.` : `${fmtNum(p)}/${fmtNum(target)} ${t(a.unit)}`}
               </div>
             </div>
             {!done && (
@@ -1362,7 +1364,7 @@ function GoalsList() {
   return (
     <>
       {list.length === 0 ? (
-        <p className="py-6 text-center text-sm text-[#8a6a44]">You finished every goal. Great farming!</p>
+        <p className="py-6 text-center text-sm text-[#8a6a44]">{t('You finished every goal. Great farming!')}</p>
       ) : (
         <div className="flex flex-col gap-2">
           {list.map((q) => {
@@ -1371,7 +1373,7 @@ function GoalsList() {
             return (
               <div key={q.id} className={`card p-3 ${done ? 'ring-2 ring-[#5cb82e]' : ''}`}>
                 <div className="flex items-center justify-between gap-2">
-                  <span className="font-bold">{q.text}</span>
+                  <span className="font-bold">{t(q.text)}</span>
                   <span className="shrink-0 text-xs font-bold">
                     {fmtNum(p)}/{fmtNum(q.target)}
                   </span>
@@ -1384,7 +1386,7 @@ function GoalsList() {
                   {q.gems > 0 && <Gems n={q.gems} />}
                   {q.xp > 0 && <span className="text-[#2f8fd0]">+{q.xp} XP</span>}
                   <button className="btn btn-green ml-auto py-1.5" disabled={!done} onClick={() => store.claimQuest(q.id)}>
-                    Claim
+                    {t('Claim')}
                   </button>
                 </div>
               </div>
@@ -1396,7 +1398,7 @@ function GoalsList() {
         {stats.map(([l, v]) => (
           <div key={l} className="rounded-xl bg-[#f4e6c4] px-3 py-2 text-center">
             <div className="text-lg font-bold">{fmtNum(v)}</div>
-            <div className="text-[11px] text-[#8a6a44]">{l}</div>
+            <div className="text-[11px] text-[#8a6a44]">{t(l)}</div>
           </div>
         ))}
       </div>
@@ -1409,7 +1411,7 @@ function GoalsList() {
 function Toggle({ label, on, onChange }: { label: string; on: boolean; onChange: (v: boolean) => void }) {
   return (
     <button className="card flex w-full items-center justify-between p-3" onClick={() => onChange(!on)}>
-      <span className="font-bold">{label}</span>
+      <span className="font-bold">{t(label)}</span>
       <span className={`relative h-7 w-12 rounded-full transition ${on ? 'bg-[#5cb82e]' : 'bg-[#cdb482]'}`}>
         <span className={`absolute top-1 h-5 w-5 rounded-full bg-white shadow transition-all ${on ? 'left-6' : 'left-1'}`} />
       </span>
@@ -1422,14 +1424,32 @@ function QualityPicker() {
   const pick = (v: Quality) => { setQuality(v); setQ(v); };
   return (
     <div className="card flex w-full items-center justify-between gap-2 p-3">
-      <span className="font-bold">Graphics quality</span>
+      <span className="font-bold">{t('Graphics quality')}</span>
       <span className="flex gap-1">
         {(['high', 'low'] as const).map((v) => (
           <button key={v} className={`btn px-3 py-1 text-sm ${q === v ? 'btn-green' : 'btn-wood'}`} onClick={() => pick(v)}>
-            {v === 'high' ? 'High' : 'Low'}
+            {t(v === 'high' ? 'High' : 'Low')}
           </button>
         ))}
       </span>
+    </div>
+  );
+}
+
+// The game's language, 21 of them; the choice is kept on this device
+function LanguagePicker() {
+  const [l, setL] = useState<Lang>(getLang);
+  const names = LANG_NAMES as Record<string, string>;
+  return (
+    <div className="card w-full p-3">
+      <div className="mb-2 font-bold">{t('Language')}</div>
+      <div className="grid grid-cols-2 gap-1.5 sm:grid-cols-3">
+        {LANG_IDS.map((id) => (
+          <button key={id} className={`btn px-2 py-1.5 text-sm ${l === id ? 'btn-green' : 'btn-wood'}`} onClick={() => { setL(id); setLang(id); }}>
+            {names[id]}
+          </button>
+        ))}
+      </div>
     </div>
   );
 }
@@ -1446,7 +1466,7 @@ function SettingsModal() {
   };
 
   return (
-    <Modal title="Settings" icon="⚙️" onClose={() => store.openPanel(null)}>
+    <Modal title={t('Settings')} icon="⚙️" onClose={() => store.openPanel(null)}>
       <div className="flex flex-col gap-2">
         <Toggle label="Sound effects" on={st.sound} onChange={(v) => set('sound', v)} />
         <Toggle label="Day and night cycle" on={st.dayNight} onChange={(v) => set('dayNight', v)} />
@@ -1454,11 +1474,13 @@ function SettingsModal() {
         <Toggle label="Music" on={st.music} onChange={(v) => set('music', v)} />
         <Toggle label="Weather and seasons" on={st.weather} onChange={(v) => set('weather', v)} />
         <Toggle label="Soft shadows (turn off on slow phones)" on={st.shadows} onChange={(v) => set('shadows', v)} />
+        <Toggle label="Battery saver (30 FPS, cooler phone)" on={!!st.saver} onChange={(v) => set('saver', v)} />
         <QualityPicker />
+        <LanguagePicker />
       </div>
 
-      <h3 className="mb-2 mt-4 font-bold">Save data</h3>
-      <p className="mb-2 text-xs text-[#8a6a44]">Your farm saves automatically in this browser. Use a save code to move it to another device.</p>
+      <h3 className="mb-2 mt-4 font-bold">{t('Save data')}</h3>
+      <p className="mb-2 text-xs text-[#8a6a44]">{t('Your farm saves automatically in this browser. Use a save code to move it to another device.')}</p>
       <div className="flex flex-wrap gap-2">
         <button
           className="btn btn-blue"
@@ -1468,7 +1490,7 @@ function SettingsModal() {
             setCopied(false);
           }}
         >
-          Export code
+          {t('Export code')}
         </button>
         <button
           className="btn btn-wood"
@@ -1477,10 +1499,10 @@ function SettingsModal() {
             setMode('import');
           }}
         >
-          Import code
+          {t('Import code')}
         </button>
         <button className="btn btn-red" onClick={() => setMode('reset')}>
-          Start over
+          {t('Start over')}
         </button>
       </div>
 
@@ -1498,41 +1520,41 @@ function SettingsModal() {
               }
             }}
           >
-            {copied ? 'Copied' : 'Copy'}
+            {t(copied ? 'Copied' : 'Copy')}
           </button>
         </div>
       )}
       {mode === 'import' && (
         <div className="mt-3">
-          <textarea value={code} onChange={(e) => setCode(e.target.value)} placeholder="Paste your save code here" className="h-24 w-full select-text rounded-xl border-2 border-[#e2cc9c] bg-white p-2 font-mono text-[10px]" />
+          <textarea value={code} onChange={(e) => setCode(e.target.value)} placeholder={t('Paste your save code here')} className="h-24 w-full select-text rounded-xl border-2 border-[#e2cc9c] bg-white p-2 font-mono text-[10px]" />
           <button className="btn btn-green mt-1" disabled={!code.trim()} onClick={() => store.importSave(code)}>
-            Load farm
+            {t('Load farm')}
           </button>
         </div>
       )}
       {mode === 'reset' && (
         <div className="card mt-3 border-[#e0533d] p-3 text-center">
-          <p className="mb-2 text-sm font-bold">This deletes your whole farm. Are you sure?</p>
+          <p className="mb-2 text-sm font-bold">{t('This deletes your whole farm. Are you sure?')}</p>
           <div className="flex justify-center gap-2">
             <button className="btn btn-ghost" onClick={() => setMode('none')}>
-              Keep farm
+              {t('Keep farm')}
             </button>
             <button className="btn btn-red" onClick={() => store.reset()}>
-              Yes, start over
+              {t('Yes, start over')}
             </button>
           </div>
         </div>
       )}
 
-      <h3 className="mb-1 mt-4 font-bold">How to play</h3>
+      <h3 className="mb-1 mt-4 font-bold">{t('How to play')}</h3>
       <ul className="list-disc space-y-0.5 pl-5 text-xs text-[#8a6a44]">
-        <li>Drag to move around, pinch or scroll to zoom. Twist with two fingers, the rotate button or Q and E to turn the camera.</li>
-        <li>Press and drag across ready fields to harvest them all.</li>
-        <li>Hold anything for a moment to move it.</li>
-        <li>Tap the order board for orders, the farmhouse for goals, the barn and silo for storage.</li>
-        <li>Tap land with a sign to expand your farm.</li>
-        <li>Fruit trees keep giving fruit, no replanting needed.</li>
-        <li>Your stall pays more than selling from storage.</li>
+        {['Drag to move around, pinch or scroll to zoom. Twist with two fingers, the rotate button or Q and E to turn the camera.',
+          'Press and drag across ready fields to harvest them all.',
+          'Hold anything for a moment to move it.',
+          'Tap the order board for orders, the farmhouse for goals, the barn and silo for storage.',
+          'Tap land with a sign to expand your farm.',
+          'Fruit trees keep giving fruit, no replanting needed.',
+          'Your stall pays more than selling from storage.'].map((l) => <li key={l}>{t(l)}</li>)}
       </ul>
       <p className="mt-4 text-center text-[11px] text-[#b09a72]">Talons Farm by Talons Protocol</p>
     </Modal>
@@ -1549,7 +1571,7 @@ function LevelUpModal({ level }: { level: number }) {
     store.emit(false);
   };
   return (
-    <Modal title="Level Up!" icon="⭐" onClose={close}>
+    <Modal title={t('Level Up!')} icon="⭐" onClose={close}>
       <div className="flex flex-col items-center gap-3 text-center">
         <div className="relative grid h-24 w-24 place-items-center">
           <svg viewBox="0 0 100 100" className="absolute inset-0 h-full w-full animate-bob">
@@ -1563,19 +1585,19 @@ function LevelUpModal({ level }: { level: number }) {
         </div>
         {list.length > 0 && (
           <>
-            <div className="text-sm font-bold text-[#8a6a44]">New things unlocked</div>
+            <div className="text-sm font-bold text-[#8a6a44]">{t('New things unlocked')}</div>
             <div className="flex flex-wrap justify-center gap-2">
               {list.map((x) => (
                 <div key={x.name} className="card flex w-20 flex-col items-center p-2">
                   <span className="emoji text-3xl"><Ico i={x.icon} id={x.id} /></span>
-                  <span className="text-[11px] font-bold leading-tight">{x.name}</span>
+                  <span className="text-[11px] font-bold leading-tight">{t(x.name)}</span>
                 </div>
               ))}
             </div>
           </>
         )}
         <button className="btn btn-green px-10 py-3 text-lg" onClick={close}>
-          Continue
+          {t('Continue')}
         </button>
       </div>
     </Modal>
@@ -1595,8 +1617,8 @@ function DailyModal() {
     store.emit(false);
   };
   return (
-    <Modal title="Daily Gift" icon="🎁" onClose={close}>
-      <p className="mb-3 text-center text-sm text-[#8a6a44]">Come back every day. Day 7 has the biggest gift.</p>
+    <Modal title={t('Daily Gift')} icon="🎁" onClose={close}>
+      <p className="mb-3 text-center text-sm text-[#8a6a44]">{t('Come back every day. Day 7 has the biggest gift.')}</p>
       <div className="grid grid-cols-4 gap-2 sm:grid-cols-7">
         {Array.from({ length: 7 }).map((_, i) => {
           const r = dailyReward(i + 1);
@@ -1605,7 +1627,7 @@ function DailyModal() {
           const cur = day === today;
           return (
             <div key={i} className={`card flex flex-col items-center gap-0.5 p-2 text-xs ${cur ? 'ring-2 ring-[#f5b92b]' : ''} ${past ? 'opacity-50' : ''}`}>
-              <span className="whitespace-nowrap font-bold">Day {day}</span>
+              <span className="whitespace-nowrap font-bold">{t('Day {n}', { n: day })}</span>
               <span className="emoji text-2xl">{past ? '✅' : day === 7 ? '💰' : '🎁'}</span>
               <Coins n={r.coins} />
               {r.gems > 0 && <Gems n={r.gems} />}
@@ -1615,7 +1637,7 @@ function DailyModal() {
       </div>
       <div className="mt-4 flex justify-center">
         <button className="btn btn-green px-10 py-3 text-lg" disabled={!can} onClick={() => store.claimDaily()}>
-          {can ? 'Claim' : 'Come back tomorrow'}
+          {t(can ? 'Claim' : 'Come back tomorrow')}
         </button>
       </div>
     </Modal>
@@ -1633,16 +1655,16 @@ function ExpandModal() {
     store.emit(false);
   };
   return (
-    <Modal title="Expand Farm" icon="🪧" onClose={close}>
+    <Modal title={t('Expand Farm')} icon="🪧" onClose={close}>
       <div className="flex flex-col items-center gap-3 text-center">
         <span className="emoji text-5xl">🌳</span>
-        <p className="text-sm text-[#8a6a44]">Buy this land to grow your farm. New land may have trees and rocks to clear.</p>
+        <p className="text-sm text-[#8a6a44]">{t('Buy this land to grow your farm. New land may have trees and rocks to clear.')}</p>
         <div className="flex items-center gap-4 text-lg font-bold">
           <Coins n={info.cost} />
           {s.level < info.level && <Lock level={info.level} />}
         </div>
         <button className="btn btn-green px-10 py-3 text-lg" disabled={!valid || s.level < info.level || s.coins < info.cost} onClick={() => store.expand()}>
-          Buy land
+          {t('Buy land')}
         </button>
       </div>
     </Modal>
@@ -1663,25 +1685,25 @@ function Portrait({ who, size = 'h-20 w-20 text-5xl' }: { who: keyof typeof CAST
 
 function TaskRow({ ch, i }: { ch: Chapter; i: number }) {
   const store = useStore();
-  const t = ch.tasks[i];
-  const p = Math.min(t.target, taskProgress(t, store.s));
-  const done = p >= t.target;
+  const task = ch.tasks[i];
+  const p = Math.min(task.target, taskProgress(task, store.s));
+  const done = p >= task.target;
   // tap a task to be taken to where it is done
   return (
     <button
       className={`card flex w-full items-center gap-2 p-2 text-left transition active:scale-[0.98] ${done ? 'ring-2 ring-[#5cb82e]' : 'hover:ring-2 hover:ring-[#ff8a1f]'}`}
       disabled={done}
       onPointerDown={(e) => e.stopPropagation()}
-      onClick={() => store.guideTask(t)}
-      title={done ? 'Done' : 'Show me where'}
+      onClick={() => store.guideTask(task)}
+      title={t(done ? 'Done' : 'Show me where')}
     >
-      <span className="emoji text-2xl"><Ico i={t.icon} id={t.kind === 'count' ? t.key : undefined} /></span>
+      <span className="emoji text-2xl"><Ico i={task.icon} id={task.kind === 'count' ? task.key : undefined} /></span>
       <div className="min-w-0 flex-1">
         <div className="flex items-center justify-between gap-2 text-sm font-bold">
-          <span className="truncate">{t.text}</span>
-          <span className="shrink-0 text-xs">{done ? '✅' : `${p}/${t.target}`}</span>
+          <span className="truncate">{t(task.text)}</span>
+          <span className="shrink-0 text-xs">{done ? '✅' : `${p}/${task.target}`}</span>
         </div>
-        <div className="mt-1"><Bar p={p / t.target} /></div>
+        <div className="mt-1"><Bar p={p / task.target} /></div>
       </div>
       {!done && <span className="shrink-0 text-lg text-[#ff8a1f]" aria-hidden>➜</span>}
     </button>
@@ -1701,8 +1723,8 @@ function StoryDialog() {
   const [shown, setShown] = useState(0);
   useEffect(() => {
     setShown(0);
-    const t = setInterval(() => setShown((n) => (n >= text.length ? n : n + 2)), 22);
-    return () => clearInterval(t);
+    const tm = setInterval(() => setShown((n) => (n >= text.length ? n : n + 2)), 22);
+    return () => clearInterval(tm);
   }, [text]);
   const typing = shown < text.length;
   const next = () => (typing ? setShown(text.length) : store.storyNext());
@@ -1713,14 +1735,14 @@ function StoryDialog() {
         {d.i === 0 && (
           <div className="mb-2 flex justify-center">
             <span className="rounded-full border-[3px] border-[#5d3a1f] bg-[#ffd23a] px-4 py-1 text-sm font-bold text-[#5a3a1a] shadow-[0_3px_0_#5d3a1f]">
-              {d.part === 'intro' ? `Chapter ${ch.n}: ${ch.title}` : `Chapter ${ch.n} complete!`}
+              {d.part === 'intro' ? t('Chapter {n}: {title}', { n: ch.n, title: t(ch.title) }) : t('Chapter {n} complete!', { n: ch.n })}
             </span>
           </div>
         )}
         <div className="flex items-end gap-2">
           <div className="flex flex-col items-center">
             <div className="animate-bob"><Portrait who={ch.who} /></div>
-            <span className="mt-1 whitespace-nowrap rounded-full px-2 py-0.5 text-[11px] font-bold text-white" style={{ background: who.color }}>{who.name}</span>
+            <span className="mt-1 whitespace-nowrap rounded-full px-2 py-0.5 text-[11px] font-bold text-white" style={{ background: who.color }}>{t(who.name)}</span>
           </div>
           <div className="relative mb-6 min-w-0 flex-1 rounded-3xl border-[3px] border-[#5d3a1f] bg-white px-4 py-3 text-[#4a2e14] shadow-[0_5px_0_#5d3a1f]">
             {/* the bubble's tail points at the speaker */}
@@ -1743,7 +1765,7 @@ function StoryDialog() {
             )}
             <div className="relative mt-2 flex justify-end">
               <span className={`text-xs font-bold text-[#a8733f] ${typing ? 'opacity-0' : 'animate-bob'}`}>
-                {last ? (d.part === 'intro' ? "Let's go! ▶" : 'Thanks! ▶') : 'Tap ▶'}
+                {last ? (d.part === 'intro' ? t("Let's go!") + ' ▶' : t('Thanks!') + ' ▶') : t('Tap') + ' ▶'}
               </span>
             </div>
           </div>
@@ -1758,7 +1780,7 @@ function StoryPage() {
   const s = store.s;
   const st = s.story;
   if (!st || st.ch > LAST_CHAPTER) {
-    return <p className="py-6 text-center text-sm text-[#8a6a44]">The story of Talon Valley is complete. The Golden Nest is yours! 🪺✨</p>;
+    return <p className="py-6 text-center text-sm text-[#8a6a44]">{t('The story of Talon Valley is complete. The Golden Nest is yours!')} 🪺✨</p>;
   }
   const ch = chapterAt(st.ch);
   const who = CAST[ch.who];
@@ -1766,8 +1788,8 @@ function StoryPage() {
     return (
       <div className="flex flex-col items-center gap-3 py-4 text-center">
         <Portrait who={ch.who} />
-        <p className="text-sm font-bold">{who.name} has something new for you at level {ch.n}.</p>
-        <p className="text-xs text-[#8a6a44]">Keep farming to reach the next chapter. Chapters finished: {st.ch - 1} / {LAST_CHAPTER}</p>
+        <p className="text-sm font-bold">{t('{name} has something new for you at level {n}.', { name: t(who.name), n: ch.n })}</p>
+        <p className="text-xs text-[#8a6a44]">{t('Keep farming to reach the next chapter.')} {t('Chapters finished: {n} / {total}', { n: st.ch - 1, total: LAST_CHAPTER })}</p>
       </div>
     );
   }
@@ -1778,12 +1800,12 @@ function StoryPage() {
       <div className="flex items-center gap-3">
         <Portrait who={ch.who} size="h-16 w-16 text-4xl" />
         <div className="min-w-0 flex-1">
-          <div className="text-xs font-bold uppercase tracking-wide text-[#a8733f]">Chapter {ch.n} of {LAST_CHAPTER}</div>
-          <div className="text-lg font-bold leading-tight">{ch.title}</div>
-          <div className="text-xs text-[#8a6a44]">told by {who.name}</div>
+          <div className="text-xs font-bold uppercase tracking-wide text-[#a8733f]">{t('Chapter {n} of {total}', { n: ch.n, total: LAST_CHAPTER })}</div>
+          <div className="text-lg font-bold leading-tight">{t(ch.title)}</div>
+          <div className="text-xs text-[#8a6a44]">{t('told by {name}', { name: t(who.name) })}</div>
         </div>
         <button className="btn btn-ghost shrink-0 px-3 py-1.5 text-sm" onClick={() => store.replayStory()}>
-          💬 Replay
+          💬 {t('Replay')}
         </button>
       </div>
       <div className="relative rounded-2xl border-2 border-[#e2cc9c] bg-white px-3 py-2 text-sm italic text-[#5a3a1a]">
@@ -1797,10 +1819,10 @@ function StoryPage() {
         {r.gems > 0 && <Gems n={r.gems} />}
         <span className="text-[#2f8fd0]">+{fmtNum(r.xp)} XP</span>
         <button className={`btn btn-green ml-auto ${ready ? 'animate-bob' : ''}`} disabled={!ready} onClick={() => store.finishChapter()}>
-          Finish chapter
+          {t('Finish chapter')}
         </button>
       </div>
-      <p className="text-center text-xs text-[#8a6a44]">Chapters finished: {st.ch - 1} / {LAST_CHAPTER}</p>
+      <p className="text-center text-xs text-[#8a6a44]">{t('Chapters finished: {n} / {total}', { n: st.ch - 1, total: LAST_CHAPTER })}</p>
     </div>
   );
 }

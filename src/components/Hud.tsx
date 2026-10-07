@@ -4,9 +4,13 @@ import { BUILDING, CROP, ITEMS } from '@/game/data';
 import { TUTORIAL, TUTORIAL_DONE, canFulfill, claimableAlbum, claimableBadges, claimableQuests, fmtNum, xpNeed } from '@/game/state';
 import { useStore, useVersion } from './ctx';
 import { CAST, LAST_CHAPTER, taskProgress } from '@/game/story';
+import { t } from '@/game/i18n';
+
+// the HUD keeps clear of a phone's camera cutout and rounded corners (zero on a desktop)
+const SAFE = { top: 'env(safe-area-inset-top)', right: 'env(safe-area-inset-right)', bottom: 'env(safe-area-inset-bottom)', left: 'env(safe-area-inset-left)' };
 
 export function Coin({ className = '' }: { className?: string }) {
-  return <span className={`coin ${className}`} aria-label="coins" />;
+  return <span className={`coin ${className}`} aria-label={t('coins')} />;
 }
 
 function zoom(detail: number) {
@@ -26,7 +30,7 @@ export default function Hud() {
   const tut = s.tutorial < TUTORIAL.length && s.tutorial !== TUTORIAL_DONE ? TUTORIAL[s.tutorial] : null;
 
   return (
-    <div className="pointer-events-none fixed inset-0 z-10 font-game">
+    <div className="pointer-events-none fixed z-10 font-game" style={SAFE}>
       {/* top bar */}
       <div className="flex items-start justify-between gap-1 p-2 sm:p-3">
         <div className="pointer-events-auto flex items-center">
@@ -55,7 +59,7 @@ export default function Hud() {
             <span className="emoji text-lg sm:text-xl">💎</span>
             <span className="min-w-[1rem] text-right">{fmtNum(s.gems)}</span>
           </div>
-          <button className="btn btn-wood h-9 w-9 shrink-0 rounded-full p-0 sm:h-10 sm:w-10" onClick={() => store.openPanel('settings')} aria-label="Settings">
+          <button className="btn btn-wood h-9 w-9 shrink-0 rounded-full p-0 sm:h-10 sm:w-10" onClick={() => store.openPanel('settings')} aria-label={t('Settings')}>
             <span className="emoji text-lg">⚙️</span>
           </button>
         </div>
@@ -68,12 +72,12 @@ export default function Hud() {
           <span className="emoji animate-bob text-3xl"><Ico i={tut.icon} /></span>
           <div className="min-w-0 flex-1">
             <div className="text-[10px] font-bold uppercase tracking-wide text-[#a8733f]">
-              Step {s.tutorial + 1} of {TUTORIAL.length}
+              {t('Step {n} of {total}', { n: s.tutorial + 1, total: TUTORIAL.length })}
             </div>
-            <div className="text-sm font-bold leading-tight">{tut.text}</div>
+            <div className="text-sm font-bold leading-tight">{t(tut.text)}</div>
           </div>
           <button className="shrink-0 text-xs font-bold text-[#a8733f] underline" onClick={() => store.skipTutorial()}>
-            Skip
+            {t('Skip')}
           </button>
         </div>
         </div>
@@ -84,14 +88,14 @@ export default function Hud() {
 
       {/* toasts */}
       <div className={`absolute left-1/2 flex w-[92%] max-w-sm -translate-x-1/2 flex-col items-center gap-2 ${tut ? "top-36" : "top-20"}`}>
-        {store.toasts.map((t) => (
+        {store.toasts.map((tt) => (
           <div
-            key={t.id}
+            key={tt.id}
             className={`animate-pop rounded-2xl border-[3px] px-4 py-2 text-center text-sm font-bold shadow-lg ${
-              t.tone === 'bad' ? 'border-[#9c3020] bg-[#ffe3dc] text-[#8a2a18]' : t.tone === 'good' ? 'border-[#3a7d1a] bg-[#e6f8d8] text-[#2d5e14]' : 'border-[#5d3a1f] bg-[#fff6df] text-[#5a3a1a]'
+              tt.tone === 'bad' ? 'border-[#9c3020] bg-[#ffe3dc] text-[#8a2a18]' : tt.tone === 'good' ? 'border-[#3a7d1a] bg-[#e6f8d8] text-[#2d5e14]' : 'border-[#5d3a1f] bg-[#fff6df] text-[#5a3a1a]'
             }`}
           >
-            {t.text}
+            {tt.text}
           </div>
         ))}
       </div>
@@ -101,19 +105,19 @@ export default function Hud() {
         <div className="pointer-events-auto absolute bottom-4 left-1/2 flex -translate-x-1/2 items-center gap-3 rounded-3xl border-4 border-[#8a5a2b] bg-[#fff6df] px-4 py-2 text-[#5a3a1a] shadow-[0_6px_0_#5d3a1f]">
           <span className="emoji text-3xl"><Ico i={ITEMS[ui.tool.crop].icon} /></span>
           <div className="leading-tight">
-            <div className="font-bold">Planting {ITEMS[ui.tool.crop].name}</div>
+            <div className="font-bold">{t('Planting {item}', { item: t(ITEMS[ui.tool.crop].name) })}</div>
             <div className="flex items-center gap-1 text-xs">
               {(s.inv[ui.tool.crop] ?? 0) > 0 ? (
-                <>You have {s.inv[ui.tool.crop]}. Drag over empty fields.</>
+                <>{t('You have {n}. Drag over empty fields.', { n: s.inv[ui.tool.crop] ?? 0 })}</>
               ) : (
                 <>
-                  Seeds cost {CROP[ui.tool.crop].seedCost} <Coin />
+                  {t('Seeds cost')} {CROP[ui.tool.crop].seedCost} <Coin />
                 </>
               )}
             </div>
           </div>
           <button className="btn btn-green" onClick={() => store.setTool(null)}>
-            Done
+            {t('Done')}
           </button>
         </div>
       )}
@@ -124,16 +128,16 @@ export default function Hud() {
       {/* zoom controls */}
       {!sheetOpen && !ui.tool && (
         <div className="pointer-events-auto absolute bottom-24 left-3 flex flex-col gap-2 sm:bottom-4">
-          <button className="btn btn-ghost h-11 w-11 rounded-full p-0 text-2xl" onClick={() => zoom(1)} aria-label="Zoom in">
+          <button className="btn btn-ghost h-11 w-11 rounded-full p-0 text-2xl" onClick={() => zoom(1)} aria-label={t('Zoom in')}>
             +
           </button>
-          <button className="btn btn-ghost h-11 w-11 rounded-full p-0 text-2xl" onClick={() => zoom(-1)} aria-label="Zoom out">
+          <button className="btn btn-ghost h-11 w-11 rounded-full p-0 text-2xl" onClick={() => zoom(-1)} aria-label={t('Zoom out')}>
             −
           </button>
-          <button className="btn btn-ghost h-11 w-11 rounded-full p-0" onClick={() => window.dispatchEvent(new CustomEvent('farm-rotate', { detail: 1 }))} aria-label="Rotate view">
+          <button className="btn btn-ghost h-11 w-11 rounded-full p-0" onClick={() => window.dispatchEvent(new CustomEvent('farm-rotate', { detail: 1 }))} aria-label={t('Rotate view')}>
             <span className="emoji text-lg">🔄</span>
           </button>
-          <button className="btn btn-ghost h-11 w-11 rounded-full p-0" onClick={() => zoom(0)} aria-label="Center farm">
+          <button className="btn btn-ghost h-11 w-11 rounded-full p-0" onClick={() => zoom(0)} aria-label={t('Center farm')}>
             <span className="emoji text-lg">🏡</span>
           </button>
         </div>
@@ -145,7 +149,7 @@ export default function Hud() {
           {store.canDaily() && (
             <HudBtn
               icon="🎁"
-              label="Gift"
+              label={t('Gift')}
               onClick={() => {
                 store.ui.daily = true;
                 store.sound('click');
@@ -155,17 +159,17 @@ export default function Hud() {
               badge={1}
             />
           )}
-          <HudBtn icon="🏆" label="Goals" onClick={() => store.openPanel('quests')} badge={claimable} />
-          <HudBtn icon="📋" label="Orders" onClick={() => store.openPanel('orders')} badge={deliverable} glow={s.tutorial === 2} />
-          <HudBtn icon="📦" label="Storage" onClick={() => store.openPanel('storage')} fly="storage" />
+          <HudBtn icon="🏆" label={t('Goals')} onClick={() => store.openPanel('quests')} badge={claimable} />
+          <HudBtn icon="📋" label={t('Orders')} onClick={() => store.openPanel('orders')} badge={deliverable} glow={s.tutorial === 2} />
+          <HudBtn icon="📦" label={t('Storage')} onClick={() => store.openPanel('storage')} fly="storage" />
           <button
             className={`btn btn-yellow ${s.tutorial === 3 ? 'ring-4 ring-white animate-bob' : ''} h-16 w-16 flex-col sm:h-[4.5rem] sm:w-[4.5rem] rounded-3xl border-[3px] border-[#5d3a1f] p-0`}
             onClick={() => store.openPanel('shop')}
-            aria-label="Shop"
+            aria-label={t('Shop')}
             data-fly-shop=""
           >
             <span className="emoji text-3xl">🛒</span>
-            <span className="text-xs font-bold">Shop</span>
+            <span className="text-xs font-bold">{t('Shop')}</span>
           </button>
         </div>
       )}
@@ -197,19 +201,19 @@ function PlacingBar() {
   const cost = store.costOf(d);
   return (
     <div className="pointer-events-auto absolute bottom-4 left-1/2 flex -translate-x-1/2 items-center gap-3 rounded-3xl border-4 border-[#8a5a2b] bg-[#fff6df] px-3 py-2 text-[#5a3a1a] shadow-[0_6px_0_#5d3a1f]">
-      <button className="btn btn-red h-12 w-12 rounded-full p-0 text-2xl" onClick={() => store.cancelPlace()} aria-label="Cancel">
+      <button className="btn btn-red h-12 w-12 rounded-full p-0 text-2xl" onClick={() => store.cancelPlace()} aria-label={t('Cancel')}>
         ✕
       </button>
       <div className="min-w-[8rem] text-center leading-tight">
         <div className="font-bold">
-          {moving ? 'Move' : 'Place'} {d.name}
+          {t(moving ? 'Move {name}' : 'Place {name}', { name: t(d.name) })}
         </div>
         <div className="flex items-center justify-center gap-1 text-xs">
-          {moving ? 'Drag to a free spot' : <>Cost {cost} <Coin /> · drag to move</>}
+          {moving ? t('Drag to a free spot') : <>{t('Cost')} {cost} <Coin /> · {t('drag to move')}</>}
         </div>
-        {!ok && <div className="text-xs font-bold text-[#c0392b]">Spot is blocked</div>}
+        {!ok && <div className="text-xs font-bold text-[#c0392b]">{t('Spot is blocked')}</div>}
       </div>
-      <button className="btn btn-green h-12 w-12 rounded-full p-0 text-2xl" disabled={!ok} onClick={() => store.confirmPlace()} aria-label="Confirm">
+      <button className="btn btn-green h-12 w-12 rounded-full p-0 text-2xl" disabled={!ok} onClick={() => store.confirmPlace()} aria-label={t('Confirm')}>
         ✓
       </button>
     </div>
@@ -227,14 +231,14 @@ function StoryCard() {
   const who = CAST[ch.who];
   const on = s.level >= ch.n;
   const ready = store.chapterReady();
-  const left = on ? ch.tasks.filter((t) => taskProgress(t, s) < t.target).length : 0;
+  const left = on ? ch.tasks.filter((tk) => taskProgress(tk, s) < tk.target).length : 0;
   return (
     <button
       className={`pointer-events-auto absolute left-2 top-[4.6rem] grid h-12 w-12 place-items-center rounded-full border-[3px] bg-[#fff6df] shadow-[0_3px_0_#5d3a1f] sm:left-3 sm:top-20 sm:h-14 sm:w-14 ${ready ? 'animate-bob ring-4 ring-[#5cb82e]' : ''}`}
       style={{ borderColor: who.color }}
       onClick={() => store.openPanel('quests')}
-      aria-label={`Story: chapter ${ch.n}, ${ch.title}${left ? `, ${left} tasks left` : ''}`}
-      title={`Chapter ${ch.n}: ${ch.title}`}
+      aria-label={t('Chapter {n}: {title}', { n: ch.n, title: t(ch.title) }) + (left ? ', ' + t('{n} tasks left', { n: left }) : '')}
+      title={t('Chapter {n}: {title}', { n: ch.n, title: t(ch.title) })}
     >
       <span className="emoji text-2xl sm:text-3xl">{who.icon}</span>
       {ready ? (

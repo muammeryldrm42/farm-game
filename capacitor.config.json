@@ -1,0 +1,8 @@
+{
+  "appId": "com.talons.farm",
+  "appName": "Talons Farm",
+  "webDir": "out",
+  "android": {
+    "backgroundColor": "#3f9fd8"
+  }
+}

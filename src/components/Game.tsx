@@ -4,7 +4,10 @@ import { GameStore, loadGame, plotProgress, type FarmObject } from '@/game/state
 import { BUILDING } from '@/game/data';
 import { Renderer } from '@/game/render3d';
 import { sfx, startMusic, stopMusic } from '@/game/audio';
+import { Capacitor } from '@capacitor/core';
+import { App } from '@capacitor/app';
 import { StoreCtx, useStore } from './ctx';
+import { initLang, onLang } from '@/game/i18n';
 import Hud from './Hud';
 import Panels from './Panels';
 import Flyers from './Flyers';
@@ -15,7 +18,10 @@ export default function Game() {
   useEffect(() => {
     const st = new GameStore(loadGame());
     st.sound = (n) => { if (st.s.settings.sound) sfx(n); };
-    setStore(st);
+    // the farm shows once the chosen language is in (a moment), and redraws when it changes
+    let alive = true;
+    initLang().finally(() => { if (alive) setStore(st); });
+    const offLang = onLang(() => st.emit(false));
     const save = () => st.saveNow();
     const vis = () => { if (document.visibilityState === 'hidden') save(); };
     window.addEventListener('beforeunload', save);
@@ -32,8 +38,26 @@ export default function Game() {
     window.addEventListener('keydown', unlock, { once: true });
     document.addEventListener('visibilitychange', syncMusic);
     const unsub = st.subscribe(syncMusic);
+    // the Android app: the back button closes whatever is open (and only then leaves the game),
+    // and the farm is saved whenever the app goes to the background
+    const native: Promise<{ remove: () => Promise<void> }>[] = [];
+    if (Capacitor.isNativePlatform()) {
+      native.push(App.addListener('backButton', () => {
+        const ui = st.ui;
+        if (ui.story) { ui.story = null; st.emit(false); }
+        else if (ui.levelUp !== null) { ui.levelUp = null; st.emit(false); }
+        else if (ui.daily) { ui.daily = false; st.emit(false); }
+        else if (ui.napping) st.wake();
+        else if (ui.panel || ui.placing || ui.tool || ui.expand || ui.selectedId !== null) st.cancelAll();
+        else { save(); App.minimizeApp(); }
+      }));
+      native.push(App.addListener('pause', save));
+    }
     return () => {
+      alive = false;
+      offLang();
       unsub();
+      for (const h of native) h.then((x) => x.remove());
       stopMusic();
       document.removeEventListener('visibilitychange', syncMusic);
       window.removeEventListener('beforeunload', save);
@@ -90,7 +114,16 @@ function FarmCanvas() {
     window.addEventListener('resize', resize);
 
     let raf = 0;
-    const loop = (t: number) => { r.frame(t); raf = requestAnimationFrame(loop); };
+    // at most 60 frames a second (30 with the battery saver): a 120 Hz phone would otherwise draw
+    // twice as often, for twice the heat and battery, with nothing more to see
+    let last = 0;
+    const loop = (t: number) => {
+      raf = requestAnimationFrame(loop);
+      const gap = store.s.settings.saver ? 1000 / 30 : 1000 / 60;
+      if (t - last < gap - 4) return;
+      last = t;
+      r.frame(t);
+    };
     raf = requestAnimationFrame(loop);
 
     // ---------------------------------------------- input

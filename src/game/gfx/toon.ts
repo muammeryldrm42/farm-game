@@ -832,8 +832,10 @@ export const toonMakers: Record<string, () => CreatureParts> = {
 // A friendly cartoon farmer: big round head with rosy cheeks, button nose and a smile, a plaid
 // shirt under denim overalls. The renderer adds eyes, arms, boots and the straw hat.
 const people = new Map<string, { head: THREE.BufferGeometry; torso: THREE.BufferGeometry }>();
-export function toonPersonParts(shirt: string, overall: string) {
-  const key = `${shirt}|${overall}`;
+// `quick`: a coarser sculpt, for a stand in that a Blender model replaces in a moment
+export function toonPersonParts(shirt: string, overall: string, quick = false) {
+  const key = `${shirt}|${overall}|${quick}`;
+  const q = quick ? 2.5 : 1;
   const hit = people.get(key);
   if (hit) return hit;
   const skin = '#f6c9a0', hair = '#6b4020';
@@ -848,7 +850,7 @@ export function toonPersonParts(shirt: string, overall: string) {
     .add(ellipsoid(-0.11, -0.03, -0.02, 0.03, 0.05, 0.05), hair, 0.02)
     .carve(capsule(-0.045, -0.052, 0.116, 0, -0.07, 0.126, 0.006), 0.004)
     .carve(capsule(0, -0.07, 0.126, 0.045, -0.052, 0.116, 0.006), 0.004);
-  const head = build(h, [-0.17, -0.16, -0.17], [0.17, 0.17, 0.18], 0.005, 0.012);
+  const head = build(h, [-0.17, -0.16, -0.17], [0.17, 0.17, 0.18], 0.005 * q, 0.012);
   const dk = mixHex(shirt, '#000000', 0.4), lt = mixHex(shirt, '#ffffff', 0.25);
   const plaid = (x: number, y: number) => {
     const a = Math.sin(x * 140) > 0.5, b = Math.sin(y * 140) > 0.5;
@@ -865,7 +867,7 @@ export function toonPersonParts(shirt: string, overall: string) {
     .add(ellipsoid(0, 0.33, 0.01, 0.13, 0.08, 0.13), denim, 0.04)
     // bib pocket
     .add(ellipsoid(0, 0.465, 0.105, 0.035, 0.025, 0.008), mixHex(overall, '#000000', 0.15), 0.006);
-  const torso = build(t, [-0.16, 0.22, -0.16], [0.16, 0.66, 0.16], 0.006, 0.012);
+  const torso = build(t, [-0.16, 0.22, -0.16], [0.16, 0.66, 0.16], 0.006 * q, 0.012);
   const p = { head, torso };
   people.set(key, p);
   return p;

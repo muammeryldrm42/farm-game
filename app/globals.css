@@ -94,3 +94,10 @@ canvas {
     @apply absolute -right-1 -top-1 grid h-6 min-w-6 place-items-center rounded-full border-2 border-white bg-[#e0533d] px-1 text-xs font-bold text-white;
   }
 }
+
+/* Arabic: the panels, cards and messages read right to left; the farm and the HUD layout stay */
+html[data-rtl='1'] .panel,
+html[data-rtl='1'] .card,
+html[data-rtl='1'] .rtl-text {
+  direction: rtl;
+}
