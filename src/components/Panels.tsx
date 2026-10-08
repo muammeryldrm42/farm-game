@@ -59,9 +59,14 @@ import LANG_NAMES from '@/locales/names.json';
 
 // ------------------------------------------------------------------ primitives
 
+// Keeps a panel clear of a phone's camera cutout and system bars (on a phone held sideways the
+// cutout sits at the left or right edge): at least the given margin, more where the screen needs it.
+const safePad = (m: string, sides: ('top' | 'right' | 'bottom' | 'left')[] = ['top', 'right', 'bottom', 'left'], extra: Partial<Record<'top' | 'right' | 'bottom' | 'left', string>> = {}) =>
+  Object.fromEntries(sides.map((k) => [`padding${k[0].toUpperCase()}${k.slice(1)}`, `max(${extra[k] ?? m}, env(safe-area-inset-${k}))`]));
+
 function Modal({ title, icon, onClose, children, wide = false }: { title: string; icon?: string; onClose: () => void; children: ReactNode; wide?: boolean }) {
   return (
-    <div className="pointer-events-auto fixed inset-0 z-30 flex items-center justify-center bg-black/40 p-3" onPointerDown={(e) => e.target === e.currentTarget && onClose()}>
+    <div className="pointer-events-auto fixed inset-0 z-30 flex items-center justify-center bg-black/40 p-3" style={safePad('0.75rem')} onPointerDown={(e) => e.target === e.currentTarget && onClose()}>
       <div className={`panel flex max-h-[88vh] w-full animate-pop flex-col ${wide ? 'max-w-3xl' : 'max-w-md'}`}>
         <div className="relative flex items-center justify-center rounded-t-[1.2rem] bg-[#a8733f] px-12 py-2.5 text-white">
           {icon && <span className="emoji mr-2 text-2xl"><Ico i={icon} /></span>}
@@ -80,7 +85,7 @@ function Modal({ title, icon, onClose, children, wide = false }: { title: string
 
 function Sheet({ title, icon, pic, sub, onClose, children }: { title: string; icon: string; pic?: string; sub?: ReactNode; onClose: () => void; children: ReactNode }) {
   return (
-    <div className="pointer-events-auto fixed inset-x-0 bottom-0 z-20 flex justify-center p-2 sm:p-3">
+    <div className="pointer-events-auto fixed inset-x-0 bottom-0 z-20 flex justify-center p-2 sm:p-3" style={safePad('0.5rem', ['right', 'bottom', 'left'])}>
       <div className="panel w-full max-w-2xl animate-pop">
         <div className="flex items-center gap-3 border-b-2 border-[#e2cc9c] px-4 py-2">
           <span className="emoji text-3xl"><Ico i={icon} id={pic} /></span>
@@ -1765,7 +1770,7 @@ function StoryDialog() {
   const next = () => (typing ? setShown(text.length) : store.storyNext());
   const r = storyReward(ch.n);
   return (
-    <div className="pointer-events-auto fixed inset-0 z-40 flex flex-col justify-end bg-black/35 p-3 pb-6 font-game sm:items-center" onPointerDown={next}>
+    <div className="pointer-events-auto fixed inset-0 z-40 flex flex-col justify-end bg-black/35 p-3 pb-6 font-game sm:items-center" style={safePad('0.75rem', ['top', 'right', 'bottom', 'left'], { bottom: '1.5rem' })} onPointerDown={next}>
       <div className="w-full max-w-xl animate-pop">
         {d.i === 0 && (
           <div className="mb-2 flex justify-center">

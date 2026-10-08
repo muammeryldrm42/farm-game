@@ -125,9 +125,10 @@ export default function Hud() {
       {/* placing banner */}
       {ui.placing && <PlacingBar />}
 
-      {/* zoom controls */}
+      {/* zoom controls: a column, or on a short landscape screen (a phone on its side) a 2 by 2
+          block in the corner, clear of the story button above it */}
       {!sheetOpen && !ui.tool && (
-        <div className="pointer-events-auto absolute bottom-24 left-3 flex flex-col gap-2 sm:bottom-4">
+        <div className="pointer-events-auto absolute bottom-24 left-3 flex flex-col gap-2 sm:bottom-4 [@media(orientation:landscape)_and_(max-height:480px)]:bottom-3 [@media(orientation:landscape)_and_(max-height:480px)]:grid [@media(orientation:landscape)_and_(max-height:480px)]:grid-cols-2">
           <button className="btn btn-ghost h-11 w-11 rounded-full p-0 text-2xl" onClick={() => zoom(1)} aria-label={t('Zoom in')}>
             +
           </button>
