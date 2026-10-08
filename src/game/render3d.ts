@@ -598,6 +598,10 @@ export class Renderer {
   private season: Season = seasonOf();
   private last = 0;
   private panAnchor: THREE.Vector3 | null = null;
+  // a flick of the map glides on and slows down: the drag's speed (ground units a second) and
+  // the time of its last step
+  private panV = { x: 0, z: 0, t: 0 };
+  private glide = { x: 0, z: 0 };
   private bg = new THREE.Color();
 
   constructor(public canvas: HTMLCanvasElement, public store: GameStore) {
@@ -818,16 +822,37 @@ export class Renderer {
 
   panStart(sx: number, sy: number) {
     this.panAnchor = this.groundAt(sx, sy);
+    // a finger on the map stops it gliding
+    this.glide.x = this.glide.z = 0;
+    this.panV = { x: 0, z: 0, t: performance.now() };
   }
 
   panTo(sx: number, sy: number) {
     if (!this.panAnchor) return;
     const cur = this.groundAt(sx, sy);
     if (!cur) return;
+    const x0 = this.target.x, z0 = this.target.z;
     this.target.x += this.panAnchor.x - cur.x;
     this.target.z += this.panAnchor.z - cur.z;
     this.clampCam();
     this.updateCamera();
+    const now = performance.now(), ms = now - this.panV.t;
+    if (ms > 0) {
+      // smoothed over the last few steps of the drag
+      const k = Math.min(1, ms / 60);
+      this.panV.x += (((this.target.x - x0) / ms) * 1000 - this.panV.x) * k;
+      this.panV.z += (((this.target.z - z0) / ms) * 1000 - this.panV.z) * k;
+      this.panV.t = now;
+    }
+  }
+
+  // the finger lifts: a quick flick glides on, a drag that had come to rest stays put
+  panEnd() {
+    const v = this.panV, sp = Math.hypot(v.x, v.z);
+    if (performance.now() - v.t > 80 || sp < 3) return;
+    const f = Math.min(1, 45 / sp);
+    this.glide.x = v.x * f;
+    this.glide.z = v.z * f;
   }
 
   zoomAt(sx: number, sy: number, zoom: number) {
@@ -860,6 +885,7 @@ export class Renderer {
   }
 
   centerOn(gx: number, gy: number) {
+    this.glide.x = this.glide.z = 0;
     this.target.set(gx, 0, gy);
     this.updateCamera();
   }
@@ -1503,6 +1529,14 @@ export class Renderer {
 
     // smooth camera rotation
     if (Math.abs(this.azGoal - this.az) > 0.0005) this.az += (this.azGoal - this.az) * Math.min(1, dt * 8);
+    if (this.glide.x || this.glide.z) {
+      this.target.x += this.glide.x * dt;
+      this.target.z += this.glide.z * dt;
+      this.clampCam();
+      const f = Math.exp(-dt * 5);
+      this.glide.x *= f; this.glide.z *= f;
+      if (Math.hypot(this.glide.x, this.glide.z) < 0.4) this.glide.x = this.glide.z = 0;
+    }
     this.updateCamera();
 
     const moveId = ui.placing?.moveId;

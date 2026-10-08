@@ -303,7 +303,10 @@ function FarmCanvas({ onDrawn }: { onDrawn: () => void }) {
           store.tapTile(hitTile.x, hitTile.y);
         }
       }
-      if (pts.size === 0) mode = 'none';
+      if (pts.size === 0) {
+        if (mode === 'pan') r.panEnd();
+        mode = 'none';
+      }
     };
 
     const onWheel = (e: WheelEvent) => {
