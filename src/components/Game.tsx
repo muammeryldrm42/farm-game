@@ -127,9 +127,41 @@ function FarmCanvas({ onDrawn }: { onDrawn: () => void }) {
     resize();
     window.addEventListener('resize', resize);
 
+    // Frames a second, sparing the battery and the phone's warmth: 60 while the farm is being
+    // played; 30 once nobody has touched it for a while (the farm goes on at an easy pace, and
+    // the first touch brings the 60 back), with the battery saver (the game's or the phone's), on
+    // a low battery or a warm phone; 20 on a hot one. The Android app tells how warm the phone is
+    // and whether its battery saver is on (see MainActivity).
+    const IDLE_MS = 10000;
+    let touched = performance.now();
+    const touch = () => { touched = performance.now(); };
+    const TOUCHES = ['pointerdown', 'pointermove', 'keydown', 'wheel'] as const;
+    for (const ev of TOUCHES) window.addEventListener(ev, touch, { capture: true, passive: true });
+    const power = { thermal: 0, saver: false, low: false };
+    const onPower = () => {
+      const p = (window as unknown as { __power?: { thermal: number; saver: boolean } }).__power;
+      if (p) { power.thermal = p.thermal; power.saver = p.saver; }
+    };
+    onPower();
+    window.addEventListener('farm-power', onPower);
+    type Battery = EventTarget & { level: number; charging: boolean };
+    let battery: Battery | null = null;
+    const onBattery = () => { if (battery) power.low = !battery.charging && battery.level <= 0.2; };
+    (navigator as unknown as { getBattery?: () => Promise<Battery> }).getBattery?.().then((b) => {
+      battery = b;
+      onBattery();
+      b.addEventListener('levelchange', onBattery);
+      b.addEventListener('chargingchange', onBattery);
+    }).catch(() => { /* no battery to tell */ });
+    const fps = () => {
+      if (power.thermal >= 3) return 20;
+      if (store.s.settings.saver || power.saver || power.low || power.thermal >= 2) return 30;
+      return performance.now() - touched > IDLE_MS ? 30 : 60;
+    };
+
     let raf = 0;
-    // at most 60 frames a second (30 with the battery saver): a 120 Hz phone would otherwise draw
-    // twice as often, for twice the heat and battery, with nothing more to see
+    // at most 60 frames a second (fewer to spare the battery, above): a 120 Hz phone would
+    // otherwise draw twice as often, for twice the heat and battery, with nothing more to see
     // A screen no faster than the cap draws every frame. A faster one keeps to a fixed beat: on a
     // 90 Hz screen that is two drawn of every three (a steady 60), where simply waiting a frame's
     // time after the last one would draw every other (45). After a slow frame the beat moves on
@@ -140,7 +172,7 @@ function FarmCanvas({ onDrawn }: { onDrawn: () => void }) {
       // the screen's own frame time, smoothed
       if (prev) avg += (Math.min(100, t - prev) - avg) * 0.05;
       prev = t;
-      const gap = store.s.settings.saver ? 1000 / 30 : 1000 / 60;
+      const gap = 1000 / fps();
       if (avg < gap - 1.5) {
         if (t - last < gap - 4) return;
         last = Math.max(last + gap, t - gap);
@@ -381,6 +413,10 @@ function FarmCanvas({ onDrawn }: { onDrawn: () => void }) {
       window.removeEventListener('farm-zoom', onZoom);
       window.removeEventListener('farm-rotate', onRotate);
       document.removeEventListener('visibilitychange', onHide);
+      for (const ev of TOUCHES) window.removeEventListener(ev, touch, { capture: true });
+      window.removeEventListener('farm-power', onPower);
+      battery?.removeEventListener('levelchange', onBattery);
+      battery?.removeEventListener('chargingchange', onBattery);
       r.dispose();
     };
   }, [store]);

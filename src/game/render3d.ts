@@ -421,6 +421,8 @@ function bareClone(src: THREE.Object3D) {
 function popOut(src: THREE.Object3D, delay = 0, height = 1.3) {
   src.updateWorldMatrix(true, true);
   const c = bareClone(src);
+  // a crop's plants are drawn in batches, off the camera's layer: the copy is drawn by itself
+  c.traverse((o) => { if (o.layers.isEnabled(BATCH_LAYER)) o.layers.set(0); });
   src.getWorldPosition(c.position);
   src.getWorldQuaternion(c.quaternion);
   src.getWorldScale(c.scale);
@@ -594,6 +596,7 @@ export class Renderer {
   private night!: NightLife;
   private sky = new Sky();
   private foliage = new Foliage();
+  private batches!: Batches;
   private foliageKey = '';
   private post: Post | null = null;
   private quality: Quality = getQuality();
@@ -630,6 +633,7 @@ export class Renderer {
     // frame() works out the scene's matrices itself, once, before drawing
     this.scene.matrixWorldAutoUpdate = false;
     this.scene.add(this.sky.mesh);
+    this.batches = new Batches(this.scene);
     this.buildEnvironment();
     // Android may take the GPU from an app in the background. three.js uploads the models and
     // textures again by itself; the sky light, drawn once, is drawn again here (or the farm
@@ -1564,6 +1568,7 @@ export class Renderer {
     this.projM.multiplyMatrices(this.camera.projectionMatrix, this.camera.matrixWorldInverse);
     this.frustum.setFromProjectionMatrix(this.projM);
     VIEW = this.frustum;
+    batchDraw.length = 0;
     for (const o of s.objects) {
       const e = this.entries.get(o.id);
       if (!e) continue;
@@ -1611,6 +1616,7 @@ export class Renderer {
     // the scene's matrices, once a frame: the shadow blobs read them, and the renderer (and each
     // pass of the high quality effects) does not work them all out again
     this.scene.updateMatrixWorld();
+    this.batches.build(this.camera);
     drawBlobs(this.scene);
     // the first picture waits until the scene's shaders are compiled in the background (in
     // parallel where the browser can): no long freeze at start up on a phone, and the page stays
@@ -1638,7 +1644,7 @@ export class Renderer {
   }
   private warm: 'cold' | 'warming' | 'compiled' | 'done' = 'cold';
   // Stand ins for what first shows during play (the sparkle of a harvest or a new building, the
-  // rain, a fishing line), compiled with the farm at start up: a shader compiled the first time
+  // rain, a fishing line, the animals' eyes), compiled with the farm at start up: a shader compiled the first time
   // it is needed is a stall of a good part of a second on a phone.
   private warmers = (() => {
     const g = new THREE.Group();
@@ -1647,6 +1653,8 @@ export class Renderer {
     g.add(new THREE.Points(pt, new THREE.PointsMaterial({ color: '#ffffff', size: 0.2, map: sparkTex(), transparent: true, depthWrite: false })));
     g.add(new THREE.LineSegments(pt, new THREE.LineBasicMaterial({ color: '#d6e6ff', transparent: true, opacity: 0.55 })));
     g.add(new THREE.Line(pt, new THREE.LineBasicMaterial({ color: '#ffffff' })));
+    // the eyes of the animals, drawn in batches
+    g.add(new THREE.InstancedMesh(G.box, EYE_REAL_MERGED, 1));
     for (const c of g.children) c.frustumCulled = false;
     return g;
   })();
@@ -3614,6 +3622,75 @@ function modelLodGeos(name: string) {
   }
   return modelLodSrc.get(name) ?? null;
 }
+// Crops in the fields and the animals in the pens. Each field shows four plants of one or two
+// parts (plant, fruit) and each Blender animal is some eight parts (body, head, legs, tail, eyes);
+// drawn one by one a busy farm makes hundreds of draws, a heavy load for a phone. The plants and
+// animals stay in the scene (they grow, sway, walk and pop out as before) on a layer the camera
+// does not draw, and those in view are drawn from one instanced mesh per part, material and
+// detail level.
+const BATCH_LAYER = 5;
+const batchDraw: { root: THREE.Object3D; meshes: THREE.Mesh[] }[] = [];
+// shown: it and its parents up to `stop` (or the scene) are visible
+function shownUpTo(o: THREE.Object3D, stop: THREE.Object3D | null) {
+  for (let q: THREE.Object3D | null = o; q && q !== stop; q = q.parent) if (!q.visible) return false;
+  return true;
+}
+class Batches {
+  private by = new Map<THREE.BufferGeometry, Map<THREE.Material, { mesh: THREE.InstancedMesh; n: number }>>();
+  constructor(private parent: THREE.Object3D) {}
+  private add(geo: THREE.BufferGeometry, mat: THREE.Material, src: THREE.Mesh) {
+    let row = this.by.get(geo);
+    if (!row) this.by.set(geo, row = new Map());
+    let b = row.get(mat);
+    if (!b || b.n >= b.mesh.instanceMatrix.count) {
+      // a new batch, or a bigger one (twice the size, the matrices so far carried over)
+      const cap = b ? b.mesh.instanceMatrix.count * 2 : 64;
+      const mesh = new THREE.InstancedMesh(geo, mat, cap);
+      mesh.castShadow = src.castShadow;
+      mesh.receiveShadow = src.receiveShadow;
+      mesh.frustumCulled = false;
+      if (b) {
+        (mesh.instanceMatrix.array as Float32Array).set(b.mesh.instanceMatrix.array as Float32Array);
+        this.parent.remove(b.mesh);
+        b.mesh.dispose();
+      }
+      this.parent.add(mesh);
+      b = { mesh, n: b?.n ?? 0 };
+      row.set(mat, b);
+    }
+    b.mesh.setMatrixAt(b.n++, src.matrixWorld);
+  }
+  // after the scene's matrices are worked out: the fields and herds updated this frame
+  build(cam: THREE.Camera) {
+    for (const row of this.by.values()) for (const b of row.values()) b.n = 0;
+    for (const { root, meshes } of batchDraw) {
+      // left out while it (or the object it is on) is hidden, or taken off the farm
+      let top: THREE.Object3D = root;
+      while (top.parent) top = top.parent;
+      if (!(top as THREE.Scene).isScene || !shownUpTo(root, null)) continue;
+      for (const m of meshes) {
+        if (!shownUpTo(m, root)) continue;
+        let geo = m.geometry;
+        const lod = m.userData.lod as string | undefined;
+        if (lod) {
+          // far away a crop or an animal is drawn from its thinned twin, as the trees are
+          const d = cam.position.distanceTo(lodPos.setFromMatrixPosition(m.matrixWorld));
+          const far = m.userData.far ? d > LOD_NEAR * lodScale : d > LOD_FAR * lodScale;
+          const twin = far ? modelLodGeos(lod)?.get(m.name) : undefined;
+          m.userData.far = !!twin;
+          if (twin) geo = twin;
+        }
+        this.add(geo, m.material as THREE.Material, m);
+      }
+    }
+    for (const row of this.by.values()) for (const b of row.values()) {
+      b.mesh.count = b.n;
+      b.mesh.visible = b.n > 0;
+      if (b.n) b.mesh.instanceMatrix.needsUpdate = true;
+    }
+  }
+}
+
 function modelLod(g: THREE.Object3D, name: string) {
   g.traverse((o) => {
     const m = o as THREE.Mesh;
@@ -4178,7 +4255,7 @@ function plantModel(cd: CropDef) {
     const fruit: THREE.Mesh[] = [];
     // a field of crops is a lot of plants: the far ones are drawn from their thinned twin
     const plant = src.clone();
-    modelLod(plant, `crop_${cd.id}`);
+    plant.traverse((o) => { if ((o as THREE.Mesh).isMesh) o.userData.lod = `crop_${cd.id}`; });
     for (const c of [...plant.children]) {
       g.add(c);
       if (c.name === 'fruit' && (c as THREE.Mesh).isMesh) {
@@ -4191,6 +4268,7 @@ function plantModel(cd: CropDef) {
         fruit.push(f);
       }
     }
+    g.traverse((o) => o.layers.set(BATCH_LAYER));
     return { g, fruit };
   }
   const g = new THREE.Group();
@@ -4208,6 +4286,7 @@ function plantModel(cd: CropDef) {
     shell.receiveShadow = true;
     g.add(shell);
   }
+  g.traverse((o) => o.layers.set(BATCH_LAYER));
   return { g, fruit: [fr] };
 }
 
@@ -4278,6 +4357,7 @@ function buildPlot(e: Entry) {
   let first = true;
   let born = 0, cver = cropVer;
   let plants: { g: THREE.Group; fruit: THREE.Mesh[]; ripe: number }[] = [];
+  let meshes: THREE.Mesh[] = [];
   e.top = 0.55;
   e.update = (o, now, t) => {
     const pp = plotProgress(o, now);
@@ -4306,6 +4386,8 @@ function buildPlot(e: Entry) {
         }
         if (planted) { born = t; bump(e); }
       }
+      meshes = [];
+      crop.traverse((c) => { if ((c as THREE.Mesh).isMesh) meshes.push(c as THREE.Mesh); });
     }
     first = false;
     wasReady = pp.ready;
@@ -4333,6 +4415,7 @@ function buildPlot(e: Entry) {
         pl.ripe = ripe;
       }
     });
+    batchDraw.push({ root: e.root, meshes });
   };
 }
 
@@ -4416,9 +4499,17 @@ function loadModel(name: string) {
       gl.scene.userData.top = new THREE.Box3().setFromObject(gl.scene).max.y;
       return shrinkTextures(gl.scene).then(() => {
         // its shaders compile in the background before it is used, so a model arriving mid
-        // game never freezes the picture while the GPU compiles
+        // game never freezes the picture while the GPU compiles (crops and animals are drawn in
+        // batches: their instanced shaders too)
         const ready = () => gl.scene;
-        return precompile ? precompile(gl.scene).then(ready, ready) : gl.scene;
+        if (!precompile) return gl.scene;
+        const jobs = [precompile(gl.scene)];
+        if (/^(animal|crop)_/.test(name)) {
+          const inst = new THREE.Group();
+          gl.scene.traverse((o) => { const m = o as THREE.Mesh; if (m.isMesh) inst.add(new THREE.InstancedMesh(m.geometry, m.material, 1)); });
+          jobs.push(precompile(inst));
+        }
+        return Promise.all(jobs).then(ready, ready);
       });
     });
     modelCache.set(name, p);
@@ -5383,6 +5474,8 @@ function buildPen(e: Entry, d: BuildingDef) {
   const an = ANIMAL[d.animal ?? ''];
   const fed = new Map<number, number | null>();
   const hop = new Map<number, number>();
+  // the parts of its Blender animals, drawn in batches (see Batches) while any is in view
+  let herdMeshes: THREE.Mesh[] = [];
   e.update = (o, now, t, dt = 0.016) => {
     herdMoved = true;
     const list = o.pen?.animals ?? [];
@@ -5404,6 +5497,16 @@ function buildPen(e: Entry, d: BuildingDef) {
       count = list.length;
       for (let i = 0; i < count; i++) herd.add(an?.id === 'bee' ? buildHive() : buildAnimal(an?.id ?? ''));
       if (grew) { hop.set(list[count - 1].id, t); bump(e); }
+      herdMeshes = [];
+      for (const m of herd.children) {
+        if (!m.userData.model) continue;
+        m.traverse((c) => {
+          if (!(c as THREE.Mesh).isMesh) return;
+          c.layers.set(BATCH_LAYER);
+          c.userData.lod = `animal_${an!.id}`;
+          herdMeshes.push(c as THREE.Mesh);
+        });
+      }
     }
     // feeding or collecting makes that animal hop with joy
     for (const a of list) {
@@ -5588,6 +5691,7 @@ function buildPen(e: Entry, d: BuildingDef) {
     }
     e.herdSeen = inView;
     herdMoved = inView || rebuilt;
+    if (inView && herdMeshes.length) batchDraw.push({ root: herd, meshes: herdMeshes });
   };
 }
 
