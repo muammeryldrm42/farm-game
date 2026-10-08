@@ -2122,9 +2122,11 @@
  "told by {name}": "講述者：{name}",
  "{A} {animal} family is looking for a new home. Build them {a} {name}?": "一家{animal}正在尋找新家。要為它們建一座{name}嗎？",
  "{animal} unlocks at level {n}.": "{animal} {n} 級解鎖。",
+ "{h}h {m}m": "{h}小時{m}分",
  "{item} Day": "{item}日",
  "{item} in storage:": "庫存中的{item}：",
  "{item} unlocks at level {n}.": "{item} {n} 級解鎖。",
+ "{m}m {s}s": "{m}分{s}秒",
  "{name} Dreams": "{name}之夢",
  "{name} badge bronze! +{n} gems": "{name}銅徽章！+{n} 寶石",
  "{name} badge gold! +{n} gems": "{name}金徽章！+{n} 寶石",
@@ -2146,5 +2148,6 @@
  "{n} out to graze": "{n} 只出去吃草",
  "{n} tasks left": "還剩 {n} 個任務",
  "{n}/{cap} {animal} · makes {item} every {time}": "{n}/{cap} 只{animal} · 每 {time} 產出{item}",
+ "{n}s": "{n}秒",
  "{time} left": "剩餘 {time}"
 }

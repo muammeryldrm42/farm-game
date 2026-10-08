@@ -2122,9 +2122,11 @@
  "told by {name}": "opowiada {name}",
  "{A} {animal} family is looking for a new home. Build them {a} {name}?": "Rodzina ({animal}) szuka nowego domu. Zbudujesz im to: {name}?",
  "{animal} unlocks at level {n}.": "{animal}: odblokowane na poziomie {n}.",
+ "{h}h {m}m": "{h}godz {m}min",
  "{item} Day": "Dzień: {item}",
  "{item} in storage:": "{item} w magazynie:",
  "{item} unlocks at level {n}.": "{item}: odblokowane na poziomie {n}.",
+ "{m}m {s}s": "{m}min {s}s",
  "{name} Dreams": "Marzenia o: {name}",
  "{name} badge bronze! +{n} gems": "{name}: brązowa odznaka! +{n} klejnotów",
  "{name} badge gold! +{n} gems": "{name}: złota odznaka! +{n} klejnotów",
@@ -2146,5 +2148,6 @@
  "{n} out to graze": "{n} idzie się paść",
  "{n} tasks left": "Zostało zadań: {n}",
  "{n}/{cap} {animal} · makes {item} every {time}": "{n}/{cap} {animal} · robi {item} co {time}",
+ "{n}s": "{n}s",
  "{time} left": "zostało {time}"
 }

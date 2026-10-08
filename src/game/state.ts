@@ -175,12 +175,13 @@ export function storageUsed(s: GameState, k: 'silo' | 'barn') {
   return n;
 }
 
+// a time left, short like on a game's timers, with the units of the chosen language
 export function fmtTime(ms: number) {
   const t = Math.max(0, Math.ceil(ms / 1000));
-  if (t < 60) return `${t}s`;
+  if (t < 60) return tr('{n}s', { n: t });
   const m = Math.floor(t / 60);
-  if (m < 60) return `${m}m ${t % 60}s`;
-  return `${Math.floor(m / 60)}h ${m % 60}m`;
+  if (m < 60) return tr('{m}m {s}s', { m, s: t % 60 });
+  return tr('{h}h {m}m', { h: Math.floor(m / 60), m: m % 60 });
 }
 
 export function fmtNum(n: number) {
@@ -573,10 +574,15 @@ function shiftMap(s: GameState, off: number, v: number) {
 
 export function loadGame(): GameState {
   let s: GameState | null = null;
+  let raw: string | null = null;
   try {
-    const raw = localStorage.getItem(SAVE_KEY);
+    raw = localStorage.getItem(SAVE_KEY);
     if (raw) s = migrate(JSON.parse(raw));
-  } catch { /* corrupted save, start fresh */ }
+  } catch {
+    // a save that cannot be read: the game starts fresh, but the old save is put aside first,
+    // or the first save of the new farm would write over it and nothing could bring it back
+    try { if (raw) localStorage.setItem(`${SAVE_KEY}-unreadable`, raw); } catch { /* storage full */ }
+  }
   return testBoost(s ?? newGame());
 }
 

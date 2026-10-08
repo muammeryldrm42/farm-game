@@ -2122,9 +2122,11 @@
  "told by {name}": "सुनाने वाले: {name}",
  "{A} {animal} family is looking for a new home. Build them {a} {name}?": "एक {animal} परिवार नया घर ढूँढ रहा है। क्या आप उनके लिए {name} बनाएँगे?",
  "{animal} unlocks at level {n}.": "{animal} लेवल {n} पर खुलता है।",
+ "{h}h {m}m": "{h}घं {m}मि",
  "{item} Day": "{item} दिवस",
  "{item} in storage:": "भंडार में {item}:",
  "{item} unlocks at level {n}.": "{item} लेवल {n} पर खुलता है।",
+ "{m}m {s}s": "{m}मि {s}से",
  "{name} Dreams": "{name} के सपने",
  "{name} badge bronze! +{n} gems": "{name} कांस्य बैज! +{n} रत्न",
  "{name} badge gold! +{n} gems": "{name} स्वर्ण बैज! +{n} रत्न",
@@ -2146,5 +2148,6 @@
  "{n} out to graze": "{n} चरने निकले",
  "{n} tasks left": "{n} काम बाकी",
  "{n}/{cap} {animal} · makes {item} every {time}": "{n}/{cap} {animal} · हर {time} में {item} बनाता है",
+ "{n}s": "{n}से",
  "{time} left": "{time} बाकी"
 }
