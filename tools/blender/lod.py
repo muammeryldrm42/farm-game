@@ -1,10 +1,10 @@
-# Far detail levels for the Blender animals, crops and fruit trees. Each model is read back, every
+# Far detail levels for the Blender animals, crops, fruit trees and leafy decorations. Each model is read back, every
 # part thinned out with Blender's Decimate (collapse) modifier, and written to
 # `public/models/lod/<name>.glb` with the same part names and no materials: the game swaps in only
 # this lighter geometry when the thing is far from the camera and keeps the near model's baked
 # texture, so it looks the same from afar, it just costs about a third of the triangles.
 # Run: python3 tools/blender/lod.py [names...]   (default: every public/models/animal_*.glb)
-#      python3 tools/blender/lod.py --plants     (every crop_*.glb and every fruit tree)
+#      python3 tools/blender/lod.py --plants     (every crop, fruit tree and leafy decoration)
 import glob
 import os
 import re
@@ -50,12 +50,17 @@ def thin(name):
     print(f'LOD {name}: {before} -> {after} faces')
 
 
+# leafy decorations a farm may have by the dozen, and the wild trees and bushes on new land
+# (keep in step with PLANT_LOD in src/game/render3d.ts)
+LEAFY = ['flowers', 'oak', 'pumpkin_pile', 'topiary', 'hay_bale', 'tree_obs0', 'tree_obs1', 'bush_obs0', 'bush_obs1']
+
+
 def plants():
-    """The crop models and the fruit tree models (the trees are the buildings of kind 'tree')."""
+    """The crop models, the fruit tree models (the buildings of kind 'tree') and LEAFY."""
     crops = sorted(os.path.basename(p)[:-4] for p in glob.glob(os.path.join(ROOT, 'crop_*.glb')))
     data = open(os.path.join(ROOT, '..', '..', 'src', 'game', 'data.ts'), encoding='utf-8').read()
     trees = re.findall(r"b\(\{ id: '([a-z_]+)', [^}]*kind: 'tree'", data)
-    return crops + [t for t in trees if os.path.exists(os.path.join(ROOT, f'{t}.glb'))]
+    return crops + [t for t in trees + LEAFY if os.path.exists(os.path.join(ROOT, f'{t}.glb'))]
 
 
 if __name__ == '__main__':

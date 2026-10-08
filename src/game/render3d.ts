@@ -4392,17 +4392,21 @@ function keep<T extends THREE.Object3D>(o: T) {
   o.userData.keep = true;
   return o;
 }
+// the leafy decorations and wild clutter that have far detail models (tools/blender/lod.py LEAFY)
+const PLANT_LOD = new Set(['flowers', 'oak', 'pumpkin_pile', 'topiary', 'hay_bale', 'tree_obs0', 'tree_obs1', 'bush_obs0', 'bush_obs1']);
 function useModel(e: Entry, o: FarmObject, d: BuildingDef) {
   const spec = MODELS[d.id];
   if (!spec || e.id < 0 || artStyle() !== 'toon') return;
   const g = e.root;
   const standIn = g.children.filter((c) => !c.userData.keep);
   const cx = d.w / 2, cz = d.h / 2;
-  loadModel(spec.variants ? `${d.id}${o.id % spec.variants}` : d.id).then((src) => {
+  const name = spec.variants ? `${d.id}${o.id % spec.variants}` : d.id;
+  loadModel(name).then((src) => {
     const m = src.clone();
     m.position.set(cx, 0, cz);
-    // fruit trees stand in orchards of a dozen: the far ones are drawn from their thinned twin
-    if (d.kind === 'tree') modelLod(m, d.id);
+    // fruit trees stand in orchards of a dozen, flower beds and oaks by the dozen, and new land
+    // comes wooded: the far ones are drawn from their thinned twin
+    if (d.kind === 'tree' || PLANT_LOD.has(name)) modelLod(m, name);
     // trees: the model's foliage joins the stand in's swaying crown group, beside its fruit
     const leaves = m.getObjectByName('crown');
     const crown = leaves && standIn.find((c) => c.userData.crown);
