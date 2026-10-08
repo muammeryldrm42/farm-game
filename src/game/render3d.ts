@@ -1613,6 +1613,7 @@ export class Renderer {
     if (this.warm !== 'done') {
       if (this.warm === 'cold') {
         this.warm = 'warming';
+        this.scene.add(this.warmers);
         const go = () => { this.warm = 'compiled'; };
         this.gl.compileAsync(this.scene, this.camera).then(go, go);
         setTimeout(() => { this.warm = 'done'; }, 10000);
@@ -1620,11 +1621,26 @@ export class Renderer {
       if (this.warm === 'compiled' && surfacesReady() && modelsLoading === 0) this.warm = 'done';
       else return;
     }
+    // compiled, never drawn; their materials are kept (not disposed) so the shaders stay
+    if (this.warmers.parent) this.scene.remove(this.warmers);
     if (this.post) this.post.render();
     else this.gl.render(this.scene, this.camera);
     if (this.onFirstDraw) { const f = this.onFirstDraw; this.onFirstDraw = null; f(); }
   }
   private warm: 'cold' | 'warming' | 'compiled' | 'done' = 'cold';
+  // Stand ins for what first shows during play (the sparkle of a harvest or a new building, the
+  // rain, a fishing line), compiled with the farm at start up: a shader compiled the first time
+  // it is needed is a stall of a good part of a second on a phone.
+  private warmers = (() => {
+    const g = new THREE.Group();
+    const pt = new THREE.BufferGeometry();
+    pt.setAttribute('position', new THREE.BufferAttribute(new Float32Array(6), 3));
+    g.add(new THREE.Points(pt, new THREE.PointsMaterial({ color: '#ffffff', size: 0.2, map: sparkTex(), transparent: true, depthWrite: false })));
+    g.add(new THREE.LineSegments(pt, new THREE.LineBasicMaterial({ color: '#d6e6ff', transparent: true, opacity: 0.55 })));
+    g.add(new THREE.Line(pt, new THREE.LineBasicMaterial({ color: '#ffffff' })));
+    for (const c of g.children) c.frustumCulled = false;
+    return g;
+  })();
   // called once, after the first picture of the farm is drawn (the start up cover then lifts)
   onFirstDraw: (() => void) | null = null;
 
