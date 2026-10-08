@@ -3,7 +3,7 @@ import { useEffect, useRef, useState } from 'react';
 import { GameStore, loadGame, plotProgress, type FarmObject } from '@/game/state';
 import { BUILDING } from '@/game/data';
 import { Renderer } from '@/game/render3d';
-import { sfx, startMusic, stopMusic } from '@/game/audio';
+import { sfx, sleepAudio, startMusic, stopMusic } from '@/game/audio';
 import { Capacitor } from '@capacitor/core';
 import { App } from '@capacitor/app';
 import { StoreCtx, useStore } from './ctx';
@@ -40,6 +40,7 @@ export default function Game() {
     const syncMusic = () => {
       if (unlocked && st.s.settings.music && document.visibilityState === 'visible') startMusic();
       else stopMusic();
+      if (document.visibilityState === 'hidden') sleepAudio();
     };
     const unlock = () => { unlocked = true; syncMusic(); };
     window.addEventListener('pointerdown', unlock, { once: true });

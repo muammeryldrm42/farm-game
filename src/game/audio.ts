@@ -121,3 +121,11 @@ export function stopMusic() {
 }
 
 export const musicPlaying = () => musicTimer !== null;
+
+// The game in the background: the sound output is let go once the music has faded (a running
+// context keeps the phone's audio awake, silent or not). The next sound wakes it again.
+export function sleepAudio() {
+  const a = ac;
+  if (!a || a.state !== 'running') return;
+  setTimeout(() => { if (document.visibilityState === 'hidden' && !musicTimer && a.state === 'running') void a.suspend(); }, 800);
+}
