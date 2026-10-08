@@ -385,6 +385,12 @@ interface Sparrow {
   // the middle of the bird bath it sits on the rim of
   bath?: { x: number; y: number };
 }
+// an actor's empty stand in while its model loads: what the walk and nap code reads, nothing drawn
+function actorShell() {
+  const g = new THREE.Group();
+  Object.assign(g.userData, { legs: [], signs: [], tail: new THREE.Object3D() });
+  return g;
+}
 const actor = (x: number, y: number, g: THREE.Group): Actor => ({ x, y, heading: 0, moving: false, g, phase: 0, path: [], goal: null, inside: false, sleeping: false, goHome: false, fade: 1 });
 
 // ------------------------------------------------------------------ short lived animations
@@ -677,13 +683,18 @@ export class Renderer {
       loadModel('farmhouse').catch(() => {});
       // the forest and FOR SALE signs on locked land: rebuild the land once their models are in
       for (const name of ['forest_pine', 'forest_round', 'forsale_sign', 'lod/forest_round'] as const) {
-        loadModel(name).then((m) => { WORLD_MODELS[name] = m; this.landKey = ''; }).catch(() => {});
+        loadModel(name).then((m) => { WORLD_MODELS[name] = m; this.landKey = ''; })
+          .catch(() => { if (name.startsWith('forest')) { forestFailed = true; this.landKey = ''; } });
       }
     }
     // the farmer's Blender model takes over in a moment (below): the sculpt stand in is coarse
-    this.farmer = actor(FARM_C.x - 0.5, FARM_C.y + 0.5, buildFarmer(undefined, undefined, undefined, artStyle() === 'toon'));
-    this.dog = actor(FARM_C.x + 0.5, FARM_C.y + 0.5, buildDog());
-    this.cat = actor(FARM_C.x + 1.5, FARM_C.y + 1.5, buildCat());
+    // the farmer and pets wait for their Blender models (the start up screen waits for them too);
+    // their sculpted stand ins take most of a second to make on a phone, so they are made only
+    // when a model cannot load or is slow to come
+    const toon = artStyle() === 'toon';
+    this.farmer = actor(FARM_C.x - 0.5, FARM_C.y + 0.5, toon ? actorShell() : buildFarmer());
+    this.dog = actor(FARM_C.x + 0.5, FARM_C.y + 0.5, toon ? actorShell() : buildDog());
+    this.cat = actor(FARM_C.x + 1.5, FARM_C.y + 1.5, toon ? actorShell() : buildCat());
     // grazing animals borrow the farmer's walk grid; bees look for blossoms
     GRAZE_NAV = {
       path: (sx, sy, tx, ty) => { this.rebuildNav(); return this.findPath(sx, sy, tx, ty); },
@@ -695,23 +706,24 @@ export class Renderer {
       trees: () => this.treeSpots(),
       ponds: () => this.pondSpots(),
     };
-    // the farmer and pets start as sculpts and take on their Blender models once loaded
-    if (artStyle() === 'toon') {
-      loadModel('farmer').then((m) => {
-        const fresh = farmerFromModel(m);
-        const g = this.farmer.g;
-        g.clear();
-        for (const c of [...fresh.children]) g.add(c);
-        Object.assign(g.userData, fresh.userData);
-      }).catch(() => {});
+    // the farmer and pets take on their Blender models once loaded
+    if (toon) {
+      const fill = (a: Actor, fresh: THREE.Object3D) => {
+        a.g.clear();
+        for (const c of [...fresh.children]) a.g.add(c);
+        Object.assign(a.g.userData, fresh.userData);
+        a.g.scale.copy(fresh.scale);
+        a.g.userData.filled = true;
+      };
+      // no model (or none yet after the start up screen's wait): the sculpt, until one comes
+      const fallback = (a: Actor, make: () => THREE.Object3D) => { if (!a.g.userData.filled) fill(a, make()); };
+      loadModel('farmer').then((m) => fill(this.farmer, farmerFromModel(m)))
+        .catch(() => fallback(this.farmer, () => buildFarmer(undefined, undefined, undefined, true)));
+      setTimeout(() => fallback(this.farmer, () => buildFarmer(undefined, undefined, undefined, true)), MODEL_WAIT_MS);
       for (const [kind, pet, make] of [['dog', this.dog, buildDog], ['cat', this.cat, buildCat]] as const) {
-        loadModel(`animal_${kind}`).then((m) => {
-          animalSrc.set(kind, m);
-          const fresh = make();
-          pet.g.clear();
-          for (const c of [...fresh.children]) pet.g.add(c);
-          Object.assign(pet.g.userData, fresh.userData);
-        }).catch(() => {});
+        loadModel(`animal_${kind}`).then((m) => { animalSrc.set(kind, m); fill(pet, make()); })
+          .catch(() => fallback(pet, make));
+        setTimeout(() => fallback(pet, make), MODEL_WAIT_MS);
       }
     }
     this.world.add(this.farmer.g, this.dog.g, this.cat.g);
@@ -1353,6 +1365,12 @@ export class Renderer {
         im.receiveShadow = true;
         this.addForest(im);
       }
+      this.land.add(this.dynLand);
+      return;
+    }
+    // the forest models are on their way (the start up screen waits for them): no stand in forest
+    // to make and throw away; the land is built again when they come in, or fail to
+    if (artStyle() === 'toon' && !forestFailed) {
       this.land.add(this.dynLand);
       return;
     }
@@ -4519,6 +4537,8 @@ function loadModel(name: string) {
 
 // scenery models the land builder uses once loaded (forest trees, FOR SALE sign)
 const WORLD_MODELS: Record<string, THREE.Object3D> = {};
+// a forest model could not load: the land makes its own trees after all
+let forestFailed = false;
 function firstMesh(o?: THREE.Object3D) {
   let found: THREE.Mesh | null = null;
   o?.traverse((c) => { if (!found && (c as THREE.Mesh).isMesh) found = c as THREE.Mesh; });
@@ -4646,7 +4666,10 @@ function useModel(e: Entry, o: FarmObject, d: BuildingDef) {
         }
       }
     };
-  }).catch(() => { /* keep the procedural building */ });
+  }).catch(() => {
+    // keep the procedural building, with the parts it left for the model to fill
+    g.traverse((c) => { const f = c.userData.fallback as (() => void) | undefined; if (f) { c.userData.fallback = undefined; f(); } });
+  });
 }
 
 function buildHouse(e: Entry, d: BuildingDef) {
@@ -5733,9 +5756,16 @@ function toonTree(g: P, x: number, z: number, leaf: string, k: number, seed: num
   }
   const crown = group(g, x, 0, z);
   crown.userData.crown = true;
-  const m = mk(crown, toonCrown(seed, quick ? 0.042 : 0.014), toonLeafMat(leaf), k, k, k, 0, 0, 0);
-  m.receiveShadow = true;
-  return { crown, main: m };
+  const make = () => {
+    const m = mk(crown, toonCrown(seed, quick ? 0.042 : 0.014), toonLeafMat(leaf), k, k, k, 0, 0, 0);
+    m.receiveShadow = true;
+    return m;
+  };
+  // a tree with a Blender model (quick) takes that model's foliage into this crown when it loads
+  // (see useModel): sculpting a crown for it first is costly work thrown away. It is sculpted
+  // only if the model cannot load.
+  if (quick) { crown.userData.fallback = make; return { crown, main: crown }; }
+  return { crown, main: make() };
 }
 
 function leafyTree(g: P, x: number, z: number, leaf: string, k = 1, seed = 1, quick = false) {
