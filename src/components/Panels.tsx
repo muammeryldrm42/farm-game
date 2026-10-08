@@ -1,6 +1,6 @@
 'use client';
 import Ico from './Ico';
-import { useEffect, useRef, useState, type ReactNode } from 'react';
+import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { BUILDING, BUILDINGS, CROPS, ITEMS, ITEM_LIST, RECIPES, unlocksAt, type BuildingDef } from '@/game/data';
 import {
   ACHIEVEMENTS,
@@ -987,8 +987,33 @@ function ShopModal() {
     return (d && SHOP_TABS.find((x) => x.filter(d))?.id) || 'crops';
   });
   const st = SHOP_TABS.find((x) => x.id === tab)!;
-  const list = BUILDINGS.filter((d) => d.buyable && st.filter(d)).sort((a, b) => a.level - b.level || a.cost - b.cost);
-  const crops = [...CROPS].sort((a, b) => a.level - b.level || a.seedCost - b.seedCost);
+  // The cards change with the coins, the level, the farm's buildings, the seeds in store, the
+  // pointing finger of a story task and the language, not with the clock: the game ticks every
+  // second, and redrawing a few hundred cards on every tick would make a phone stutter.
+  const s = store.s, g = store.ui.guide;
+  const seeds = CROPS.map((c) => s.inv[c.id] ?? 0).join(',');
+  const pointing = !!g && Date.now() - g.at < 60e3;
+  const cardsKey = `${tab}|${s.level}|${s.coins}|${store.objVersion}|${s.objects.length}|${seeds}|${pointing ? `${g!.id}@${g!.at}` : ''}|${getLang()}`;
+  const cards = useMemo(() => {
+    const list = BUILDINGS.filter((d) => d.buyable && st.filter(d)).sort((a, b) => a.level - b.level || a.cost - b.cost);
+    const crops = [...CROPS].sort((a, b) => a.level - b.level || a.seedCost - b.seedCost);
+    return (
+      <>
+        <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 md:grid-cols-4">
+          {list.map((d) => <ShopCard key={d.id} d={d} />)}
+        </div>
+        {tab === 'crops' && (
+          <>
+            <h3 className="mb-2 mt-4 text-center font-bold text-[#6b4226]">{t('Crops you can grow')}</h3>
+            <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 md:grid-cols-4">
+              {crops.map((c) => <CropCard key={c.id} id={c.id} />)}
+            </div>
+          </>
+        )}
+      </>
+    );
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [cardsKey]);
   return (
     <Modal title={t('Shop')} icon="🛒" onClose={() => store.openPanel(null)} wide>
       <div className="mb-3 flex gap-1.5 overflow-x-auto pb-1">
@@ -999,17 +1024,7 @@ function ShopModal() {
         ))}
       </div>
       {st.hint && <p className="mb-2 text-center text-xs text-[#8a6a44]">{t(st.hint)}</p>}
-      <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 md:grid-cols-4">
-        {list.map((d) => <ShopCard key={d.id} d={d} />)}
-      </div>
-      {tab === 'crops' && (
-        <>
-          <h3 className="mb-2 mt-4 text-center font-bold text-[#6b4226]">{t('Crops you can grow')}</h3>
-          <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 md:grid-cols-4">
-            {crops.map((c) => <CropCard key={c.id} id={c.id} />)}
-          </div>
-        </>
-      )}
+      {cards}
     </Modal>
   );
 }
