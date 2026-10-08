@@ -568,7 +568,7 @@ export class Renderer {
   private land = new THREE.Group();
   private fxLayer = new THREE.Group();
   private entries = new Map<number, Entry>();
-  private syncKey = '';
+  private syncKey = -1;
   private landKey = '';
   private tiles!: THREE.InstancedMesh;
   private sea!: THREE.Mesh;
@@ -613,6 +613,8 @@ export class Renderer {
     this.gl.toneMappingExposure = 0.9;
     this.scene.fog = new THREE.Fog('#8fd3f5', 60, 140);
     this.scene.background = this.bg;
+    // frame() works out the scene's matrices itself, once, before drawing
+    this.scene.matrixWorldAutoUpdate = false;
     this.scene.add(this.sky.mesh);
     this.buildEnvironment();
     // Android may take the GPU from an app in the background. three.js uploads the models and
@@ -1424,7 +1426,7 @@ export class Renderer {
 
   private sync() {
     const s = this.store.s;
-    const key = `${this.store.objVersion}|${s.objects.length}`;
+    const key = this.store.objVersion * 1e5 + s.objects.length;
     if (key === this.syncKey) return;
     this.syncKey = key;
     const first = !this.synced;
@@ -1589,6 +1591,9 @@ export class Renderer {
     this.updateLight(now, t, wk);
 
     this.sky.mesh.position.copy(this.camera.position);
+    // the scene's matrices, once a frame: the shadow blobs read them, and the renderer (and each
+    // pass of the high quality effects) does not work them all out again
+    this.scene.updateMatrixWorld();
     drawBlobs(this.scene);
     // the first picture waits until the scene's shaders are compiled in the background (in
     // parallel where the browser can): no long freeze at start up on a phone, and the page stays
@@ -2346,11 +2351,11 @@ export class Renderer {
   }
 
   // blossoms for the bees: flower beds and arches, flowering crops, fruit trees
-  private flowerKey = '';
+  private flowerKey = -1;
   private flowerList: { x: number; y: number }[] = [];
   private flowerSpots() {
     const s = this.store.s;
-    const key = `${this.store.objVersion}|${s.objects.length}`;
+    const key = this.store.objVersion * 1e5 + s.objects.length;
     if (key !== this.flowerKey) {
       this.flowerKey = key;
       this.flowerList = [];
@@ -2365,11 +2370,11 @@ export class Renderer {
   }
 
   // roof ridges a bird may perch on: the middle of each building with walls and its height
-  private roofKey = '';
+  private roofKey = -1;
   private roofList: { id: number; x: number; y: number; h: number }[] = [];
   private roofSpots() {
     const s = this.store.s;
-    const key = `${this.store.objVersion}|${s.objects.length}`;
+    const key = this.store.objVersion * 1e5 + s.objects.length;
     if (key !== this.roofKey) {
       this.roofKey = key;
       this.roofList = [];
@@ -2384,11 +2389,11 @@ export class Renderer {
   }
 
   // garden ponds a duck may swim on: their middle, how far it can paddle about, the water level
-  private pondKey = '';
+  private pondKey = -1;
   private pondList: { x: number; y: number; r: number; surf: number }[] = [];
   private pondSpots() {
     const s = this.store.s;
-    const key = `${this.store.objVersion}|${s.objects.length}`;
+    const key = this.store.objVersion * 1e5 + s.objects.length;
     if (key !== this.pondKey) {
       this.pondKey = key;
       this.pondList = [];
@@ -2401,11 +2406,11 @@ export class Renderer {
   }
 
   // trees a bird may sit in: fruit trees and the wild trees still standing on the farm
-  private treeKey = '';
+  private treeKey = -1;
   private treeList: { id: number; x: number; y: number }[] = [];
   private treeSpots() {
     const s = this.store.s;
-    const key = `${this.store.objVersion}|${s.objects.length}`;
+    const key = this.store.objVersion * 1e5 + s.objects.length;
     if (key !== this.treeKey) {
       this.treeKey = key;
       this.treeList = [];
@@ -3505,7 +3510,6 @@ function drawBlobs(scene: THREE.Scene) {
     }
     b.userData.lostAt = undefined;
     if (!shown) continue;
-    b.updateWorldMatrix(true, false);
     blobBatch.setMatrixAt(n++, b.matrixWorld);
   }
   blobBatch.count = n;
@@ -4817,7 +4821,8 @@ let GRAZE_NAV: {
 } | null = null;
 
 interface Trip { out: P2[]; eat: P2[][]; back: P2[]; recall?: { at: number; path: P2[] } }
-const trips = new Map<string, Trip>();
+// each grazing animal's trip, worked out once a trip (and again if its pen is moved)
+const trips = new WeakMap<Animal, { o: number; x: number; y: number; rot: number; at: number; tr: Trip }>();
 
 function polyLen(pts: P2[]) {
   let L = 0;
@@ -4859,8 +4864,8 @@ function turnPt(o: FarmObject, d: BuildingDef, p: P2): P2 {
 
 function tripFor(o: FarmObject, d: BuildingDef, a: Animal): Trip | null {
   if (!a.graze || !GRAZE_NAV) return null;
-  const key = `${o.id}|${o.x},${o.y},${o.rot ?? 0}|${a.id}|${a.graze.at}`;
-  let tr = trips.get(key);
+  const c = trips.get(a);
+  let tr = c && c.o === o.id && c.x === o.x && c.y === o.y && c.rot === (o.rot ?? 0) && c.at === a.graze.at ? c.tr : null;
   if (!tr) {
     const sp = animalSpot(o, d, a.id, a.graze.at);
     const home = { x: o.x + sp.x, y: o.y + sp.z };
@@ -4888,8 +4893,7 @@ function tripFor(o: FarmObject, d: BuildingDef, a: Animal): Trip | null {
     const eat = [walk(spots[0], spots[1]), walk(spots[1], spots[2])];
     const back = [...walk(spots[2], gateOut), gateIn, home2];
     tr = { out, eat, back };
-    if (trips.size > 400) trips.clear();
-    trips.set(key, tr);
+    trips.set(a, { o: o.id, x: o.x, y: o.y, rot: o.rot ?? 0, at: a.graze.at, tr });
   }
   return tr;
 }
@@ -5058,13 +5062,23 @@ function gateOpen(o: FarmObject, now: number) {
   return Math.max(0, open);
 }
 
+// the flowers within a hive's reach, by the hive's spot; kept until the farm's flowers change
+const beeNear = { fl: null as P2[] | null, at: new Map<number, P2[]>() };
+function flowersNear(fl: P2[], cx: number, cy: number) {
+  if (beeNear.fl !== fl) { beeNear.fl = fl; beeNear.at.clear(); }
+  const key = cx * 4096 + cy;
+  let near = beeNear.at.get(key);
+  if (!near) { near = fl.filter((f) => Math.hypot(f.x - cx, f.y - cy) < 9); beeNear.at.set(key, near); }
+  return near;
+}
+const HIVE_SLOTS = [[0.5, 0.5], [1.5, 0.5], [0.5, 1.5], [1.5, 1.5]] as const;
+
 // the bees of a hive fly (straight, they can) to flowers near the pen and back
 function beePose(o: FarmObject, a: Animal, k: number, now: number) {
   const gp = grazePhase(a, now, true);
   if (gp.phase === 'in' || gp.phase === 'home' || gp.phase === 'full') return null;
-  const fl = GRAZE_NAV?.flowers() ?? [];
   const cx = o.x + 1, cy = o.y + 1;
-  const near = fl.filter((f) => Math.hypot(f.x - cx, f.y - cy) < 9);
+  const near = flowersNear(GRAZE_NAV?.flowers() ?? NO_SPOTS, cx, cy);
   const pick = near.length ? near[Math.floor(hash(a.id, k, 7) * near.length)]
     : { x: cx + (hash(a.id, k, 3) - 0.5) * 6, y: o.y + 2.5 + hash(a.id, k, 4) * 3 };
   const target = { x: pick.x + (hash(k, a.id, 9) - 0.5) * 0.5, y: pick.y + (hash(a.id, k, 11) - 0.5) * 0.5 };
@@ -5317,11 +5331,25 @@ function buildPen(e: Entry, d: BuildingDef) {
   const herdFx = keep(group(g));
   herd.userData.fx = herdFx;
   e.counter = [herd, herdFx];
+  // The animals of a pen out of view are moved only now and then (see frame), and stand still
+  // in between: their matrices are worked out again only after a move, or when the pen itself
+  // moves (placed, bounced). On a farm full of pens that is most of the scene's matrix work.
+  let herdMoved = true;
+  const herdAt = new THREE.Matrix4();
+  herd.updateMatrixWorld = function (force?: boolean) {
+    const pm = this.parent?.matrixWorld;
+    if (!herdMoved && pm && pm.equals(herdAt)) return;
+    herdMoved = false;
+    if (pm) herdAt.copy(pm);
+    THREE.Object3D.prototype.updateMatrixWorld.call(this, true);
+    void force;
+  };
   let count = -1, ver = -1;
   const an = ANIMAL[d.animal ?? ''];
   const fed = new Map<number, number | null>();
   const hop = new Map<number, number>();
   e.update = (o, now, t, dt = 0.016) => {
+    herdMoved = true;
     const list = o.pen?.animals ?? [];
     // sculpting a new kind takes a moment, so at most one new kind is sculpted per frame;
     // a farm full of pens fills in over a few frames instead of freezing on load
@@ -5358,8 +5386,7 @@ function buildPen(e: Entry, d: BuildingDef) {
       }
       if (an && a && animalReady(a, an.time, now)) jump += Math.max(0, Math.sin(t / 170 + id)) * 0.03 * (Math.sin(t / 1900 + id) > 0.6 ? 1 : 0);
       if (an?.id === 'bee') {
-        const slots = [[0.5, 0.5], [1.5, 0.5], [0.5, 1.5], [1.5, 1.5]];
-        const [x, z] = slots[i % 4];
+        const [x, z] = HIVE_SLOTS[i % 4];
         m.position.set(x, 0.04 + jump * 0.3, z);
         const bees = m.userData.bees as THREE.Group;
         bees.children.forEach((b, k) => {
