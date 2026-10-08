@@ -176,6 +176,7 @@ item('feather_pillow', 'Feather Pillow', '🛏️', 'barn', 230, 16);
 item('bread', 'Bread', '🍞', 'barn', 16, 1);
 item('corn_muffin', 'Corn Muffin', '🧁', 'barn', 60, 4);
 item('cookie', 'Cookie', '🍪', 'barn', 75, 7);
+item('bone_biscuit', 'Bone Biscuit', '🦴', 'barn', 30, 2);
 item('pumpkin_pie', 'Pumpkin Pie', '🥧', 'barn', 140, 11);
 item('cream', 'Cream', '🍦', 'barn', 45, 5);
 item('butter', 'Butter', '🧈', 'barn', 75, 6);
@@ -1039,6 +1040,8 @@ function recipe(id: string, building: string, inputs: Record<string, number>, ti
 recipe('bread', 'bakery', { wheat: 3 }, 45, 3, 1);
 recipe('corn_muffin', 'bakery', { corn: 2, egg: 2 }, 120, 7, 4);
 recipe('cookie', 'bakery', { wheat: 2, egg: 1, sugar: 1 }, 180, 9, 7);
+// a bone shaped biscuit for the dog: the farm has no meat, so this is his treat
+recipe('bone_biscuit', 'bakery', { wheat: 2, egg: 1 }, 60, 3, 2);
 recipe('pumpkin_pie', 'bakery', { pumpkin: 2, egg: 1, wheat: 2 }, 300, 14, 11);
 
 recipe('chicken_feed', 'feed_mill', { wheat: 2, corn: 1 }, 20, 1, 2, 3);

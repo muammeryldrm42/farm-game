@@ -125,7 +125,7 @@ export const PET: Record<PetId, { name: string; kind: string; icon: string; food
     job: 'keeps the mice off the fields: a chance of an extra crop at every harvest', search: 'is off prowling the farm',
   },
   dog: {
-    name: 'Buddy', kind: 'Dog', icon: '🐕', foods: ['egg', 'cheese'], finds: DOG_FINDS,
+    name: 'Buddy', kind: 'Dog', icon: '🐕', foods: ['bone_biscuit', 'cheese'], finds: DOG_FINDS,
     job: 'keeps the herds together: a chance of an extra product from every pen', search: 'is off digging somewhere',
   },
 };

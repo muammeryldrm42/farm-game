@@ -141,7 +141,9 @@ export class BlockBatch {
       const on = view.intersectsSphere(blocks[b].sphere) ? 1 : 0;
       if (on !== this.shown[b]) { this.shown[b] = on; changed = true; }
     }
-    if (!changed) return;
+    // the same blocks as last time: the batch is as it was, but shown again (the small meadow
+    // batches are hidden while the camera is far out, and must come back as it zooms in)
+    if (!changed) { this.mesh.visible = this.mesh.count > 0; return; }
     const m = this.mesh.instanceMatrix.array as Float32Array;
     const c = this.mesh.instanceColor ? (this.mesh.instanceColor.array as Float32Array) : null;
     let o = 0;
@@ -164,10 +166,12 @@ export interface Culled { cull(view: THREE.Frustum, shadow: THREE.Frustum | null
 // Culls a big batch (already added to its parent) by blocks. A batch that casts shadow gets a
 // twin on layer 2, which only the sun's shadow camera sees: the twin draws the blocks inside the
 // shadow box, the batch itself only the blocks on screen. Light batches cost less drawn whole.
+// (A map wide batch of some tens of thousands of triangles is not light: most of it is out of
+// view, yet a phone's GPU would still work through every one of its corners.)
 export function blockBatch(im: THREE.InstancedMesh): Culled | null {
   const g = im.geometry;
   const tris = ((g.index ? g.index.count : g.getAttribute('position').count) / 3) * im.count;
-  if (tris < 100000) return null;
+  if (tris < 20000) return null;
   if (!im.castShadow || !im.parent) {
     const b = new BlockBatch(im);
     return { cull: (view) => b.cull(view) };
@@ -339,9 +343,9 @@ function painted(src: THREE.BufferGeometry, color: string) {
   return g;
 }
 
-// a soft rounded petal or leaf: a squashed sphere pushed out along +x
-function blade(len: number, wid: number, thick: number) {
-  const g = new THREE.SphereGeometry(1, 6, 4);
+// a soft rounded petal or leaf: a squashed sphere pushed out along +x (`lite`: a coarser one)
+function blade(len: number, wid: number, thick: number, lite = false) {
+  const g = lite ? new THREE.SphereGeometry(1, 4, 2) : new THREE.SphereGeometry(1, 6, 4);
   g.scale(len, thick, wid);
   g.translate(len, 0, 0);
   return g;
@@ -353,12 +357,14 @@ export function flowerKit(kind: FlowerKind, petal: string, h = 0.22, lite = fals
   const hit = kitCache.get(key);
   if (hit) return hit;
   const parts: THREE.BufferGeometry[] = [];
-  const stem = new THREE.CylinderGeometry(0.006, 0.009, h, 4);
+  // lite: the stem a three sided tube with no ends (its ends are hidden in the ground and the
+  // florets) and coarser leaves; a lupine is a few pixels tall on a phone, its leaves less than one
+  const stem = lite ? new THREE.CylinderGeometry(0.006, 0.009, h, 3, 1, true) : new THREE.CylinderGeometry(0.006, 0.009, h, 4);
   stem.translate(0, h / 2, 0);
   parts.push(painted(stem, '#3f8f2c'));
   // two leaves on the stem, angled up and out
   for (const [a, y] of [[0.4, 0.3], [3.5, 0.5]] as const) {
-    const lf = blade(0.045, 0.018, 0.005);
+    const lf = blade(0.045, 0.018, 0.005, lite);
     lf.rotateZ(0.5);
     lf.rotateY(a);
     lf.translate(0, h * y, 0);

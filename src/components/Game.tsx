@@ -116,12 +116,21 @@ function FarmCanvas() {
     let raf = 0;
     // at most 60 frames a second (30 with the battery saver): a 120 Hz phone would otherwise draw
     // twice as often, for twice the heat and battery, with nothing more to see
-    let last = 0;
+    // A screen no faster than the cap draws every frame. A faster one keeps to a fixed beat: on a
+    // 90 Hz screen that is two drawn of every three (a steady 60), where simply waiting a frame's
+    // time after the last one would draw every other (45). After a slow frame the beat moves on
+    // instead of rushing to catch up.
+    let last = 0, prev = 0, avg = 1000 / 60;
     const loop = (t: number) => {
       raf = requestAnimationFrame(loop);
+      // the screen's own frame time, smoothed
+      if (prev) avg += (Math.min(100, t - prev) - avg) * 0.05;
+      prev = t;
       const gap = store.s.settings.saver ? 1000 / 30 : 1000 / 60;
-      if (t - last < gap - 4) return;
-      last = t;
+      if (avg < gap - 1.5) {
+        if (t - last < gap - 4) return;
+        last = Math.max(last + gap, t - gap);
+      } else last = t;
       r.frame(t);
     };
     raf = requestAnimationFrame(loop);
@@ -260,18 +269,24 @@ function FarmCanvas() {
           store.spotCreature(hitPick.creature.kind);
           r.startle(hitPick.creature);
         } else if (hitObj) {
-          // the farmer walks over to whatever you tap
-          store.wake();
-          r.walkToObject(hitObj);
+          // tapping a building, pen, field or decoration opens it; the farmer stays where he is.
+          // Only a path is ground to walk on.
+          if (hitObj.type === 'dirt_path' || hitObj.type === 'stone_path') {
+            store.wake();
+            r.walkTo(hitObj.x, hitObj.y);
+          }
           store.tapObject(hitObj);
         }
         else if (hitSpot === 'fishing') store.tapFishing('lake');
         else if (hitSpot === 'seaFishing') store.tapFishing('sea');
         else if (hitSpot === 'visitor') store.tapVisitor();
         else {
-          // tapping free farmland sends the farmer (and the dog) walking there
-          store.wake();
-          r.walkTo(hitTile.x, hitTile.y);
+          // tapping empty farmland sends the farmer (and the dog) walking there; land still for
+          // sale is no place to walk to
+          if (store.isUnlocked(hitTile.x, hitTile.y)) {
+            store.wake();
+            r.walkTo(hitTile.x, hitTile.y);
+          }
           store.tapTile(hitTile.x, hitTile.y);
         }
       }

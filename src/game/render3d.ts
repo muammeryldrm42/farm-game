@@ -539,6 +539,14 @@ const PEN_GROUND: Record<string, string> = {
   guinea_run: '#d9c08a', swan_lake: '#8fc45a', emu_ranch: '#d8c38e', reindeer_lodge: '#eef3f6', bison_range: '#b8a46c', flamingo_lagoon: '#e8d8a8', golden_nest: '#e8d49a',
 };
 
+// The sea near the island, divided finely enough for its gentle swell. The longest of its waves
+// is some 25 tiles and the shortest 10, and none is higher than a tenth of a tile: low quality
+// keeps 7 points along the shortest wave, which looks the same, at a quarter of the triangles.
+const seaGeos: Partial<Record<Quality, THREE.PlaneGeometry>> = {};
+function seaGeo(q: Quality) {
+  return (seaGeos[q] ??= new THREE.PlaneGeometry(GRID + 60, GRID + 60, q === 'high' ? 180 : 96, q === 'high' ? 180 : 96));
+}
+
 // ------------------------------------------------------------------ renderer
 
 export class Renderer {
@@ -719,6 +727,7 @@ export class Renderer {
       this.sun.shadow.map = null as unknown as THREE.WebGLRenderTarget;
     }
     this.sun.shadow.radius = high ? 2.2 : 1.5;
+    if (this.sea && this.sea.geometry !== seaGeo(q)) this.sea.geometry = seaGeo(q);
     if (high && !this.post) this.post = new Post(this.gl, this.scene, this.camera, [this.sky.mesh, this.fxLayer, this.foliage.group]);
     if (!high && this.post) { this.post.dispose(); this.post = null; }
     this.foliageKey = '';
@@ -890,7 +899,7 @@ export class Renderer {
     // island rectangle including the beach, used for shallow water and surf
     const seaMat = makeWater({ sea: true, rect: [-BEACH, -BEACH, GRID + BEACH, GRID + BEACH], shallow: '#62d9d2', deep: '#1f78c2', cove: [COVE.x, COVE.z, COVE.rx, COVE.rz] });
     // finely divided near the island so the swell can move the surface, flat far away
-    this.sea = new THREE.Mesh(new THREE.PlaneGeometry(GRID + 60, GRID + 60, 180, 180), seaMat);
+    this.sea = new THREE.Mesh(seaGeo(this.quality), seaMat);
     this.sea.rotation.x = -Math.PI / 2;
     this.sea.position.set(GRID / 2, -0.55, GRID / 2);
     this.sea.receiveShadow = true;
@@ -1989,7 +1998,7 @@ export class Renderer {
   // so neither walks through buildings.
 
   private nav = new Uint8Array(GRID * GRID); // 1 = blocked
-  private navKey = '';
+  private navKey = { land: '\u0000', ver: -1, n: -1 };
   private marker: THREE.Mesh | null = null;
   private markerT = 0;
   private homeZzz: THREE.Sprite | null = null;
@@ -2383,9 +2392,11 @@ export class Renderer {
 
   private rebuildNav() {
     const s = this.store.s;
-    const key = `${this.landKey}|${this.store.objVersion}|${s.objects.length}`;
-    if (key === this.navKey) return false;
-    this.navKey = key;
+    // asked many times a frame (grazing animals, birds, the farmer): compare the parts one by one
+    // rather than gluing the long land key into a fresh string every call
+    const nk = this.navKey;
+    if (nk.land === this.landKey && nk.ver === this.store.objVersion && nk.n === s.objects.length) return false;
+    nk.land = this.landKey; nk.ver = this.store.objVersion; nk.n = s.objects.length;
     this.nav.fill(0);
     for (let y = 0; y < GRID; y++) for (let x = 0; x < GRID; x++) {
       // locked land, and the lake's water (its bank is for walking)
@@ -2532,11 +2543,6 @@ export class Renderer {
     this.roam = false;
   }
 
-  // walk up to a building: to the free tile nearest the middle of its front
-  walkToObject(o: FarmObject) {
-    const d = footprint(o);
-    this.walkTo(o.x + Math.floor(d.w / 2), o.y + d.h);
-  }
 
   private sendNear(a: Actor, tx: number, ty: number) {
     const cands: { x: number; y: number; d: number }[] = [];
@@ -3500,24 +3506,25 @@ function lodMesh(m: THREE.Mesh, kind: string, part: LodPart) {
   };
 }
 
-// Level of detail for the Blender animals: each has a thinned twin (tools/blender/lod.py, about a
-// third of the triangles) used while the animal is far from the camera. Only the geometry is
-// swapped, so the far animal keeps its baked coat. Close up (on any quality) the full model shows.
+// Level of detail for the Blender animals, crops and fruit trees: each has a thinned twin
+// (tools/blender/lod.py, about a third of the triangles) used while it is far from the camera.
+// Only the geometry is swapped, so the far one keeps its baked texture. Close up (on any quality)
+// the full model shows. `name` is the model's file name (animal_cow, crop_wheat, apple_tree).
 const modelLodSrc = new Map<string, Map<string, THREE.BufferGeometry> | null>();
-function modelLodGeos(kind: string) {
+function modelLodGeos(name: string) {
   // the far models are only a saving: they never queue ahead of the farm's own models, and come
   // in a few at a time (the full model stays until its twin arrives)
-  if (!modelLodSrc.has(kind) && modelsLoading < 3) {
-    modelLodSrc.set(kind, null);
-    loadModel(`lod/animal_${kind}`).then((m) => {
+  if (!modelLodSrc.has(name) && modelsLoading < 3) {
+    modelLodSrc.set(name, null);
+    loadModel(`lod/${name}`).then((m) => {
       const map = new Map<string, THREE.BufferGeometry>();
       m.traverse((o) => { if ((o as THREE.Mesh).isMesh) map.set(o.name, (o as THREE.Mesh).geometry); });
-      modelLodSrc.set(kind, map);
+      modelLodSrc.set(name, map);
     }).catch(() => { /* no far model: the full one stays */ });
   }
-  return modelLodSrc.get(kind) ?? null;
+  return modelLodSrc.get(name) ?? null;
 }
-function modelLod(g: THREE.Object3D, kind: string) {
+function modelLod(g: THREE.Object3D, name: string) {
   g.traverse((o) => {
     const m = o as THREE.Mesh;
     if (!m.isMesh || m.onBeforeRender.length || o === g.userData.shadow) return;
@@ -3527,7 +3534,7 @@ function modelLod(g: THREE.Object3D, kind: string) {
       const d = cam.position.distanceTo(lodPos.setFromMatrixPosition(m.matrixWorld));
       const want = far ? d > LOD_NEAR * lodScale : d > LOD_FAR * lodScale;
       if (want === far) return;
-      const geo = want ? modelLodGeos(kind)?.get(m.name) : full;
+      const geo = want ? modelLodGeos(name)?.get(m.name) : full;
       if (!geo) return;
       far = want;
       m.geometry = geo;
@@ -3682,7 +3689,7 @@ function assemble(kind: string) {
   const src = animalModel(kind);
   if (src) {
     const g = assembleModel(src);
-    modelLod(g, kind);
+    modelLod(g, `animal_${kind}`);
     return g;
   }
   const g = new THREE.Group();
@@ -3758,16 +3765,27 @@ function realEyeGeo(r: number, sx: number, lid: string) {
   realEyeCache.set(key, g);
   return g;
 }
+// Both eyes in one mesh, each turned out by its yaw and set to its side. The pair hangs at the
+// eyes' height, so the blink (squashing it top to bottom) closes each eye about its own middle,
+// just as when every eye had its own mesh: one draw for both eyes, not two.
+const realPairCache = new Map<string, THREE.BufferGeometry>();
+function realEyePairGeo(x: number, z: number, r: number, yaw: number, lid: string) {
+  const key = `${x.toFixed(4)}|${z.toFixed(4)}|${r.toFixed(4)}|${yaw.toFixed(4)}|${lid}`;
+  let g = realPairCache.get(key);
+  if (g) return g;
+  const m = new THREE.Matrix4(), rot = new THREE.Matrix4();
+  g = mergeGeometries([-1, 1].map((sx) => realEyeGeo(r, sx, lid).clone()
+    .applyMatrix4(m.makeTranslation(sx * x, 0, z).multiply(rot.makeRotationY(sx * yaw))))) as THREE.BufferGeometry;
+  realPairCache.set(key, g);
+  return g;
+}
 function realEyes(head: THREE.Object3D, spec: [number, number, number, number, number], lid: string) {
   const [x, y, z, r, yaw] = spec;
   const list: THREE.Object3D[] = (head.userData.eyes as THREE.Object3D[] | undefined) ?? [];
-  for (const sx of [-1, 1]) {
-    const e = group(head, sx * x, y, z);
-    e.rotation.y = sx * yaw;
-    // eyeball, catch light and lid rim baked into one small mesh: one draw per eye, not three
-    mk(e, realEyeGeo(r, sx, lid), EYE_REAL_MERGED, 1, 1, 1, 0, 0, 0, false);
-    list.push(e);
-  }
+  const e = group(head, 0, y, 0);
+  // eyeball, catch light and lid rim of both eyes baked into one small mesh
+  mk(e, realEyePairGeo(x, z, r, yaw, lid), EYE_REAL_MERGED, 1, 1, 1, 0, 0, 0, false);
+  list.push(e);
   head.userData.eyes = list;
 }
 
@@ -3921,6 +3939,30 @@ function skepGeo() {
 }
 
 let hiveSrc: THREE.Object3D | null = null;
+// A bee's yellow body and dark band baked into one small mesh with the colors in its vertices:
+// one draw instead of two for every bee buzzing round a hive.
+const BEE_MAT = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.78, metalness: 0 });
+let beeGeo: THREE.BufferGeometry | null = null;
+function beeBodyGeo() {
+  if (beeGeo) return beeGeo;
+  const m = new THREE.Matrix4(), c = new THREE.Color();
+  const parts: [string, number, number, number, number][] = [
+    ['#f5c518', 0.018 * 0.9, 0.018 * 0.9, 0.018 * 1.3, 0],
+    ['#2a1a10', 0.019 * 0.85, 0.019 * 0.85, 0.019 * 0.35, -0.008],
+  ];
+  beeGeo = mergeGeometries(parts.map(([col, a, b, d, z]) => {
+    const p = G.ball.index ? G.ball.toNonIndexed() : G.ball.clone();
+    p.applyMatrix4(m.makeScale(a, b, d).setPosition(0, 0, z));
+    for (const k of Object.keys(p.attributes)) if (k !== 'position' && k !== 'normal') p.deleteAttribute(k);
+    c.set(col);
+    const n = p.getAttribute('position').count, arr = new Float32Array(n * 3);
+    for (let i = 0; i < n; i++) { arr[i * 3] = c.r; arr[i * 3 + 1] = c.g; arr[i * 3 + 2] = c.b; }
+    p.setAttribute('color', new THREE.BufferAttribute(arr, 3));
+    return p;
+  })) as THREE.BufferGeometry;
+  return beeGeo;
+}
+
 function buildHive() {
   const g = new THREE.Group();
   if (artStyle() === 'toon' && !hiveSrc && !modelCache.has('beehive_skep')) {
@@ -3939,8 +3981,8 @@ function buildHive() {
   const bees = group(g);
   for (let i = 0; i < 4; i++) {
     const b = group(bees);
-    ball(b, 0.018, '#f5c518', 0, 0, 0, 0.9, 0.9, 1.3, false);
-    ball(b, 0.019, '#2a1a10', 0, 0, -0.008, 0.85, 0.85, 0.35, false);
+    // the striped body is one mesh; the two wings (children 1 and 2) flap on their own
+    mk(b, beeBodyGeo(), BEE_MAT, 1, 1, 1, 0, 0, 0, false);
     ball(b, 0.014, '#e8f4ff', 0.012, 0.016, 0, 1.2, 0.35, 0.8, false);
     ball(b, 0.014, '#e8f4ff', -0.012, 0.016, 0, 1.2, 0.35, 0.8, false);
   }
@@ -4043,7 +4085,10 @@ function plantModel(cd: CropDef) {
   if (src) {
     const g = new THREE.Group();
     const fruit: THREE.Mesh[] = [];
-    for (const c of [...src.clone().children]) {
+    // a field of crops is a lot of plants: the far ones are drawn from their thinned twin
+    const plant = src.clone();
+    modelLod(plant, `crop_${cd.id}`);
+    for (const c of [...plant.children]) {
       g.add(c);
       if (c.name === 'fruit' && (c as THREE.Mesh).isMesh) {
         const f = c as THREE.Mesh;
@@ -4347,15 +4392,21 @@ function keep<T extends THREE.Object3D>(o: T) {
   o.userData.keep = true;
   return o;
 }
+// the leafy decorations and wild clutter that have far detail models (tools/blender/lod.py LEAFY)
+const PLANT_LOD = new Set(['flowers', 'oak', 'pumpkin_pile', 'topiary', 'hay_bale', 'tree_obs0', 'tree_obs1', 'bush_obs0', 'bush_obs1']);
 function useModel(e: Entry, o: FarmObject, d: BuildingDef) {
   const spec = MODELS[d.id];
   if (!spec || e.id < 0 || artStyle() !== 'toon') return;
   const g = e.root;
   const standIn = g.children.filter((c) => !c.userData.keep);
   const cx = d.w / 2, cz = d.h / 2;
-  loadModel(spec.variants ? `${d.id}${o.id % spec.variants}` : d.id).then((src) => {
+  const name = spec.variants ? `${d.id}${o.id % spec.variants}` : d.id;
+  loadModel(name).then((src) => {
     const m = src.clone();
     m.position.set(cx, 0, cz);
+    // fruit trees stand in orchards of a dozen, flower beds and oaks by the dozen, and new land
+    // comes wooded: the far ones are drawn from their thinned twin
+    if (d.kind === 'tree' || PLANT_LOD.has(name)) modelLod(m, name);
     // trees: the model's foliage joins the stand in's swaying crown group, beside its fruit
     const leaves = m.getObjectByName('crown');
     const crown = leaves && standIn.find((c) => c.userData.crown);
@@ -5266,16 +5317,16 @@ function buildPen(e: Entry, d: BuildingDef) {
             b.position.set(bp.x - o.x - x, bp.h + (bp.landed ? 0 : Math.sin(t / 150 + k) * 0.03), bp.y - o.y - z);
             b.rotation.y = t / 300 + k;
             const f2 = Math.sin(t / 18 + k) * (bp.landed ? 0.2 : 0.6);
-            b.children[2].rotation.z = f2;
-            b.children[3].rotation.z = -f2;
+            b.children[1].rotation.z = f2;
+            b.children[2].rotation.z = -f2;
             return;
           }
           const ang = t / (400 + k * 90) + k * 2 + id;
           b.position.set(Math.cos(ang) * (0.25 + k * 0.05), 0.35 + Math.sin(t / 300 + k) * 0.08, Math.sin(ang) * (0.25 + k * 0.05));
           b.rotation.y = -ang;
           const flap = Math.sin(t / 18 + k) * 0.6;
-          b.children[2].rotation.z = flap;
-          b.children[3].rotation.z = -flap;
+          b.children[1].rotation.z = flap;
+          b.children[2].rotation.z = -flap;
         });
         return;
       }
