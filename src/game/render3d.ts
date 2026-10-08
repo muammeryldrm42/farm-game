@@ -421,6 +421,8 @@ function bareClone(src: THREE.Object3D) {
 function popOut(src: THREE.Object3D, delay = 0, height = 1.3) {
   src.updateWorldMatrix(true, true);
   const c = bareClone(src);
+  // a crop's plants are drawn in batches, off the camera's layer: the copy is drawn by itself
+  c.traverse((o) => { if (o.layers.isEnabled(CROP_LAYER)) o.layers.set(0); });
   src.getWorldPosition(c.position);
   src.getWorldQuaternion(c.quaternion);
   src.getWorldScale(c.scale);
@@ -594,6 +596,7 @@ export class Renderer {
   private night!: NightLife;
   private sky = new Sky();
   private foliage = new Foliage();
+  private crops!: CropBatches;
   private foliageKey = '';
   private post: Post | null = null;
   private quality: Quality = getQuality();
@@ -630,6 +633,7 @@ export class Renderer {
     // frame() works out the scene's matrices itself, once, before drawing
     this.scene.matrixWorldAutoUpdate = false;
     this.scene.add(this.sky.mesh);
+    this.crops = new CropBatches(this.scene);
     this.buildEnvironment();
     // Android may take the GPU from an app in the background. three.js uploads the models and
     // textures again by itself; the sky light, drawn once, is drawn again here (or the farm
@@ -1564,6 +1568,7 @@ export class Renderer {
     this.projM.multiplyMatrices(this.camera.projectionMatrix, this.camera.matrixWorldInverse);
     this.frustum.setFromProjectionMatrix(this.projM);
     VIEW = this.frustum;
+    cropDraw.length = 0;
     for (const o of s.objects) {
       const e = this.entries.get(o.id);
       if (!e) continue;
@@ -1611,6 +1616,7 @@ export class Renderer {
     // the scene's matrices, once a frame: the shadow blobs read them, and the renderer (and each
     // pass of the high quality effects) does not work them all out again
     this.scene.updateMatrixWorld();
+    this.crops.build(this.camera);
     drawBlobs(this.scene);
     // the first picture waits until the scene's shaders are compiled in the background (in
     // parallel where the browser can): no long freeze at start up on a phone, and the page stays
@@ -3614,6 +3620,66 @@ function modelLodGeos(name: string) {
   }
   return modelLodSrc.get(name) ?? null;
 }
+// Crops in the fields. Each field shows four plants of one or two parts (plant, fruit), and a
+// farm has dozens of fields: drawn one by one that is eight draws a field, a heavy load for a
+// phone. The plants stay in the scene (they grow, sway and pop out at harvest as before) on a
+// layer the camera does not draw, and the plants of every field in view are drawn from one
+// instanced mesh per part, material and detail level.
+const CROP_LAYER = 5;
+const cropDraw: { root: THREE.Object3D; meshes: THREE.Mesh[] }[] = [];
+class CropBatches {
+  private by = new Map<THREE.BufferGeometry, Map<THREE.Material, { mesh: THREE.InstancedMesh; n: number }>>();
+  constructor(private parent: THREE.Object3D) {}
+  private add(geo: THREE.BufferGeometry, mat: THREE.Material, src: THREE.Mesh) {
+    let row = this.by.get(geo);
+    if (!row) this.by.set(geo, row = new Map());
+    let b = row.get(mat);
+    if (!b || b.n >= b.mesh.instanceMatrix.count) {
+      // a new batch, or a bigger one (twice the size, the matrices so far carried over)
+      const cap = b ? b.mesh.instanceMatrix.count * 2 : 64;
+      const mesh = new THREE.InstancedMesh(geo, mat, cap);
+      mesh.castShadow = src.castShadow;
+      mesh.receiveShadow = src.receiveShadow;
+      mesh.frustumCulled = false;
+      if (b) {
+        (mesh.instanceMatrix.array as Float32Array).set(b.mesh.instanceMatrix.array as Float32Array);
+        this.parent.remove(b.mesh);
+        b.mesh.dispose();
+      }
+      this.parent.add(mesh);
+      b = { mesh, n: b?.n ?? 0 };
+      row.set(mat, b);
+    }
+    b.mesh.setMatrixAt(b.n++, src.matrixWorld);
+  }
+  // after the scene's matrices are worked out: the plants of the fields updated this frame
+  build(cam: THREE.Camera) {
+    for (const row of this.by.values()) for (const b of row.values()) b.n = 0;
+    for (const { root, meshes } of cropDraw) {
+      if (!root.visible || !root.parent) continue;
+      for (const m of meshes) {
+        if (!m.visible) continue;
+        let geo = m.geometry;
+        const lod = m.userData.lod as string | undefined;
+        if (lod) {
+          // far away a crop is drawn from its thinned twin, as the animals and trees are
+          const d = cam.position.distanceTo(lodPos.setFromMatrixPosition(m.matrixWorld));
+          const far = m.userData.far ? d > LOD_NEAR * lodScale : d > LOD_FAR * lodScale;
+          const twin = far ? modelLodGeos(lod)?.get(m.name) : undefined;
+          m.userData.far = !!twin;
+          if (twin) geo = twin;
+        }
+        this.add(geo, m.material as THREE.Material, m);
+      }
+    }
+    for (const row of this.by.values()) for (const b of row.values()) {
+      b.mesh.count = b.n;
+      b.mesh.visible = b.n > 0;
+      if (b.n) b.mesh.instanceMatrix.needsUpdate = true;
+    }
+  }
+}
+
 function modelLod(g: THREE.Object3D, name: string) {
   g.traverse((o) => {
     const m = o as THREE.Mesh;
@@ -4178,7 +4244,7 @@ function plantModel(cd: CropDef) {
     const fruit: THREE.Mesh[] = [];
     // a field of crops is a lot of plants: the far ones are drawn from their thinned twin
     const plant = src.clone();
-    modelLod(plant, `crop_${cd.id}`);
+    plant.traverse((o) => { if ((o as THREE.Mesh).isMesh) o.userData.lod = `crop_${cd.id}`; });
     for (const c of [...plant.children]) {
       g.add(c);
       if (c.name === 'fruit' && (c as THREE.Mesh).isMesh) {
@@ -4191,6 +4257,7 @@ function plantModel(cd: CropDef) {
         fruit.push(f);
       }
     }
+    g.traverse((o) => o.layers.set(CROP_LAYER));
     return { g, fruit };
   }
   const g = new THREE.Group();
@@ -4208,6 +4275,7 @@ function plantModel(cd: CropDef) {
     shell.receiveShadow = true;
     g.add(shell);
   }
+  g.traverse((o) => o.layers.set(CROP_LAYER));
   return { g, fruit: [fr] };
 }
 
@@ -4278,6 +4346,7 @@ function buildPlot(e: Entry) {
   let first = true;
   let born = 0, cver = cropVer;
   let plants: { g: THREE.Group; fruit: THREE.Mesh[]; ripe: number }[] = [];
+  let meshes: THREE.Mesh[] = [];
   e.top = 0.55;
   e.update = (o, now, t) => {
     const pp = plotProgress(o, now);
@@ -4306,6 +4375,8 @@ function buildPlot(e: Entry) {
         }
         if (planted) { born = t; bump(e); }
       }
+      meshes = [];
+      crop.traverse((c) => { if ((c as THREE.Mesh).isMesh) meshes.push(c as THREE.Mesh); });
     }
     first = false;
     wasReady = pp.ready;
@@ -4333,6 +4404,7 @@ function buildPlot(e: Entry) {
         pl.ripe = ripe;
       }
     });
+    cropDraw.push({ root: e.root, meshes });
   };
 }
 
