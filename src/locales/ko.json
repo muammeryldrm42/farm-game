@@ -2122,9 +2122,11 @@
  "told by {name}": "이야기꾼: {name}",
  "{A} {animal} family is looking for a new home. Build them {a} {name}?": "{animal} 가족이 새 집을 찾고 있어요. {name}을(를) 지어 줄래요?",
  "{animal} unlocks at level {n}.": "{animal}: 레벨 {n}에 열려요.",
+ "{h}h {m}m": "{h}시간 {m}분",
  "{item} Day": "{item}의 날",
  "{item} in storage:": "보관 중인 {item}:",
  "{item} unlocks at level {n}.": "{item}: 레벨 {n}에 열려요.",
+ "{m}m {s}s": "{m}분 {s}초",
  "{name} Dreams": "{name}의 꿈",
  "{name} badge bronze! +{n} gems": "{name} 동 배지! +{n} 보석",
  "{name} badge gold! +{n} gems": "{name} 금 배지! +{n} 보석",
@@ -2146,5 +2148,6 @@
  "{n} out to graze": "{n}마리 풀 뜯으러 나감",
  "{n} tasks left": "남은 과제 {n}개",
  "{n}/{cap} {animal} · makes {item} every {time}": "{n}/{cap} {animal} · {time}마다 {item} 생산",
+ "{n}s": "{n}초",
  "{time} left": "{time} 남음"
 }

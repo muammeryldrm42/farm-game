@@ -1,6 +1,6 @@
 'use client';
 import Ico from './Ico';
-import { useEffect, useRef, useState, type ReactNode } from 'react';
+import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { BUILDING, BUILDINGS, CROPS, ITEMS, ITEM_LIST, RECIPES, unlocksAt, type BuildingDef } from '@/game/data';
 import {
   ACHIEVEMENTS,
@@ -59,9 +59,14 @@ import LANG_NAMES from '@/locales/names.json';
 
 // ------------------------------------------------------------------ primitives
 
+// Keeps a panel clear of a phone's camera cutout and system bars (on a phone held sideways the
+// cutout sits at the left or right edge): at least the given margin, more where the screen needs it.
+const safePad = (m: string, sides: ('top' | 'right' | 'bottom' | 'left')[] = ['top', 'right', 'bottom', 'left'], extra: Partial<Record<'top' | 'right' | 'bottom' | 'left', string>> = {}) =>
+  Object.fromEntries(sides.map((k) => [`padding${k[0].toUpperCase()}${k.slice(1)}`, `max(${extra[k] ?? m}, env(safe-area-inset-${k}))`]));
+
 function Modal({ title, icon, onClose, children, wide = false }: { title: string; icon?: string; onClose: () => void; children: ReactNode; wide?: boolean }) {
   return (
-    <div className="pointer-events-auto fixed inset-0 z-30 flex items-center justify-center bg-black/40 p-3" onPointerDown={(e) => e.target === e.currentTarget && onClose()}>
+    <div className="pointer-events-auto fixed inset-0 z-30 flex items-center justify-center bg-black/40 p-3" style={safePad('0.75rem')} onPointerDown={(e) => e.target === e.currentTarget && onClose()}>
       <div className={`panel flex max-h-[88vh] w-full animate-pop flex-col ${wide ? 'max-w-3xl' : 'max-w-md'}`}>
         <div className="relative flex items-center justify-center rounded-t-[1.2rem] bg-[#a8733f] px-12 py-2.5 text-white">
           {icon && <span className="emoji mr-2 text-2xl"><Ico i={icon} /></span>}
@@ -80,7 +85,7 @@ function Modal({ title, icon, onClose, children, wide = false }: { title: string
 
 function Sheet({ title, icon, pic, sub, onClose, children }: { title: string; icon: string; pic?: string; sub?: ReactNode; onClose: () => void; children: ReactNode }) {
   return (
-    <div className="pointer-events-auto fixed inset-x-0 bottom-0 z-20 flex justify-center p-2 sm:p-3">
+    <div className="pointer-events-auto fixed inset-x-0 bottom-0 z-20 flex justify-center p-2 sm:p-3" style={safePad('0.5rem', ['right', 'bottom', 'left'])}>
       <div className="panel w-full max-w-2xl animate-pop">
         <div className="flex items-center gap-3 border-b-2 border-[#e2cc9c] px-4 py-2">
           <span className="emoji text-3xl"><Ico i={icon} id={pic} /></span>
@@ -987,8 +992,33 @@ function ShopModal() {
     return (d && SHOP_TABS.find((x) => x.filter(d))?.id) || 'crops';
   });
   const st = SHOP_TABS.find((x) => x.id === tab)!;
-  const list = BUILDINGS.filter((d) => d.buyable && st.filter(d)).sort((a, b) => a.level - b.level || a.cost - b.cost);
-  const crops = [...CROPS].sort((a, b) => a.level - b.level || a.seedCost - b.seedCost);
+  // The cards change with the coins, the level, the farm's buildings, the seeds in store, the
+  // pointing finger of a story task and the language, not with the clock: the game ticks every
+  // second, and redrawing a few hundred cards on every tick would make a phone stutter.
+  const s = store.s, g = store.ui.guide;
+  const seeds = CROPS.map((c) => s.inv[c.id] ?? 0).join(',');
+  const pointing = !!g && Date.now() - g.at < 60e3;
+  const cardsKey = `${tab}|${s.level}|${s.coins}|${store.objVersion}|${s.objects.length}|${seeds}|${pointing ? `${g!.id}@${g!.at}` : ''}|${getLang()}`;
+  const cards = useMemo(() => {
+    const list = BUILDINGS.filter((d) => d.buyable && st.filter(d)).sort((a, b) => a.level - b.level || a.cost - b.cost);
+    const crops = [...CROPS].sort((a, b) => a.level - b.level || a.seedCost - b.seedCost);
+    return (
+      <>
+        <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 md:grid-cols-4">
+          {list.map((d) => <ShopCard key={d.id} d={d} />)}
+        </div>
+        {tab === 'crops' && (
+          <>
+            <h3 className="mb-2 mt-4 text-center font-bold text-[#6b4226]">{t('Crops you can grow')}</h3>
+            <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 md:grid-cols-4">
+              {crops.map((c) => <CropCard key={c.id} id={c.id} />)}
+            </div>
+          </>
+        )}
+      </>
+    );
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [cardsKey]);
   return (
     <Modal title={t('Shop')} icon="🛒" onClose={() => store.openPanel(null)} wide>
       <div className="mb-3 flex gap-1.5 overflow-x-auto pb-1">
@@ -999,17 +1029,7 @@ function ShopModal() {
         ))}
       </div>
       {st.hint && <p className="mb-2 text-center text-xs text-[#8a6a44]">{t(st.hint)}</p>}
-      <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 md:grid-cols-4">
-        {list.map((d) => <ShopCard key={d.id} d={d} />)}
-      </div>
-      {tab === 'crops' && (
-        <>
-          <h3 className="mb-2 mt-4 text-center font-bold text-[#6b4226]">{t('Crops you can grow')}</h3>
-          <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 md:grid-cols-4">
-            {crops.map((c) => <CropCard key={c.id} id={c.id} />)}
-          </div>
-        </>
-      )}
+      {cards}
     </Modal>
   );
 }
@@ -1255,14 +1275,15 @@ function PetModal() {
   const def = PET[id];
   const p = store.pet(id);
   const now = Date.now();
-  const [name, setName] = useState(p.name);
+  const shown = store.petName(id);
+  const [name, setName] = useState(shown);
   const hearts = petHearts(p);
   const gift = petGift(p, now);
   const food = store.petFood(id);
   const patted = now - p.petAt < PET_PAT_MS;
   const help = Math.round(petHelp({ ...p, fedDay: todayKey() }) * 100);
   return (
-    <Modal title={p.name} icon={def.icon} onClose={() => store.openPanel(null)}>
+    <Modal title={shown} icon={def.icon} onClose={() => store.openPanel(null)}>
       <div className="flex flex-col items-center gap-2 py-1 text-center">
         <span className="emoji text-6xl"><Ico i={def.icon} id={`animal_${id}`} /></span>
         <div className="flex items-center gap-1.5">
@@ -1280,8 +1301,8 @@ function PetModal() {
         <div className="emoji text-xl" aria-label={t('{n} of 5 hearts', { n: hearts })}>{'❤️'.repeat(hearts)}{'🤍'.repeat(5 - hearts)}</div>
         <div className="w-40"><Bar p={hearts >= 5 ? 1 : (p.love % 20) / 20} color="#f06292" /></div>
         <p className="text-sm">
-          {p.name} {t(def.job)}.{' '}
-          <b>{petFed(p) ? t('Fed today: {n}% chance.', { n: help }) : t('Hungry: feed {name} for {n}% today.', { name: p.name, n: help })}</b>
+          {shown} {t(def.job)}.{' '}
+          <b>{petFed(p) ? t('Fed today: {n}% chance.', { n: help }) : t('Hungry: feed {name} for {n}% today.', { name: shown, n: help })}</b>
         </p>
         <div className="flex flex-wrap justify-center gap-2">
           <button className="btn btn-wood" onClick={() => store.patPet(id)}>
@@ -1292,19 +1313,19 @@ function PetModal() {
           </button>
         </div>
         {!petFed(p) && !food && (
-          <p className="text-xs text-[#b0442c]">{t('{name} eats {foods}.', { name: p.name, foods: def.foods.map((f) => t(ITEMS[f].name)).join(' / ') })}</p>
+          <p className="text-xs text-[#b0442c]">{t('{name} eats {foods}.', { name: shown, foods: def.foods.map((f) => t(ITEMS[f].name)).join(' / ') })}</p>
         )}
         <div className="card w-full p-2 text-sm">
           {gift === 'ready' ? (
             <button className="btn btn-yellow w-full" onClick={() => store.openPetGift(id)}>
-              <span className="emoji inline-block animate-bob">🎁</span> {t('{name} brought you something!', { name: p.name })}
+              <span className="emoji inline-block animate-bob">🎁</span> {t('{name} brought you something!', { name: shown })}
             </button>
           ) : gift === 'searching' ? (
-            <span>{p.name} {t(def.search)}... {t('back in {time}', { time: fmtTime(Math.max(0, PET_SEARCH_MS - (now - p.fedAt))) })}</span>
+            <span>{shown} {t(def.search)}... {t('back in {time}', { time: fmtTime(Math.max(0, PET_SEARCH_MS - (now - p.fedAt))) })}</span>
           ) : gift === 'done' ? (
-            <span>{t("Today's find is in. Feed {name} again tomorrow for another.", { name: p.name })}</span>
+            <span>{t("Today's find is in. Feed {name} again tomorrow for another.", { name: shown })}</span>
           ) : (
-            <span>{t('Feed {name} and it goes looking for something for your album.', { name: p.name })}</span>
+            <span>{t('Feed {name} and it goes looking for something for your album.', { name: shown })}</span>
           )}
         </div>
       </div>
@@ -1749,7 +1770,7 @@ function StoryDialog() {
   const next = () => (typing ? setShown(text.length) : store.storyNext());
   const r = storyReward(ch.n);
   return (
-    <div className="pointer-events-auto fixed inset-0 z-40 flex flex-col justify-end bg-black/35 p-3 pb-6 font-game sm:items-center" onPointerDown={next}>
+    <div className="pointer-events-auto fixed inset-0 z-40 flex flex-col justify-end bg-black/35 p-3 pb-6 font-game sm:items-center" style={safePad('0.75rem', ['top', 'right', 'bottom', 'left'], { bottom: '1.5rem' })} onPointerDown={next}>
       <div className="w-full max-w-xl animate-pop">
         {d.i === 0 && (
           <div className="mb-2 flex justify-center">

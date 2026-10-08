@@ -2122,9 +2122,11 @@
  "told by {name}": "diceritakan oleh {name}",
  "{A} {animal} family is looking for a new home. Build them {a} {name}?": "Sebuah keluarga {animal} sedang mencari rumah baru. Mau bangunkan {name} untuk mereka?",
  "{animal} unlocks at level {n}.": "{animal} terbuka di level {n}.",
+ "{h}h {m}m": "{h}j {m}m",
  "{item} Day": "Hari {item}",
  "{item} in storage:": "{item} di gudang:",
  "{item} unlocks at level {n}.": "{item} terbuka di level {n}.",
+ "{m}m {s}s": "{m}m {s}d",
  "{name} Dreams": "Mimpi {name}",
  "{name} badge bronze! +{n} gems": "Lencana perunggu {name}! +{n} permata",
  "{name} badge gold! +{n} gems": "Lencana emas {name}! +{n} permata",
@@ -2146,5 +2148,6 @@
  "{n} out to graze": "{n} keluar merumput",
  "{n} tasks left": "{n} tugas tersisa",
  "{n}/{cap} {animal} · makes {item} every {time}": "{n}/{cap} {animal} · membuat {item} setiap {time}",
+ "{n}s": "{n}d",
  "{time} left": "sisa {time}"
 }

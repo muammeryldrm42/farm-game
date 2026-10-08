@@ -2122,9 +2122,11 @@
  "told by {name}": "語り手：{name}",
  "{A} {animal} family is looking for a new home. Build them {a} {name}?": "{animal}の家族が新しい家を探しています。{name}を建ててあげませんか？",
  "{animal} unlocks at level {n}.": "{animal}はレベル{n}で解放。",
+ "{h}h {m}m": "{h}時間{m}分",
  "{item} Day": "{item}の日",
  "{item} in storage:": "在庫の{item}：",
  "{item} unlocks at level {n}.": "{item}はレベル{n}で解放。",
+ "{m}m {s}s": "{m}分{s}秒",
  "{name} Dreams": "{name}の夢",
  "{name} badge bronze! +{n} gems": "{name} 銅バッジ！+{n} ジェム",
  "{name} badge gold! +{n} gems": "{name} 金バッジ！+{n} ジェム",
@@ -2146,5 +2148,6 @@
  "{n} out to graze": "{n}匹が草を食べに出発",
  "{n} tasks left": "残りタスク {n}",
  "{n}/{cap} {animal} · makes {item} every {time}": "{n}/{cap} {animal} · {time}ごとに{item}を生産",
+ "{n}s": "{n}秒",
  "{time} left": "残り {time}"
 }

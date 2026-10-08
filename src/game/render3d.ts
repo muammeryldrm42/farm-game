@@ -1479,7 +1479,8 @@ export class Renderer {
   private cullSphere = new THREE.Sphere();
   frame(t: number) {
     const rawMs = t - (this.last || t);
-    const dt = Math.min(0.05, rawMs / 1000);
+    // a clock that steps back (two drivers, a resumed WebView) must not run animations backwards
+    const dt = Math.max(0, Math.min(0.05, rawMs / 1000));
     this.last = t;
     const s = this.store.s;
     const ui = this.store.ui;
@@ -1548,21 +1549,27 @@ export class Renderer {
     // the first picture waits until the scene's shaders are compiled in the background (in
     // parallel where the browser can): no long freeze at start up on a phone, and the page stays
     // responsive meanwhile
-    // (and the ground's textures, painted in the background, are in)
+    // (and the ground's textures, painted in the background, are in, and the Blender models the
+    // farm asked for: the farm opens with its own houses and animals, not the stand ins that
+    // keep their place while a model is on its way. A slow connection waits at most 10 seconds,
+    // then the stand ins show and the models swap in as they come.)
     if (this.warm !== 'done') {
       if (this.warm === 'cold') {
         this.warm = 'warming';
         const go = () => { this.warm = 'compiled'; };
         this.gl.compileAsync(this.scene, this.camera).then(go, go);
-        setTimeout(() => { this.warm = 'done'; }, 8000);
+        setTimeout(() => { this.warm = 'done'; }, 10000);
       }
-      if (this.warm === 'compiled' && surfacesReady()) this.warm = 'done';
+      if (this.warm === 'compiled' && surfacesReady() && modelsLoading === 0) this.warm = 'done';
       else return;
     }
     if (this.post) this.post.render();
     else this.gl.render(this.scene, this.camera);
+    if (this.onFirstDraw) { const f = this.onFirstDraw; this.onFirstDraw = null; f(); }
   }
   private warm: 'cold' | 'warming' | 'compiled' | 'done' = 'cold';
+  // called once, after the first picture of the farm is drawn (the start up cover then lifts)
+  onFirstDraw: (() => void) | null = null;
 
   private tmpC = new THREE.Color();
   private skyTop = new THREE.Color();
@@ -3631,12 +3638,13 @@ function animalModel(kind: string) {
   }
   return src ?? null;
 }
-// a kind whose Blender model is still on its way: its pen waits for it (a second or two) rather
+// a kind whose Blender model is still on its way: its pen waits for it (usually a moment) rather
 // than sculpting a stand in that is thrown away the moment the model lands. If the model cannot
 // load, or is slow to come (a slow connection, a big farm loading many models at once), the
 // sculpt shows after all and the model takes its place when it arrives: the animals are never
-// left out.
-const MODEL_WAIT_MS = 3000;
+// left out. As long as the start up screen waits for the models (10 seconds at most): a sculpt
+// made sooner would be made behind that screen for nothing.
+const MODEL_WAIT_MS = 10000;
 const animalFailed = new Set<string>();
 const animalAsked = new Map<string, number>();
 function modelPending(kind: string) {
@@ -5433,44 +5441,9 @@ function buildPen(e: Entry, d: BuildingDef) {
       else if (head) head.rotation.x = Math.min(head.rotation.x, 0.05);
       if (cs) cs.position.y = 0.006 - (m.position.y - 0.04);
       if (m.userData.wings && !SWIMMERS.has(an?.id ?? '') && !a?.graze) {
-        // some birds now and then fly up to a roof nearby, sit there a while and come back
-        const roofs = GRAZE_NAV?.roofs() ?? NO_SPOTS;
-        const PR = 50000 + hash(id, 9, 4) * 40000;
-        const ur = (t + hash(id, 10, 5) * PR) % PR;
-        if (roofs.length && hash(id, 8, 3) < 0.45 && ur < 18000) {
-          const f = footprint(o), cx = o.x + f.w / 2, cy = o.y + f.h / 2;
-          const near = memoSpot(roofs, `${o.x}|${o.y}|${o.type}`, () => roofs.map((r) => ({ r, k: Math.hypot(r.x - cx, r.y - cy) })).filter((q) => q.k < 12).sort((p1, p2) => p1.k - p2.k).slice(0, 3));
-          if (near.length) {
-            const r = near[Math.floor(hash(id, 11, 6) * near.length)].r;
-            const perch = { x: r.x + (hash(id, 12, 7) - 0.5) * 0.5, y: r.y + (hash(id, 13, 8) - 0.5) * 0.5 };
-            // feet on the roof tiles: the surface under the perch, minus the bird's own foot offset
-            const top = GRAZE_NAV?.roofTop(r.id, perch.x, perch.y) ?? r.h;
-            const rh = top - 0.01;
-            const ground = { x: o.x + sp.x, y: o.y + sp.z };
-            let px: number, py: number, h: number, fly = false, head0 = 0;
-            if (ur < 2000 || ur > 16000) {
-              // up to the roof, or back down into the yard, in an arc
-              const k = ur < 2000 ? ur / 2000 : (ur - 16000) / 2000;
-              const [p0, p1] = ur < 2000 ? [ground, perch] : [perch, ground];
-              const h0 = ur < 2000 ? 0.04 : rh, h1 = ur < 2000 ? rh : 0.04;
-              px = p0.x + (p1.x - p0.x) * k; py = p0.y + (p1.y - p0.y) * k;
-              h = h0 + (h1 - h0) * k + Math.sin(k * Math.PI) * 0.8;
-              fly = k > 0 && k < 1;
-              m.rotation.y = Math.atan2(p1.x - p0.x, p1.y - p0.y);
-            } else {
-              px = perch.x; py = perch.y; h = rh;
-              m.rotation.y = Math.sin(t / 3000 + id) * 1.5;
-              head0 = Math.max(0, Math.sin(t / 900 + id)) * 0.3;
-            }
-            m.position.set(px - o.x, h, py - o.y);
-            flap(m, fly, t, id, 1.2);
-            animateLegs(m, 0);
-            if (head) head.rotation.x = head0;
-            if (cs) cs.visible = false;
-            return;
-          }
-        }
-        // now and then a bird flutters up and across the yard
+        // birds stay in their yard while the gate is shut: they go out (to the fields, the trees,
+        // the ponds and the shore) only when it is opened. Now and then one flutters up and
+        // across the yard
         const P = 12000 + hash(id, 5, 1) * 9000;
         const u = (t + hash(id, 6, 2) * P) % P;
         const on = u < 1500;

@@ -2122,9 +2122,11 @@
  "told by {name}": "เล่าโดย {name}",
  "{A} {animal} family is looking for a new home. Build them {a} {name}?": "ครอบครัว{animal}กำลังหาบ้านใหม่ สร้าง {name} ให้พวกมันไหม?",
  "{animal} unlocks at level {n}.": "{animal} ปลดล็อกที่เลเวล {n}",
+ "{h}h {m}m": "{h}ชม. {m}น.",
  "{item} Day": "วัน{item}",
  "{item} in storage:": "{item} ในคลัง:",
  "{item} unlocks at level {n}.": "{item} ปลดล็อกที่เลเวล {n}",
+ "{m}m {s}s": "{m}น. {s}วิ",
  "{name} Dreams": "ความฝันถึง {name}",
  "{name} badge bronze! +{n} gems": "เหรียญตราทองแดง {name}! +{n} อัญมณี",
  "{name} badge gold! +{n} gems": "เหรียญตราทอง {name}! +{n} อัญมณี",
@@ -2146,5 +2148,6 @@
  "{n} out to graze": "{n} ตัวออกไปเล็มหญ้า",
  "{n} tasks left": "เหลือ {n} ภารกิจ",
  "{n}/{cap} {animal} · makes {item} every {time}": "{n}/{cap} {animal} · ผลิต {item} ทุก {time}",
+ "{n}s": "{n}วิ",
  "{time} left": "เหลือ {time}"
 }

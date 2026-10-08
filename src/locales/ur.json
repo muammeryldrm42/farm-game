@@ -2122,9 +2122,11 @@
  "told by {name}": "راوی: {name}",
  "{A} {animal} family is looking for a new home. Build them {a} {name}?": "ایک {animal} خاندان نیا گھر ڈھونڈ رہا ہے۔ کیا آپ ان کے لیے {name} بنائیں گے؟",
  "{animal} unlocks at level {n}.": "{animal} لیول {n} پر کھلتا ہے۔",
+ "{h}h {m}m": "{h}گھنٹے {m}منٹ",
  "{item} Day": "{item} کا دن",
  "{item} in storage:": "ذخیرے میں {item}:",
  "{item} unlocks at level {n}.": "{item} لیول {n} پر کھلتا ہے۔",
+ "{m}m {s}s": "{m}منٹ {s}سیکنڈ",
  "{name} Dreams": "{name} کے خواب",
  "{name} badge bronze! +{n} gems": "{name} کانسی کا بیج! +{n} جواہر",
  "{name} badge gold! +{n} gems": "{name} سونے کا بیج! +{n} جواہر",
@@ -2146,5 +2148,6 @@
  "{n} out to graze": "{n} چرنے نکلے",
  "{n} tasks left": "{n} کام باقی",
  "{n}/{cap} {animal} · makes {item} every {time}": "{n}/{cap} {animal} · ہر {time} میں {item} بناتا ہے",
+ "{n}s": "{n}سیکنڈ",
  "{time} left": "{time} باقی"
 }
