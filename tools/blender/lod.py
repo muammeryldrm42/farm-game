@@ -1,11 +1,13 @@
-# Far detail levels for the Blender animals. Each animal model is read back, every part thinned
-# out with Blender's Decimate (collapse) modifier, and written to `public/models/lod/<name>.glb`
-# with the same part names and no materials: the game swaps in only this lighter geometry when
-# an animal is far from the camera and keeps the near model's baked texture, so the far animal
-# looks the same, it just costs about a third of the triangles.
+# Far detail levels for the Blender animals, crops and fruit trees. Each model is read back, every
+# part thinned out with Blender's Decimate (collapse) modifier, and written to
+# `public/models/lod/<name>.glb` with the same part names and no materials: the game swaps in only
+# this lighter geometry when the thing is far from the camera and keeps the near model's baked
+# texture, so it looks the same from afar, it just costs about a third of the triangles.
 # Run: python3 tools/blender/lod.py [names...]   (default: every public/models/animal_*.glb)
+#      python3 tools/blender/lod.py --plants     (every crop_*.glb and every fruit tree)
 import glob
 import os
+import re
 import sys
 
 import bpy  # noqa: I001
@@ -48,7 +50,19 @@ def thin(name):
     print(f'LOD {name}: {before} -> {after} faces')
 
 
+def plants():
+    """The crop models and the fruit tree models (the trees are the buildings of kind 'tree')."""
+    crops = sorted(os.path.basename(p)[:-4] for p in glob.glob(os.path.join(ROOT, 'crop_*.glb')))
+    data = open(os.path.join(ROOT, '..', '..', 'src', 'game', 'data.ts'), encoding='utf-8').read()
+    trees = re.findall(r"b\(\{ id: '([a-z_]+)', [^}]*kind: 'tree'", data)
+    return crops + [t for t in trees if os.path.exists(os.path.join(ROOT, f'{t}.glb'))]
+
+
 if __name__ == '__main__':
-    names = sys.argv[1:] or sorted(os.path.basename(p)[:-4] for p in glob.glob(os.path.join(ROOT, 'animal_*.glb')))
+    args = sys.argv[1:]
+    if '--plants' in args:
+        names = plants()
+    else:
+        names = args or sorted(os.path.basename(p)[:-4] for p in glob.glob(os.path.join(ROOT, 'animal_*.glb')))
     for n in names:
         thin(n)

@@ -3506,24 +3506,25 @@ function lodMesh(m: THREE.Mesh, kind: string, part: LodPart) {
   };
 }
 
-// Level of detail for the Blender animals: each has a thinned twin (tools/blender/lod.py, about a
-// third of the triangles) used while the animal is far from the camera. Only the geometry is
-// swapped, so the far animal keeps its baked coat. Close up (on any quality) the full model shows.
+// Level of detail for the Blender animals, crops and fruit trees: each has a thinned twin
+// (tools/blender/lod.py, about a third of the triangles) used while it is far from the camera.
+// Only the geometry is swapped, so the far one keeps its baked texture. Close up (on any quality)
+// the full model shows. `name` is the model's file name (animal_cow, crop_wheat, apple_tree).
 const modelLodSrc = new Map<string, Map<string, THREE.BufferGeometry> | null>();
-function modelLodGeos(kind: string) {
+function modelLodGeos(name: string) {
   // the far models are only a saving: they never queue ahead of the farm's own models, and come
   // in a few at a time (the full model stays until its twin arrives)
-  if (!modelLodSrc.has(kind) && modelsLoading < 3) {
-    modelLodSrc.set(kind, null);
-    loadModel(`lod/animal_${kind}`).then((m) => {
+  if (!modelLodSrc.has(name) && modelsLoading < 3) {
+    modelLodSrc.set(name, null);
+    loadModel(`lod/${name}`).then((m) => {
       const map = new Map<string, THREE.BufferGeometry>();
       m.traverse((o) => { if ((o as THREE.Mesh).isMesh) map.set(o.name, (o as THREE.Mesh).geometry); });
-      modelLodSrc.set(kind, map);
+      modelLodSrc.set(name, map);
     }).catch(() => { /* no far model: the full one stays */ });
   }
-  return modelLodSrc.get(kind) ?? null;
+  return modelLodSrc.get(name) ?? null;
 }
-function modelLod(g: THREE.Object3D, kind: string) {
+function modelLod(g: THREE.Object3D, name: string) {
   g.traverse((o) => {
     const m = o as THREE.Mesh;
     if (!m.isMesh || m.onBeforeRender.length || o === g.userData.shadow) return;
@@ -3533,7 +3534,7 @@ function modelLod(g: THREE.Object3D, kind: string) {
       const d = cam.position.distanceTo(lodPos.setFromMatrixPosition(m.matrixWorld));
       const want = far ? d > LOD_NEAR * lodScale : d > LOD_FAR * lodScale;
       if (want === far) return;
-      const geo = want ? modelLodGeos(kind)?.get(m.name) : full;
+      const geo = want ? modelLodGeos(name)?.get(m.name) : full;
       if (!geo) return;
       far = want;
       m.geometry = geo;
@@ -3688,7 +3689,7 @@ function assemble(kind: string) {
   const src = animalModel(kind);
   if (src) {
     const g = assembleModel(src);
-    modelLod(g, kind);
+    modelLod(g, `animal_${kind}`);
     return g;
   }
   const g = new THREE.Group();
@@ -4084,7 +4085,10 @@ function plantModel(cd: CropDef) {
   if (src) {
     const g = new THREE.Group();
     const fruit: THREE.Mesh[] = [];
-    for (const c of [...src.clone().children]) {
+    // a field of crops is a lot of plants: the far ones are drawn from their thinned twin
+    const plant = src.clone();
+    modelLod(plant, `crop_${cd.id}`);
+    for (const c of [...plant.children]) {
       g.add(c);
       if (c.name === 'fruit' && (c as THREE.Mesh).isMesh) {
         const f = c as THREE.Mesh;
@@ -4397,6 +4401,8 @@ function useModel(e: Entry, o: FarmObject, d: BuildingDef) {
   loadModel(spec.variants ? `${d.id}${o.id % spec.variants}` : d.id).then((src) => {
     const m = src.clone();
     m.position.set(cx, 0, cz);
+    // fruit trees stand in orchards of a dozen: the far ones are drawn from their thinned twin
+    if (d.kind === 'tree') modelLod(m, d.id);
     // trees: the model's foliage joins the stand in's swaying crown group, beside its fruit
     const leaves = m.getObjectByName('crown');
     const crown = leaves && standIn.find((c) => c.userData.crown);
