@@ -408,10 +408,19 @@ function tickAnims(dt: number) {
 const easeOutBack = (k: number) => { const c = 1.9; return 1 + (c + 1) * Math.pow(k - 1, 3) + c * Math.pow(k - 1, 2); };
 const tmpV = new THREE.Vector3();
 
+// A copy for a passing effect, without the userData: three.js copies that through JSON, and
+// a crop keeps its ripe and unripe materials there, so each copy turned their textures into
+// pictures (a GPU read back each, a long stall on a phone for every field harvested).
+function bareClone(src: THREE.Object3D) {
+  const kept: [THREE.Object3D, Record<string, unknown>][] = [];
+  src.traverse((o) => { kept.push([o, o.userData]); o.userData = {}; });
+  try { return src.clone(); } finally { for (const [o, u] of kept) o.userData = u; }
+}
+
 // a copy of `src` jumps out of its place, spins and shrinks away (harvest, collecting)
 function popOut(src: THREE.Object3D, delay = 0, height = 1.3) {
   src.updateWorldMatrix(true, true);
-  const c = src.clone();
+  const c = bareClone(src);
   src.getWorldPosition(c.position);
   src.getWorldQuaternion(c.quaternion);
   src.getWorldScale(c.scale);
@@ -435,7 +444,7 @@ function popOut(src: THREE.Object3D, delay = 0, height = 1.3) {
 // a copy of `src` falls to the ground, bounces once and fades (fruit dropping from a shaken tree)
 function dropDown(src: THREE.Object3D, delay = 0) {
   src.updateWorldMatrix(true, true);
-  const c = src.clone();
+  const c = bareClone(src);
   src.getWorldPosition(c.position);
   src.getWorldScale(c.scale);
   const p0 = c.position.clone(), s0 = c.scale.clone();
