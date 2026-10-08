@@ -361,7 +361,12 @@ interface Entry {
   bubbleKey?: string;
   // squash and stretch: time into the animation, and its kind
   bounce?: { t: number; kind: 'spawn' | 'bump' | 'big' | 'work' };
+  // a herd: whether any of its animals was in view at its last update
+  herdSeen?: boolean;
 }
+// the camera's view this frame, for herds to tell whether their animals are in it
+let VIEW: THREE.Frustum | null = null;
+const herdBall = new THREE.Sphere(new THREE.Vector3(), 2);
 function bump(e: Entry, kind: 'bump' | 'big' | 'work' = 'bump') {
   if (!e.bounce || e.bounce.kind !== 'spawn') e.bounce = { t: 0, kind };
 }
@@ -1549,6 +1554,7 @@ export class Renderer {
     resetSculptBudget();
     this.projM.multiplyMatrices(this.camera.projectionMatrix, this.camera.matrixWorldInverse);
     this.frustum.setFromProjectionMatrix(this.projM);
+    VIEW = this.frustum;
     for (const o of s.objects) {
       const e = this.entries.get(o.id);
       if (!e) continue;
@@ -1558,8 +1564,10 @@ export class Renderer {
       this.cullSphere.radius = Math.max(d.w, d.h) * 0.8 + 1.2;
       const seen = this.frustum.intersectsSphere(this.cullSphere);
       // animals out of their pen (grazing, flying, fishing at sea) keep moving even when the pen
-      // itself is off screen, or they would stand frozen out there
-      if (seen || (!!o.pen && o.pen.animals.some((a) => a.graze)) || (this.frameNo + o.id) % 24 === 0) e.update?.(o, now, t, dt);
+      // itself is off screen, or they would stand frozen out there. While none of them is in
+      // view either, every fourth frame is enough to see one coming in.
+      const out = !!o.pen && o.pen.animals.some((a) => a.graze);
+      if (seen || (out && (e.herdSeen !== false || (this.frameNo + o.id) % 4 === 0)) || (this.frameNo + o.id) % 24 === 0) e.update?.(o, now, t, dt);
       if (e.bounce || e.root.scale.x !== 1) this.applyBounce(e, o, dt);
     }
     tickAnims(dt);
@@ -3373,6 +3381,8 @@ function fishCycle(herd: THREE.Object3D, m: THREE.Object3D, head: THREE.Object3D
       f.position.copy(beakOf(head));
       f.rotation.y = Math.PI / 2;
       head.add(f);
+      // placed at once: a herd out of view does not work its matrices out every frame
+      f.updateMatrixWorld(true);
       m.userData.fish = f;
     }
     f.visible = fishOn && swallow > 0.05 && !swan;
@@ -5359,8 +5369,10 @@ function buildPen(e: Entry, d: BuildingDef) {
       sculptBudget--;
     }
     const kv = animalVerOf(an?.id ?? '');
+    let rebuilt = false;
     if (!waiting && (list.length !== count || ver !== kv)) {
       ver = kv;
+      rebuilt = true;
       const grew = count >= 0 && list.length > count;
       for (const c of herd.children) (c.userData.ripple as THREE.Object3D | undefined)?.removeFromParent();
       herd.clear();
@@ -5541,6 +5553,16 @@ function buildPen(e: Entry, d: BuildingDef) {
       }
       if (tail) tail.rotation.z = Math.sin(t / (an?.id === 'goat' ? 90 : 330) + id) * 0.35;
     });
+    // animals all out of view keep last frame's matrices (and a herd out grazing is then moved
+    // less often, see frame); bees roam too far from their hive to tell, so they always count
+    let inView = an?.id === 'bee' || !VIEW;
+    for (let i = 0; !inView && i < herd.children.length; i++) {
+      const m = herd.children[i];
+      herdBall.center.set(o.x + m.position.x, m.position.y + 0.5, o.y + m.position.z);
+      inView = VIEW!.intersectsSphere(herdBall);
+    }
+    e.herdSeen = inView;
+    herdMoved = inView || rebuilt;
   };
 }
 
