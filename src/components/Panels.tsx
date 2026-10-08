@@ -1255,14 +1255,15 @@ function PetModal() {
   const def = PET[id];
   const p = store.pet(id);
   const now = Date.now();
-  const [name, setName] = useState(p.name);
+  const shown = store.petName(id);
+  const [name, setName] = useState(shown);
   const hearts = petHearts(p);
   const gift = petGift(p, now);
   const food = store.petFood(id);
   const patted = now - p.petAt < PET_PAT_MS;
   const help = Math.round(petHelp({ ...p, fedDay: todayKey() }) * 100);
   return (
-    <Modal title={p.name} icon={def.icon} onClose={() => store.openPanel(null)}>
+    <Modal title={shown} icon={def.icon} onClose={() => store.openPanel(null)}>
       <div className="flex flex-col items-center gap-2 py-1 text-center">
         <span className="emoji text-6xl"><Ico i={def.icon} id={`animal_${id}`} /></span>
         <div className="flex items-center gap-1.5">
@@ -1280,8 +1281,8 @@ function PetModal() {
         <div className="emoji text-xl" aria-label={t('{n} of 5 hearts', { n: hearts })}>{'❤️'.repeat(hearts)}{'🤍'.repeat(5 - hearts)}</div>
         <div className="w-40"><Bar p={hearts >= 5 ? 1 : (p.love % 20) / 20} color="#f06292" /></div>
         <p className="text-sm">
-          {p.name} {t(def.job)}.{' '}
-          <b>{petFed(p) ? t('Fed today: {n}% chance.', { n: help }) : t('Hungry: feed {name} for {n}% today.', { name: p.name, n: help })}</b>
+          {shown} {t(def.job)}.{' '}
+          <b>{petFed(p) ? t('Fed today: {n}% chance.', { n: help }) : t('Hungry: feed {name} for {n}% today.', { name: shown, n: help })}</b>
         </p>
         <div className="flex flex-wrap justify-center gap-2">
           <button className="btn btn-wood" onClick={() => store.patPet(id)}>
@@ -1292,19 +1293,19 @@ function PetModal() {
           </button>
         </div>
         {!petFed(p) && !food && (
-          <p className="text-xs text-[#b0442c]">{t('{name} eats {foods}.', { name: p.name, foods: def.foods.map((f) => t(ITEMS[f].name)).join(' / ') })}</p>
+          <p className="text-xs text-[#b0442c]">{t('{name} eats {foods}.', { name: shown, foods: def.foods.map((f) => t(ITEMS[f].name)).join(' / ') })}</p>
         )}
         <div className="card w-full p-2 text-sm">
           {gift === 'ready' ? (
             <button className="btn btn-yellow w-full" onClick={() => store.openPetGift(id)}>
-              <span className="emoji inline-block animate-bob">🎁</span> {t('{name} brought you something!', { name: p.name })}
+              <span className="emoji inline-block animate-bob">🎁</span> {t('{name} brought you something!', { name: shown })}
             </button>
           ) : gift === 'searching' ? (
-            <span>{p.name} {t(def.search)}... {t('back in {time}', { time: fmtTime(Math.max(0, PET_SEARCH_MS - (now - p.fedAt))) })}</span>
+            <span>{shown} {t(def.search)}... {t('back in {time}', { time: fmtTime(Math.max(0, PET_SEARCH_MS - (now - p.fedAt))) })}</span>
           ) : gift === 'done' ? (
-            <span>{t("Today's find is in. Feed {name} again tomorrow for another.", { name: p.name })}</span>
+            <span>{t("Today's find is in. Feed {name} again tomorrow for another.", { name: shown })}</span>
           ) : (
-            <span>{t('Feed {name} and it goes looking for something for your album.', { name: p.name })}</span>
+            <span>{t('Feed {name} and it goes looking for something for your album.', { name: shown })}</span>
           )}
         </div>
       </div>

@@ -3637,12 +3637,13 @@ function animalModel(kind: string) {
   }
   return src ?? null;
 }
-// a kind whose Blender model is still on its way: its pen waits for it (a second or two) rather
+// a kind whose Blender model is still on its way: its pen waits for it (usually a moment) rather
 // than sculpting a stand in that is thrown away the moment the model lands. If the model cannot
 // load, or is slow to come (a slow connection, a big farm loading many models at once), the
 // sculpt shows after all and the model takes its place when it arrives: the animals are never
-// left out.
-const MODEL_WAIT_MS = 3000;
+// left out. As long as the start up screen waits for the models (10 seconds at most): a sculpt
+// made sooner would be made behind that screen for nothing.
+const MODEL_WAIT_MS = 10000;
 const animalFailed = new Set<string>();
 const animalAsked = new Map<string, number>();
 function modelPending(kind: string) {

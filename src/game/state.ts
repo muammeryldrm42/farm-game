@@ -1630,16 +1630,17 @@ export class GameStore {
 
   feedPet(id: PetId) {
     const p = this.pet(id);
-    if (petFed(p)) { this.toast(tr('{name} has eaten today already.', { name: p.name })); return; }
+    if (petFed(p)) { this.toast(tr('{name} has eaten today already.', { name: this.petName(id) })); return; }
     const food = this.petFood(id);
-    if (!food) { this.toast(tr('{name} would like {foods}.', { name: p.name, foods: PET[id].foods.map((f) => tr(ITEMS[f].name)).join(' / ') }), 'bad'); return; }
+    if (!food) { this.toast(tr('{name} would like {foods}.', { name: this.petName(id), foods: PET[id].foods.map((f) => tr(ITEMS[f].name)).join(' / ') }), 'bad'); return; }
     this.take(food, 1);
     p.fedDay = todayKey();
     p.fedAt = Date.now();
     p.love = Math.min(100, p.love + 8);
     this.ui.petJoy = { id, at: Date.now(), kind: 'feed' };
     this.sound('collect');
-    this.toast(p.giftDay === todayKey() ? tr('{name} loved that!', { name: p.name }) : `${tr('{name} loved that!', { name: p.name })} ${p.name} ${tr(PET[id].search)}.`, 'good');
+    const nm = this.petName(id);
+    this.toast(p.giftDay === todayKey() ? tr('{name} loved that!', { name: nm }) : `${tr('{name} loved that!', { name: nm })} ${nm} ${tr(PET[id].search)}.`, 'good');
     this.emit();
   }
 
@@ -1658,14 +1659,24 @@ export class GameStore {
       const coins = 60 + petHearts(p) * 40 + this.s.level * 3;
       this.earn(coins);
       this.sound('coin');
-      this.toast(tr('{name} brought another {find}. You sell it for {n} coins.', { name: p.name, find: `${pick.icon} ${tr(pick.name)}`, n: fmtNum(coins) }), 'good');
+      this.toast(tr('{name} brought another {find}. You sell it for {n} coins.', { name: this.petName(id), find: `${pick.icon} ${tr(pick.name)}`, n: fmtNum(coins) }), 'good');
     } else this.sound('levelup');
     this.emit();
   }
 
+  // The pet's name as shown: one the player gave it as it is, the starting name (Buddy, Whiskers)
+  // in the game's language
+  petName(id: PetId) {
+    const n = this.pet(id).name;
+    return n === PET[id].name ? tr(n) : n;
+  }
+
+  // letters of any language (Karabas with its cedilla, a Japanese or Arabic name), digits, spaces,
+  // apostrophes and dashes; keeping the shown starting name keeps it in step with the language
   renamePet(id: PetId, name: string) {
-    const n = name.replace(/[^A-Za-z0-9 '-]/g, '').trim().slice(0, 14);
+    let n = name.replace(/[^\p{L}\p{M}\p{N} '-]/gu, '').trim().slice(0, 14);
     if (!n) return;
+    if (n === tr(PET[id].name)) n = PET[id].name;
     this.pet(id).name = n;
     this.emit();
   }
