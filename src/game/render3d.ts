@@ -1548,21 +1548,27 @@ export class Renderer {
     // the first picture waits until the scene's shaders are compiled in the background (in
     // parallel where the browser can): no long freeze at start up on a phone, and the page stays
     // responsive meanwhile
-    // (and the ground's textures, painted in the background, are in)
+    // (and the ground's textures, painted in the background, are in, and the Blender models the
+    // farm asked for: the farm opens with its own houses and animals, not the stand ins that
+    // keep their place while a model is on its way. A slow connection waits at most 10 seconds,
+    // then the stand ins show and the models swap in as they come.)
     if (this.warm !== 'done') {
       if (this.warm === 'cold') {
         this.warm = 'warming';
         const go = () => { this.warm = 'compiled'; };
         this.gl.compileAsync(this.scene, this.camera).then(go, go);
-        setTimeout(() => { this.warm = 'done'; }, 8000);
+        setTimeout(() => { this.warm = 'done'; }, 10000);
       }
-      if (this.warm === 'compiled' && surfacesReady()) this.warm = 'done';
+      if (this.warm === 'compiled' && surfacesReady() && modelsLoading === 0) this.warm = 'done';
       else return;
     }
     if (this.post) this.post.render();
     else this.gl.render(this.scene, this.camera);
+    if (this.onFirstDraw) { const f = this.onFirstDraw; this.onFirstDraw = null; f(); }
   }
   private warm: 'cold' | 'warming' | 'compiled' | 'done' = 'cold';
+  // called once, after the first picture of the farm is drawn (the start up cover then lifts)
+  onFirstDraw: (() => void) | null = null;
 
   private tmpC = new THREE.Color();
   private skyTop = new THREE.Color();

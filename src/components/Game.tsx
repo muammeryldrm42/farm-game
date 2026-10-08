@@ -14,6 +14,7 @@ import Flyers from './Flyers';
 
 export default function Game() {
   const [store, setStore] = useState<GameStore | null>(null);
+  const [drawn, setDrawn] = useState(false);
 
   useEffect(() => {
     const st = new GameStore(loadGame());
@@ -66,30 +67,34 @@ export default function Game() {
     };
   }, []);
 
-  if (!store) {
-    return (
-      <div className="fixed inset-0 grid place-items-center bg-[#3f9fd8] font-game text-white">
-        <div className="text-center">
-          <div className="emoji animate-bob text-6xl">🌾</div>
-          <div className="mt-3 text-2xl font-bold">Talons Farm</div>
-        </div>
-      </div>
-    );
-  }
+  if (!store) return <Splash />;
 
   return (
     <StoreCtx.Provider value={store}>
-      <FarmCanvas />
+      <FarmCanvas onDrawn={() => setDrawn(true)} />
       <Hud />
       <Flyers />
       <Panels />
+      {/* the start up screen stays over the farm until its first picture is drawn */}
+      {!drawn && <Splash />}
     </StoreCtx.Provider>
+  );
+}
+
+function Splash() {
+  return (
+    <div className="fixed inset-0 z-[100] grid place-items-center bg-[#3f9fd8] font-game text-white">
+      <div className="text-center">
+        <div className="emoji animate-bob text-6xl">🌾</div>
+        <div className="mt-3 text-2xl font-bold">Talons Farm</div>
+      </div>
+    </div>
   );
 }
 
 type Mode = 'none' | 'pending' | 'pan' | 'harvest' | 'plant' | 'ghost' | 'pinch';
 
-function FarmCanvas() {
+function FarmCanvas({ onDrawn }: { onDrawn: () => void }) {
   const store = useStore();
   const ref = useRef<HTMLCanvasElement>(null);
 
@@ -97,6 +102,7 @@ function FarmCanvas() {
     const canvas = ref.current;
     if (!canvas) return;
     const r = new Renderer(canvas, store);
+    r.onFirstDraw = onDrawn;
     (window as unknown as { __farm?: unknown }).__farm = { store, renderer: r };
     store.viewCenter = () => r.gridAt(r.W / 2, r.H / 2);
     store.toScreen = (gx, gy, z) => r.toScreen(gx, gy, z);
