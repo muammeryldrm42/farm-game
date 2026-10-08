@@ -76,6 +76,10 @@ def forsale_sign():
         t.rotation_euler = (math.radians(90), 0, math.radians(180) if side > 0 else 0)
         # heavy lettering: fatten the outline a little
         t.data.offset = 0.004
+        # the letters are a few pixels tall in the game: three steps per curve and a single step
+        # round the bevel keep their shape (Blender's 12 and 4 made 8000 triangles a side)
+        t.data.resolution_u = 3
+        t.data.bevel_resolution = 1
         bpy.ops.object.convert(target='MESH')
         t = bpy.context.active_object
         t.data.materials.clear()
