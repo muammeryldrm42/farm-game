@@ -309,6 +309,20 @@ function FarmCanvas({ onDrawn }: { onDrawn: () => void }) {
       }
     };
 
+    // the phone took the touch (a back swipe from the screen's edge, the notifications pulled
+    // down, a call coming in): it was no tap, so nothing opens and the farmer stays put
+    const onCancel = (e: PointerEvent) => {
+      if (!pts.has(e.pointerId)) return;
+      pts.delete(e.pointerId);
+      clearLP();
+      if (mode === 'pinch' && pts.size === 1) {
+        const [q] = [...pts.values()];
+        sx = q.x; sy = q.y;
+        r.panStart(q.x, q.y);
+        mode = 'pan';
+      } else if (pts.size === 0) mode = 'none';
+    };
+
     const onWheel = (e: WheelEvent) => {
       e.preventDefault();
       const rect = canvas.getBoundingClientRect();
@@ -336,13 +350,22 @@ function FarmCanvas({ onDrawn }: { onDrawn: () => void }) {
     canvas.addEventListener('pointerdown', onDown);
     canvas.addEventListener('pointermove', onMove);
     canvas.addEventListener('pointerup', onUp);
-    canvas.addEventListener('pointercancel', onUp);
+    canvas.addEventListener('pointercancel', onCancel);
     canvas.addEventListener('wheel', onWheel, { passive: false });
     canvas.addEventListener('contextmenu', (e) => e.preventDefault());
     window.addEventListener('keydown', onKey);
     window.addEventListener('farm-zoom', onZoom);
     const onRotate = (ev: Event) => r.rotate((ev as CustomEvent<number>).detail);
     window.addEventListener('farm-rotate', onRotate);
+    // off to the background in the middle of a touch: its end may never come, and a finger left
+    // behind would make every later touch a pinch
+    const onHide = () => {
+      if (document.visibilityState !== 'hidden') return;
+      pts.clear();
+      clearLP();
+      mode = 'none';
+    };
+    document.addEventListener('visibilitychange', onHide);
 
     return () => {
       cancelAnimationFrame(raf);
@@ -351,11 +374,12 @@ function FarmCanvas({ onDrawn }: { onDrawn: () => void }) {
       canvas.removeEventListener('pointerdown', onDown);
       canvas.removeEventListener('pointermove', onMove);
       canvas.removeEventListener('pointerup', onUp);
-      canvas.removeEventListener('pointercancel', onUp);
+      canvas.removeEventListener('pointercancel', onCancel);
       canvas.removeEventListener('wheel', onWheel);
       window.removeEventListener('keydown', onKey);
       window.removeEventListener('farm-zoom', onZoom);
       window.removeEventListener('farm-rotate', onRotate);
+      document.removeEventListener('visibilitychange', onHide);
       r.dispose();
     };
   }, [store]);
