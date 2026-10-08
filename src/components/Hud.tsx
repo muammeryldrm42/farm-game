@@ -182,12 +182,13 @@ function HudBtn({ icon, label, onClick, badge = 0, pulse = false, glow = false, 
   return (
     <button
       data-fly={fly}
-      className={`btn btn-ghost relative h-12 w-12 flex-col sm:h-14 sm:w-14 rounded-2xl border-[3px] border-[#5d3a1f] p-0 ${pulse || glow ? 'animate-bob' : ''} ${glow ? 'ring-4 ring-white' : ''}`}
+      className={`btn btn-ghost relative h-12 min-w-12 flex-col sm:h-14 sm:min-w-14 rounded-2xl border-[3px] border-[#5d3a1f] px-1 py-0 ${pulse || glow ? 'animate-bob' : ''} ${glow ? 'ring-4 ring-white' : ''}`}
       onClick={onClick}
       aria-label={label}
     >
       <span className="emoji text-xl sm:text-2xl"><Ico i={icon} /></span>
-      <span className="text-[9px] sm:text-[10px] font-bold leading-3">{label}</span>
+      {/* a long word (Siparisler, Bestellingen) widens the button rather than spilling out of it */}
+      <span className="whitespace-nowrap text-[9px] font-bold leading-3 sm:text-[10px]">{label}</span>
       {badge > 0 && <span className="badge">{badge}</span>}
     </button>
   );
