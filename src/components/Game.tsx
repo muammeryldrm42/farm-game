@@ -3,7 +3,7 @@ import { useEffect, useRef, useState } from 'react';
 import { GameStore, loadGame, plotProgress, type FarmObject } from '@/game/state';
 import { BUILDING } from '@/game/data';
 import { Renderer } from '@/game/render3d';
-import { sfx, startMusic, stopMusic } from '@/game/audio';
+import { sfx, sleepAudio, startMusic, stopMusic } from '@/game/audio';
 import { Capacitor } from '@capacitor/core';
 import { App } from '@capacitor/app';
 import { StoreCtx, useStore } from './ctx';
@@ -40,6 +40,7 @@ export default function Game() {
     const syncMusic = () => {
       if (unlocked && st.s.settings.music && document.visibilityState === 'visible') startMusic();
       else stopMusic();
+      if (document.visibilityState === 'hidden') sleepAudio();
     };
     const unlock = () => { unlocked = true; syncMusic(); };
     window.addEventListener('pointerdown', unlock, { once: true });
@@ -303,7 +304,24 @@ function FarmCanvas({ onDrawn }: { onDrawn: () => void }) {
           store.tapTile(hitTile.x, hitTile.y);
         }
       }
-      if (pts.size === 0) mode = 'none';
+      if (pts.size === 0) {
+        if (mode === 'pan') r.panEnd();
+        mode = 'none';
+      }
+    };
+
+    // the phone took the touch (a back swipe from the screen's edge, the notifications pulled
+    // down, a call coming in): it was no tap, so nothing opens and the farmer stays put
+    const onCancel = (e: PointerEvent) => {
+      if (!pts.has(e.pointerId)) return;
+      pts.delete(e.pointerId);
+      clearLP();
+      if (mode === 'pinch' && pts.size === 1) {
+        const [q] = [...pts.values()];
+        sx = q.x; sy = q.y;
+        r.panStart(q.x, q.y);
+        mode = 'pan';
+      } else if (pts.size === 0) mode = 'none';
     };
 
     const onWheel = (e: WheelEvent) => {
@@ -333,13 +351,22 @@ function FarmCanvas({ onDrawn }: { onDrawn: () => void }) {
     canvas.addEventListener('pointerdown', onDown);
     canvas.addEventListener('pointermove', onMove);
     canvas.addEventListener('pointerup', onUp);
-    canvas.addEventListener('pointercancel', onUp);
+    canvas.addEventListener('pointercancel', onCancel);
     canvas.addEventListener('wheel', onWheel, { passive: false });
     canvas.addEventListener('contextmenu', (e) => e.preventDefault());
     window.addEventListener('keydown', onKey);
     window.addEventListener('farm-zoom', onZoom);
     const onRotate = (ev: Event) => r.rotate((ev as CustomEvent<number>).detail);
     window.addEventListener('farm-rotate', onRotate);
+    // off to the background in the middle of a touch: its end may never come, and a finger left
+    // behind would make every later touch a pinch
+    const onHide = () => {
+      if (document.visibilityState !== 'hidden') return;
+      pts.clear();
+      clearLP();
+      mode = 'none';
+    };
+    document.addEventListener('visibilitychange', onHide);
 
     return () => {
       cancelAnimationFrame(raf);
@@ -348,11 +375,12 @@ function FarmCanvas({ onDrawn }: { onDrawn: () => void }) {
       canvas.removeEventListener('pointerdown', onDown);
       canvas.removeEventListener('pointermove', onMove);
       canvas.removeEventListener('pointerup', onUp);
-      canvas.removeEventListener('pointercancel', onUp);
+      canvas.removeEventListener('pointercancel', onCancel);
       canvas.removeEventListener('wheel', onWheel);
       window.removeEventListener('keydown', onKey);
       window.removeEventListener('farm-zoom', onZoom);
       window.removeEventListener('farm-rotate', onRotate);
+      document.removeEventListener('visibilitychange', onHide);
       r.dispose();
     };
   }, [store]);

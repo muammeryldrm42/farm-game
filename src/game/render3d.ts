@@ -361,7 +361,12 @@ interface Entry {
   bubbleKey?: string;
   // squash and stretch: time into the animation, and its kind
   bounce?: { t: number; kind: 'spawn' | 'bump' | 'big' | 'work' };
+  // a herd: whether any of its animals was in view at its last update
+  herdSeen?: boolean;
 }
+// the camera's view this frame, for herds to tell whether their animals are in it
+let VIEW: THREE.Frustum | null = null;
+const herdBall = new THREE.Sphere(new THREE.Vector3(), 2);
 function bump(e: Entry, kind: 'bump' | 'big' | 'work' = 'bump') {
   if (!e.bounce || e.bounce.kind !== 'spawn') e.bounce = { t: 0, kind };
 }
@@ -403,10 +408,19 @@ function tickAnims(dt: number) {
 const easeOutBack = (k: number) => { const c = 1.9; return 1 + (c + 1) * Math.pow(k - 1, 3) + c * Math.pow(k - 1, 2); };
 const tmpV = new THREE.Vector3();
 
+// A copy for a passing effect, without the userData: three.js copies that through JSON, and
+// a crop keeps its ripe and unripe materials there, so each copy turned their textures into
+// pictures (a GPU read back each, a long stall on a phone for every field harvested).
+function bareClone(src: THREE.Object3D) {
+  const kept: [THREE.Object3D, Record<string, unknown>][] = [];
+  src.traverse((o) => { kept.push([o, o.userData]); o.userData = {}; });
+  try { return src.clone(); } finally { for (const [o, u] of kept) o.userData = u; }
+}
+
 // a copy of `src` jumps out of its place, spins and shrinks away (harvest, collecting)
 function popOut(src: THREE.Object3D, delay = 0, height = 1.3) {
   src.updateWorldMatrix(true, true);
-  const c = src.clone();
+  const c = bareClone(src);
   src.getWorldPosition(c.position);
   src.getWorldQuaternion(c.quaternion);
   src.getWorldScale(c.scale);
@@ -430,7 +444,7 @@ function popOut(src: THREE.Object3D, delay = 0, height = 1.3) {
 // a copy of `src` falls to the ground, bounces once and fades (fruit dropping from a shaken tree)
 function dropDown(src: THREE.Object3D, delay = 0) {
   src.updateWorldMatrix(true, true);
-  const c = src.clone();
+  const c = bareClone(src);
   src.getWorldPosition(c.position);
   src.getWorldScale(c.scale);
   const p0 = c.position.clone(), s0 = c.scale.clone();
@@ -568,7 +582,7 @@ export class Renderer {
   private land = new THREE.Group();
   private fxLayer = new THREE.Group();
   private entries = new Map<number, Entry>();
-  private syncKey = '';
+  private syncKey = -1;
   private landKey = '';
   private tiles!: THREE.InstancedMesh;
   private sea!: THREE.Mesh;
@@ -598,6 +612,10 @@ export class Renderer {
   private season: Season = seasonOf();
   private last = 0;
   private panAnchor: THREE.Vector3 | null = null;
+  // a flick of the map glides on and slows down: the drag's speed (ground units a second) and
+  // the time of its last step
+  private panV = { x: 0, z: 0, t: 0 };
+  private glide = { x: 0, z: 0 };
   private bg = new THREE.Color();
 
   constructor(public canvas: HTMLCanvasElement, public store: GameStore) {
@@ -609,8 +627,14 @@ export class Renderer {
     this.gl.toneMappingExposure = 0.9;
     this.scene.fog = new THREE.Fog('#8fd3f5', 60, 140);
     this.scene.background = this.bg;
+    // frame() works out the scene's matrices itself, once, before drawing
+    this.scene.matrixWorldAutoUpdate = false;
     this.scene.add(this.sky.mesh);
     this.buildEnvironment();
+    // Android may take the GPU from an app in the background. three.js uploads the models and
+    // textures again by itself; the sky light, drawn once, is drawn again here (or the farm
+    // comes back dark)
+    canvas.addEventListener('webglcontextrestored', this.onRestored);
 
     this.sun.position.set(14 + 14, 26, 14 + 8);
     this.sun.target.position.set(14, 0, 14);
@@ -692,8 +716,14 @@ export class Renderer {
     this.updateCamera();
   }
 
+  private onRestored = () => {
+    this.scene.environment?.dispose();
+    this.buildEnvironment();
+  };
+
   dispose() {
     precompile = null;
+    this.canvas.removeEventListener('webglcontextrestored', this.onRestored);
     this.offQuality();
     this.post?.dispose();
     this.gl.dispose();
@@ -808,16 +838,37 @@ export class Renderer {
 
   panStart(sx: number, sy: number) {
     this.panAnchor = this.groundAt(sx, sy);
+    // a finger on the map stops it gliding
+    this.glide.x = this.glide.z = 0;
+    this.panV = { x: 0, z: 0, t: performance.now() };
   }
 
   panTo(sx: number, sy: number) {
     if (!this.panAnchor) return;
     const cur = this.groundAt(sx, sy);
     if (!cur) return;
+    const x0 = this.target.x, z0 = this.target.z;
     this.target.x += this.panAnchor.x - cur.x;
     this.target.z += this.panAnchor.z - cur.z;
     this.clampCam();
     this.updateCamera();
+    const now = performance.now(), ms = now - this.panV.t;
+    if (ms > 0) {
+      // smoothed over the last few steps of the drag
+      const k = Math.min(1, ms / 60);
+      this.panV.x += (((this.target.x - x0) / ms) * 1000 - this.panV.x) * k;
+      this.panV.z += (((this.target.z - z0) / ms) * 1000 - this.panV.z) * k;
+      this.panV.t = now;
+    }
+  }
+
+  // the finger lifts: a quick flick glides on, a drag that had come to rest stays put
+  panEnd() {
+    const v = this.panV, sp = Math.hypot(v.x, v.z);
+    if (performance.now() - v.t > 80 || sp < 3) return;
+    const f = Math.min(1, 45 / sp);
+    this.glide.x = v.x * f;
+    this.glide.z = v.z * f;
   }
 
   zoomAt(sx: number, sy: number, zoom: number) {
@@ -850,6 +901,7 @@ export class Renderer {
   }
 
   centerOn(gx: number, gy: number) {
+    this.glide.x = this.glide.z = 0;
     this.target.set(gx, 0, gy);
     this.updateCamera();
   }
@@ -1388,7 +1440,7 @@ export class Renderer {
 
   private sync() {
     const s = this.store.s;
-    const key = `${this.store.objVersion}|${s.objects.length}`;
+    const key = this.store.objVersion * 1e5 + s.objects.length;
     if (key === this.syncKey) return;
     this.syncKey = key;
     const first = !this.synced;
@@ -1493,6 +1545,14 @@ export class Renderer {
 
     // smooth camera rotation
     if (Math.abs(this.azGoal - this.az) > 0.0005) this.az += (this.azGoal - this.az) * Math.min(1, dt * 8);
+    if (this.glide.x || this.glide.z) {
+      this.target.x += this.glide.x * dt;
+      this.target.z += this.glide.z * dt;
+      this.clampCam();
+      const f = Math.exp(-dt * 5);
+      this.glide.x *= f; this.glide.z *= f;
+      if (Math.hypot(this.glide.x, this.glide.z) < 0.4) this.glide.x = this.glide.z = 0;
+    }
     this.updateCamera();
 
     const moveId = ui.placing?.moveId;
@@ -1503,6 +1563,7 @@ export class Renderer {
     resetSculptBudget();
     this.projM.multiplyMatrices(this.camera.projectionMatrix, this.camera.matrixWorldInverse);
     this.frustum.setFromProjectionMatrix(this.projM);
+    VIEW = this.frustum;
     for (const o of s.objects) {
       const e = this.entries.get(o.id);
       if (!e) continue;
@@ -1512,8 +1573,10 @@ export class Renderer {
       this.cullSphere.radius = Math.max(d.w, d.h) * 0.8 + 1.2;
       const seen = this.frustum.intersectsSphere(this.cullSphere);
       // animals out of their pen (grazing, flying, fishing at sea) keep moving even when the pen
-      // itself is off screen, or they would stand frozen out there
-      if (seen || (!!o.pen && o.pen.animals.some((a) => a.graze)) || (this.frameNo + o.id) % 24 === 0) e.update?.(o, now, t, dt);
+      // itself is off screen, or they would stand frozen out there. While none of them is in
+      // view either, every fourth frame is enough to see one coming in.
+      const out = !!o.pen && o.pen.animals.some((a) => a.graze);
+      if (seen || (out && (e.herdSeen !== false || (this.frameNo + o.id) % 4 === 0)) || (this.frameNo + o.id) % 24 === 0) e.update?.(o, now, t, dt);
       if (e.bounce || e.root.scale.x !== 1) this.applyBounce(e, o, dt);
     }
     tickAnims(dt);
@@ -1545,6 +1608,9 @@ export class Renderer {
     this.updateLight(now, t, wk);
 
     this.sky.mesh.position.copy(this.camera.position);
+    // the scene's matrices, once a frame: the shadow blobs read them, and the renderer (and each
+    // pass of the high quality effects) does not work them all out again
+    this.scene.updateMatrixWorld();
     drawBlobs(this.scene);
     // the first picture waits until the scene's shaders are compiled in the background (in
     // parallel where the browser can): no long freeze at start up on a phone, and the page stays
@@ -1556,6 +1622,7 @@ export class Renderer {
     if (this.warm !== 'done') {
       if (this.warm === 'cold') {
         this.warm = 'warming';
+        this.scene.add(this.warmers);
         const go = () => { this.warm = 'compiled'; };
         this.gl.compileAsync(this.scene, this.camera).then(go, go);
         setTimeout(() => { this.warm = 'done'; }, 10000);
@@ -1563,11 +1630,26 @@ export class Renderer {
       if (this.warm === 'compiled' && surfacesReady() && modelsLoading === 0) this.warm = 'done';
       else return;
     }
+    // compiled, never drawn; their materials are kept (not disposed) so the shaders stay
+    if (this.warmers.parent) this.scene.remove(this.warmers);
     if (this.post) this.post.render();
     else this.gl.render(this.scene, this.camera);
     if (this.onFirstDraw) { const f = this.onFirstDraw; this.onFirstDraw = null; f(); }
   }
   private warm: 'cold' | 'warming' | 'compiled' | 'done' = 'cold';
+  // Stand ins for what first shows during play (the sparkle of a harvest or a new building, the
+  // rain, a fishing line), compiled with the farm at start up: a shader compiled the first time
+  // it is needed is a stall of a good part of a second on a phone.
+  private warmers = (() => {
+    const g = new THREE.Group();
+    const pt = new THREE.BufferGeometry();
+    pt.setAttribute('position', new THREE.BufferAttribute(new Float32Array(6), 3));
+    g.add(new THREE.Points(pt, new THREE.PointsMaterial({ color: '#ffffff', size: 0.2, map: sparkTex(), transparent: true, depthWrite: false })));
+    g.add(new THREE.LineSegments(pt, new THREE.LineBasicMaterial({ color: '#d6e6ff', transparent: true, opacity: 0.55 })));
+    g.add(new THREE.Line(pt, new THREE.LineBasicMaterial({ color: '#ffffff' })));
+    for (const c of g.children) c.frustumCulled = false;
+    return g;
+  })();
   // called once, after the first picture of the farm is drawn (the start up cover then lifts)
   onFirstDraw: (() => void) | null = null;
 
@@ -2302,11 +2384,11 @@ export class Renderer {
   }
 
   // blossoms for the bees: flower beds and arches, flowering crops, fruit trees
-  private flowerKey = '';
+  private flowerKey = -1;
   private flowerList: { x: number; y: number }[] = [];
   private flowerSpots() {
     const s = this.store.s;
-    const key = `${this.store.objVersion}|${s.objects.length}`;
+    const key = this.store.objVersion * 1e5 + s.objects.length;
     if (key !== this.flowerKey) {
       this.flowerKey = key;
       this.flowerList = [];
@@ -2321,11 +2403,11 @@ export class Renderer {
   }
 
   // roof ridges a bird may perch on: the middle of each building with walls and its height
-  private roofKey = '';
+  private roofKey = -1;
   private roofList: { id: number; x: number; y: number; h: number }[] = [];
   private roofSpots() {
     const s = this.store.s;
-    const key = `${this.store.objVersion}|${s.objects.length}`;
+    const key = this.store.objVersion * 1e5 + s.objects.length;
     if (key !== this.roofKey) {
       this.roofKey = key;
       this.roofList = [];
@@ -2340,11 +2422,11 @@ export class Renderer {
   }
 
   // garden ponds a duck may swim on: their middle, how far it can paddle about, the water level
-  private pondKey = '';
+  private pondKey = -1;
   private pondList: { x: number; y: number; r: number; surf: number }[] = [];
   private pondSpots() {
     const s = this.store.s;
-    const key = `${this.store.objVersion}|${s.objects.length}`;
+    const key = this.store.objVersion * 1e5 + s.objects.length;
     if (key !== this.pondKey) {
       this.pondKey = key;
       this.pondList = [];
@@ -2357,11 +2439,11 @@ export class Renderer {
   }
 
   // trees a bird may sit in: fruit trees and the wild trees still standing on the farm
-  private treeKey = '';
+  private treeKey = -1;
   private treeList: { id: number; x: number; y: number }[] = [];
   private treeSpots() {
     const s = this.store.s;
-    const key = `${this.store.objVersion}|${s.objects.length}`;
+    const key = this.store.objVersion * 1e5 + s.objects.length;
     if (key !== this.treeKey) {
       this.treeKey = key;
       this.treeList = [];
@@ -3324,6 +3406,8 @@ function fishCycle(herd: THREE.Object3D, m: THREE.Object3D, head: THREE.Object3D
       f.position.copy(beakOf(head));
       f.rotation.y = Math.PI / 2;
       head.add(f);
+      // placed at once: a herd out of view does not work its matrices out every frame
+      f.updateMatrixWorld(true);
       m.userData.fish = f;
     }
     f.visible = fishOn && swallow > 0.05 && !swan;
@@ -3461,7 +3545,6 @@ function drawBlobs(scene: THREE.Scene) {
     }
     b.userData.lostAt = undefined;
     if (!shown) continue;
-    b.updateWorldMatrix(true, false);
     blobBatch.setMatrixAt(n++, b.matrixWorld);
   }
   blobBatch.count = n;
@@ -4773,7 +4856,8 @@ let GRAZE_NAV: {
 } | null = null;
 
 interface Trip { out: P2[]; eat: P2[][]; back: P2[]; recall?: { at: number; path: P2[] } }
-const trips = new Map<string, Trip>();
+// each grazing animal's trip, worked out once a trip (and again if its pen is moved)
+const trips = new WeakMap<Animal, { o: number; x: number; y: number; rot: number; at: number; tr: Trip }>();
 
 function polyLen(pts: P2[]) {
   let L = 0;
@@ -4815,8 +4899,8 @@ function turnPt(o: FarmObject, d: BuildingDef, p: P2): P2 {
 
 function tripFor(o: FarmObject, d: BuildingDef, a: Animal): Trip | null {
   if (!a.graze || !GRAZE_NAV) return null;
-  const key = `${o.id}|${o.x},${o.y},${o.rot ?? 0}|${a.id}|${a.graze.at}`;
-  let tr = trips.get(key);
+  const c = trips.get(a);
+  let tr = c && c.o === o.id && c.x === o.x && c.y === o.y && c.rot === (o.rot ?? 0) && c.at === a.graze.at ? c.tr : null;
   if (!tr) {
     const sp = animalSpot(o, d, a.id, a.graze.at);
     const home = { x: o.x + sp.x, y: o.y + sp.z };
@@ -4844,8 +4928,7 @@ function tripFor(o: FarmObject, d: BuildingDef, a: Animal): Trip | null {
     const eat = [walk(spots[0], spots[1]), walk(spots[1], spots[2])];
     const back = [...walk(spots[2], gateOut), gateIn, home2];
     tr = { out, eat, back };
-    if (trips.size > 400) trips.clear();
-    trips.set(key, tr);
+    trips.set(a, { o: o.id, x: o.x, y: o.y, rot: o.rot ?? 0, at: a.graze.at, tr });
   }
   return tr;
 }
@@ -5014,13 +5097,23 @@ function gateOpen(o: FarmObject, now: number) {
   return Math.max(0, open);
 }
 
+// the flowers within a hive's reach, by the hive's spot; kept until the farm's flowers change
+const beeNear = { fl: null as P2[] | null, at: new Map<number, P2[]>() };
+function flowersNear(fl: P2[], cx: number, cy: number) {
+  if (beeNear.fl !== fl) { beeNear.fl = fl; beeNear.at.clear(); }
+  const key = cx * 4096 + cy;
+  let near = beeNear.at.get(key);
+  if (!near) { near = fl.filter((f) => Math.hypot(f.x - cx, f.y - cy) < 9); beeNear.at.set(key, near); }
+  return near;
+}
+const HIVE_SLOTS = [[0.5, 0.5], [1.5, 0.5], [0.5, 1.5], [1.5, 1.5]] as const;
+
 // the bees of a hive fly (straight, they can) to flowers near the pen and back
 function beePose(o: FarmObject, a: Animal, k: number, now: number) {
   const gp = grazePhase(a, now, true);
   if (gp.phase === 'in' || gp.phase === 'home' || gp.phase === 'full') return null;
-  const fl = GRAZE_NAV?.flowers() ?? [];
   const cx = o.x + 1, cy = o.y + 1;
-  const near = fl.filter((f) => Math.hypot(f.x - cx, f.y - cy) < 9);
+  const near = flowersNear(GRAZE_NAV?.flowers() ?? NO_SPOTS, cx, cy);
   const pick = near.length ? near[Math.floor(hash(a.id, k, 7) * near.length)]
     : { x: cx + (hash(a.id, k, 3) - 0.5) * 6, y: o.y + 2.5 + hash(a.id, k, 4) * 3 };
   const target = { x: pick.x + (hash(k, a.id, 9) - 0.5) * 0.5, y: pick.y + (hash(a.id, k, 11) - 0.5) * 0.5 };
@@ -5273,11 +5366,25 @@ function buildPen(e: Entry, d: BuildingDef) {
   const herdFx = keep(group(g));
   herd.userData.fx = herdFx;
   e.counter = [herd, herdFx];
+  // The animals of a pen out of view are moved only now and then (see frame), and stand still
+  // in between: their matrices are worked out again only after a move, or when the pen itself
+  // moves (placed, bounced). On a farm full of pens that is most of the scene's matrix work.
+  let herdMoved = true;
+  const herdAt = new THREE.Matrix4();
+  herd.updateMatrixWorld = function (force?: boolean) {
+    const pm = this.parent?.matrixWorld;
+    if (!herdMoved && pm && pm.equals(herdAt)) return;
+    herdMoved = false;
+    if (pm) herdAt.copy(pm);
+    THREE.Object3D.prototype.updateMatrixWorld.call(this, true);
+    void force;
+  };
   let count = -1, ver = -1;
   const an = ANIMAL[d.animal ?? ''];
   const fed = new Map<number, number | null>();
   const hop = new Map<number, number>();
   e.update = (o, now, t, dt = 0.016) => {
+    herdMoved = true;
     const list = o.pen?.animals ?? [];
     // sculpting a new kind takes a moment, so at most one new kind is sculpted per frame;
     // a farm full of pens fills in over a few frames instead of freezing on load
@@ -5287,8 +5394,10 @@ function buildPen(e: Entry, d: BuildingDef) {
       sculptBudget--;
     }
     const kv = animalVerOf(an?.id ?? '');
+    let rebuilt = false;
     if (!waiting && (list.length !== count || ver !== kv)) {
       ver = kv;
+      rebuilt = true;
       const grew = count >= 0 && list.length > count;
       for (const c of herd.children) (c.userData.ripple as THREE.Object3D | undefined)?.removeFromParent();
       herd.clear();
@@ -5314,8 +5423,7 @@ function buildPen(e: Entry, d: BuildingDef) {
       }
       if (an && a && animalReady(a, an.time, now)) jump += Math.max(0, Math.sin(t / 170 + id)) * 0.03 * (Math.sin(t / 1900 + id) > 0.6 ? 1 : 0);
       if (an?.id === 'bee') {
-        const slots = [[0.5, 0.5], [1.5, 0.5], [0.5, 1.5], [1.5, 1.5]];
-        const [x, z] = slots[i % 4];
+        const [x, z] = HIVE_SLOTS[i % 4];
         m.position.set(x, 0.04 + jump * 0.3, z);
         const bees = m.userData.bees as THREE.Group;
         bees.children.forEach((b, k) => {
@@ -5470,6 +5578,16 @@ function buildPen(e: Entry, d: BuildingDef) {
       }
       if (tail) tail.rotation.z = Math.sin(t / (an?.id === 'goat' ? 90 : 330) + id) * 0.35;
     });
+    // animals all out of view keep last frame's matrices (and a herd out grazing is then moved
+    // less often, see frame); bees roam too far from their hive to tell, so they always count
+    let inView = an?.id === 'bee' || !VIEW;
+    for (let i = 0; !inView && i < herd.children.length; i++) {
+      const m = herd.children[i];
+      herdBall.center.set(o.x + m.position.x, m.position.y + 0.5, o.y + m.position.z);
+      inView = VIEW!.intersectsSphere(herdBall);
+    }
+    e.herdSeen = inView;
+    herdMoved = inView || rebuilt;
   };
 }
 

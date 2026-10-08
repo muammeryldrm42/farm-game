@@ -876,7 +876,9 @@ export function iconUrl(icon: string) {
   if (typeof document === 'undefined') return '';
   const cv = document.createElement('canvas');
   cv.width = cv.height = 128;
-  paintIcon(cv.getContext('2d') as CanvasRenderingContext2D, icon, 64, 64, 128);
+  // painted by the CPU: an icon read back from a GPU canvas waits for the GPU to finish drawing
+  // the farm (a long stall on a phone, for each icon a panel shows the first time)
+  paintIcon(cv.getContext('2d', { willReadFrequently: true }) as CanvasRenderingContext2D, icon, 64, 64, 128);
   u = cv.toDataURL();
   urls.set(icon, u);
   return u;
