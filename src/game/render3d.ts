@@ -611,6 +611,10 @@ export class Renderer {
     this.scene.background = this.bg;
     this.scene.add(this.sky.mesh);
     this.buildEnvironment();
+    // Android may take the GPU from an app in the background. three.js uploads the models and
+    // textures again by itself; the sky light, drawn once, is drawn again here (or the farm
+    // comes back dark)
+    canvas.addEventListener('webglcontextrestored', this.onRestored);
 
     this.sun.position.set(14 + 14, 26, 14 + 8);
     this.sun.target.position.set(14, 0, 14);
@@ -692,8 +696,14 @@ export class Renderer {
     this.updateCamera();
   }
 
+  private onRestored = () => {
+    this.scene.environment?.dispose();
+    this.buildEnvironment();
+  };
+
   dispose() {
     precompile = null;
+    this.canvas.removeEventListener('webglcontextrestored', this.onRestored);
     this.offQuality();
     this.post?.dispose();
     this.gl.dispose();
