@@ -116,12 +116,21 @@ function FarmCanvas() {
     let raf = 0;
     // at most 60 frames a second (30 with the battery saver): a 120 Hz phone would otherwise draw
     // twice as often, for twice the heat and battery, with nothing more to see
-    let last = 0;
+    // A screen no faster than the cap draws every frame. A faster one keeps to a fixed beat: on a
+    // 90 Hz screen that is two drawn of every three (a steady 60), where simply waiting a frame's
+    // time after the last one would draw every other (45). After a slow frame the beat moves on
+    // instead of rushing to catch up.
+    let last = 0, prev = 0, avg = 1000 / 60;
     const loop = (t: number) => {
       raf = requestAnimationFrame(loop);
+      // the screen's own frame time, smoothed
+      if (prev) avg += (Math.min(100, t - prev) - avg) * 0.05;
+      prev = t;
       const gap = store.s.settings.saver ? 1000 / 30 : 1000 / 60;
-      if (t - last < gap - 4) return;
-      last = t;
+      if (avg < gap - 1.5) {
+        if (t - last < gap - 4) return;
+        last = Math.max(last + gap, t - gap);
+      } else last = t;
       r.frame(t);
     };
     raf = requestAnimationFrame(loop);

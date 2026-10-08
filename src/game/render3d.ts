@@ -539,6 +539,14 @@ const PEN_GROUND: Record<string, string> = {
   guinea_run: '#d9c08a', swan_lake: '#8fc45a', emu_ranch: '#d8c38e', reindeer_lodge: '#eef3f6', bison_range: '#b8a46c', flamingo_lagoon: '#e8d8a8', golden_nest: '#e8d49a',
 };
 
+// The sea near the island, divided finely enough for its gentle swell. The longest of its waves
+// is some 25 tiles and the shortest 10, and none is higher than a tenth of a tile: low quality
+// keeps 7 points along the shortest wave, which looks the same, at a quarter of the triangles.
+const seaGeos: Partial<Record<Quality, THREE.PlaneGeometry>> = {};
+function seaGeo(q: Quality) {
+  return (seaGeos[q] ??= new THREE.PlaneGeometry(GRID + 60, GRID + 60, q === 'high' ? 180 : 96, q === 'high' ? 180 : 96));
+}
+
 // ------------------------------------------------------------------ renderer
 
 export class Renderer {
@@ -719,6 +727,7 @@ export class Renderer {
       this.sun.shadow.map = null as unknown as THREE.WebGLRenderTarget;
     }
     this.sun.shadow.radius = high ? 2.2 : 1.5;
+    if (this.sea && this.sea.geometry !== seaGeo(q)) this.sea.geometry = seaGeo(q);
     if (high && !this.post) this.post = new Post(this.gl, this.scene, this.camera, [this.sky.mesh, this.fxLayer, this.foliage.group]);
     if (!high && this.post) { this.post.dispose(); this.post = null; }
     this.foliageKey = '';
@@ -890,7 +899,7 @@ export class Renderer {
     // island rectangle including the beach, used for shallow water and surf
     const seaMat = makeWater({ sea: true, rect: [-BEACH, -BEACH, GRID + BEACH, GRID + BEACH], shallow: '#62d9d2', deep: '#1f78c2', cove: [COVE.x, COVE.z, COVE.rx, COVE.rz] });
     // finely divided near the island so the swell can move the surface, flat far away
-    this.sea = new THREE.Mesh(new THREE.PlaneGeometry(GRID + 60, GRID + 60, 180, 180), seaMat);
+    this.sea = new THREE.Mesh(seaGeo(this.quality), seaMat);
     this.sea.rotation.x = -Math.PI / 2;
     this.sea.position.set(GRID / 2, -0.55, GRID / 2);
     this.sea.receiveShadow = true;
@@ -3755,16 +3764,27 @@ function realEyeGeo(r: number, sx: number, lid: string) {
   realEyeCache.set(key, g);
   return g;
 }
+// Both eyes in one mesh, each turned out by its yaw and set to its side. The pair hangs at the
+// eyes' height, so the blink (squashing it top to bottom) closes each eye about its own middle,
+// just as when every eye had its own mesh: one draw for both eyes, not two.
+const realPairCache = new Map<string, THREE.BufferGeometry>();
+function realEyePairGeo(x: number, z: number, r: number, yaw: number, lid: string) {
+  const key = `${x.toFixed(4)}|${z.toFixed(4)}|${r.toFixed(4)}|${yaw.toFixed(4)}|${lid}`;
+  let g = realPairCache.get(key);
+  if (g) return g;
+  const m = new THREE.Matrix4(), rot = new THREE.Matrix4();
+  g = mergeGeometries([-1, 1].map((sx) => realEyeGeo(r, sx, lid).clone()
+    .applyMatrix4(m.makeTranslation(sx * x, 0, z).multiply(rot.makeRotationY(sx * yaw))))) as THREE.BufferGeometry;
+  realPairCache.set(key, g);
+  return g;
+}
 function realEyes(head: THREE.Object3D, spec: [number, number, number, number, number], lid: string) {
   const [x, y, z, r, yaw] = spec;
   const list: THREE.Object3D[] = (head.userData.eyes as THREE.Object3D[] | undefined) ?? [];
-  for (const sx of [-1, 1]) {
-    const e = group(head, sx * x, y, z);
-    e.rotation.y = sx * yaw;
-    // eyeball, catch light and lid rim baked into one small mesh: one draw per eye, not three
-    mk(e, realEyeGeo(r, sx, lid), EYE_REAL_MERGED, 1, 1, 1, 0, 0, 0, false);
-    list.push(e);
-  }
+  const e = group(head, 0, y, 0);
+  // eyeball, catch light and lid rim of both eyes baked into one small mesh
+  mk(e, realEyePairGeo(x, z, r, yaw, lid), EYE_REAL_MERGED, 1, 1, 1, 0, 0, 0, false);
+  list.push(e);
   head.userData.eyes = list;
 }
 
@@ -3918,6 +3938,30 @@ function skepGeo() {
 }
 
 let hiveSrc: THREE.Object3D | null = null;
+// A bee's yellow body and dark band baked into one small mesh with the colors in its vertices:
+// one draw instead of two for every bee buzzing round a hive.
+const BEE_MAT = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.78, metalness: 0 });
+let beeGeo: THREE.BufferGeometry | null = null;
+function beeBodyGeo() {
+  if (beeGeo) return beeGeo;
+  const m = new THREE.Matrix4(), c = new THREE.Color();
+  const parts: [string, number, number, number, number][] = [
+    ['#f5c518', 0.018 * 0.9, 0.018 * 0.9, 0.018 * 1.3, 0],
+    ['#2a1a10', 0.019 * 0.85, 0.019 * 0.85, 0.019 * 0.35, -0.008],
+  ];
+  beeGeo = mergeGeometries(parts.map(([col, a, b, d, z]) => {
+    const p = G.ball.index ? G.ball.toNonIndexed() : G.ball.clone();
+    p.applyMatrix4(m.makeScale(a, b, d).setPosition(0, 0, z));
+    for (const k of Object.keys(p.attributes)) if (k !== 'position' && k !== 'normal') p.deleteAttribute(k);
+    c.set(col);
+    const n = p.getAttribute('position').count, arr = new Float32Array(n * 3);
+    for (let i = 0; i < n; i++) { arr[i * 3] = c.r; arr[i * 3 + 1] = c.g; arr[i * 3 + 2] = c.b; }
+    p.setAttribute('color', new THREE.BufferAttribute(arr, 3));
+    return p;
+  })) as THREE.BufferGeometry;
+  return beeGeo;
+}
+
 function buildHive() {
   const g = new THREE.Group();
   if (artStyle() === 'toon' && !hiveSrc && !modelCache.has('beehive_skep')) {
@@ -3936,8 +3980,8 @@ function buildHive() {
   const bees = group(g);
   for (let i = 0; i < 4; i++) {
     const b = group(bees);
-    ball(b, 0.018, '#f5c518', 0, 0, 0, 0.9, 0.9, 1.3, false);
-    ball(b, 0.019, '#2a1a10', 0, 0, -0.008, 0.85, 0.85, 0.35, false);
+    // the striped body is one mesh; the two wings (children 1 and 2) flap on their own
+    mk(b, beeBodyGeo(), BEE_MAT, 1, 1, 1, 0, 0, 0, false);
     ball(b, 0.014, '#e8f4ff', 0.012, 0.016, 0, 1.2, 0.35, 0.8, false);
     ball(b, 0.014, '#e8f4ff', -0.012, 0.016, 0, 1.2, 0.35, 0.8, false);
   }
@@ -5263,16 +5307,16 @@ function buildPen(e: Entry, d: BuildingDef) {
             b.position.set(bp.x - o.x - x, bp.h + (bp.landed ? 0 : Math.sin(t / 150 + k) * 0.03), bp.y - o.y - z);
             b.rotation.y = t / 300 + k;
             const f2 = Math.sin(t / 18 + k) * (bp.landed ? 0.2 : 0.6);
-            b.children[2].rotation.z = f2;
-            b.children[3].rotation.z = -f2;
+            b.children[1].rotation.z = f2;
+            b.children[2].rotation.z = -f2;
             return;
           }
           const ang = t / (400 + k * 90) + k * 2 + id;
           b.position.set(Math.cos(ang) * (0.25 + k * 0.05), 0.35 + Math.sin(t / 300 + k) * 0.08, Math.sin(ang) * (0.25 + k * 0.05));
           b.rotation.y = -ang;
           const flap = Math.sin(t / 18 + k) * 0.6;
-          b.children[2].rotation.z = flap;
-          b.children[3].rotation.z = -flap;
+          b.children[1].rotation.z = flap;
+          b.children[2].rotation.z = -flap;
         });
         return;
       }
