@@ -15,6 +15,13 @@ import Flyers from './Flyers';
 export default function Game() {
   const [store, setStore] = useState<GameStore | null>(null);
   const [drawn, setDrawn] = useState(false);
+  // the start up screen lifts by itself if the farm never draws (no 3D on the device, or an error
+  // on the way): better the game as it is than a screen that never goes away
+  useEffect(() => {
+    if (!store) return;
+    const tm = setTimeout(() => setDrawn(true), 20000);
+    return () => clearTimeout(tm);
+  }, [store]);
 
   useEffect(() => {
     const st = new GameStore(loadGame());
