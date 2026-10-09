@@ -4065,6 +4065,14 @@ function torus(r: number, t: number, rs: number, ts: number, arc = Math.PI * 2) 
   return g;
 }
 
+// A small merged model of spheres and rings, one color a part, kept indexed: a corner shared by
+// several triangles is worked out once on the GPU instead of once for each, and the corners a
+// sphere repeats at its poles and seam (same place, normal and color) are made one. The
+// triangles are the same, so is the picture.
+function sharedCorners(g: THREE.BufferGeometry) {
+  return mergeVertices(g);
+}
+
 // Realistic eyes: a glossy dark eyeball set into the side of the head with a lid rim and a
 // tiny catch light, turned outward the way prey animals' eyes are.
 const EYE_REAL_MERGED = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.08, metalness: 0.08 });
@@ -4081,8 +4089,9 @@ function realEyeGeo(r: number, sx: number, lid: string) {
     [torus(1, 0.22, 5, 14), lid, r * 1.02, r * 0.92, r * 1.0, 0, 0, r * 0.1],
   ];
   const m = new THREE.Matrix4(), c = new THREE.Color();
-  g = mergeGeometries(parts.map(([geo, col, a, b, d, px, py, pz]) => {
-    const p = geo.index ? geo.toNonIndexed() : geo.clone();
+  // kept indexed, the poles' and seams' repeated corners made one (see sharedCorners)
+  g = sharedCorners(mergeGeometries(parts.map(([geo, col, a, b, d, px, py, pz]) => {
+    const p = geo.clone();
     p.applyMatrix4(m.makeScale(a, b, d).setPosition(px, py, pz));
     for (const k of Object.keys(p.attributes)) if (k !== 'position' && k !== 'normal') p.deleteAttribute(k);
     c.set(col);
@@ -4090,7 +4099,7 @@ function realEyeGeo(r: number, sx: number, lid: string) {
     for (let i = 0; i < n; i++) { arr[i * 3] = c.r; arr[i * 3 + 1] = c.g; arr[i * 3 + 2] = c.b; }
     p.setAttribute('color', new THREE.BufferAttribute(arr, 3));
     return p;
-  })) as THREE.BufferGeometry;
+  })) as THREE.BufferGeometry);
   realEyeCache.set(key, g);
   return g;
 }
@@ -4135,7 +4144,7 @@ function toonEyeGeo(r: number, sx: number, lid: string) {
   ];
   const m = new THREE.Matrix4(), c = new THREE.Color();
   const geos = parts.map(([geo, col, a, b, d, px, py, pz]) => {
-    const p = (geo.index ? geo.toNonIndexed() : geo.clone());
+    const p = geo.clone();
     p.applyMatrix4(m.makeScale(a, b, d).setPosition(px, py, pz));
     for (const k of Object.keys(p.attributes)) if (k !== 'position' && k !== 'normal') p.deleteAttribute(k);
     c.set(col);
@@ -4144,7 +4153,7 @@ function toonEyeGeo(r: number, sx: number, lid: string) {
     p.setAttribute('color', new THREE.BufferAttribute(arr, 3));
     return p;
   });
-  g = mergeGeometries(geos) as THREE.BufferGeometry;
+  g = sharedCorners(mergeGeometries(geos) as THREE.BufferGeometry);
   eyeGeoCache.set(key, g);
   return g;
 }
@@ -4279,8 +4288,8 @@ function beeBodyGeo() {
     ['#f5c518', 0.018 * 0.9, 0.018 * 0.9, 0.018 * 1.3, 0],
     ['#2a1a10', 0.019 * 0.85, 0.019 * 0.85, 0.019 * 0.35, -0.008],
   ];
-  beeGeo = mergeGeometries(parts.map(([col, a, b, d, z]) => {
-    const p = G.ball.index ? G.ball.toNonIndexed() : G.ball.clone();
+  beeGeo = sharedCorners(mergeGeometries(parts.map(([col, a, b, d, z]) => {
+    const p = G.ball.clone();
     p.applyMatrix4(m.makeScale(a, b, d).setPosition(0, 0, z));
     for (const k of Object.keys(p.attributes)) if (k !== 'position' && k !== 'normal') p.deleteAttribute(k);
     c.set(col);
@@ -4288,7 +4297,7 @@ function beeBodyGeo() {
     for (let i = 0; i < n; i++) { arr[i * 3] = c.r; arr[i * 3 + 1] = c.g; arr[i * 3 + 2] = c.b; }
     p.setAttribute('color', new THREE.BufferAttribute(arr, 3));
     return p;
-  })) as THREE.BufferGeometry;
+  })) as THREE.BufferGeometry);
   return beeGeo;
 }
 
