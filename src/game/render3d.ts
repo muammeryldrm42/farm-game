@@ -403,8 +403,12 @@ const herdBall = new THREE.Sphere(new THREE.Vector3(), 2);
 const wildBall = new THREE.Sphere();
 const offView: THREE.Object3D[] = [];
 let hideOffView = false;
-function skipOffView(g: THREE.Object3D, r: number) {
+// `batch`: one of many of its kind (crabs, sandpipers, turtles, owls...); in view, its solid parts
+// are drawn in the batches with the others' (see Batches): the whole shore's crabs in a few draws,
+// not each crab's legs, claws and shell one by one.
+function skipOffView(g: THREE.Object3D, r: number, batch = false) {
   const at = new THREE.Vector3(NaN, NaN, NaN);
+  let meshes: THREE.Mesh[] = [];
   g.updateMatrixWorld = function () {
     if (VIEW && (!this.visible || (!VIEW.intersectsSphere(wildBall.set(this.position, r)) && !VIEW.intersectsSphere(wildBall.set(at, r))))) {
       if (this.visible && hideOffView) { this.visible = false; offView.push(this); }
@@ -412,7 +416,20 @@ function skipOffView(g: THREE.Object3D, r: number) {
     }
     at.copy(this.position);
     THREE.Object3D.prototype.updateMatrixWorld.call(this, true);
+    if (!batch || !this.visible) return;
+    // gathered again while it has no parts yet (its model still on the way) or once its parts
+    // were swapped (a stand in for the Blender model)
+    if (!meshes.length || !isUnder(meshes[0], this)) { unbatch(this); meshes = gatherStatics(this); }
+    // drawn when the creature itself is in view (`r` reaches further, for its shadow: with the
+    // sun's shadows off, one just past the edge of the view is not drawn at all)
+    if (meshes.length && (wildShadows || VIEW?.intersectsSphere(wildBall.set(this.position, 1)) !== false)) batchDraw.push({ root: this, meshes });
   };
+}
+// the sun casts shadows this frame (see skipOffView)
+let wildShadows = false;
+function isUnder(o: THREE.Object3D, root: THREE.Object3D) {
+  for (let q: THREE.Object3D | null = o; q; q = q.parent) if (q === root) return true;
+  return false;
 }
 function showOffView() {
   for (const g of offView) g.visible = true;
@@ -1731,6 +1748,7 @@ export class Renderer {
     // the scene's matrices, once a frame: the shadow blobs read them, and the renderer (and each
     // pass of the high quality effects) does not work them all out again
     hideOffView = this.warm === 'done';
+    wildShadows = this.gl.shadowMap.enabled && this.sun.castShadow;
     this.scene.updateMatrixWorld();
     this.batches.build(this.camera);
     drawBlobs(this.scene);
@@ -6920,10 +6938,10 @@ class TurtleBeach {
       const spray: THREE.Mesh[] = [];
       for (let k = 0; k < 8; k++) spray.push(mk(nest, G.ball, moundM, 0.012, 0.012, 0.012, 0, 0, 0, false));
       const babies: TurtleRig[] = [];
-      for (let k = 0; k < 9; k++) { const b = turtleRig('turtle_hatchling', 0.38); babies.push(b); scene.add(b.g); skipOffView(b.g, 1.5); }
+      for (let k = 0; k < 9; k++) { const b = turtleRig('turtle_hatchling', 0.38); babies.push(b); scene.add(b.g); skipOffView(b.g, 1.5, true); }
       scene.add(rig.g, nest);
-      skipOffView(rig.g, 3);
-      skipOffView(nest, 1.5);
+      skipOffView(rig.g, 3, true);
+      skipOffView(nest, 1.5, true);
       this.mothers.push({ rig, nest, eggs, pit, mound, spray, babies });
     }
   }
@@ -7116,7 +7134,7 @@ class ShoreLife {
         c.x = c.tx = p.x; c.z = c.tz = p.z;
         g.visible = false;
         scene.add(g);
-        skipOffView(g, 2);
+        skipOffView(g, 2, true);
         this.crabs.push(c);
         if (artStyle() === 'toon') {
           loadModel(kind).then((m) => {
@@ -7272,7 +7290,7 @@ class ShoreLife {
         const b: Piper = { g, legs: [], wings: [], shadow, ox: (hash(f, k, 86) - 0.5) * 1.2, oz: (hash(f, k, 87) - 0.5) * 0.35, x: 0, z: 0, y: -0.2, heading: 0 };
         g.visible = false;
         scene.add(g);
-        skipOffView(g, 2);
+        skipOffView(g, 2, true);
         fl.birds.push(b);
         if (artStyle() === 'toon') {
           loadModel('sandpiper').then((m) => {
@@ -7606,7 +7624,7 @@ class NightLife {
       const g = new THREE.Group();
       g.visible = false;
       scene.add(g);
-      skipOffView(g, 4);
+      skipOffView(g, 4, true);
       const o: NightOwl = { g, kind: k === 2 ? 'tawny_owl' : 'barn_owl', seed: k * 3.7 + 1, ready: false, wings: [], perch: null, state: 'perch', t0: 0, dur: 0, from: new THREE.Vector3(), to: new THREE.Vector3(), ground: null, heading: 0 };
       this.owls.push(o);
     }
@@ -7632,7 +7650,7 @@ class NightLife {
         if (kind !== 'bat') contactShadow(g, 0.14 * size, 0.18 * size);
         g.visible = false;
         scene.add(g);
-        skipOffView(g, 3);
+        skipOffView(g, 3, true);
         const c: Critter = { kind, g, body, legs: [], wings: [], seed: k * 5.3 + kind.length, ready: false, x: 0, z: 0, tx: 0, tz: 0, wait: 0, curl: 0, heading: 0, hop: -1, a: 0, a1: 0 };
         list.push(c);
         if (toon) {
