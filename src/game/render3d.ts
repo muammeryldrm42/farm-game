@@ -4672,6 +4672,8 @@ function useModel(e: Entry, o: FarmObject, d: BuildingDef) {
     for (const c of standIn) if (c !== crown) { g.remove(c); dropOwned(c); }
     g.add(m);
     if (e.statics !== undefined) e.statics = null;
+    // the model came: the stand in's fallback parts are not needed
+    g.traverse((c) => { if (c.userData.fallback) delete c.userData.fallback; });
     if (leaves && crown) {
       for (const c of [...crown.children]) if (!c.userData.keep) crown.remove(c);
       crown.add(leaves);
