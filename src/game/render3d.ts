@@ -370,6 +370,30 @@ interface Entry {
 // the camera's view this frame, for herds to tell whether their animals are in it
 let VIEW: THREE.Frustum | null = null;
 const herdBall = new THREE.Sphere(new THREE.Vector3(), 2);
+// A wild creature, bird or boat out of the view skips its matrix work: there are some 1600 parts
+// of them round the island, most of them off screen at any time. Its matrices are brought up to
+// date the frame it, or the place it was last drawn at, comes into view (so it is never drawn
+// where it was a while ago). `r` reaches past its parts and its shadow.
+// Once the farm is drawing, it is also left out of this frame's draw (hidden for the draw only,
+// shown again right after), so the renderer does not look through its parts one by one either.
+const wildBall = new THREE.Sphere();
+const offView: THREE.Object3D[] = [];
+let hideOffView = false;
+function skipOffView(g: THREE.Object3D, r: number) {
+  const at = new THREE.Vector3(NaN, NaN, NaN);
+  g.updateMatrixWorld = function () {
+    if (VIEW && (!this.visible || (!VIEW.intersectsSphere(wildBall.set(this.position, r)) && !VIEW.intersectsSphere(wildBall.set(at, r))))) {
+      if (this.visible && hideOffView) { this.visible = false; offView.push(this); }
+      return;
+    }
+    at.copy(this.position);
+    THREE.Object3D.prototype.updateMatrixWorld.call(this, true);
+  };
+}
+function showOffView() {
+  for (const g of offView) g.visible = true;
+  offView.length = 0;
+}
 function bump(e: Entry, kind: 'bump' | 'big' | 'work' = 'bump') {
   if (!e.bounce || e.bounce.kind !== 'spawn') e.bounce = { t: 0, kind };
 }
@@ -1572,6 +1596,7 @@ export class Renderer {
     const s = this.store.s;
     const ui = this.store.ui;
     const now = Date.now();
+    showOffView();
 
     U.time.value = t / 1000;
     this.rebuildLand();
@@ -1646,6 +1671,7 @@ export class Renderer {
     this.sky.mesh.position.copy(this.camera.position);
     // the scene's matrices, once a frame: the shadow blobs read them, and the renderer (and each
     // pass of the high quality effects) does not work them all out again
+    hideOffView = this.warm === 'done';
     this.scene.updateMatrixWorld();
     this.batches.build(this.camera);
     drawBlobs(this.scene);
@@ -1671,6 +1697,7 @@ export class Renderer {
     if (this.warmers.parent) this.scene.remove(this.warmers);
     if (this.post) this.post.render();
     else this.gl.render(this.scene, this.camera);
+    showOffView();
     if (this.onFirstDraw) { const f = this.onFirstDraw; this.onFirstDraw = null; f(); }
   }
   private warm: 'cold' | 'warming' | 'compiled' | 'done' = 'cold';
@@ -6825,8 +6852,10 @@ class TurtleBeach {
       const spray: THREE.Mesh[] = [];
       for (let k = 0; k < 8; k++) spray.push(mk(nest, G.ball, moundM, 0.012, 0.012, 0.012, 0, 0, 0, false));
       const babies: TurtleRig[] = [];
-      for (let k = 0; k < 9; k++) { const b = turtleRig('turtle_hatchling', 0.38); babies.push(b); scene.add(b.g); }
+      for (let k = 0; k < 9; k++) { const b = turtleRig('turtle_hatchling', 0.38); babies.push(b); scene.add(b.g); skipOffView(b.g, 1.5); }
       scene.add(rig.g, nest);
+      skipOffView(rig.g, 3);
+      skipOffView(nest, 1.5);
       this.mothers.push({ rig, nest, eggs, pit, mound, spray, babies });
     }
   }
@@ -7019,6 +7048,7 @@ class ShoreLife {
         c.x = c.tx = p.x; c.z = c.tz = p.z;
         g.visible = false;
         scene.add(g);
+        skipOffView(g, 2);
         this.crabs.push(c);
         if (artStyle() === 'toon') {
           loadModel(kind).then((m) => {
@@ -7046,6 +7076,7 @@ class ShoreLife {
       const s: Seal = { g, body, flips: [], ready: false, seed: k * 5.7 + 2, side, state: 'swim', t0: 0, dur: 20000 + k * 9000, x: p.x, z: p.z, y: SEA_Y, tx: p.x, tz: p.z, heading: 0, rock: null, from: [p.x, p.z] };
       g.visible = false;
       scene.add(g);
+      skipOffView(g, 3);
       this.seals.push(s);
       if (artStyle() === 'toon') {
         loadModel('harbor_seal').then((m) => {
@@ -7173,6 +7204,7 @@ class ShoreLife {
         const b: Piper = { g, legs: [], wings: [], shadow, ox: (hash(f, k, 86) - 0.5) * 1.2, oz: (hash(f, k, 87) - 0.5) * 0.35, x: 0, z: 0, y: -0.2, heading: 0 };
         g.visible = false;
         scene.add(g);
+        skipOffView(g, 2);
         fl.birds.push(b);
         if (artStyle() === 'toon') {
           loadModel('sandpiper').then((m) => {
@@ -7506,6 +7538,7 @@ class NightLife {
       const g = new THREE.Group();
       g.visible = false;
       scene.add(g);
+      skipOffView(g, 4);
       const o: NightOwl = { g, kind: k === 2 ? 'tawny_owl' : 'barn_owl', seed: k * 3.7 + 1, ready: false, wings: [], perch: null, state: 'perch', t0: 0, dur: 0, from: new THREE.Vector3(), to: new THREE.Vector3(), ground: null, heading: 0 };
       this.owls.push(o);
     }
@@ -7531,6 +7564,7 @@ class NightLife {
         if (kind !== 'bat') contactShadow(g, 0.14 * size, 0.18 * size);
         g.visible = false;
         scene.add(g);
+        skipOffView(g, 3);
         const c: Critter = { kind, g, body, legs: [], wings: [], seed: k * 5.3 + kind.length, ready: false, x: 0, z: 0, tx: 0, tz: 0, wait: 0, curl: 0, heading: 0, hop: -1, a: 0, a1: 0 };
         list.push(c);
         if (toon) {
@@ -7937,6 +7971,7 @@ class Life {
       }
       mk(g, G.ball, M('#3a2616'), 0.008, 0.008, 0.035, 0, 0, 0, false);
       scene.add(g);
+      skipOffView(g, 1);
       this.butterflies.push({ g, wings, hx: 0, hz: 0, seed: i * 7.3, meshes: null });
     }
     for (let i = 0; i < 6; i++) {
@@ -7956,6 +7991,7 @@ class Life {
       const cx = side === 0 ? GRID * t : side === 1 ? GRID * t : side === 2 ? -3 : GRID + 3;
       const cz = side === 0 ? -3 : side === 1 ? GRID + 3 : GRID * t;
       scene.add(g);
+      skipOffView(g, 2);
       this.gulls.push({ g, wings, cx, cz, r: 2 + hash(i, 3) * 2.5, h: 4 + hash(i, 4) * 2.5, sp: 0.25 + hash(i, 5) * 0.2, ph: i * 1.7, meshes: null });
     }
     for (let i = 0; i < 3; i++) {
@@ -7963,6 +7999,7 @@ class Life {
       g.visible = false;
       const ring = splashRing();
       scene.add(g, ring);
+      skipOffView(g, 1);
       this.fish.push({ g, ring, t: 99, x: 0, z: 0, dir: 0, y: -0.55 });
     }
     // sailboat far out at sea
@@ -7976,6 +8013,8 @@ class Life {
     sailM.position.set(0, 0.25, 0.08);
     this.sail.add(sailM);
     scene.add(this.sail, this.sail2);
+    skipOffView(this.sail, 4);
+    skipOffView(this.sail2, 4);
     for (let i = 0; i < 12; i++) {
       const m = new THREE.Mesh(G.ball, new THREE.MeshBasicMaterial({ color: '#f4fbff', transparent: true, depthWrite: false }));
       m.visible = false;
@@ -8006,12 +8045,13 @@ class Life {
         m.visible = false;
         const ring = splashRing();
         scene.add(m, ring);
+        skipOffView(m, 3);
         this.dolphins.push(m);
         this.dolphinRings.push(ring);
       }
     }).catch(() => {});
-    loadModel('whale').then((src) => { this.whale = src.clone(); this.whale.visible = false; scene.add(this.whale); }).catch(() => {});
-    loadModel('shark').then((src) => { this.shark = src.clone(); this.shark.visible = false; scene.add(this.shark); }).catch(() => {});
+    loadModel('whale').then((src) => { this.whale = src.clone(); this.whale.visible = false; scene.add(this.whale); skipOffView(this.whale, 8); }).catch(() => {});
+    loadModel('shark').then((src) => { this.shark = src.clone(); this.shark.visible = false; scene.add(this.shark); skipOffView(this.shark, 4); }).catch(() => {});
   }
 
   // off the shore nearest the view, a few tiles out to sea, heading along the coast
