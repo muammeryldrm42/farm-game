@@ -181,9 +181,10 @@ function MT(color: string, opacity: number): THREE.MeshStandardMaterial {
 const WIN = new THREE.MeshStandardMaterial({ color: '#a9dcf5', roughness: 0.15, metalness: 0.1, emissive: '#ffc766', emissiveIntensity: 0 });
 const LAMP = new THREE.MeshStandardMaterial({ color: '#fff3c4', emissive: '#ffcf6b', emissiveIntensity: 0.2 });
 const WATER = makeWater({ shallow: '#6fd6cf', deep: '#2f8fcf', scale: 1.6 });
-// additive pool of light under lamps, only visible at night
+// additive pool of light under lamps, only visible at night; drawn a hair toward the camera, so
+// where a building's base or a step sits at its height the light does not flicker on and off
 let glowTex: THREE.Texture | null = null;
-const GLOW = new THREE.MeshBasicMaterial({ color: '#ffc870', transparent: true, opacity: 0, depthWrite: false, blending: THREE.AdditiveBlending });
+const GLOW = new THREE.MeshBasicMaterial({ color: '#ffc870', transparent: true, opacity: 0, depthWrite: false, blending: THREE.AdditiveBlending, polygonOffset: true, polygonOffsetFactor: -1, polygonOffsetUnits: -4 });
 function glowMat() {
   if (!glowTex) {
     glowTex = canvasTex('glow', 128, 128, (c) => {
