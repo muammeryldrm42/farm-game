@@ -3702,7 +3702,9 @@ function unbatch(root: THREE.Object3D) {
 
 const fullGeo = new WeakMap<THREE.Mesh, THREE.BufferGeometry>();
 class Batches {
-  private by = new Map<THREE.BufferGeometry, Map<THREE.Material, { mesh: THREE.InstancedMesh; n: number }>>();
+  // per geometry and material: the batch, its copies this frame, and how many frames it has been
+  // empty (one empty for long is let go: a stand in's parts, or a model no longer on the farm)
+  private by = new Map<THREE.BufferGeometry, Map<THREE.Material, { mesh: THREE.InstancedMesh; n: number; idle: number }>>();
   constructor(private parent: THREE.Object3D) {}
   private add(geo: THREE.BufferGeometry, mat: THREE.Material, src: THREE.Mesh) {
     let row = this.by.get(geo);
@@ -3722,7 +3724,7 @@ class Batches {
         b.mesh.dispose();
       }
       this.parent.add(mesh);
-      b = { mesh, n: b?.n ?? 0 };
+      b = { mesh, n: b?.n ?? 0, idle: 0 };
       row.set(mat, b);
     }
     b.mesh.setMatrixAt(b.n++, src.matrixWorld);
@@ -3752,10 +3754,14 @@ class Batches {
         this.add(geo, m.material as THREE.Material, m);
       }
     }
-    for (const row of this.by.values()) for (const b of row.values()) {
-      b.mesh.count = b.n;
-      b.mesh.visible = b.n > 0;
-      if (b.n) b.mesh.instanceMatrix.needsUpdate = true;
+    for (const [geo, row] of this.by) {
+      for (const [mat, b] of row) {
+        b.mesh.count = b.n;
+        b.mesh.visible = b.n > 0;
+        if (b.n) { b.mesh.instanceMatrix.needsUpdate = true; b.idle = 0; }
+        else if (++b.idle > 1800) { this.parent.remove(b.mesh); b.mesh.dispose(); row.delete(mat); }
+      }
+      if (!row.size) this.by.delete(geo);
     }
   }
 }
