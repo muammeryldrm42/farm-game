@@ -2,7 +2,7 @@
 // shader, so thousands of blades cost one draw call per layer.
 import * as THREE from 'three';
 import { toonCrown } from './toon';
-import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
+import { mergeGeometries, mergeVertices } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 import { U } from './shared';
 
 const rnd = (i: number, s: number) => {
@@ -332,8 +332,11 @@ export type FlowerKind = 'daisy' | 'tulip' | 'rose' | 'spike';
 const kitCache = new Map<string, THREE.BufferGeometry>();
 export const FLOWER_KIT_MAT = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.6 });
 
+// The parts stay indexed: a corner shared by several triangles (a sphere's are each shared by
+// about six) is worked out once on the GPU instead of once for every triangle. Each part is one
+// color, so the picture is the same.
 function painted(src: THREE.BufferGeometry, color: string) {
-  const g = src.index ? src.toNonIndexed() : src;
+  const g = src;
   const c = new THREE.Color(color);
   const n = (g.getAttribute('position') as THREE.BufferAttribute).count;
   const a = new Float32Array(n * 3);
@@ -415,7 +418,9 @@ export function flowerKit(kind: FlowerKind, petal: string, h = 0.22, lite = fals
       }
     }
   }
-  const g = mergeGeometries(parts) as THREE.BufferGeometry;
+  // a sphere's poles and seam repeat the same corner (same place, normal and color) several
+  // times: those are made one, so a lupine's florets are a third of the corners to work out
+  const g = mergeVertices(mergeGeometries(parts) as THREE.BufferGeometry);
   kitCache.set(key, g);
   return g;
 }

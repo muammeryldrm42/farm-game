@@ -58,14 +58,27 @@ const G = {
   plane: new THREE.PlaneGeometry(1, 1),
 };
 
-// some faces of the unit box (BoxGeometry's face order: +x, -x, +y, -y, +z, -z)
+// some faces of the unit box (BoxGeometry's face order: +x, -x, +y, -y, +z, -z), with only
+// their own corners
 function boxFaces(faces: number[]) {
-  const g = new THREE.BoxGeometry(1, 1, 1);
-  const idx = g.index!.array;
-  const keep: number[] = [];
-  for (const f of faces) { const q = g.groups[f]; for (let i = q.start; i < q.start + q.count; i++) keep.push(idx[i]); }
-  g.setIndex(keep);
-  g.clearGroups();
+  const box = new THREE.BoxGeometry(1, 1, 1);
+  const idx = box.index!.array;
+  const g = new THREE.BufferGeometry();
+  const used: number[] = [], index: number[] = [];
+  for (const f of faces) {
+    // each face is its own 4 corners, 4 * f on
+    const q = box.groups[f], base = used.length;
+    for (let v = 0; v < 4; v++) used.push(f * 4 + v);
+    for (let i = q.start; i < q.start + q.count; i++) index.push(base + idx[i] - f * 4);
+  }
+  for (const name of Object.keys(box.attributes)) {
+    const a = box.getAttribute(name) as THREE.BufferAttribute;
+    const out = new Float32Array(used.length * a.itemSize);
+    used.forEach((v, i) => { for (let k = 0; k < a.itemSize; k++) out[i * a.itemSize + k] = a.array[v * a.itemSize + k]; });
+    g.setAttribute(name, new THREE.BufferAttribute(out, a.itemSize));
+  }
+  g.setIndex(index);
+  box.dispose();
   return g;
 }
 
