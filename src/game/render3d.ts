@@ -181,9 +181,10 @@ function MT(color: string, opacity: number): THREE.MeshStandardMaterial {
 const WIN = new THREE.MeshStandardMaterial({ color: '#a9dcf5', roughness: 0.15, metalness: 0.1, emissive: '#ffc766', emissiveIntensity: 0 });
 const LAMP = new THREE.MeshStandardMaterial({ color: '#fff3c4', emissive: '#ffcf6b', emissiveIntensity: 0.2 });
 const WATER = makeWater({ shallow: '#6fd6cf', deep: '#2f8fcf', scale: 1.6 });
-// additive pool of light under lamps, only visible at night
+// additive pool of light under lamps, only visible at night; drawn a hair toward the camera, so
+// where a building's base or a step sits at its height the light does not flicker on and off
 let glowTex: THREE.Texture | null = null;
-const GLOW = new THREE.MeshBasicMaterial({ color: '#ffc870', transparent: true, opacity: 0, depthWrite: false, blending: THREE.AdditiveBlending });
+const GLOW = new THREE.MeshBasicMaterial({ color: '#ffc870', transparent: true, opacity: 0, depthWrite: false, blending: THREE.AdditiveBlending, polygonOffset: true, polygonOffsetFactor: -1, polygonOffsetUnits: -4 });
 function glowMat() {
   if (!glowTex) {
     glowTex = canvasTex('glow', 128, 128, (c) => {
@@ -1099,8 +1100,11 @@ export class Renderer {
 
     // island body: grass top is made of tiles, then soil, then a sandy beach
     const isl = this.land;
-    const soil = new THREE.Mesh(meterBox(GRID + 0.1, 1.2, GRID + 0.1), surfaceMat('soil', '#8a5a33', 1));
-    soil.position.set(GRID / 2, -1.4 + 0.6, GRID / 2);
+    // exactly as wide as the tiles, its top a little under the beach shelf's (-0.2): it used to
+    // reach a few centimetres past the tiles, level with the shelf, and the two fought over that
+    // strip, a flickering brown line along the edge of the farm's land
+    const soil = new THREE.Mesh(meterBox(GRID, 1.19, GRID), surfaceMat('soil', '#8a5a33', 1));
+    soil.position.set(GRID / 2, -1.4 + 0.595, GRID / 2);
     soil.receiveShadow = true;
     soil.renderOrder = 2;
     isl.add(soil);
@@ -4968,7 +4972,8 @@ function buildHouse(e: Entry, d: BuildingDef) {
     bx(dg, dw + 0.08, 0.05, 0.05, '#f4efe6', 0, dh, 0.005);
     for (const sx of [-1, 1]) bx(dg, 0.04, dh, 0.05, '#f4efe6', sx * (dw / 2 + 0.02), 0, 0.005);
     ball(dg, 0.018, '#e9c46a', dw * 0.32, dh * 0.48, 0.035);
-    bxT(g, dw + 0.16, 0.05, 0.16, 'stone', '#b5b0a2', doorX, y0 - 0.05, fz + 0.08, 4);
+    // the step stands a little proud of the stone base: level with it, the two flickered
+    bxT(g, dw + 0.16, 0.065, 0.16, 'stone', '#b5b0a2', doorX, y0 - 0.05, fz + 0.08, 4);
     roofT(g, dw + 0.22, 0.12, 0.34, d.roof, M(d.roof), doorX, y0 + dh + 0.05, fz + 0.02);
     for (const sx of [-1, 1]) bx(g, 0.02, 0.1, 0.02, '#f4efe6', doorX + sx * (dw / 2 + 0.06), y0 + dh - 0.04, fz + 0.18);
     const lx = doorX + dw / 2 + 0.1;
@@ -5056,7 +5061,8 @@ function buildHouse(e: Entry, d: BuildingDef) {
       }
       const cup = group(g, cx, y0 + H + 0.45 + Math.min(ww, dd) * 0.3, cz);
       mk(cup, cylGeo(0.12, 0.09, 16), M('#ffffff'), 1, 0.18, 1, 0, 0.09, 0);
-      mk(cup, cylGeo(0.11, 0.11, 16), M('#6b3f1f'), 1, 0.01, 1, 0, 0.175, 0);
+      // the coffee a hair above the cup's top: level with it, the two flickered
+      mk(cup, cylGeo(0.11, 0.11, 16), M('#6b3f1f'), 1, 0.01, 1, 0, 0.178, 0);
       mk(cup, new THREE.TorusGeometry(0.05, 0.015, 8, 14), M('#ffffff'), 1, 1, 1, 0.13, 0.1, 0).rotation.y = 0;
       break;
     }
