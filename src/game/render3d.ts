@@ -58,6 +58,30 @@ const G = {
   plane: new THREE.PlaneGeometry(1, 1),
 };
 
+// some faces of the unit box (BoxGeometry's face order: +x, -x, +y, -y, +z, -z), with only
+// their own corners
+function boxFaces(faces: number[]) {
+  const box = new THREE.BoxGeometry(1, 1, 1);
+  const idx = box.index!.array;
+  const g = new THREE.BufferGeometry();
+  const used: number[] = [], index: number[] = [];
+  for (const f of faces) {
+    // each face is its own 4 corners, 4 * f on
+    const q = box.groups[f], base = used.length;
+    for (let v = 0; v < 4; v++) used.push(f * 4 + v);
+    for (let i = q.start; i < q.start + q.count; i++) index.push(base + idx[i] - f * 4);
+  }
+  for (const name of Object.keys(box.attributes)) {
+    const a = box.getAttribute(name) as THREE.BufferAttribute;
+    const out = new Float32Array(used.length * a.itemSize);
+    used.forEach((v, i) => { for (let k = 0; k < a.itemSize; k++) out[i * a.itemSize + k] = a.array[v * a.itemSize + k]; });
+    g.setAttribute(name, new THREE.BufferAttribute(out, a.itemSize));
+  }
+  g.setIndex(index);
+  box.dispose();
+  return g;
+}
+
 const cylCache = new Map<string, THREE.CylinderGeometry>();
 function cylGeo(rt: number, rb: number, seg: number) {
   const k = `${rt.toFixed(3)}|${rb.toFixed(3)}|${seg}`;
@@ -175,10 +199,21 @@ function glowMat() {
 }
 
 const texCache = new Map<string, THREE.Texture>();
+// Textures drawn for a value that keeps changing (a bubble's progress ring, a "+120 coins"
+// floating up): only the most recently used are kept, in order of use, and the oldest freed. A
+// long game would otherwise keep every one it ever drew: each crop and product has some twenty
+// five steps of its ring, and every new amount its own text, some hundred kilobytes each on the
+// GPU and as much again in memory. One still on show when freed is simply sent to the GPU again.
+const recentCache = new Map<string, THREE.Texture>();
+const RECENT_MAX = 160;
 const EF = '"Apple Color Emoji","Segoe UI Emoji","Noto Color Emoji",sans-serif';
-function canvasTex(key: string, w: number, h: number, draw: (c: CanvasRenderingContext2D) => void) {
-  let t = texCache.get(key);
-  if (t) return t;
+function canvasTex(key: string, w: number, h: number, draw: (c: CanvasRenderingContext2D) => void, recent = false) {
+  const cache = recent ? recentCache : texCache;
+  let t = cache.get(key);
+  if (t) {
+    if (recent) { cache.delete(key); cache.set(key, t); }
+    return t;
+  }
   const cv = document.createElement('canvas');
   cv.width = w; cv.height = h;
   const c = cv.getContext('2d') as CanvasRenderingContext2D;
@@ -186,8 +221,23 @@ function canvasTex(key: string, w: number, h: number, draw: (c: CanvasRenderingC
   t = new THREE.CanvasTexture(cv);
   t.colorSpace = THREE.SRGBColorSpace;
   t.anisotropy = 4;
-  texCache.set(key, t);
+  cache.set(key, t);
+  if (recent) {
+    inRecent.add(t);
+    if (cache.size > RECENT_MAX) {
+      const [old, ot] = cache.entries().next().value as [string, THREE.Texture];
+      cache.delete(old);
+      inRecent.delete(ot);
+      ot.dispose();
+    }
+  }
   return t;
+}
+const inRecent = new WeakSet<THREE.Texture>();
+// a recent texture a sprite has stopped showing: freed if it has left the cache meanwhile (it was
+// sent to the GPU again while on show, and nothing else would free it)
+function dropRecent(t: THREE.Texture | null | undefined) {
+  if (t && !inRecent.has(t)) t.dispose();
 }
 
 function emojiTex(icon: string, badge = false) {
@@ -229,7 +279,7 @@ function bubbleTex(icon: string, mode: 'ready' | 'progress' | 'faded', step: num
       c.font = '900 26px system-ui, sans-serif';
       c.fillText(String(count), 106, 24);
     }
-  });
+  }, true);
 }
 
 // round soft sparkle with a bright core, used by particle bursts
@@ -245,6 +295,21 @@ function sparkTex() {
     c.fillRect(30, 4, 4, 56); c.fillRect(4, 30, 56, 4);
   });
 }
+
+// the material of the spark bursts: each spark's color and fade in its own vertex color (see
+// Renderer.sparks)
+let sparkMaterial: THREE.PointsMaterial | null = null;
+function sparkMat() {
+  return sparkMaterial ??= new THREE.PointsMaterial({ size: 0.2, map: sparkTex(), transparent: true, depthWrite: false, vertexColors: true });
+}
+// points with a color and an alpha each, as the spark bursts are drawn
+function sparkGeo(points: number) {
+  const geo = new THREE.BufferGeometry();
+  geo.setAttribute('position', new THREE.BufferAttribute(new Float32Array(points * 3), 3).setUsage(THREE.DynamicDrawUsage));
+  geo.setAttribute('color', new THREE.BufferAttribute(new Float32Array(points * 4), 4).setUsage(THREE.DynamicDrawUsage));
+  return geo;
+}
+const SPARKS = 22;
 
 // a white speech bubble with a tail, the words wrapped on up to three lines
 function speechTex(text: string) {
@@ -281,14 +346,15 @@ function speechTex(text: string) {
   return { t, aspect: H / W, w: W };
 }
 
-function textTex(text: string, color: string) {
+// `recent`: a floating text, one of many (see recentCache)
+function textTex(text: string, color: string, recent = false) {
   return canvasTex(`t|${text}|${color}`, 512, 96, (c) => {
     c.font = '900 54px ui-rounded, "Trebuchet MS", system-ui, sans-serif';
     c.textAlign = 'center'; c.textBaseline = 'middle';
     c.lineWidth = 12; c.strokeStyle = 'rgba(60,35,10,0.9)'; c.lineJoin = 'round';
     c.fillStyle = color;
     fillRich(c, text, 256, 50, 58, true);
-  });
+  }, recent);
 }
 
 // ------------------------------------------------------------------ mesh helpers (y is the bottom for boxes and cylinders)
@@ -363,14 +429,58 @@ interface Entry {
   bounce?: { t: number; kind: 'spawn' | 'bump' | 'big' | 'work' };
   // a herd: whether any of its animals was in view at its last update
   herdSeen?: boolean;
+  // its solid parts drawn in batches (decorations, wild trees and rocks, fruit trees, fields);
+  // null: to be gathered again (its model has just come in)
+  statics?: THREE.Mesh[] | null;
 }
 // the camera's view this frame, for herds to tell whether their animals are in it
 let VIEW: THREE.Frustum | null = null;
 const herdBall = new THREE.Sphere(new THREE.Vector3(), 2);
+// A wild creature, bird or boat out of the view skips its matrix work: there are some 1600 parts
+// of them round the island, most of them off screen at any time. Its matrices are brought up to
+// date the frame it, or the place it was last drawn at, comes into view (so it is never drawn
+// where it was a while ago). `r` reaches past its parts and its shadow.
+// Once the farm is drawing, it is also left out of this frame's draw (hidden for the draw only,
+// shown again right after), so the renderer does not look through its parts one by one either.
+const wildBall = new THREE.Sphere();
+const offView: THREE.Object3D[] = [];
+let hideOffView = false;
+// `batch`: one of many of its kind (crabs, sandpipers, turtles, owls...); in view, its solid parts
+// are drawn in the batches with the others' (see Batches): the whole shore's crabs in a few draws,
+// not each crab's legs, claws and shell one by one.
+function skipOffView(g: THREE.Object3D, r: number, batch = false) {
+  const at = new THREE.Vector3(NaN, NaN, NaN);
+  let meshes: THREE.Mesh[] = [];
+  g.updateMatrixWorld = function () {
+    if (VIEW && (!this.visible || (!VIEW.intersectsSphere(wildBall.set(this.position, r)) && !VIEW.intersectsSphere(wildBall.set(at, r))))) {
+      if (this.visible && hideOffView) { this.visible = false; offView.push(this); }
+      return;
+    }
+    at.copy(this.position);
+    THREE.Object3D.prototype.updateMatrixWorld.call(this, true);
+    if (!batch || !this.visible) return;
+    // gathered again while it has no parts yet (its model still on the way) or once its parts
+    // were swapped (a stand in for the Blender model)
+    if (!meshes.length || !isUnder(meshes[0], this)) { unbatch(this); meshes = gatherStatics(this); }
+    // drawn when the creature itself is in view (`r` reaches further, for its shadow: with the
+    // sun's shadows off, one just past the edge of the view is not drawn at all)
+    if (meshes.length && (wildShadows || VIEW?.intersectsSphere(wildBall.set(this.position, 1)) !== false)) batchDraw.push({ root: this, meshes });
+  };
+}
+// the sun casts shadows this frame (see skipOffView)
+let wildShadows = false;
+function isUnder(o: THREE.Object3D, root: THREE.Object3D) {
+  for (let q: THREE.Object3D | null = o; q; q = q.parent) if (q === root) return true;
+  return false;
+}
+function showOffView() {
+  for (const g of offView) g.visible = true;
+  offView.length = 0;
+}
 function bump(e: Entry, kind: 'bump' | 'big' | 'work' = 'bump') {
   if (!e.bounce || e.bounce.kind !== 'spawn') e.bounce = { t: 0, kind };
 }
-interface Burst { pts: THREE.Points; vel: Float32Array; life: number }
+interface Burst { slot: number; vel: Float32Array; life: number; r: number; g: number; b: number }
 interface Float { s: THREE.Sprite; life: number }
 interface Actor {
   x: number; y: number; heading: number; moving: boolean; g: THREE.Group; phase: number;
@@ -384,6 +494,12 @@ interface Sparrow {
   home: number | null; hopAt: number; hop: { x: number; y: number; t0: number } | null;
   // the middle of the bird bath it sits on the rim of
   bath?: { x: number; y: number };
+}
+// an actor's empty stand in while its model loads: what the walk and nap code reads, nothing drawn
+function actorShell() {
+  const g = new THREE.Group();
+  Object.assign(g.userData, { legs: [], signs: [], tail: new THREE.Object3D() });
+  return g;
 }
 const actor = (x: number, y: number, g: THREE.Group): Actor => ({ x, y, heading: 0, moving: false, g, phase: 0, path: [], goal: null, inside: false, sleeping: false, goHome: false, fade: 1 });
 
@@ -422,7 +538,7 @@ function popOut(src: THREE.Object3D, delay = 0, height = 1.3) {
   src.updateWorldMatrix(true, true);
   const c = bareClone(src);
   // a crop's plants are drawn in batches, off the camera's layer: the copy is drawn by itself
-  c.traverse((o) => { if (o.layers.isEnabled(BATCH_LAYER)) o.layers.set(0); });
+  unbatch(c);
   src.getWorldPosition(c.position);
   src.getWorldQuaternion(c.quaternion);
   src.getWorldScale(c.scale);
@@ -447,6 +563,7 @@ function popOut(src: THREE.Object3D, delay = 0, height = 1.3) {
 function dropDown(src: THREE.Object3D, delay = 0) {
   src.updateWorldMatrix(true, true);
   const c = bareClone(src);
+  unbatch(c);
   src.getWorldPosition(c.position);
   src.getWorldScale(c.scale);
   const p0 = c.position.clone(), s0 = c.scale.clone();
@@ -587,6 +704,9 @@ export class Renderer {
   private syncKey = -1;
   private landKey = '';
   private tiles!: THREE.InstancedMesh;
+  // the sides of the lawn tiles on the island's rim and round the lake, and the tile each is of
+  private tileSides!: THREE.InstancedMesh;
+  private sideOf: number[] = [];
   private sea!: THREE.Mesh;
   private fishing!: ReturnType<typeof buildFishingSpot>;
   private seaFishing!: ReturnType<typeof buildFishingSpot>;
@@ -653,6 +773,7 @@ export class Renderer {
     this.sun.shadow.camera.layers.enable(2);
     this.scene.add(this.sun, this.sun.target, this.hemi, this.world, this.land, this.foliage.group, this.fxLayer);
     this.world.add(FX_ROOT);
+    this.fxLayer.add(this.sparks);
 
     this.buildSea();
     this.buildClouds();
@@ -677,13 +798,18 @@ export class Renderer {
       loadModel('farmhouse').catch(() => {});
       // the forest and FOR SALE signs on locked land: rebuild the land once their models are in
       for (const name of ['forest_pine', 'forest_round', 'forsale_sign', 'lod/forest_round'] as const) {
-        loadModel(name).then((m) => { WORLD_MODELS[name] = m; this.landKey = ''; }).catch(() => {});
+        loadModel(name).then((m) => { WORLD_MODELS[name] = m; this.landKey = ''; })
+          .catch(() => { if (name.startsWith('forest')) { forestFailed = true; this.landKey = ''; } });
       }
     }
     // the farmer's Blender model takes over in a moment (below): the sculpt stand in is coarse
-    this.farmer = actor(FARM_C.x - 0.5, FARM_C.y + 0.5, buildFarmer(undefined, undefined, undefined, artStyle() === 'toon'));
-    this.dog = actor(FARM_C.x + 0.5, FARM_C.y + 0.5, buildDog());
-    this.cat = actor(FARM_C.x + 1.5, FARM_C.y + 1.5, buildCat());
+    // the farmer and pets wait for their Blender models (the start up screen waits for them too);
+    // their sculpted stand ins take most of a second to make on a phone, so they are made only
+    // when a model cannot load or is slow to come
+    const toon = artStyle() === 'toon';
+    this.farmer = actor(FARM_C.x - 0.5, FARM_C.y + 0.5, toon ? actorShell() : buildFarmer());
+    this.dog = actor(FARM_C.x + 0.5, FARM_C.y + 0.5, toon ? actorShell() : buildDog());
+    this.cat = actor(FARM_C.x + 1.5, FARM_C.y + 1.5, toon ? actorShell() : buildCat());
     // grazing animals borrow the farmer's walk grid; bees look for blossoms
     GRAZE_NAV = {
       path: (sx, sy, tx, ty) => { this.rebuildNav(); return this.findPath(sx, sy, tx, ty); },
@@ -695,23 +821,24 @@ export class Renderer {
       trees: () => this.treeSpots(),
       ponds: () => this.pondSpots(),
     };
-    // the farmer and pets start as sculpts and take on their Blender models once loaded
-    if (artStyle() === 'toon') {
-      loadModel('farmer').then((m) => {
-        const fresh = farmerFromModel(m);
-        const g = this.farmer.g;
-        g.clear();
-        for (const c of [...fresh.children]) g.add(c);
-        Object.assign(g.userData, fresh.userData);
-      }).catch(() => {});
+    // the farmer and pets take on their Blender models once loaded
+    if (toon) {
+      const fill = (a: Actor, fresh: THREE.Object3D) => {
+        a.g.clear();
+        for (const c of [...fresh.children]) a.g.add(c);
+        Object.assign(a.g.userData, fresh.userData);
+        a.g.scale.copy(fresh.scale);
+        a.g.userData.filled = true;
+      };
+      // no model (or none yet after the start up screen's wait): the sculpt, until one comes
+      const fallback = (a: Actor, make: () => THREE.Object3D) => { if (!a.g.userData.filled) fill(a, make()); };
+      loadModel('farmer').then((m) => fill(this.farmer, farmerFromModel(m)))
+        .catch(() => fallback(this.farmer, () => buildFarmer(undefined, undefined, undefined, true)));
+      setTimeout(() => fallback(this.farmer, () => buildFarmer(undefined, undefined, undefined, true)), MODEL_WAIT_MS);
       for (const [kind, pet, make] of [['dog', this.dog, buildDog], ['cat', this.cat, buildCat]] as const) {
-        loadModel(`animal_${kind}`).then((m) => {
-          animalSrc.set(kind, m);
-          const fresh = make();
-          pet.g.clear();
-          for (const c of [...fresh.children]) pet.g.add(c);
-          Object.assign(pet.g.userData, fresh.userData);
-        }).catch(() => {});
+        loadModel(`animal_${kind}`).then((m) => { animalSrc.set(kind, m); fill(pet, make()); })
+          .catch(() => fallback(pet, make));
+        setTimeout(() => fallback(pet, make), MODEL_WAIT_MS);
       }
     }
     this.world.add(this.farmer.g, this.dog.g, this.cat.g);
@@ -964,18 +1091,25 @@ export class Renderer {
     far.rotation.x = -Math.PI / 2;
     far.position.set(GRID / 2, -0.58, GRID / 2);
     this.scene.add(far);
+    // The sea runs under the whole island, and the island's soil and sand boxes under its tiles:
+    // drawn last of the solid things, most of their pixels are already hidden (by the farm, the
+    // tiles) and a phone's GPU skips them instead of working out water and sand that is then
+    // drawn over. The picture is the same.
+    this.sea.renderOrder = far.renderOrder = 3;
 
     // island body: grass top is made of tiles, then soil, then a sandy beach
     const isl = this.land;
     const soil = new THREE.Mesh(meterBox(GRID + 0.1, 1.2, GRID + 0.1), surfaceMat('soil', '#8a5a33', 1));
     soil.position.set(GRID / 2, -1.4 + 0.6, GRID / 2);
     soil.receiveShadow = true;
+    soil.renderOrder = 2;
     isl.add(soil);
     const sand = surfaceMat('sand', '#ecd49a', 1.5, 0.95);
     for (const [w, h, y] of [[GRID + BEACH * 2 - 0.1, 0.34, -0.72], [GRID + BEACH * 2 - 0.9, 0.2, -0.4]] as const) {
       const m = new THREE.Mesh(meterBox(w, h, w), sand);
       m.position.set(GRID / 2, y + h / 2, GRID / 2);
       m.receiveShadow = true;
+      m.renderOrder = 2;
       isl.add(m);
     }
 
@@ -1011,33 +1145,63 @@ export class Renderer {
         diffuseColor.rgb *= tint * (0.96 + n2 * 0.06);
       }`);
     };
-    this.tiles = new THREE.InstancedMesh(G.box, grass, GRID * GRID);
+    // The lawn and beach tiles are drawn with their top faces only: a tile's sides are hidden under
+    // its neighbours' tops, yet were shaded wherever they happened to be drawn first (about a
+    // third of the ground was drawn twice). Their sides are kept where they show: on the island's
+    // rim and round the lake's hollow.
+    const top = boxFaces([2]), sides = boxFaces([0, 1, 4, 5]);
+    this.tiles = new THREE.InstancedMesh(top, grass, GRID * GRID);
     this.tiles.receiveShadow = true;
     const m = new THREE.Matrix4();
+    const hollow = (x: number, y: number) => !isBeachTile(x, y) && lakeE(x + 0.5, y + 0.5) < LAKE_HOLE;
+    const rim = (x: number, y: number) => [[1, 0], [-1, 0], [0, 1], [0, -1]].some(([dx, dy]) => {
+      const nx = x + dx, ny = y + dy;
+      return nx < 0 || ny < 0 || nx >= GRID || ny >= GRID || hollow(nx, ny);
+    });
     const beach: [number, number][] = [];
+    const lawnRim: number[] = [];
     for (let y = 0; y < GRID; y++) for (let x = 0; x < GRID; x++) {
       // the beach ring is sand: its grass tile is left out
       if (isBeachTile(x, y)) { beach.push([x, y]); m.makeScale(0, 0, 0); }
       // the lake's hollow is its own ground (buildLake)
-      else if (lakeE(x + 0.5, y + 0.5) < LAKE_HOLE) m.makeScale(0, 0, 0);
-      else m.makeScale(1, 0.4, 1);
+      else if (hollow(x, y)) m.makeScale(0, 0, 0);
+      else { m.makeScale(1, 0.4, 1); if (rim(x, y)) lawnRim.push(y * GRID + x); }
       m.setPosition(x + 0.5, -0.2, y + 0.5);
       this.tiles.setMatrixAt(y * GRID + x, m);
       this.tiles.setColorAt(y * GRID + x, new THREE.Color('#7cc450'));
     }
     this.land.add(this.tiles);
+    this.tileSides = new THREE.InstancedMesh(sides, grass, lawnRim.length);
+    this.tileSides.receiveShadow = true;
+    this.sideOf = lawnRim;
+    lawnRim.forEach((k, i) => { this.tiles.getMatrixAt(k, m); this.tileSides.setMatrixAt(i, m); });
+    this.land.add(this.tileSides);
     // the beach: warm dry sand, a little paler toward the sea
-    const sandTiles = new THREE.InstancedMesh(G.box, sand, beach.length);
+    const sandTiles = new THREE.InstancedMesh(top, sand, beach.length);
+    const sandRim = beach.filter(([x, y]) => rim(x, y));
+    const sandSides = new THREE.InstancedMesh(sides, sand, sandRim.length);
     const c = new THREE.Color();
+    const sandAt = (x: number, y: number) => {
+      const edge = Math.min(x, y, GRID - 1 - x, GRID - 1 - y);
+      return c.setRGB(1, 1, 1).multiplyScalar(1.04 - edge * 0.025 + (hash(x, y, 41) - 0.5) * 0.04);
+    };
+    m.makeScale(1, 0.4, 1);
     beach.forEach(([x, y], i) => {
-      m.makeScale(1, 0.4, 1);
       m.setPosition(x + 0.5, -0.2, y + 0.5);
       sandTiles.setMatrixAt(i, m);
-      const edge = Math.min(x, y, GRID - 1 - x, GRID - 1 - y);
-      sandTiles.setColorAt(i, c.setRGB(1, 1, 1).multiplyScalar(1.04 - edge * 0.025 + (hash(x, y, 41) - 0.5) * 0.04));
+      sandTiles.setColorAt(i, sandAt(x, y));
     });
-    sandTiles.receiveShadow = true;
-    this.land.add(sandTiles);
+    sandRim.forEach(([x, y], i) => {
+      m.setPosition(x + 0.5, -0.2, y + 0.5);
+      sandSides.setMatrixAt(i, m);
+      sandSides.setColorAt(i, sandAt(x, y));
+    });
+    sandTiles.receiveShadow = sandSides.receiveShadow = true;
+    // the ground is drawn after the farm, its trees and the rest of the solid things standing on
+    // it (and before the soil and the sea): the lawn under a tree or a house is then skipped by
+    // the GPU instead of being shaded and drawn over
+    this.tiles.renderOrder = this.tileSides.renderOrder = sandTiles.renderOrder = sandSides.renderOrder = 1;
+    this.land.add(sandTiles, sandSides);
     this.buildLake();
   }
 
@@ -1310,6 +1474,8 @@ export class Renderer {
       this.tiles.setColorAt(y * GRID + x, col);
     }
     if (this.tiles.instanceColor) this.tiles.instanceColor.needsUpdate = true;
+    this.sideOf.forEach((k, i) => { this.tiles.getColorAt(k, col); this.tileSides.setColorAt(i, col); });
+    if (this.tileSides.instanceColor) this.tileSides.instanceColor.needsUpdate = true;
 
     // locked land: forest and FOR SALE signs
     this.land.remove(this.dynLand);
@@ -1353,6 +1519,12 @@ export class Renderer {
         im.receiveShadow = true;
         this.addForest(im);
       }
+      this.land.add(this.dynLand);
+      return;
+    }
+    // the forest models are on their way (the start up screen waits for them): no stand in forest
+    // to make and throw away; the land is built again when they come in, or fail to
+    if (artStyle() === 'toon' && !forestFailed) {
       this.land.add(this.dynLand);
       return;
     }
@@ -1496,6 +1668,7 @@ export class Renderer {
     // cleared, sold or replaced: the model shrinks away with a little spin
     const r = e.root;
     r.remove(e.hit);
+    unbatch(r);
     FX_ROOT.add(r);
     const d = BUILDING[e.type];
     const p0 = r.position.clone();
@@ -1507,7 +1680,7 @@ export class Renderer {
       r.position.set(p0.x + mx * (1 - s), k * 0.2, p0.z + mz * (1 - s));
       r.rotation.y = th0 + k * 0.6;
     }, () => { FX_ROOT.remove(r); dropOwned(r); });
-    if (e.bubble) { this.fxLayer.remove(e.bubble); e.bubble.material.dispose(); }
+    if (e.bubble) { this.fxLayer.remove(e.bubble); dropRecent(e.bubble.material.map); e.bubble.material.dispose(); }
     this.entries.delete(e.id);
   }
 
@@ -1516,6 +1689,7 @@ export class Renderer {
     const root = new THREE.Group();
     const e: Entry = { id: o.id, type: o.type, root, hit: null as unknown as THREE.Mesh, top: 1 };
     buildObject(e, o, d, this.store);
+    if (STATIC_KINDS.has(d.kind)) batchStatics(e);
     const hit = new THREE.Mesh(G.box, HIT_MAT);
     const hh = Math.max(0.25, e.top);
     hit.scale.set(d.w * 0.96, hh, d.h * 0.96);
@@ -1541,6 +1715,7 @@ export class Renderer {
     const s = this.store.s;
     const ui = this.store.ui;
     const now = Date.now();
+    showOffView();
 
     U.time.value = t / 1000;
     this.rebuildLand();
@@ -1615,6 +1790,8 @@ export class Renderer {
     this.sky.mesh.position.copy(this.camera.position);
     // the scene's matrices, once a frame: the shadow blobs read them, and the renderer (and each
     // pass of the high quality effects) does not work them all out again
+    hideOffView = this.warm === 'done';
+    wildShadows = this.gl.shadowMap.enabled && this.sun.castShadow;
     this.scene.updateMatrixWorld();
     this.batches.build(this.camera);
     drawBlobs(this.scene);
@@ -1640,6 +1817,7 @@ export class Renderer {
     if (this.warmers.parent) this.scene.remove(this.warmers);
     if (this.post) this.post.render();
     else this.gl.render(this.scene, this.camera);
+    showOffView();
     if (this.onFirstDraw) { const f = this.onFirstDraw; this.onFirstDraw = null; f(); }
   }
   private warm: 'cold' | 'warming' | 'compiled' | 'done' = 'cold';
@@ -1650,7 +1828,7 @@ export class Renderer {
     const g = new THREE.Group();
     const pt = new THREE.BufferGeometry();
     pt.setAttribute('position', new THREE.BufferAttribute(new Float32Array(6), 3));
-    g.add(new THREE.Points(pt, new THREE.PointsMaterial({ color: '#ffffff', size: 0.2, map: sparkTex(), transparent: true, depthWrite: false })));
+    g.add(new THREE.Points(sparkGeo(2), sparkMat()));
     g.add(new THREE.LineSegments(pt, new THREE.LineBasicMaterial({ color: '#d6e6ff', transparent: true, opacity: 0.55 })));
     g.add(new THREE.Line(pt, new THREE.LineBasicMaterial({ color: '#ffffff' })));
     // the eyes of the animals, drawn in batches
@@ -1721,6 +1899,7 @@ export class Renderer {
       const e: Entry = { id: -1, type: p.type, root: new THREE.Group(), hit: null as unknown as THREE.Mesh, top: 1 };
       buildObject(e, src, d, this.store);
       e.update?.(src, Date.now(), t, 0);
+      unbatch(e.root);
       e.root.traverse((m) => {
         const mesh = m as THREE.Mesh;
         if (mesh.isMesh) { mesh.castShadow = false; }
@@ -1873,7 +2052,9 @@ export class Renderer {
     const step = Math.round(fi.p * 24);
     const key = `${mode}|${step}`;
     if (b.userData.key !== key) {
+      const was = b.material.map;
       b.material.map = bubbleTex(fi.state === 'idle' ? '🎣' : '🐟', mode, step, 0);
+      if (was !== b.material.map) dropRecent(was);
       b.material.needsUpdate = true;
       b.userData.key = key;
     }
@@ -1903,7 +2084,9 @@ export class Renderer {
         this.fxLayer.add(e.bubble);
       }
       if (e.bubbleKey !== key) {
+        const was = e.bubble.material.map;
         e.bubble.material.map = bubbleTex(b.icon, b.mode, step, b.count);
+        if (was !== e.bubble.material.map) dropRecent(was);
         e.bubble.material.needsUpdate = true;
         e.bubbleKey = key;
       }
@@ -1921,49 +2104,80 @@ export class Renderer {
     for (const f of this.store.fx) {
       const y = (f.z ?? 30) * ZU;
       if (f.kind === 'float') {
-        const sp = new THREE.Sprite(new THREE.SpriteMaterial({ map: textTex(f.text ?? '', f.color ?? '#fff'), depthTest: false, transparent: true }));
+        const sp = new THREE.Sprite(new THREE.SpriteMaterial({ map: textTex(f.text ?? '', f.color ?? '#fff', true), depthTest: false, transparent: true }));
         sp.scale.set(1.6, 0.3, 1);
         sp.position.set(f.gx, y + 0.4, f.gy);
         sp.renderOrder = 12;
         this.fxLayer.add(sp);
         this.floats.push({ s: sp, life: 1.5 });
       } else {
-        const n = 22;
-        const pos = new Float32Array(n * 3);
-        const vel = new Float32Array(n * 3);
-        for (let i = 0; i < n; i++) {
-          pos[i * 3] = f.gx; pos[i * 3 + 1] = y; pos[i * 3 + 2] = f.gy;
+        const slot = this.sparkSlot();
+        const pos = this.sparks.geometry.getAttribute('position').array as Float32Array;
+        const vel = new Float32Array(SPARKS * 3);
+        for (let i = 0; i < SPARKS; i++) {
+          const o = (slot * SPARKS + i) * 3;
+          pos[o] = f.gx; pos[o + 1] = y; pos[o + 2] = f.gy;
           const a = Math.random() * Math.PI * 2, sp = 0.8 + Math.random() * 1.6;
           vel[i * 3] = Math.cos(a) * sp; vel[i * 3 + 1] = 2 + Math.random() * 2; vel[i * 3 + 2] = Math.sin(a) * sp;
         }
-        const geo = new THREE.BufferGeometry();
-        geo.setAttribute('position', new THREE.BufferAttribute(pos, 3));
-        const pts = new THREE.Points(geo, new THREE.PointsMaterial({ color: f.color ?? '#ffffff', size: 0.2, map: sparkTex(), transparent: true, depthWrite: false }));
-        this.fxLayer.add(pts);
-        this.bursts.push({ pts, vel, life: 0.9 });
+        const c = this.tmpC.set(f.color ?? '#ffffff');
+        this.bursts.push({ slot, vel, life: 0.9, r: c.r, g: c.g, b: c.b });
       }
     }
     this.store.fx.length = 0;
   }
 
+  // Every spark burst (a harvest, a new building, a sale) in one shared batch of points: one draw
+  // for all of them, and no new material and buffers for each one, made and thrown away a second
+  // later (planting a row of fields makes a dozen at once). A burst's sparks have its color, and
+  // fade out in their alpha.
+  private sparks = (() => {
+    const p = new THREE.Points(sparkGeo(SPARKS * 32), sparkMat());
+    p.frustumCulled = false;
+    p.visible = false;
+    return p;
+  })();
+  // a free run of points for a new burst; the batch doubles when every one is taken
+  private sparkSlot() {
+    const used = new Set(this.bursts.map((b) => b.slot));
+    const cap = (this.sparks.geometry.getAttribute('position') as THREE.BufferAttribute).count / SPARKS;
+    for (let k = 0; k < cap; k++) if (!used.has(k)) return k;
+    const old = this.sparks.geometry, geo = sparkGeo(cap * 2 * SPARKS);
+    for (const n of ['position', 'color']) (geo.getAttribute(n).array as Float32Array).set(old.getAttribute(n).array as Float32Array);
+    this.sparks.geometry = geo;
+    old.dispose();
+    return cap;
+  }
+
   private updateFx(dt: number) {
+    const geo = this.sparks.geometry;
+    const pa = geo.getAttribute('position') as THREE.BufferAttribute, ca = geo.getAttribute('color') as THREE.BufferAttribute;
+    const pos = pa.array as Float32Array, col = ca.array as Float32Array;
+    let top = 0;
     this.bursts = this.bursts.filter((b) => {
       b.life -= dt;
-      const mat = b.pts.material as THREE.PointsMaterial;
-      if (b.life <= 0) { this.fxLayer.remove(b.pts); b.pts.geometry.dispose(); mat.dispose(); return false; }
-      const a = b.pts.geometry.getAttribute('position') as THREE.BufferAttribute;
-      const arr = a.array as Float32Array;
-      for (let i = 0; i < arr.length; i += 3) {
-        b.vel[i + 1] -= 7 * dt;
-        arr[i] += b.vel[i] * dt; arr[i + 1] += b.vel[i + 1] * dt; arr[i + 2] += b.vel[i + 2] * dt;
+      const o = b.slot * SPARKS;
+      if (b.life <= 0) { col.fill(0, o * 4, (o + SPARKS) * 4); return false; }
+      const fade = clamp(b.life / 0.9, 0, 1);
+      for (let i = 0; i < SPARKS; i++) {
+        const v = i * 3, p = (o + i) * 3, c = (o + i) * 4;
+        b.vel[v + 1] -= 7 * dt;
+        pos[p] += b.vel[v] * dt; pos[p + 1] += b.vel[v + 1] * dt; pos[p + 2] += b.vel[v + 2] * dt;
+        col[c] = b.r; col[c + 1] = b.g; col[c + 2] = b.b; col[c + 3] = fade;
       }
-      a.needsUpdate = true;
-      mat.opacity = clamp(b.life / 0.9, 0, 1);
+      top = Math.max(top, b.slot + 1);
       return true;
     });
+    // only the runs up to the last burst in use are drawn and sent to the GPU
+    this.sparks.visible = top > 0;
+    if (top) {
+      geo.setDrawRange(0, top * SPARKS);
+      pa.clearUpdateRanges(); pa.addUpdateRange(0, top * SPARKS * 3); pa.needsUpdate = true;
+      ca.clearUpdateRanges(); ca.addUpdateRange(0, top * SPARKS * 4); ca.needsUpdate = true;
+    }
     this.floats = this.floats.filter((f) => {
       f.life -= dt;
-      if (f.life <= 0) { this.fxLayer.remove(f.s); f.s.material.dispose(); return false; }
+      if (f.life <= 0) { this.fxLayer.remove(f.s); dropRecent(f.s.material.map); f.s.material.dispose(); return false; }
       f.s.position.y += 0.7 * dt;
       f.s.material.opacity = clamp(f.life / 0.5, 0, 1);
       return true;
@@ -3635,8 +3849,44 @@ function shownUpTo(o: THREE.Object3D, stop: THREE.Object3D | null) {
   for (let q: THREE.Object3D | null = o; q && q !== stop; q = q.parent) if (!q.visible) return false;
   return true;
 }
+// Decorations, wild trees, rocks and bushes, fruit trees and the fields' soil: a farm has dozens
+// to hundreds of them, mostly the same few models. Their solid parts join the batches too.
+const STATIC_KINDS = new Set(['deco', 'obstacle', 'tree', 'plot']);
+function gatherStatics(root: THREE.Object3D) {
+  const out: THREE.Mesh[] = [];
+  const walk = (o: THREE.Object3D) => {
+    // a field's crops are batched by the field itself
+    if (o.userData.noBatch) return;
+    const m = o as THREE.Mesh;
+    if (m.isMesh && !(m as THREE.InstancedMesh).isInstancedMesh && !Array.isArray(m.material)
+      && (!m.material.transparent || m.userData.decal) && m.material.visible && (m.layers.mask & 1)) {
+      m.layers.set(BATCH_LAYER);
+      out.push(m);
+    }
+    for (const c of o.children) walk(c);
+  };
+  walk(root);
+  return out;
+}
+function batchStatics(e: Entry) {
+  e.statics = null;
+  const prev = e.update;
+  e.update = (o, now, t, dt) => {
+    prev?.(o, now, t, dt);
+    if (!e.statics) e.statics = gatherStatics(e.root);
+    if (e.statics.length) batchDraw.push({ root: e.root, meshes: e.statics });
+  };
+}
+// back to drawing itself: a copy, a ghost or an object on its way out is not in the batches
+function unbatch(root: THREE.Object3D) {
+  root.traverse((o) => { if (o.layers.isEnabled(BATCH_LAYER)) o.layers.set(0); });
+}
+
+const fullGeo = new WeakMap<THREE.Mesh, THREE.BufferGeometry>();
 class Batches {
-  private by = new Map<THREE.BufferGeometry, Map<THREE.Material, { mesh: THREE.InstancedMesh; n: number }>>();
+  // per geometry and material: the batch, its copies this frame, and how many frames it has been
+  // empty (one empty for long is let go: a stand in's parts, or a model no longer on the farm)
+  private by = new Map<THREE.BufferGeometry, Map<THREE.Material, { mesh: THREE.InstancedMesh; n: number; idle: number }>>();
   constructor(private parent: THREE.Object3D) {}
   private add(geo: THREE.BufferGeometry, mat: THREE.Material, src: THREE.Mesh) {
     let row = this.by.get(geo);
@@ -3648,6 +3898,7 @@ class Batches {
       const mesh = new THREE.InstancedMesh(geo, mat, cap);
       mesh.castShadow = src.castShadow;
       mesh.receiveShadow = src.receiveShadow;
+      mesh.renderOrder = src.renderOrder;
       mesh.frustumCulled = false;
       if (b) {
         (mesh.instanceMatrix.array as Float32Array).set(b.mesh.instanceMatrix.array as Float32Array);
@@ -3655,7 +3906,7 @@ class Batches {
         b.mesh.dispose();
       }
       this.parent.add(mesh);
-      b = { mesh, n: b?.n ?? 0 };
+      b = { mesh, n: b?.n ?? 0, idle: 0 };
       row.set(mat, b);
     }
     b.mesh.setMatrixAt(b.n++, src.matrixWorld);
@@ -3670,7 +3921,9 @@ class Batches {
       if (!(top as THREE.Scene).isScene || !shownUpTo(root, null)) continue;
       for (const m of meshes) {
         if (!shownUpTo(m, root)) continue;
-        let geo = m.geometry;
+        // its own (full) geometry, as first seen here: a far twin never replaces it on the mesh
+        let geo = fullGeo.get(m);
+        if (!geo) { geo = m.geometry; fullGeo.set(m, geo); }
         const lod = m.userData.lod as string | undefined;
         if (lod) {
           // far away a crop or an animal is drawn from its thinned twin, as the trees are
@@ -3683,10 +3936,14 @@ class Batches {
         this.add(geo, m.material as THREE.Material, m);
       }
     }
-    for (const row of this.by.values()) for (const b of row.values()) {
-      b.mesh.count = b.n;
-      b.mesh.visible = b.n > 0;
-      if (b.n) b.mesh.instanceMatrix.needsUpdate = true;
+    for (const [geo, row] of this.by) {
+      for (const [mat, b] of row) {
+        b.mesh.count = b.n;
+        b.mesh.visible = b.n > 0;
+        if (b.n) { b.mesh.instanceMatrix.needsUpdate = true; b.idle = 0; }
+        else if (++b.idle > 1800) { this.parent.remove(b.mesh); b.mesh.dispose(); row.delete(mat); }
+      }
+      if (!row.size) this.by.delete(geo);
     }
   }
 }
@@ -3904,6 +4161,14 @@ function torus(r: number, t: number, rs: number, ts: number, arc = Math.PI * 2) 
   return g;
 }
 
+// A small merged model of spheres and rings, one color a part, kept indexed: a corner shared by
+// several triangles is worked out once on the GPU instead of once for each, and the corners a
+// sphere repeats at its poles and seam (same place, normal and color) are made one. The
+// triangles are the same, so is the picture.
+function sharedCorners(g: THREE.BufferGeometry) {
+  return mergeVertices(g);
+}
+
 // Realistic eyes: a glossy dark eyeball set into the side of the head with a lid rim and a
 // tiny catch light, turned outward the way prey animals' eyes are.
 const EYE_REAL_MERGED = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.08, metalness: 0.08 });
@@ -3920,8 +4185,9 @@ function realEyeGeo(r: number, sx: number, lid: string) {
     [torus(1, 0.22, 5, 14), lid, r * 1.02, r * 0.92, r * 1.0, 0, 0, r * 0.1],
   ];
   const m = new THREE.Matrix4(), c = new THREE.Color();
-  g = mergeGeometries(parts.map(([geo, col, a, b, d, px, py, pz]) => {
-    const p = geo.index ? geo.toNonIndexed() : geo.clone();
+  // kept indexed, the poles' and seams' repeated corners made one (see sharedCorners)
+  g = sharedCorners(mergeGeometries(parts.map(([geo, col, a, b, d, px, py, pz]) => {
+    const p = geo.clone();
     p.applyMatrix4(m.makeScale(a, b, d).setPosition(px, py, pz));
     for (const k of Object.keys(p.attributes)) if (k !== 'position' && k !== 'normal') p.deleteAttribute(k);
     c.set(col);
@@ -3929,7 +4195,7 @@ function realEyeGeo(r: number, sx: number, lid: string) {
     for (let i = 0; i < n; i++) { arr[i * 3] = c.r; arr[i * 3 + 1] = c.g; arr[i * 3 + 2] = c.b; }
     p.setAttribute('color', new THREE.BufferAttribute(arr, 3));
     return p;
-  })) as THREE.BufferGeometry;
+  })) as THREE.BufferGeometry);
   realEyeCache.set(key, g);
   return g;
 }
@@ -3974,7 +4240,7 @@ function toonEyeGeo(r: number, sx: number, lid: string) {
   ];
   const m = new THREE.Matrix4(), c = new THREE.Color();
   const geos = parts.map(([geo, col, a, b, d, px, py, pz]) => {
-    const p = (geo.index ? geo.toNonIndexed() : geo.clone());
+    const p = geo.clone();
     p.applyMatrix4(m.makeScale(a, b, d).setPosition(px, py, pz));
     for (const k of Object.keys(p.attributes)) if (k !== 'position' && k !== 'normal') p.deleteAttribute(k);
     c.set(col);
@@ -3983,7 +4249,7 @@ function toonEyeGeo(r: number, sx: number, lid: string) {
     p.setAttribute('color', new THREE.BufferAttribute(arr, 3));
     return p;
   });
-  g = mergeGeometries(geos) as THREE.BufferGeometry;
+  g = sharedCorners(mergeGeometries(geos) as THREE.BufferGeometry);
   eyeGeoCache.set(key, g);
   return g;
 }
@@ -4118,8 +4384,8 @@ function beeBodyGeo() {
     ['#f5c518', 0.018 * 0.9, 0.018 * 0.9, 0.018 * 1.3, 0],
     ['#2a1a10', 0.019 * 0.85, 0.019 * 0.85, 0.019 * 0.35, -0.008],
   ];
-  beeGeo = mergeGeometries(parts.map(([col, a, b, d, z]) => {
-    const p = G.ball.index ? G.ball.toNonIndexed() : G.ball.clone();
+  beeGeo = sharedCorners(mergeGeometries(parts.map(([col, a, b, d, z]) => {
+    const p = G.ball.clone();
     p.applyMatrix4(m.makeScale(a, b, d).setPosition(0, 0, z));
     for (const k of Object.keys(p.attributes)) if (k !== 'position' && k !== 'normal') p.deleteAttribute(k);
     c.set(col);
@@ -4127,7 +4393,7 @@ function beeBodyGeo() {
     for (let i = 0; i < n; i++) { arr[i * 3] = c.r; arr[i * 3 + 1] = c.g; arr[i * 3 + 2] = c.b; }
     p.setAttribute('color', new THREE.BufferAttribute(arr, 3));
     return p;
-  })) as THREE.BufferGeometry;
+  })) as THREE.BufferGeometry);
   return beeGeo;
 }
 
@@ -4347,6 +4613,7 @@ function buildPlot(e: Entry) {
     r.scale.set(1, 0.8, 0.45);
   }
   const crop = keep(group(g));
+  crop.userData.noBatch = true;
   // a watered field: darker, glistening soil with a few drops, until the crop is ready
   const wet = keep(mk(g, G.box, WET_MAT, 0.9, 0.01, 0.9, 0.5, 0.118, 0.5, false));
   const drops = keep(group(g));
@@ -4499,17 +4766,13 @@ function loadModel(name: string) {
       gl.scene.userData.top = new THREE.Box3().setFromObject(gl.scene).max.y;
       return shrinkTextures(gl.scene).then(() => {
         // its shaders compile in the background before it is used, so a model arriving mid
-        // game never freezes the picture while the GPU compiles (crops and animals are drawn in
-        // batches: their instanced shaders too)
+        // game never freezes the picture while the GPU compiles (crops, animals, decorations
+        // and trees are drawn in batches: their instanced shaders too)
         const ready = () => gl.scene;
         if (!precompile) return gl.scene;
-        const jobs = [precompile(gl.scene)];
-        if (/^(animal|crop)_/.test(name)) {
-          const inst = new THREE.Group();
-          gl.scene.traverse((o) => { const m = o as THREE.Mesh; if (m.isMesh) inst.add(new THREE.InstancedMesh(m.geometry, m.material, 1)); });
-          jobs.push(precompile(inst));
-        }
-        return Promise.all(jobs).then(ready, ready);
+        const inst = new THREE.Group();
+        gl.scene.traverse((o) => { const m = o as THREE.Mesh; if (m.isMesh) inst.add(new THREE.InstancedMesh(m.geometry, m.material, 1)); });
+        return Promise.all([precompile(gl.scene), precompile(inst)]).then(ready, ready);
       });
     });
     modelCache.set(name, p);
@@ -4519,6 +4782,8 @@ function loadModel(name: string) {
 
 // scenery models the land builder uses once loaded (forest trees, FOR SALE sign)
 const WORLD_MODELS: Record<string, THREE.Object3D> = {};
+// a forest model could not load: the land makes its own trees after all
+let forestFailed = false;
 function firstMesh(o?: THREE.Object3D) {
   let found: THREE.Mesh | null = null;
   o?.traverse((c) => { if (!found && (c as THREE.Mesh).isMesh) found = c as THREE.Mesh; });
@@ -4588,12 +4853,18 @@ function useModel(e: Entry, o: FarmObject, d: BuildingDef) {
     m.position.set(cx, 0, cz);
     // fruit trees stand in orchards of a dozen, flower beds and oaks by the dozen, and new land
     // comes wooded: the far ones are drawn from their thinned twin
-    if (d.kind === 'tree' || PLANT_LOD.has(name)) modelLod(m, name);
+    if (d.kind === 'tree' || PLANT_LOD.has(name)) {
+      modelLod(m, name);
+      m.traverse((c) => { if ((c as THREE.Mesh).isMesh) c.userData.lod = name; });
+    }
     // trees: the model's foliage joins the stand in's swaying crown group, beside its fruit
     const leaves = m.getObjectByName('crown');
     const crown = leaves && standIn.find((c) => c.userData.crown);
     for (const c of standIn) if (c !== crown) { g.remove(c); dropOwned(c); }
     g.add(m);
+    if (e.statics !== undefined) e.statics = null;
+    // the model came: the stand in's fallback parts are not needed
+    g.traverse((c) => { if (c.userData.fallback) delete c.userData.fallback; });
     if (leaves && crown) {
       for (const c of [...crown.children]) if (!c.userData.keep) crown.remove(c);
       crown.add(leaves);
@@ -4646,7 +4917,10 @@ function useModel(e: Entry, o: FarmObject, d: BuildingDef) {
         }
       }
     };
-  }).catch(() => { /* keep the procedural building */ });
+  }).catch(() => {
+    // keep the procedural building, with the parts it left for the model to fill
+    g.traverse((c) => { const f = c.userData.fallback as (() => void) | undefined; if (f) { c.userData.fallback = undefined; f(); } });
+  });
 }
 
 function buildHouse(e: Entry, d: BuildingDef) {
@@ -5733,9 +6007,16 @@ function toonTree(g: P, x: number, z: number, leaf: string, k: number, seed: num
   }
   const crown = group(g, x, 0, z);
   crown.userData.crown = true;
-  const m = mk(crown, toonCrown(seed, quick ? 0.042 : 0.014), toonLeafMat(leaf), k, k, k, 0, 0, 0);
-  m.receiveShadow = true;
-  return { crown, main: m };
+  const make = () => {
+    const m = mk(crown, toonCrown(seed, quick ? 0.042 : 0.014), toonLeafMat(leaf), k, k, k, 0, 0, 0);
+    m.receiveShadow = true;
+    return m;
+  };
+  // a tree with a Blender model (quick) takes that model's foliage into this crown when it loads
+  // (see useModel): sculpting a crown for it first is costly work thrown away. It is sculpted
+  // only if the model cannot load.
+  if (quick) { crown.userData.fallback = make; return { crown, main: crown }; }
+  return { crown, main: make() };
 }
 
 function leafyTree(g: P, x: number, z: number, leaf: string, k = 1, seed = 1, quick = false) {
@@ -6133,6 +6414,10 @@ function buildDeco(e: Entry, d: BuildingDef) {
       m.position.set(0.5, 0.014, 0.5);
       m.scale.set(1.02, 1.02, 1);
       m.receiveShadow = true;
+      // a flat see through patch on the ground: it can go in a batch with the others (they lie
+      // side by side, never one over another), drawn before anything else see through
+      m.userData.decal = true;
+      m.renderOrder = -1;
       g.add(m);
       e.top = 0.1;
       let mask = -1;
@@ -6731,8 +7016,10 @@ class TurtleBeach {
       const spray: THREE.Mesh[] = [];
       for (let k = 0; k < 8; k++) spray.push(mk(nest, G.ball, moundM, 0.012, 0.012, 0.012, 0, 0, 0, false));
       const babies: TurtleRig[] = [];
-      for (let k = 0; k < 9; k++) { const b = turtleRig('turtle_hatchling', 0.38); babies.push(b); scene.add(b.g); }
+      for (let k = 0; k < 9; k++) { const b = turtleRig('turtle_hatchling', 0.38); babies.push(b); scene.add(b.g); skipOffView(b.g, 1.5, true); }
       scene.add(rig.g, nest);
+      skipOffView(rig.g, 3, true);
+      skipOffView(nest, 1.5, true);
       this.mothers.push({ rig, nest, eggs, pit, mound, spray, babies });
     }
   }
@@ -6925,6 +7212,7 @@ class ShoreLife {
         c.x = c.tx = p.x; c.z = c.tz = p.z;
         g.visible = false;
         scene.add(g);
+        skipOffView(g, 2, true);
         this.crabs.push(c);
         if (artStyle() === 'toon') {
           loadModel(kind).then((m) => {
@@ -6952,6 +7240,7 @@ class ShoreLife {
       const s: Seal = { g, body, flips: [], ready: false, seed: k * 5.7 + 2, side, state: 'swim', t0: 0, dur: 20000 + k * 9000, x: p.x, z: p.z, y: SEA_Y, tx: p.x, tz: p.z, heading: 0, rock: null, from: [p.x, p.z] };
       g.visible = false;
       scene.add(g);
+      skipOffView(g, 3);
       this.seals.push(s);
       if (artStyle() === 'toon') {
         loadModel('harbor_seal').then((m) => {
@@ -7079,6 +7368,7 @@ class ShoreLife {
         const b: Piper = { g, legs: [], wings: [], shadow, ox: (hash(f, k, 86) - 0.5) * 1.2, oz: (hash(f, k, 87) - 0.5) * 0.35, x: 0, z: 0, y: -0.2, heading: 0 };
         g.visible = false;
         scene.add(g);
+        skipOffView(g, 2, true);
         fl.birds.push(b);
         if (artStyle() === 'toon') {
           loadModel('sandpiper').then((m) => {
@@ -7412,6 +7702,7 @@ class NightLife {
       const g = new THREE.Group();
       g.visible = false;
       scene.add(g);
+      skipOffView(g, 4, true);
       const o: NightOwl = { g, kind: k === 2 ? 'tawny_owl' : 'barn_owl', seed: k * 3.7 + 1, ready: false, wings: [], perch: null, state: 'perch', t0: 0, dur: 0, from: new THREE.Vector3(), to: new THREE.Vector3(), ground: null, heading: 0 };
       this.owls.push(o);
     }
@@ -7437,6 +7728,7 @@ class NightLife {
         if (kind !== 'bat') contactShadow(g, 0.14 * size, 0.18 * size);
         g.visible = false;
         scene.add(g);
+        skipOffView(g, 3, true);
         const c: Critter = { kind, g, body, legs: [], wings: [], seed: k * 5.3 + kind.length, ready: false, x: 0, z: 0, tx: 0, tz: 0, wait: 0, curl: 0, heading: 0, hop: -1, a: 0, a1: 0 };
         list.push(c);
         if (toon) {
@@ -7800,8 +8092,9 @@ function sailRound(g: THREE.Object3D, a: number, dir: number, R: number, t: numb
 }
 
 class Life {
-  private butterflies: { g: THREE.Group; wings: THREE.Mesh[]; hx: number; hz: number; seed: number }[] = [];
-  private gulls: { g: THREE.Group; wings: THREE.Object3D[]; cx: number; cz: number; r: number; h: number; sp: number; ph: number }[] = [];
+  // their parts are drawn in batches (see Batches): `meshes` gathered once, again after a model swap
+  private butterflies: { g: THREE.Group; wings: THREE.Mesh[]; hx: number; hz: number; seed: number; meshes: THREE.Mesh[] | null }[] = [];
+  private gulls: { g: THREE.Group; wings: THREE.Object3D[]; cx: number; cz: number; r: number; h: number; sp: number; ph: number; meshes: THREE.Mesh[] | null }[] = [];
   private fish: { g: THREE.Group; ring: THREE.Mesh; t: number; x: number; z: number; dir: number; y: number }[] = [];
   private sail: THREE.Group;
   // a second yacht, sailing round the other way a little further out
@@ -7818,7 +8111,13 @@ class Life {
   private spout: THREE.Mesh[] = [];
 
   constructor(scene: THREE.Scene) {
-    const wingMat = (c: string) => new THREE.MeshStandardMaterial({ color: c, side: THREE.DoubleSide, roughness: 0.6 });
+    // one material per color, shared: butterflies of a color go in one batch
+    const wingMats = new Map<string, THREE.MeshStandardMaterial>();
+    const wingMat = (c: string) => {
+      let m = wingMats.get(c);
+      if (!m) { m = new THREE.MeshStandardMaterial({ color: c, side: THREE.DoubleSide, roughness: 0.6 }); wingMats.set(c, m); }
+      return m;
+    };
     const wingGeo = new THREE.CircleGeometry(1, 10);
     wingGeo.translate(1, 0, 0);
     const colors = ['#ffd23a', '#ffffff', '#ff8fb0', '#8fd3ff', '#ff9f43', '#b58cff'];
@@ -7836,7 +8135,8 @@ class Life {
       }
       mk(g, G.ball, M('#3a2616'), 0.008, 0.008, 0.035, 0, 0, 0, false);
       scene.add(g);
-      this.butterflies.push({ g, wings, hx: 0, hz: 0, seed: i * 7.3 });
+      skipOffView(g, 1);
+      this.butterflies.push({ g, wings, hx: 0, hz: 0, seed: i * 7.3, meshes: null });
     }
     for (let i = 0; i < 6; i++) {
       const g = new THREE.Group();
@@ -7855,13 +8155,15 @@ class Life {
       const cx = side === 0 ? GRID * t : side === 1 ? GRID * t : side === 2 ? -3 : GRID + 3;
       const cz = side === 0 ? -3 : side === 1 ? GRID + 3 : GRID * t;
       scene.add(g);
-      this.gulls.push({ g, wings, cx, cz, r: 2 + hash(i, 3) * 2.5, h: 4 + hash(i, 4) * 2.5, sp: 0.25 + hash(i, 5) * 0.2, ph: i * 1.7 });
+      skipOffView(g, 2);
+      this.gulls.push({ g, wings, cx, cz, r: 2 + hash(i, 3) * 2.5, h: 4 + hash(i, 4) * 2.5, sp: 0.25 + hash(i, 5) * 0.2, ph: i * 1.7, meshes: null });
     }
     for (let i = 0; i < 3; i++) {
       const g = fishModel(['#ff9a3c', '#8fb8d8', '#f2d16b'][i]);
       g.visible = false;
       const ring = splashRing();
       scene.add(g, ring);
+      skipOffView(g, 1);
       this.fish.push({ g, ring, t: 99, x: 0, z: 0, dir: 0, y: -0.55 });
     }
     // sailboat far out at sea
@@ -7875,6 +8177,8 @@ class Life {
     sailM.position.set(0, 0.25, 0.08);
     this.sail.add(sailM);
     scene.add(this.sail, this.sail2);
+    skipOffView(this.sail, 4);
+    skipOffView(this.sail2, 4);
     for (let i = 0; i < 12; i++) {
       const m = new THREE.Mesh(G.ball, new THREE.MeshBasicMaterial({ color: '#f4fbff', transparent: true, depthWrite: false }));
       m.visible = false;
@@ -7891,6 +8195,7 @@ class Life {
         gl.g.add(m);
         const w0 = m.getObjectByName('wing0'), w1 = m.getObjectByName('wing1');
         if (w0 && w1) gl.wings = [w0, w1];
+        gl.meshes = null;
       }
     }).catch(() => {});
     loadModel('sailboat').then((src) => {
@@ -7904,12 +8209,13 @@ class Life {
         m.visible = false;
         const ring = splashRing();
         scene.add(m, ring);
+        skipOffView(m, 3);
         this.dolphins.push(m);
         this.dolphinRings.push(ring);
       }
     }).catch(() => {});
-    loadModel('whale').then((src) => { this.whale = src.clone(); this.whale.visible = false; scene.add(this.whale); }).catch(() => {});
-    loadModel('shark').then((src) => { this.shark = src.clone(); this.shark.visible = false; scene.add(this.shark); }).catch(() => {});
+    loadModel('whale').then((src) => { this.whale = src.clone(); this.whale.visible = false; scene.add(this.whale); skipOffView(this.whale, 8); }).catch(() => {});
+    loadModel('shark').then((src) => { this.shark = src.clone(); this.shark.visible = false; scene.add(this.shark); skipOffView(this.shark, 4); }).catch(() => {});
   }
 
   // off the shore nearest the view, a few tiles out to sea, heading along the coast
@@ -8019,6 +8325,8 @@ class Life {
       const flap = Math.sin(t / 45 + i) * 1.1;
       b.wings[0].rotation.z = flap;
       b.wings[1].rotation.z = -flap;
+      b.meshes ??= gatherStatics(b.g);
+      batchDraw.push({ root: b.g, meshes: b.meshes });
     });
     // gulls glide in wide circles, flapping now and then
     this.gulls.forEach((gl) => {
@@ -8028,6 +8336,8 @@ class Life {
       const flap = Math.sin(t / 1500 + gl.ph) > 0.3 ? Math.sin(t / 90 + gl.ph) * 0.6 : 0.08;
       gl.wings[0].rotation.z = flap;
       gl.wings[1].rotation.z = -flap;
+      gl.meshes ??= gatherStatics(gl.g);
+      batchDraw.push({ root: gl.g, meshes: gl.meshes });
     });
     // now and then a fish leaps out of the sea near the shore in view
     this.nextFish -= dt;
