@@ -199,10 +199,21 @@ function glowMat() {
 }
 
 const texCache = new Map<string, THREE.Texture>();
+// Textures drawn for a value that keeps changing (a bubble's progress ring, a "+120 coins"
+// floating up): only the most recently used are kept, in order of use, and the oldest freed. A
+// long game would otherwise keep every one it ever drew: each crop and product has some twenty
+// five steps of its ring, and every new amount its own text, some hundred kilobytes each on the
+// GPU and as much again in memory. One still on show when freed is simply sent to the GPU again.
+const recentCache = new Map<string, THREE.Texture>();
+const RECENT_MAX = 160;
 const EF = '"Apple Color Emoji","Segoe UI Emoji","Noto Color Emoji",sans-serif';
-function canvasTex(key: string, w: number, h: number, draw: (c: CanvasRenderingContext2D) => void) {
-  let t = texCache.get(key);
-  if (t) return t;
+function canvasTex(key: string, w: number, h: number, draw: (c: CanvasRenderingContext2D) => void, recent = false) {
+  const cache = recent ? recentCache : texCache;
+  let t = cache.get(key);
+  if (t) {
+    if (recent) { cache.delete(key); cache.set(key, t); }
+    return t;
+  }
   const cv = document.createElement('canvas');
   cv.width = w; cv.height = h;
   const c = cv.getContext('2d') as CanvasRenderingContext2D;
@@ -210,8 +221,23 @@ function canvasTex(key: string, w: number, h: number, draw: (c: CanvasRenderingC
   t = new THREE.CanvasTexture(cv);
   t.colorSpace = THREE.SRGBColorSpace;
   t.anisotropy = 4;
-  texCache.set(key, t);
+  cache.set(key, t);
+  if (recent) {
+    inRecent.add(t);
+    if (cache.size > RECENT_MAX) {
+      const [old, ot] = cache.entries().next().value as [string, THREE.Texture];
+      cache.delete(old);
+      inRecent.delete(ot);
+      ot.dispose();
+    }
+  }
   return t;
+}
+const inRecent = new WeakSet<THREE.Texture>();
+// a recent texture a sprite has stopped showing: freed if it has left the cache meanwhile (it was
+// sent to the GPU again while on show, and nothing else would free it)
+function dropRecent(t: THREE.Texture | null | undefined) {
+  if (t && !inRecent.has(t)) t.dispose();
 }
 
 function emojiTex(icon: string, badge = false) {
@@ -253,7 +279,7 @@ function bubbleTex(icon: string, mode: 'ready' | 'progress' | 'faded', step: num
       c.font = '900 26px system-ui, sans-serif';
       c.fillText(String(count), 106, 24);
     }
-  });
+  }, true);
 }
 
 // round soft sparkle with a bright core, used by particle bursts
@@ -305,14 +331,15 @@ function speechTex(text: string) {
   return { t, aspect: H / W, w: W };
 }
 
-function textTex(text: string, color: string) {
+// `recent`: a floating text, one of many (see recentCache)
+function textTex(text: string, color: string, recent = false) {
   return canvasTex(`t|${text}|${color}`, 512, 96, (c) => {
     c.font = '900 54px ui-rounded, "Trebuchet MS", system-ui, sans-serif';
     c.textAlign = 'center'; c.textBaseline = 'middle';
     c.lineWidth = 12; c.strokeStyle = 'rgba(60,35,10,0.9)'; c.lineJoin = 'round';
     c.fillStyle = color;
     fillRich(c, text, 256, 50, 58, true);
-  });
+  }, recent);
 }
 
 // ------------------------------------------------------------------ mesh helpers (y is the bottom for boxes and cylinders)
@@ -1637,7 +1664,7 @@ export class Renderer {
       r.position.set(p0.x + mx * (1 - s), k * 0.2, p0.z + mz * (1 - s));
       r.rotation.y = th0 + k * 0.6;
     }, () => { FX_ROOT.remove(r); dropOwned(r); });
-    if (e.bubble) { this.fxLayer.remove(e.bubble); e.bubble.material.dispose(); }
+    if (e.bubble) { this.fxLayer.remove(e.bubble); dropRecent(e.bubble.material.map); e.bubble.material.dispose(); }
     this.entries.delete(e.id);
   }
 
@@ -2009,7 +2036,9 @@ export class Renderer {
     const step = Math.round(fi.p * 24);
     const key = `${mode}|${step}`;
     if (b.userData.key !== key) {
+      const was = b.material.map;
       b.material.map = bubbleTex(fi.state === 'idle' ? '🎣' : '🐟', mode, step, 0);
+      if (was !== b.material.map) dropRecent(was);
       b.material.needsUpdate = true;
       b.userData.key = key;
     }
@@ -2039,7 +2068,9 @@ export class Renderer {
         this.fxLayer.add(e.bubble);
       }
       if (e.bubbleKey !== key) {
+        const was = e.bubble.material.map;
         e.bubble.material.map = bubbleTex(b.icon, b.mode, step, b.count);
+        if (was !== e.bubble.material.map) dropRecent(was);
         e.bubble.material.needsUpdate = true;
         e.bubbleKey = key;
       }
@@ -2057,7 +2088,7 @@ export class Renderer {
     for (const f of this.store.fx) {
       const y = (f.z ?? 30) * ZU;
       if (f.kind === 'float') {
-        const sp = new THREE.Sprite(new THREE.SpriteMaterial({ map: textTex(f.text ?? '', f.color ?? '#fff'), depthTest: false, transparent: true }));
+        const sp = new THREE.Sprite(new THREE.SpriteMaterial({ map: textTex(f.text ?? '', f.color ?? '#fff', true), depthTest: false, transparent: true }));
         sp.scale.set(1.6, 0.3, 1);
         sp.position.set(f.gx, y + 0.4, f.gy);
         sp.renderOrder = 12;
@@ -2099,7 +2130,7 @@ export class Renderer {
     });
     this.floats = this.floats.filter((f) => {
       f.life -= dt;
-      if (f.life <= 0) { this.fxLayer.remove(f.s); f.s.material.dispose(); return false; }
+      if (f.life <= 0) { this.fxLayer.remove(f.s); dropRecent(f.s.material.map); f.s.material.dispose(); return false; }
       f.s.position.y += 0.7 * dt;
       f.s.material.opacity = clamp(f.life / 0.5, 0, 1);
       return true;
