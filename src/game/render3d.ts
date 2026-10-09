@@ -363,6 +363,9 @@ interface Entry {
   bounce?: { t: number; kind: 'spawn' | 'bump' | 'big' | 'work' };
   // a herd: whether any of its animals was in view at its last update
   herdSeen?: boolean;
+  // its solid parts drawn in batches (decorations, wild trees and rocks, fruit trees, fields);
+  // null: to be gathered again (its model has just come in)
+  statics?: THREE.Mesh[] | null;
 }
 // the camera's view this frame, for herds to tell whether their animals are in it
 let VIEW: THREE.Frustum | null = null;
@@ -428,7 +431,7 @@ function popOut(src: THREE.Object3D, delay = 0, height = 1.3) {
   src.updateWorldMatrix(true, true);
   const c = bareClone(src);
   // a crop's plants are drawn in batches, off the camera's layer: the copy is drawn by itself
-  c.traverse((o) => { if (o.layers.isEnabled(BATCH_LAYER)) o.layers.set(0); });
+  unbatch(c);
   src.getWorldPosition(c.position);
   src.getWorldQuaternion(c.quaternion);
   src.getWorldScale(c.scale);
@@ -453,6 +456,7 @@ function popOut(src: THREE.Object3D, delay = 0, height = 1.3) {
 function dropDown(src: THREE.Object3D, delay = 0) {
   src.updateWorldMatrix(true, true);
   const c = bareClone(src);
+  unbatch(c);
   src.getWorldPosition(c.position);
   src.getWorldScale(c.scale);
   const p0 = c.position.clone(), s0 = c.scale.clone();
@@ -1521,6 +1525,7 @@ export class Renderer {
     // cleared, sold or replaced: the model shrinks away with a little spin
     const r = e.root;
     r.remove(e.hit);
+    unbatch(r);
     FX_ROOT.add(r);
     const d = BUILDING[e.type];
     const p0 = r.position.clone();
@@ -1541,6 +1546,7 @@ export class Renderer {
     const root = new THREE.Group();
     const e: Entry = { id: o.id, type: o.type, root, hit: null as unknown as THREE.Mesh, top: 1 };
     buildObject(e, o, d, this.store);
+    if (STATIC_KINDS.has(d.kind)) batchStatics(e);
     const hit = new THREE.Mesh(G.box, HIT_MAT);
     const hh = Math.max(0.25, e.top);
     hit.scale.set(d.w * 0.96, hh, d.h * 0.96);
@@ -1746,6 +1752,7 @@ export class Renderer {
       const e: Entry = { id: -1, type: p.type, root: new THREE.Group(), hit: null as unknown as THREE.Mesh, top: 1 };
       buildObject(e, src, d, this.store);
       e.update?.(src, Date.now(), t, 0);
+      unbatch(e.root);
       e.root.traverse((m) => {
         const mesh = m as THREE.Mesh;
         if (mesh.isMesh) { mesh.castShadow = false; }
@@ -3660,6 +3667,40 @@ function shownUpTo(o: THREE.Object3D, stop: THREE.Object3D | null) {
   for (let q: THREE.Object3D | null = o; q && q !== stop; q = q.parent) if (!q.visible) return false;
   return true;
 }
+// Decorations, wild trees, rocks and bushes, fruit trees and the fields' soil: a farm has dozens
+// to hundreds of them, mostly the same few models. Their solid parts join the batches too.
+const STATIC_KINDS = new Set(['deco', 'obstacle', 'tree', 'plot']);
+function gatherStatics(root: THREE.Object3D) {
+  const out: THREE.Mesh[] = [];
+  const walk = (o: THREE.Object3D) => {
+    // a field's crops are batched by the field itself
+    if (o.userData.noBatch) return;
+    const m = o as THREE.Mesh;
+    if (m.isMesh && !(m as THREE.InstancedMesh).isInstancedMesh && !Array.isArray(m.material)
+      && (!m.material.transparent || m.userData.decal) && m.material.visible && (m.layers.mask & 1)) {
+      m.layers.set(BATCH_LAYER);
+      out.push(m);
+    }
+    for (const c of o.children) walk(c);
+  };
+  walk(root);
+  return out;
+}
+function batchStatics(e: Entry) {
+  e.statics = null;
+  const prev = e.update;
+  e.update = (o, now, t, dt) => {
+    prev?.(o, now, t, dt);
+    if (!e.statics) e.statics = gatherStatics(e.root);
+    if (e.statics.length) batchDraw.push({ root: e.root, meshes: e.statics });
+  };
+}
+// back to drawing itself: a copy, a ghost or an object on its way out is not in the batches
+function unbatch(root: THREE.Object3D) {
+  root.traverse((o) => { if (o.layers.isEnabled(BATCH_LAYER)) o.layers.set(0); });
+}
+
+const fullGeo = new WeakMap<THREE.Mesh, THREE.BufferGeometry>();
 class Batches {
   private by = new Map<THREE.BufferGeometry, Map<THREE.Material, { mesh: THREE.InstancedMesh; n: number }>>();
   constructor(private parent: THREE.Object3D) {}
@@ -3673,6 +3714,7 @@ class Batches {
       const mesh = new THREE.InstancedMesh(geo, mat, cap);
       mesh.castShadow = src.castShadow;
       mesh.receiveShadow = src.receiveShadow;
+      mesh.renderOrder = src.renderOrder;
       mesh.frustumCulled = false;
       if (b) {
         (mesh.instanceMatrix.array as Float32Array).set(b.mesh.instanceMatrix.array as Float32Array);
@@ -3695,7 +3737,9 @@ class Batches {
       if (!(top as THREE.Scene).isScene || !shownUpTo(root, null)) continue;
       for (const m of meshes) {
         if (!shownUpTo(m, root)) continue;
-        let geo = m.geometry;
+        // its own (full) geometry, as first seen here: a far twin never replaces it on the mesh
+        let geo = fullGeo.get(m);
+        if (!geo) { geo = m.geometry; fullGeo.set(m, geo); }
         const lod = m.userData.lod as string | undefined;
         if (lod) {
           // far away a crop or an animal is drawn from its thinned twin, as the trees are
@@ -4372,6 +4416,7 @@ function buildPlot(e: Entry) {
     r.scale.set(1, 0.8, 0.45);
   }
   const crop = keep(group(g));
+  crop.userData.noBatch = true;
   // a watered field: darker, glistening soil with a few drops, until the crop is ready
   const wet = keep(mk(g, G.box, WET_MAT, 0.9, 0.01, 0.9, 0.5, 0.118, 0.5, false));
   const drops = keep(group(g));
@@ -4615,12 +4660,16 @@ function useModel(e: Entry, o: FarmObject, d: BuildingDef) {
     m.position.set(cx, 0, cz);
     // fruit trees stand in orchards of a dozen, flower beds and oaks by the dozen, and new land
     // comes wooded: the far ones are drawn from their thinned twin
-    if (d.kind === 'tree' || PLANT_LOD.has(name)) modelLod(m, name);
+    if (d.kind === 'tree' || PLANT_LOD.has(name)) {
+      modelLod(m, name);
+      m.traverse((c) => { if ((c as THREE.Mesh).isMesh) c.userData.lod = name; });
+    }
     // trees: the model's foliage joins the stand in's swaying crown group, beside its fruit
     const leaves = m.getObjectByName('crown');
     const crown = leaves && standIn.find((c) => c.userData.crown);
     for (const c of standIn) if (c !== crown) { g.remove(c); dropOwned(c); }
     g.add(m);
+    if (e.statics !== undefined) e.statics = null;
     if (leaves && crown) {
       for (const c of [...crown.children]) if (!c.userData.keep) crown.remove(c);
       crown.add(leaves);
@@ -6170,6 +6219,10 @@ function buildDeco(e: Entry, d: BuildingDef) {
       m.position.set(0.5, 0.014, 0.5);
       m.scale.set(1.02, 1.02, 1);
       m.receiveShadow = true;
+      // a flat see through patch on the ground: it can go in a batch with the others (they lie
+      // side by side, never one over another), drawn before anything else see through
+      m.userData.decal = true;
+      m.renderOrder = -1;
       g.add(m);
       e.top = 0.1;
       let mask = -1;
