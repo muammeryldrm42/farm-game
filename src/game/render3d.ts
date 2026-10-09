@@ -4569,17 +4569,13 @@ function loadModel(name: string) {
       gl.scene.userData.top = new THREE.Box3().setFromObject(gl.scene).max.y;
       return shrinkTextures(gl.scene).then(() => {
         // its shaders compile in the background before it is used, so a model arriving mid
-        // game never freezes the picture while the GPU compiles (crops and animals are drawn in
-        // batches: their instanced shaders too)
+        // game never freezes the picture while the GPU compiles (crops, animals, decorations
+        // and trees are drawn in batches: their instanced shaders too)
         const ready = () => gl.scene;
         if (!precompile) return gl.scene;
-        const jobs = [precompile(gl.scene)];
-        if (/^(animal|crop)_/.test(name)) {
-          const inst = new THREE.Group();
-          gl.scene.traverse((o) => { const m = o as THREE.Mesh; if (m.isMesh) inst.add(new THREE.InstancedMesh(m.geometry, m.material, 1)); });
-          jobs.push(precompile(inst));
-        }
-        return Promise.all(jobs).then(ready, ready);
+        const inst = new THREE.Group();
+        gl.scene.traverse((o) => { const m = o as THREE.Mesh; if (m.isMesh) inst.add(new THREE.InstancedMesh(m.geometry, m.material, 1)); });
+        return Promise.all([precompile(gl.scene), precompile(inst)]).then(ready, ready);
       });
     });
     modelCache.set(name, p);
