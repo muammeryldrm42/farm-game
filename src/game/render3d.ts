@@ -7886,8 +7886,9 @@ function sailRound(g: THREE.Object3D, a: number, dir: number, R: number, t: numb
 }
 
 class Life {
-  private butterflies: { g: THREE.Group; wings: THREE.Mesh[]; hx: number; hz: number; seed: number }[] = [];
-  private gulls: { g: THREE.Group; wings: THREE.Object3D[]; cx: number; cz: number; r: number; h: number; sp: number; ph: number }[] = [];
+  // their parts are drawn in batches (see Batches): `meshes` gathered once, again after a model swap
+  private butterflies: { g: THREE.Group; wings: THREE.Mesh[]; hx: number; hz: number; seed: number; meshes: THREE.Mesh[] | null }[] = [];
+  private gulls: { g: THREE.Group; wings: THREE.Object3D[]; cx: number; cz: number; r: number; h: number; sp: number; ph: number; meshes: THREE.Mesh[] | null }[] = [];
   private fish: { g: THREE.Group; ring: THREE.Mesh; t: number; x: number; z: number; dir: number; y: number }[] = [];
   private sail: THREE.Group;
   // a second yacht, sailing round the other way a little further out
@@ -7904,7 +7905,13 @@ class Life {
   private spout: THREE.Mesh[] = [];
 
   constructor(scene: THREE.Scene) {
-    const wingMat = (c: string) => new THREE.MeshStandardMaterial({ color: c, side: THREE.DoubleSide, roughness: 0.6 });
+    // one material per color, shared: butterflies of a color go in one batch
+    const wingMats = new Map<string, THREE.MeshStandardMaterial>();
+    const wingMat = (c: string) => {
+      let m = wingMats.get(c);
+      if (!m) { m = new THREE.MeshStandardMaterial({ color: c, side: THREE.DoubleSide, roughness: 0.6 }); wingMats.set(c, m); }
+      return m;
+    };
     const wingGeo = new THREE.CircleGeometry(1, 10);
     wingGeo.translate(1, 0, 0);
     const colors = ['#ffd23a', '#ffffff', '#ff8fb0', '#8fd3ff', '#ff9f43', '#b58cff'];
@@ -7922,7 +7929,7 @@ class Life {
       }
       mk(g, G.ball, M('#3a2616'), 0.008, 0.008, 0.035, 0, 0, 0, false);
       scene.add(g);
-      this.butterflies.push({ g, wings, hx: 0, hz: 0, seed: i * 7.3 });
+      this.butterflies.push({ g, wings, hx: 0, hz: 0, seed: i * 7.3, meshes: null });
     }
     for (let i = 0; i < 6; i++) {
       const g = new THREE.Group();
@@ -7941,7 +7948,7 @@ class Life {
       const cx = side === 0 ? GRID * t : side === 1 ? GRID * t : side === 2 ? -3 : GRID + 3;
       const cz = side === 0 ? -3 : side === 1 ? GRID + 3 : GRID * t;
       scene.add(g);
-      this.gulls.push({ g, wings, cx, cz, r: 2 + hash(i, 3) * 2.5, h: 4 + hash(i, 4) * 2.5, sp: 0.25 + hash(i, 5) * 0.2, ph: i * 1.7 });
+      this.gulls.push({ g, wings, cx, cz, r: 2 + hash(i, 3) * 2.5, h: 4 + hash(i, 4) * 2.5, sp: 0.25 + hash(i, 5) * 0.2, ph: i * 1.7, meshes: null });
     }
     for (let i = 0; i < 3; i++) {
       const g = fishModel(['#ff9a3c', '#8fb8d8', '#f2d16b'][i]);
@@ -7977,6 +7984,7 @@ class Life {
         gl.g.add(m);
         const w0 = m.getObjectByName('wing0'), w1 = m.getObjectByName('wing1');
         if (w0 && w1) gl.wings = [w0, w1];
+        gl.meshes = null;
       }
     }).catch(() => {});
     loadModel('sailboat').then((src) => {
@@ -8105,6 +8113,8 @@ class Life {
       const flap = Math.sin(t / 45 + i) * 1.1;
       b.wings[0].rotation.z = flap;
       b.wings[1].rotation.z = -flap;
+      b.meshes ??= gatherStatics(b.g);
+      batchDraw.push({ root: b.g, meshes: b.meshes });
     });
     // gulls glide in wide circles, flapping now and then
     this.gulls.forEach((gl) => {
@@ -8114,6 +8124,8 @@ class Life {
       const flap = Math.sin(t / 1500 + gl.ph) > 0.3 ? Math.sin(t / 90 + gl.ph) * 0.6 : 0.08;
       gl.wings[0].rotation.z = flap;
       gl.wings[1].rotation.z = -flap;
+      gl.meshes ??= gatherStatics(gl.g);
+      batchDraw.push({ root: gl.g, meshes: gl.meshes });
     });
     // now and then a fish leaps out of the sea near the shore in view
     this.nextFish -= dt;
