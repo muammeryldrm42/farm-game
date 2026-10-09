@@ -4971,7 +4971,8 @@ function buildHouse(e: Entry, d: BuildingDef) {
     bx(dg, dw + 0.08, 0.05, 0.05, '#f4efe6', 0, dh, 0.005);
     for (const sx of [-1, 1]) bx(dg, 0.04, dh, 0.05, '#f4efe6', sx * (dw / 2 + 0.02), 0, 0.005);
     ball(dg, 0.018, '#e9c46a', dw * 0.32, dh * 0.48, 0.035);
-    bxT(g, dw + 0.16, 0.05, 0.16, 'stone', '#b5b0a2', doorX, y0 - 0.05, fz + 0.08, 4);
+    // the step stands a little proud of the stone base: level with it, the two flickered
+    bxT(g, dw + 0.16, 0.065, 0.16, 'stone', '#b5b0a2', doorX, y0 - 0.05, fz + 0.08, 4);
     roofT(g, dw + 0.22, 0.12, 0.34, d.roof, M(d.roof), doorX, y0 + dh + 0.05, fz + 0.02);
     for (const sx of [-1, 1]) bx(g, 0.02, 0.1, 0.02, '#f4efe6', doorX + sx * (dw / 2 + 0.06), y0 + dh - 0.04, fz + 0.18);
     const lx = doorX + dw / 2 + 0.1;
@@ -5059,7 +5060,8 @@ function buildHouse(e: Entry, d: BuildingDef) {
       }
       const cup = group(g, cx, y0 + H + 0.45 + Math.min(ww, dd) * 0.3, cz);
       mk(cup, cylGeo(0.12, 0.09, 16), M('#ffffff'), 1, 0.18, 1, 0, 0.09, 0);
-      mk(cup, cylGeo(0.11, 0.11, 16), M('#6b3f1f'), 1, 0.01, 1, 0, 0.175, 0);
+      // the coffee a hair above the cup's top: level with it, the two flickered
+      mk(cup, cylGeo(0.11, 0.11, 16), M('#6b3f1f'), 1, 0.01, 1, 0, 0.178, 0);
       mk(cup, new THREE.TorusGeometry(0.05, 0.015, 8, 14), M('#ffffff'), 1, 1, 1, 0.13, 0.1, 0).rotation.y = 0;
       break;
     }
