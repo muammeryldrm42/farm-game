@@ -296,6 +296,21 @@ function sparkTex() {
   });
 }
 
+// the material of the spark bursts: each spark's color and fade in its own vertex color (see
+// Renderer.sparks)
+let sparkMaterial: THREE.PointsMaterial | null = null;
+function sparkMat() {
+  return sparkMaterial ??= new THREE.PointsMaterial({ size: 0.2, map: sparkTex(), transparent: true, depthWrite: false, vertexColors: true });
+}
+// points with a color and an alpha each, as the spark bursts are drawn
+function sparkGeo(points: number) {
+  const geo = new THREE.BufferGeometry();
+  geo.setAttribute('position', new THREE.BufferAttribute(new Float32Array(points * 3), 3).setUsage(THREE.DynamicDrawUsage));
+  geo.setAttribute('color', new THREE.BufferAttribute(new Float32Array(points * 4), 4).setUsage(THREE.DynamicDrawUsage));
+  return geo;
+}
+const SPARKS = 22;
+
 // a white speech bubble with a tail, the words wrapped on up to three lines
 function speechTex(text: string) {
   const cv = document.createElement('canvas');
@@ -465,7 +480,7 @@ function showOffView() {
 function bump(e: Entry, kind: 'bump' | 'big' | 'work' = 'bump') {
   if (!e.bounce || e.bounce.kind !== 'spawn') e.bounce = { t: 0, kind };
 }
-interface Burst { pts: THREE.Points; vel: Float32Array; life: number }
+interface Burst { slot: number; vel: Float32Array; life: number; r: number; g: number; b: number }
 interface Float { s: THREE.Sprite; life: number }
 interface Actor {
   x: number; y: number; heading: number; moving: boolean; g: THREE.Group; phase: number;
@@ -758,6 +773,7 @@ export class Renderer {
     this.sun.shadow.camera.layers.enable(2);
     this.scene.add(this.sun, this.sun.target, this.hemi, this.world, this.land, this.foliage.group, this.fxLayer);
     this.world.add(FX_ROOT);
+    this.fxLayer.add(this.sparks);
 
     this.buildSea();
     this.buildClouds();
@@ -1812,7 +1828,7 @@ export class Renderer {
     const g = new THREE.Group();
     const pt = new THREE.BufferGeometry();
     pt.setAttribute('position', new THREE.BufferAttribute(new Float32Array(6), 3));
-    g.add(new THREE.Points(pt, new THREE.PointsMaterial({ color: '#ffffff', size: 0.2, map: sparkTex(), transparent: true, depthWrite: false })));
+    g.add(new THREE.Points(sparkGeo(2), sparkMat()));
     g.add(new THREE.LineSegments(pt, new THREE.LineBasicMaterial({ color: '#d6e6ff', transparent: true, opacity: 0.55 })));
     g.add(new THREE.Line(pt, new THREE.LineBasicMaterial({ color: '#ffffff' })));
     // the eyes of the animals, drawn in batches
@@ -2095,39 +2111,70 @@ export class Renderer {
         this.fxLayer.add(sp);
         this.floats.push({ s: sp, life: 1.5 });
       } else {
-        const n = 22;
-        const pos = new Float32Array(n * 3);
-        const vel = new Float32Array(n * 3);
-        for (let i = 0; i < n; i++) {
-          pos[i * 3] = f.gx; pos[i * 3 + 1] = y; pos[i * 3 + 2] = f.gy;
+        const slot = this.sparkSlot();
+        const pos = this.sparks.geometry.getAttribute('position').array as Float32Array;
+        const vel = new Float32Array(SPARKS * 3);
+        for (let i = 0; i < SPARKS; i++) {
+          const o = (slot * SPARKS + i) * 3;
+          pos[o] = f.gx; pos[o + 1] = y; pos[o + 2] = f.gy;
           const a = Math.random() * Math.PI * 2, sp = 0.8 + Math.random() * 1.6;
           vel[i * 3] = Math.cos(a) * sp; vel[i * 3 + 1] = 2 + Math.random() * 2; vel[i * 3 + 2] = Math.sin(a) * sp;
         }
-        const geo = new THREE.BufferGeometry();
-        geo.setAttribute('position', new THREE.BufferAttribute(pos, 3));
-        const pts = new THREE.Points(geo, new THREE.PointsMaterial({ color: f.color ?? '#ffffff', size: 0.2, map: sparkTex(), transparent: true, depthWrite: false }));
-        this.fxLayer.add(pts);
-        this.bursts.push({ pts, vel, life: 0.9 });
+        const c = this.tmpC.set(f.color ?? '#ffffff');
+        this.bursts.push({ slot, vel, life: 0.9, r: c.r, g: c.g, b: c.b });
       }
     }
     this.store.fx.length = 0;
   }
 
+  // Every spark burst (a harvest, a new building, a sale) in one shared batch of points: one draw
+  // for all of them, and no new material and buffers for each one, made and thrown away a second
+  // later (planting a row of fields makes a dozen at once). A burst's sparks have its color, and
+  // fade out in their alpha.
+  private sparks = (() => {
+    const p = new THREE.Points(sparkGeo(SPARKS * 32), sparkMat());
+    p.frustumCulled = false;
+    p.visible = false;
+    return p;
+  })();
+  // a free run of points for a new burst; the batch doubles when every one is taken
+  private sparkSlot() {
+    const used = new Set(this.bursts.map((b) => b.slot));
+    const cap = (this.sparks.geometry.getAttribute('position') as THREE.BufferAttribute).count / SPARKS;
+    for (let k = 0; k < cap; k++) if (!used.has(k)) return k;
+    const old = this.sparks.geometry, geo = sparkGeo(cap * 2 * SPARKS);
+    for (const n of ['position', 'color']) (geo.getAttribute(n).array as Float32Array).set(old.getAttribute(n).array as Float32Array);
+    this.sparks.geometry = geo;
+    old.dispose();
+    return cap;
+  }
+
   private updateFx(dt: number) {
+    const geo = this.sparks.geometry;
+    const pa = geo.getAttribute('position') as THREE.BufferAttribute, ca = geo.getAttribute('color') as THREE.BufferAttribute;
+    const pos = pa.array as Float32Array, col = ca.array as Float32Array;
+    let top = 0;
     this.bursts = this.bursts.filter((b) => {
       b.life -= dt;
-      const mat = b.pts.material as THREE.PointsMaterial;
-      if (b.life <= 0) { this.fxLayer.remove(b.pts); b.pts.geometry.dispose(); mat.dispose(); return false; }
-      const a = b.pts.geometry.getAttribute('position') as THREE.BufferAttribute;
-      const arr = a.array as Float32Array;
-      for (let i = 0; i < arr.length; i += 3) {
-        b.vel[i + 1] -= 7 * dt;
-        arr[i] += b.vel[i] * dt; arr[i + 1] += b.vel[i + 1] * dt; arr[i + 2] += b.vel[i + 2] * dt;
+      const o = b.slot * SPARKS;
+      if (b.life <= 0) { col.fill(0, o * 4, (o + SPARKS) * 4); return false; }
+      const fade = clamp(b.life / 0.9, 0, 1);
+      for (let i = 0; i < SPARKS; i++) {
+        const v = i * 3, p = (o + i) * 3, c = (o + i) * 4;
+        b.vel[v + 1] -= 7 * dt;
+        pos[p] += b.vel[v] * dt; pos[p + 1] += b.vel[v + 1] * dt; pos[p + 2] += b.vel[v + 2] * dt;
+        col[c] = b.r; col[c + 1] = b.g; col[c + 2] = b.b; col[c + 3] = fade;
       }
-      a.needsUpdate = true;
-      mat.opacity = clamp(b.life / 0.9, 0, 1);
+      top = Math.max(top, b.slot + 1);
       return true;
     });
+    // only the runs up to the last burst in use are drawn and sent to the GPU
+    this.sparks.visible = top > 0;
+    if (top) {
+      geo.setDrawRange(0, top * SPARKS);
+      pa.clearUpdateRanges(); pa.addUpdateRange(0, top * SPARKS * 3); pa.needsUpdate = true;
+      ca.clearUpdateRanges(); ca.addUpdateRange(0, top * SPARKS * 4); ca.needsUpdate = true;
+    }
     this.floats = this.floats.filter((f) => {
       f.life -= dt;
       if (f.life <= 0) { this.fxLayer.remove(f.s); dropRecent(f.s.material.map); f.s.material.dispose(); return false; }
