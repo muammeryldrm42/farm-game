@@ -1099,10 +1099,10 @@ export class Renderer {
 
     // island body: grass top is made of tiles, then soil, then a sandy beach
     const isl = this.land;
-    // its top stays a little under the beach shelf's (-0.2): level with it, the two fought over
-    // the thin strip where the soil reaches past the tiles, a flickering brown line along the
-    // edge of the farm's land
-    const soil = new THREE.Mesh(meterBox(GRID + 0.1, 1.19, GRID + 0.1), surfaceMat('soil', '#8a5a33', 1));
+    // exactly as wide as the tiles, its top a little under the beach shelf's (-0.2): it used to
+    // reach a few centimetres past the tiles, level with the shelf, and the two fought over that
+    // strip, a flickering brown line along the edge of the farm's land
+    const soil = new THREE.Mesh(meterBox(GRID, 1.19, GRID), surfaceMat('soil', '#8a5a33', 1));
     soil.position.set(GRID / 2, -1.4 + 0.595, GRID / 2);
     soil.receiveShadow = true;
     soil.renderOrder = 2;
