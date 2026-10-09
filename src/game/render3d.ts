@@ -976,18 +976,25 @@ export class Renderer {
     far.rotation.x = -Math.PI / 2;
     far.position.set(GRID / 2, -0.58, GRID / 2);
     this.scene.add(far);
+    // The sea runs under the whole island, and the island's soil and sand boxes under its tiles:
+    // drawn last of the solid things, most of their pixels are already hidden (by the farm, the
+    // tiles) and a phone's GPU skips them instead of working out water and sand that is then
+    // drawn over. The picture is the same.
+    this.sea.renderOrder = far.renderOrder = 3;
 
     // island body: grass top is made of tiles, then soil, then a sandy beach
     const isl = this.land;
     const soil = new THREE.Mesh(meterBox(GRID + 0.1, 1.2, GRID + 0.1), surfaceMat('soil', '#8a5a33', 1));
     soil.position.set(GRID / 2, -1.4 + 0.6, GRID / 2);
     soil.receiveShadow = true;
+    soil.renderOrder = 2;
     isl.add(soil);
     const sand = surfaceMat('sand', '#ecd49a', 1.5, 0.95);
     for (const [w, h, y] of [[GRID + BEACH * 2 - 0.1, 0.34, -0.72], [GRID + BEACH * 2 - 0.9, 0.2, -0.4]] as const) {
       const m = new THREE.Mesh(meterBox(w, h, w), sand);
       m.position.set(GRID / 2, y + h / 2, GRID / 2);
       m.receiveShadow = true;
+      m.renderOrder = 2;
       isl.add(m);
     }
 
