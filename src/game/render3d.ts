@@ -58,6 +58,17 @@ const G = {
   plane: new THREE.PlaneGeometry(1, 1),
 };
 
+// some faces of the unit box (BoxGeometry's face order: +x, -x, +y, -y, +z, -z)
+function boxFaces(faces: number[]) {
+  const g = new THREE.BoxGeometry(1, 1, 1);
+  const idx = g.index!.array;
+  const keep: number[] = [];
+  for (const f of faces) { const q = g.groups[f]; for (let i = q.start; i < q.start + q.count; i++) keep.push(idx[i]); }
+  g.setIndex(keep);
+  g.clearGroups();
+  return g;
+}
+
 const cylCache = new Map<string, THREE.CylinderGeometry>();
 function cylGeo(rt: number, rb: number, seg: number) {
   const k = `${rt.toFixed(3)}|${rb.toFixed(3)}|${seg}`;
@@ -621,6 +632,9 @@ export class Renderer {
   private syncKey = -1;
   private landKey = '';
   private tiles!: THREE.InstancedMesh;
+  // the sides of the lawn tiles on the island's rim and round the lake, and the tile each is of
+  private tileSides!: THREE.InstancedMesh;
+  private sideOf: number[] = [];
   private sea!: THREE.Mesh;
   private fishing!: ReturnType<typeof buildFishingSpot>;
   private seaFishing!: ReturnType<typeof buildFishingSpot>;
@@ -1058,33 +1072,63 @@ export class Renderer {
         diffuseColor.rgb *= tint * (0.96 + n2 * 0.06);
       }`);
     };
-    this.tiles = new THREE.InstancedMesh(G.box, grass, GRID * GRID);
+    // The lawn and beach tiles are drawn with their top faces only: a tile's sides are hidden under
+    // its neighbours' tops, yet were shaded wherever they happened to be drawn first (about a
+    // third of the ground was drawn twice). Their sides are kept where they show: on the island's
+    // rim and round the lake's hollow.
+    const top = boxFaces([2]), sides = boxFaces([0, 1, 4, 5]);
+    this.tiles = new THREE.InstancedMesh(top, grass, GRID * GRID);
     this.tiles.receiveShadow = true;
     const m = new THREE.Matrix4();
+    const hollow = (x: number, y: number) => !isBeachTile(x, y) && lakeE(x + 0.5, y + 0.5) < LAKE_HOLE;
+    const rim = (x: number, y: number) => [[1, 0], [-1, 0], [0, 1], [0, -1]].some(([dx, dy]) => {
+      const nx = x + dx, ny = y + dy;
+      return nx < 0 || ny < 0 || nx >= GRID || ny >= GRID || hollow(nx, ny);
+    });
     const beach: [number, number][] = [];
+    const lawnRim: number[] = [];
     for (let y = 0; y < GRID; y++) for (let x = 0; x < GRID; x++) {
       // the beach ring is sand: its grass tile is left out
       if (isBeachTile(x, y)) { beach.push([x, y]); m.makeScale(0, 0, 0); }
       // the lake's hollow is its own ground (buildLake)
-      else if (lakeE(x + 0.5, y + 0.5) < LAKE_HOLE) m.makeScale(0, 0, 0);
-      else m.makeScale(1, 0.4, 1);
+      else if (hollow(x, y)) m.makeScale(0, 0, 0);
+      else { m.makeScale(1, 0.4, 1); if (rim(x, y)) lawnRim.push(y * GRID + x); }
       m.setPosition(x + 0.5, -0.2, y + 0.5);
       this.tiles.setMatrixAt(y * GRID + x, m);
       this.tiles.setColorAt(y * GRID + x, new THREE.Color('#7cc450'));
     }
     this.land.add(this.tiles);
+    this.tileSides = new THREE.InstancedMesh(sides, grass, lawnRim.length);
+    this.tileSides.receiveShadow = true;
+    this.sideOf = lawnRim;
+    lawnRim.forEach((k, i) => { this.tiles.getMatrixAt(k, m); this.tileSides.setMatrixAt(i, m); });
+    this.land.add(this.tileSides);
     // the beach: warm dry sand, a little paler toward the sea
-    const sandTiles = new THREE.InstancedMesh(G.box, sand, beach.length);
+    const sandTiles = new THREE.InstancedMesh(top, sand, beach.length);
+    const sandRim = beach.filter(([x, y]) => rim(x, y));
+    const sandSides = new THREE.InstancedMesh(sides, sand, sandRim.length);
     const c = new THREE.Color();
+    const sandAt = (x: number, y: number) => {
+      const edge = Math.min(x, y, GRID - 1 - x, GRID - 1 - y);
+      return c.setRGB(1, 1, 1).multiplyScalar(1.04 - edge * 0.025 + (hash(x, y, 41) - 0.5) * 0.04);
+    };
+    m.makeScale(1, 0.4, 1);
     beach.forEach(([x, y], i) => {
-      m.makeScale(1, 0.4, 1);
       m.setPosition(x + 0.5, -0.2, y + 0.5);
       sandTiles.setMatrixAt(i, m);
-      const edge = Math.min(x, y, GRID - 1 - x, GRID - 1 - y);
-      sandTiles.setColorAt(i, c.setRGB(1, 1, 1).multiplyScalar(1.04 - edge * 0.025 + (hash(x, y, 41) - 0.5) * 0.04));
+      sandTiles.setColorAt(i, sandAt(x, y));
     });
-    sandTiles.receiveShadow = true;
-    this.land.add(sandTiles);
+    sandRim.forEach(([x, y], i) => {
+      m.setPosition(x + 0.5, -0.2, y + 0.5);
+      sandSides.setMatrixAt(i, m);
+      sandSides.setColorAt(i, sandAt(x, y));
+    });
+    sandTiles.receiveShadow = sandSides.receiveShadow = true;
+    // the ground is drawn after the farm, its trees and the rest of the solid things standing on
+    // it (and before the soil and the sea): the lawn under a tree or a house is then skipped by
+    // the GPU instead of being shaded and drawn over
+    this.tiles.renderOrder = this.tileSides.renderOrder = sandTiles.renderOrder = sandSides.renderOrder = 1;
+    this.land.add(sandTiles, sandSides);
     this.buildLake();
   }
 
@@ -1357,6 +1401,8 @@ export class Renderer {
       this.tiles.setColorAt(y * GRID + x, col);
     }
     if (this.tiles.instanceColor) this.tiles.instanceColor.needsUpdate = true;
+    this.sideOf.forEach((k, i) => { this.tiles.getColorAt(k, col); this.tileSides.setColorAt(i, col); });
+    if (this.tileSides.instanceColor) this.tileSides.instanceColor.needsUpdate = true;
 
     // locked land: forest and FOR SALE signs
     this.land.remove(this.dynLand);
