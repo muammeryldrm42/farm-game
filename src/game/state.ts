@@ -3,6 +3,7 @@ import { ANIMAL, BUILDING, CATCHES, CROP, ITEMS, ITEM_LIST, LAKE_CATCHES, RECIPE
 import { isRaining } from './weather';
 import { t as tr } from './i18n';
 import { clockFloor, keepClock, now as clockNow } from './clock';
+import { BEAUTY_LEVELS, beautyOf, type Beauty } from './beauty';
 import { LAST_CHAPTER, chapterAt, taskProgress, type StoryState, type StoryTask } from './story';
 import { ALBUM, ALBUM_IDS, CAT_FINDS, DOG_FINDS, albumEntry, type AlbumEntry } from './album';
 import { MUSEUM, findChance, museumSet, newMuseum, type FindSource, type MuseumState } from './museum';
@@ -113,6 +114,7 @@ export interface GameState {
   pets?: Record<PetId, PetState>;
   museum?: MuseumState; // the rare finds on show in the farm museum (see museum.ts)
   clock?: { t: number }; // the farm's clock at the last save: it does not go back past it (see clock.ts)
+  beautyBest?: number; // the highest beauty level whose gift of gems was given (see beauty.ts)
 }
 
 // ---------------------------------------------------------------- pets
@@ -660,7 +662,7 @@ export type Sfx = 'harvest' | 'plant' | 'coin' | 'build' | 'error' | 'levelup' |
 export interface Fx { kind: 'float' | 'burst'; gx: number; gy: number; text?: string; color?: string; z?: number }
 export interface Placing { type: string; x: number; y: number; moveId?: number }
 export interface Tool { kind: 'plant'; crop: string }
-export type Panel = 'shop' | 'orders' | 'storage' | 'settings' | 'quests' | 'stall' | 'boat' | 'fishing' | 'home' | 'pet' | null;
+export type Panel = 'shop' | 'orders' | 'storage' | 'settings' | 'quests' | 'stall' | 'boat' | 'fishing' | 'home' | 'pet' | 'beauty' | null;
 export interface Flyer { icon: string; gx: number; gy: number; z: number; target: 'storage' | 'coins' | 'xp' }
 export interface Toast { id: number; text: string; tone: 'info' | 'bad' | 'good'; at: number }
 
@@ -684,6 +686,7 @@ export interface UIState {
   guide?: { id: string; at: number }; // a shop card, crop or recipe a task pointed the player to (shown with an orange marker)
   guideAt?: { x: number; y: number; at: number }; // a place on the farm a task pointed to: an orange arrow bobs over it
   notifyAsk?: boolean; // the question whether to send phone notifications is up (see notify.ts)
+  shopTab?: string; // the shop opens on this tab (once)
 }
 
 export class GameStore {
@@ -802,6 +805,31 @@ export class GameStore {
   stat(k: string, n = 1) { this.s.stats[k] = (this.s.stats[k] ?? 0) + n; }
 
   earn(n: number) { this.s.coins += n; this.stat('earned', n); }
+
+  // ------------------------------------------------ beauty (see beauty.ts)
+
+  // worked out again only when something on the farm was built, moved or taken away
+  private beautyMemo: { v: number; b: Beauty } | null = null;
+  beauty() {
+    if (!this.beautyMemo || this.beautyMemo.v !== this.objVersion) this.beautyMemo = { v: this.objVersion, b: beautyOf(this.s) };
+    return this.beautyMemo.b;
+  }
+  // what customers pay more on a farm this pretty (orders, boat crates, stall sales)
+  beautyBonus() { return BEAUTY_LEVELS[this.beauty().level].bonus; }
+  private startedAt = Date.now();
+  // a beauty level reached for the first time brings its gift of gems
+  checkBeauty() {
+    const level = this.beauty().level, best = this.s.beautyBest ?? 0;
+    if (level <= best) return;
+    let gems = 0;
+    for (let l = best + 1; l <= level; l++) gems += BEAUTY_LEVELS[l].gems;
+    this.s.beautyBest = level;
+    this.s.gems += gems;
+    const lv = BEAUTY_LEVELS[level];
+    this.sound('levelup');
+    this.toast(tr('Your farm is now {level}! Customers pay {n}% more. +{gems} gems', { level: tr(lv.name), n: Math.round(lv.bonus * 100), gems }), 'good');
+    this.emit();
+  }
 
   addXp(n: number) {
     const s = this.s;
@@ -1359,6 +1387,7 @@ export class GameStore {
     }
     const cost = this.costOf(d);
     if (this.s.coins < cost) { this.toast(tr('Not enough coins.'), 'bad'); this.ui.placing = null; this.emit(false); return; }
+    const beautyWas = this.beauty().score;
     if (this.countType(p.type) >= this.maxOf(d)) { this.ui.placing = null; this.emit(false); return; }
     this.s.coins -= cost;
     const o: FarmObject = { id: this.s.nextId++, type: p.type, x: p.x, y: p.y };
@@ -1374,6 +1403,9 @@ export class GameStore {
     if (d.xp) this.float(o, `+${d.xp} XP`, '#b8f0ff', 50);
     this.sound('build');
     this.objVersion++;
+    const pretty = this.beauty().score - beautyWas;
+    if (pretty > 0) this.float(o, `🌸 +${pretty}`, '#ffd0ea', 64);
+    this.checkBeauty();
     if ((d.kind === 'plot' || d.kind === 'tree') && this.countType(p.type) < this.maxOf(d) && this.s.coins >= this.costOf(d)) {
       const next = this.findSpot(p.type, p.x + 1, p.y);
       this.ui.placing = next.ok ? { type: p.type, x: next.x, y: next.y } : null;
@@ -1539,7 +1571,7 @@ export class GameStore {
     if (!o) return;
     if (!canFulfill(this.s, o, clockNow())) { this.toast(tr('You do not have everything for this order yet.'), 'bad'); return; }
     for (const it of o.items) this.take(it.id, it.qty);
-    const coins = Math.round(o.coins * (1 + horseBonus(this.s)));
+    const coins = Math.round(o.coins * (1 + horseBonus(this.s) + this.beautyBonus()));
     this.earn(coins);
     this.s.gems += o.gems;
     this.stat('orders');
@@ -1899,11 +1931,12 @@ export class GameStore {
   collectSale(slot: number) {
     const sl = this.s.stall[slot];
     if (!sl || !sl.item || sl.soldAt > clockNow()) return;
-    this.earn(sl.price);
+    const coins = Math.round(sl.price * (1 + this.beautyBonus()));
+    this.earn(coins);
     this.stat('stall');
     this.addXp(Math.max(1, Math.round(sl.price / 25)));
     const stall = this.s.objects.find((x) => x.type === 'stall');
-    if (stall) { this.float(stall, `+${sl.price} coins`, '#ffe066', 50); this.fly(stall, '🪙', 'coins', 50); }
+    if (stall) { this.float(stall, `+${coins} coins`, '#ffe066', 50); this.fly(stall, '🪙', 'coins', 50); }
     this.s.stall[slot] = emptySlot();
     this.sound('coin');
     this.emit();
@@ -1930,10 +1963,11 @@ export class GameStore {
     if ((this.s.inv[c.item] ?? 0) < c.qty) { this.toast(tr('You need {n} {item}.', { n: c.qty, item: tr(ITEMS[c.item].name) }), 'bad'); return; }
     this.take(c.item, c.qty);
     c.filled = true;
-    this.earn(c.coins);
+    const coins = Math.round(c.coins * (1 + this.beautyBonus()));
+    this.earn(coins);
     this.addXp(c.xp);
     const dock = this.s.objects.find((x) => x.type === 'dock');
-    if (dock) { this.float(dock, `+${c.coins} coins`, '#ffe066', 50); this.fly(dock, '🪙', 'coins', 40); }
+    if (dock) { this.float(dock, `+${coins} coins`, '#ffe066', 50); this.fly(dock, '🪙', 'coins', 40); }
     this.sound('coin');
     this.emit();
   }
@@ -1978,6 +2012,8 @@ export class GameStore {
     const now = clockNow();
     topUp(this.s); // TEMP test mode
     if (this.settleGrazing(now)) this.emit();
+    // a new beauty level reached some other way (an older farm, a loaded save): a few seconds in, so it is seen
+    if (Date.now() - this.startedAt > 8000) this.checkBeauty();
     this.storyTick(now);
     // rain and sprinklers water thirsty fields for free
     const thirsty = this.s.objects.filter((o) => o.type === 'plot' && needsWater(o, now));

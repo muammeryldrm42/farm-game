@@ -87,6 +87,9 @@ export default function Hud() {
       {/* story tracker */}
       {!tut && !ui.placing && !ui.story && <StoryCard />}
 
+      {/* the farm's beauty, under the story button */}
+      {!sheetOpen && <BeautyChip />}
+
       {/* toasts */}
       <div className={`absolute left-1/2 flex w-[92%] max-w-sm -translate-x-1/2 flex-col items-center gap-2 ${tut ? "top-36" : "top-20"}`}>
         {store.toasts.map((tt) => (
@@ -252,3 +255,20 @@ function StoryCard() {
     </button>
   );
 }
+
+// the farm's beauty points (see beauty.ts); a tap opens what they are and what they bring
+function BeautyChip() {
+  const store = useStore();
+  const b = store.beauty();
+  return (
+    <button
+      className="pointer-events-auto absolute left-2 top-[8rem] flex items-center gap-1 rounded-full border-[3px] border-[#d9468f] bg-[#fff6df] py-0.5 pl-1.5 pr-2.5 text-xs font-bold text-[#8a2a5e] shadow-[0_3px_0_#5d3a1f] sm:left-3 sm:top-[9.2rem] sm:text-sm"
+      onClick={() => store.openPanel('beauty')}
+      aria-label={t('{n} beauty points', { n: fmtNum(b.score) })}
+    >
+      <span className="emoji text-base sm:text-lg">🌸</span>
+      {fmtNum(b.score)}
+    </button>
+  );
+}
+
