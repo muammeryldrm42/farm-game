@@ -5,6 +5,7 @@ import { TUTORIAL, TUTORIAL_DONE, canFulfill, claimableAlbum, claimableBadges, c
 import { useStore, useVersion } from './ctx';
 import { CAST, LAST_CHAPTER, taskProgress } from '@/game/story';
 import { t } from '@/game/i18n';
+import { now as clockNow } from '@/game/clock';
 
 // the HUD keeps clear of a phone's camera cutout and rounded corners (zero on a desktop)
 const SAFE = { top: 'env(safe-area-inset-top)', right: 'env(safe-area-inset-right)', bottom: 'env(safe-area-inset-bottom)', left: 'env(safe-area-inset-left)' };
@@ -22,7 +23,7 @@ export default function Hud() {
   useVersion();
   const s = store.s;
   const ui = store.ui;
-  const now = Date.now();
+  const now = clockNow();
   const need = xpNeed(s.level);
   const sheetOpen = ui.selectedId !== null || ui.panel !== null || ui.placing !== null || ui.expand !== null || ui.daily || ui.levelUp !== null;
   const deliverable = s.orders.filter((o) => canFulfill(s, o, now)).length;

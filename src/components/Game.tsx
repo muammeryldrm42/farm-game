@@ -1,6 +1,6 @@
 'use client';
 import { useEffect, useRef, useState } from 'react';
-import { GameStore, TUTORIAL_DONE, loadGame, plotProgress, type FarmObject } from '@/game/state';
+import { GameStore, TUTORIAL_DONE, fmtTime, loadGame, plotProgress, type FarmObject } from '@/game/state';
 import { BUILDING } from '@/game/data';
 import { Renderer } from '@/game/render3d';
 import { sfx, sleepAudio, startMusic, stopMusic } from '@/game/audio';
@@ -8,7 +8,8 @@ import { Capacitor } from '@capacitor/core';
 import { App } from '@capacitor/app';
 import { notifyAsked, notifyAway, notifyBack, setNotifyAsked } from '@/game/notify';
 import { StoreCtx, useStore } from './ctx';
-import { initLang, onLang } from '@/game/i18n';
+import { initLang, onLang, t } from '@/game/i18n';
+import { clockAhead, clockDrifted, now as clockNow, syncClock } from '@/game/clock';
 import Hud from './Hud';
 import Panels from './Panels';
 import Flyers from './Flyers';
@@ -24,74 +25,12 @@ export default function Game() {
     return () => clearTimeout(tm);
   }, [store]);
 
+  // the farm's clock is set from the real time (see clock.ts) and the chosen language loaded, a
+  // moment each: then the farm is loaded and shown
   useEffect(() => {
-    const st = new GameStore(loadGame());
-    st.sound = (n) => { if (st.s.settings.sound) sfx(n); };
-    // the farm shows once the chosen language is in (a moment), and redraws when it changes
-    let alive = true;
-    initLang().finally(() => { if (alive) setStore(st); });
-    const offLang = onLang(() => st.emit(false));
-    const save = () => st.saveNow();
-    const vis = () => { if (document.visibilityState === 'hidden') save(); };
-    window.addEventListener('beforeunload', save);
-    document.addEventListener('visibilitychange', vis);
-    const tick = setInterval(() => st.tick(), 1000);
-    // music can only start after a user gesture
-    let unlocked = false;
-    const syncMusic = () => {
-      if (unlocked && st.s.settings.music && document.visibilityState === 'visible') startMusic();
-      else stopMusic();
-      if (document.visibilityState === 'hidden') sleepAudio();
-    };
-    const unlock = () => { unlocked = true; syncMusic(); };
-    window.addEventListener('pointerdown', unlock, { once: true });
-    window.addEventListener('keydown', unlock, { once: true });
-    document.addEventListener('visibilitychange', syncMusic);
-    const unsub = st.subscribe(syncMusic);
-    // the Android app: the back button closes whatever is open (and only then leaves the game),
-    // and the farm is saved whenever the app goes to the background. Leaving, the phone is told
-    // when things will be ready (if the player wants notifications); coming back takes them away.
-    const native: Promise<{ remove: () => Promise<void> }>[] = [];
-    let askT: ReturnType<typeof setInterval> | undefined;
-    if (Capacitor.isNativePlatform()) {
-      native.push(App.addListener('backButton', () => {
-        const ui = st.ui;
-        if (ui.notifyAsk) { ui.notifyAsk = false; setNotifyAsked(); st.s.settings = { ...st.s.settings, notify: false }; st.emit(); }
-        else if (ui.story) { ui.story = null; st.emit(false); }
-        else if (ui.levelUp !== null) { ui.levelUp = null; st.emit(false); }
-        else if (ui.daily) { ui.daily = false; st.emit(false); }
-        else if (ui.napping) st.wake();
-        else if (ui.panel || ui.placing || ui.tool || ui.expand || ui.selectedId !== null) st.cancelAll();
-        else { save(); App.minimizeApp(); }
-      }));
-      native.push(App.addListener('pause', () => { save(); notifyAway(st.s); }));
-      native.push(App.addListener('resume', notifyBack));
-      notifyBack();
-      // asked once on this phone, a couple of minutes into playing, once the first steps are
-      // done and nothing else is up
-      const openedAt = Date.now();
-      askT = setInterval(() => {
-        const ui = st.ui;
-        if (notifyAsked() || st.s.settings.notify !== undefined) { clearInterval(askT); return; }
-        if (Date.now() - openedAt < 120e3 || st.s.tutorial < TUTORIAL_DONE || document.visibilityState !== 'visible') return;
-        if (ui.panel || ui.placing || ui.tool || ui.expand || ui.story || ui.daily || ui.napping || ui.levelUp !== null) return;
-        ui.notifyAsk = true;
-        st.emit(false);
-        clearInterval(askT);
-      }, 5000);
-    }
-    return () => {
-      alive = false;
-      offLang();
-      unsub();
-      for (const h of native) h.then((x) => x.remove());
-      stopMusic();
-      document.removeEventListener('visibilitychange', syncMusic);
-      window.removeEventListener('beforeunload', save);
-      document.removeEventListener('visibilitychange', vis);
-      clearInterval(tick);
-      clearInterval(askT);
-    };
+    let alive = true, stop = () => {};
+    Promise.all([syncClock(), initLang()]).finally(() => { if (alive) stop = startFarm(setStore); });
+    return () => { alive = false; stop(); };
   }, []);
 
   if (!store) return <Splash />;
@@ -106,6 +45,92 @@ export default function Game() {
       {!drawn && <Splash />}
     </StoreCtx.Provider>
   );
+}
+
+// The farm loaded and running: saves, the game's tick, music, the farm's clock, and in the Android
+// app the back button and the phone's notifications. Gives back what stops it all.
+function startFarm(show: (st: GameStore) => void) {
+  const st = new GameStore(loadGame());
+  st.sound = (n) => { if (st.s.settings.sound) sfx(n); };
+  // the farm redraws when the language changes
+  const offLang = onLang(() => st.emit(false));
+  const save = () => st.saveNow();
+  const vis = () => { if (document.visibilityState === 'hidden') save(); };
+  window.addEventListener('beforeunload', save);
+  document.addEventListener('visibilitychange', vis);
+  const tick = setInterval(() => st.tick(), 1000);
+  // music can only start after a user gesture
+  let unlocked = false;
+  const syncMusic = () => {
+    if (unlocked && st.s.settings.music && document.visibilityState === 'visible') startMusic();
+    else stopMusic();
+    if (document.visibilityState === 'hidden') sleepAudio();
+  };
+  const unlock = () => { unlocked = true; syncMusic(); };
+  window.addEventListener('pointerdown', unlock, { once: true });
+  window.addEventListener('keydown', unlock, { once: true });
+  document.addEventListener('visibilitychange', syncMusic);
+  const unsub = st.subscribe(syncMusic);
+  // the farm's clock is set again from the real time when the game comes back, or when the
+  // phone slept or had its clock changed; a farm whose clock ran ahead says it is waiting
+  // (said once a minute while it waits)
+  let saidAt = 0;
+  const ahead = () => {
+    const a = clockAhead();
+    if (a < 120e3 || Date.now() - saidAt < 60e3) return;
+    saidAt = Date.now();
+    st.toast(t('The phone clock was set ahead, so the farm waits {time} for the real time to catch up.', { time: fmtTime(a) }), 'bad');
+  };
+  const reclock = () => syncClock().then(() => { ahead(); st.tick(); st.emit(false); });
+  const visClock = () => { if (document.visibilityState === 'visible') reclock(); };
+  document.addEventListener('visibilitychange', visClock);
+  const drift = setInterval(() => { if (clockDrifted()) reclock(); else ahead(); }, 5000);
+  // the Android app: the back button closes whatever is open (and only then leaves the game),
+  // and the farm is saved whenever the app goes to the background. Leaving, the phone is told
+  // when things will be ready (if the player wants notifications); coming back takes them away.
+  const native: Promise<{ remove: () => Promise<void> }>[] = [];
+  let askT: ReturnType<typeof setInterval> | undefined;
+  if (Capacitor.isNativePlatform()) {
+    native.push(App.addListener('backButton', () => {
+      const ui = st.ui;
+      if (ui.notifyAsk) { ui.notifyAsk = false; setNotifyAsked(); st.s.settings = { ...st.s.settings, notify: false }; st.emit(); }
+      else if (ui.story) { ui.story = null; st.emit(false); }
+      else if (ui.levelUp !== null) { ui.levelUp = null; st.emit(false); }
+      else if (ui.daily) { ui.daily = false; st.emit(false); }
+      else if (ui.napping) st.wake();
+      else if (ui.panel || ui.placing || ui.tool || ui.expand || ui.selectedId !== null) st.cancelAll();
+      else { save(); App.minimizeApp(); }
+    }));
+    native.push(App.addListener('pause', () => { save(); notifyAway(st.s); }));
+    native.push(App.addListener('resume', () => { notifyBack(); reclock(); }));
+    notifyBack();
+    // asked once on this phone, a couple of minutes into playing, once the first steps are
+    // done and nothing else is up
+    const openedAt = Date.now();
+    askT = setInterval(() => {
+      const ui = st.ui;
+      if (notifyAsked() || st.s.settings.notify !== undefined) { clearInterval(askT); return; }
+      if (Date.now() - openedAt < 120e3 || st.s.tutorial < TUTORIAL_DONE || document.visibilityState !== 'visible') return;
+      if (ui.panel || ui.placing || ui.tool || ui.expand || ui.story || ui.daily || ui.napping || ui.levelUp !== null) return;
+      ui.notifyAsk = true;
+      st.emit(false);
+      clearInterval(askT);
+    }, 5000);
+  }
+  show(st);
+  return () => {
+    offLang();
+    unsub();
+    for (const h of native) h.then((x) => x.remove());
+    stopMusic();
+    document.removeEventListener('visibilitychange', syncMusic);
+    window.removeEventListener('beforeunload', save);
+    document.removeEventListener('visibilitychange', vis);
+    clearInterval(tick);
+    clearInterval(askT);
+    clearInterval(drift);
+    document.removeEventListener('visibilitychange', visClock);
+  };
 }
 
 function Splash() {
@@ -255,7 +280,7 @@ function FarmCanvas({ onDrawn }: { onDrawn: () => void }) {
       }
 
       if (hitObj && BUILDING[hitObj.type].kind === 'plot') {
-        const pp = plotProgress(hitObj, Date.now());
+        const pp = plotProgress(hitObj, clockNow());
         if (pp.ready) { store.harvest(hitObj); mode = 'harvest'; return; }
         if (!hitObj.plot?.crop && ui.tool) { store.plant(hitObj, ui.tool.crop); mode = 'plant'; return; }
       }
@@ -295,7 +320,7 @@ function FarmCanvas({ onDrawn }: { onDrawn: () => void }) {
         const g = r.gridAt(p.x, p.y);
         const o = store.objectAt(g.x, g.y);
         if (o && o.plot) {
-          if (mode === 'harvest' && plotProgress(o, Date.now()).ready) store.harvest(o, true);
+          if (mode === 'harvest' && plotProgress(o, clockNow()).ready) store.harvest(o, true);
           else if (mode === 'plant' && !o.plot.crop && store.ui.tool) store.plant(o, store.ui.tool.crop, true);
         }
         return;

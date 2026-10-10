@@ -1,6 +1,7 @@
 'use client';
 import { createContext, useContext, useEffect, useState, useSyncExternalStore } from 'react';
 import type { GameStore } from '@/game/state';
+import { now as clockNow } from '@/game/clock';
 
 export const StoreCtx = createContext<GameStore | null>(null);
 
@@ -16,9 +17,9 @@ export function useVersion() {
 }
 
 export function useNow(ms = 500) {
-  const [n, setN] = useState(() => Date.now());
+  const [n, setN] = useState(() => clockNow());
   useEffect(() => {
-    const i = setInterval(() => setN(Date.now()), ms);
+    const i = setInterval(() => setN(clockNow()), ms);
     return () => clearInterval(i);
   }, [ms]);
   return n;

@@ -56,6 +56,7 @@ import { CAST, LAST_CHAPTER, chapterAt, taskProgress, type Chapter } from '@/gam
 import { ALBUM } from '@/game/album';
 import { MUSEUM } from '@/game/museum';
 import { askNotify, notifyNative, setNotifyAsked } from '@/game/notify';
+import { now as clockNow } from '@/game/clock';
 import { getQuality, setQuality, type Quality } from '@/game/quality';
 import { Coin } from './Hud';
 import { useStore, useVersion } from './ctx';
@@ -216,7 +217,7 @@ function ObjectSheet({ o }: { o: FarmObject }) {
 function PlotSheet({ o }: { o: FarmObject }) {
   const store = useStore();
   const s = store.s;
-  const pp = plotProgress(o, Date.now());
+  const pp = plotProgress(o, clockNow());
   const close = () => store.select(null);
 
   if (pp.crop) {
@@ -340,7 +341,7 @@ function ProductionSheet({ o }: { o: FarmObject }) {
   const store = useStore();
   const s = store.s;
   const d = BUILDING[o.type];
-  const now = Date.now();
+  const now = clockNow();
   const info = prodInfo(o, now);
   const q = o.prod?.queue ?? [];
   const slots = o.prod?.slots ?? 3;
@@ -449,7 +450,7 @@ function PenSheet({ o }: { o: FarmObject }) {
   const store = useStore();
   const s = store.s;
   const d = BUILDING[o.type];
-  const now = Date.now();
+  const now = clockNow();
   const pi = penInfo(o, now);
   const an = pi.animal;
   const feedHave = s.inv[an.feed] ?? 0;
@@ -577,7 +578,7 @@ function TreeSheet({ o }: { o: FarmObject }) {
   const store = useStore();
   const s = store.s;
   const d = BUILDING[o.type];
-  const ti = treeInfo(o, Date.now());
+  const ti = treeInfo(o, clockNow());
   const it = ITEMS[ti.fruit];
   return (
     <Sheet title={t(d.name)} icon={d.icon} sub={ti.ready ? t('Ready: 2 × {item}', { item: t(it.name) }) : t('Growing: {item}', { item: t(it.name) })} onClose={() => store.select(null)}>
@@ -610,7 +611,7 @@ function TreeSheet({ o }: { o: FarmObject }) {
 function StallModal() {
   const store = useStore();
   const s = store.s;
-  const now = Date.now();
+  const now = clockNow();
   const [pick, setPick] = useState<number | null>(null);
   const [item, setItem] = useState<string | null>(null);
   const [qty, setQty] = useState(1);
@@ -787,7 +788,7 @@ function SleepOverlay() {
 function FishingModal() {
   const store = useStore();
   const s = store.s;
-  const now = Date.now();
+  const now = clockNow();
   const spot = store.ui.fishSpot ?? 'lake';
   const sea = spot === 'sea';
   const fi = fishingInfo(s, now, spot);
@@ -839,7 +840,7 @@ function FishingModal() {
 function BoatModal() {
   const store = useStore();
   const s = store.s;
-  const now = Date.now();
+  const now = clockNow();
   const state = boatState(s, now);
   const b = s.boat;
   const close = () => store.openPanel(null);
@@ -1045,7 +1046,7 @@ function ShopModal() {
 function OrdersModal() {
   const store = useStore();
   const s = store.s;
-  const now = Date.now();
+  const now = clockNow();
   const bonus = horseBonus(s);
   return (
     <Modal title={t('Order Board')} icon="📋" onClose={() => store.openPanel(null)} wide>
@@ -1340,7 +1341,7 @@ function PetModal() {
   const id = store.ui.pet ?? 'dog';
   const def = PET[id];
   const p = store.pet(id);
-  const now = Date.now();
+  const now = clockNow();
   const shown = store.petName(id);
   const [name, setName] = useState(shown);
   const hearts = petHearts(p);
@@ -1743,7 +1744,7 @@ function LevelUpModal({ level }: { level: number }) {
 function DailyModal() {
   const store = useStore();
   const s = store.s;
-  const y = new Date();
+  const y = new Date(clockNow());
   y.setDate(y.getDate() - 1);
   const nextStreak = s.lastDaily === todayKey(y) ? s.streak + 1 : 1;
   const today = dailyReward(nextStreak).day;

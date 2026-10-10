@@ -9,6 +9,7 @@ import { LocalNotifications } from '@capacitor/local-notifications';
 import { ANIMAL, BUILDING } from './data';
 import { GRAZE, PET_IDS, PET_SEARCH_MS, dailyReward, petFed, plotProgress, todayKey, treeInfo, type GameState } from './state';
 import { t } from './i18n';
+import { now as clockNow, toDevice } from './clock';
 
 export type NotifyKind = 'crops' | 'animals' | 'goods' | 'trees' | 'fish' | 'pet' | 'daily';
 export interface FarmEvent { at: number; kind: NotifyKind; name?: string }
@@ -142,14 +143,15 @@ export function notifyAway(s: GameState) {
   if (!notifyNative()) return;
   notifyBack();
   if (!s.settings.notify) return;
-  const plan = notifyPlan(s, Date.now());
+  const plan = notifyPlan(s, clockNow());
   run(async () => {
     if ((await LocalNotifications.checkPermissions()).display !== 'granted' || !plan.length) return;
     await ensureChannel();
     await LocalNotifications.schedule({
       notifications: plan.map((g, i) => ({
         id: 7101 + i, ...notifyText(g, s),
-        schedule: { at: new Date(g.at), allowWhileIdle: true },
+        // the phone keeps its own clock: the farm's times are told in it
+        schedule: { at: new Date(toDevice(g.at)), allowWhileIdle: true },
         // an alarm to the minute needs a permission from the phone's settings: a farm can wait a little
         isExactNotification: false,
         channelId: 'farm', smallIcon: 'ic_stat_farm', iconColor: '#5cb82e', autoCancel: true,
