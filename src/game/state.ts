@@ -74,7 +74,7 @@ export interface OrderItem { id: string; qty: number }
 export interface Order { id: number; items: OrderItem[]; coins: number; xp: number; gems: number; readyAt: number }
 
 // `saver`: battery saver, the farm drawn at 30 frames a second (phones)
-export interface Settings { sound: boolean; dayNight: boolean; clouds: boolean; music: boolean; weather: boolean; shadows: boolean; saver?: boolean }
+export interface Settings { sound: boolean; dayNight: boolean; clouds: boolean; music: boolean; weather: boolean; shadows: boolean; saver?: boolean; notify?: boolean }
 
 export interface GameState {
   v: 1;
@@ -677,6 +677,7 @@ export interface UIState {
   petJoy?: { id: PetId; at: number; kind: 'pat' | 'feed' | 'gift' }; // hearts over a pet just patted or fed
   guide?: { id: string; at: number }; // a shop card, crop or recipe a task pointed the player to (shown with an orange marker)
   guideAt?: { x: number; y: number; at: number }; // a place on the farm a task pointed to: an orange arrow bobs over it
+  notifyAsk?: boolean; // the question whether to send phone notifications is up (see notify.ts)
 }
 
 export class GameStore {

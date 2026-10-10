@@ -1,11 +1,12 @@
 'use client';
 import { useEffect, useRef, useState } from 'react';
-import { GameStore, loadGame, plotProgress, type FarmObject } from '@/game/state';
+import { GameStore, TUTORIAL_DONE, loadGame, plotProgress, type FarmObject } from '@/game/state';
 import { BUILDING } from '@/game/data';
 import { Renderer } from '@/game/render3d';
 import { sfx, sleepAudio, startMusic, stopMusic } from '@/game/audio';
 import { Capacitor } from '@capacitor/core';
 import { App } from '@capacitor/app';
+import { notifyAsked, notifyAway, notifyBack, setNotifyAsked } from '@/game/notify';
 import { StoreCtx, useStore } from './ctx';
 import { initLang, onLang } from '@/game/i18n';
 import Hud from './Hud';
@@ -48,19 +49,36 @@ export default function Game() {
     document.addEventListener('visibilitychange', syncMusic);
     const unsub = st.subscribe(syncMusic);
     // the Android app: the back button closes whatever is open (and only then leaves the game),
-    // and the farm is saved whenever the app goes to the background
+    // and the farm is saved whenever the app goes to the background. Leaving, the phone is told
+    // when things will be ready (if the player wants notifications); coming back takes them away.
     const native: Promise<{ remove: () => Promise<void> }>[] = [];
+    let askT: ReturnType<typeof setInterval> | undefined;
     if (Capacitor.isNativePlatform()) {
       native.push(App.addListener('backButton', () => {
         const ui = st.ui;
-        if (ui.story) { ui.story = null; st.emit(false); }
+        if (ui.notifyAsk) { ui.notifyAsk = false; setNotifyAsked(); st.s.settings = { ...st.s.settings, notify: false }; st.emit(); }
+        else if (ui.story) { ui.story = null; st.emit(false); }
         else if (ui.levelUp !== null) { ui.levelUp = null; st.emit(false); }
         else if (ui.daily) { ui.daily = false; st.emit(false); }
         else if (ui.napping) st.wake();
         else if (ui.panel || ui.placing || ui.tool || ui.expand || ui.selectedId !== null) st.cancelAll();
         else { save(); App.minimizeApp(); }
       }));
-      native.push(App.addListener('pause', save));
+      native.push(App.addListener('pause', () => { save(); notifyAway(st.s); }));
+      native.push(App.addListener('resume', notifyBack));
+      notifyBack();
+      // asked once on this phone, a couple of minutes into playing, once the first steps are
+      // done and nothing else is up
+      const openedAt = Date.now();
+      askT = setInterval(() => {
+        const ui = st.ui;
+        if (notifyAsked() || st.s.settings.notify !== undefined) { clearInterval(askT); return; }
+        if (Date.now() - openedAt < 120e3 || st.s.tutorial < TUTORIAL_DONE || document.visibilityState !== 'visible') return;
+        if (ui.panel || ui.placing || ui.tool || ui.expand || ui.story || ui.daily || ui.napping || ui.levelUp !== null) return;
+        ui.notifyAsk = true;
+        st.emit(false);
+        clearInterval(askT);
+      }, 5000);
     }
     return () => {
       alive = false;
@@ -72,6 +90,7 @@ export default function Game() {
       window.removeEventListener('beforeunload', save);
       document.removeEventListener('visibilitychange', vis);
       clearInterval(tick);
+      clearInterval(askT);
     };
   }, []);
 

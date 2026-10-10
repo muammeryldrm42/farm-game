@@ -39,6 +39,7 @@ import {
   GRAZE,
   storyReward,
   type FarmObject,
+  type GameStore,
   PET,
   PET_PAT_MS,
   PET_SEARCH_MS,
@@ -54,6 +55,7 @@ import {
 import { CAST, LAST_CHAPTER, chapterAt, taskProgress, type Chapter } from '@/game/story';
 import { ALBUM } from '@/game/album';
 import { MUSEUM } from '@/game/museum';
+import { askNotify, notifyNative, setNotifyAsked } from '@/game/notify';
 import { getQuality, setQuality, type Quality } from '@/game/quality';
 import { Coin } from './Hud';
 import { useStore, useVersion } from './ctx';
@@ -186,6 +188,7 @@ export default function Panels() {
       {ui.daily && ui.levelUp === null && <DailyModal />}
       {ui.levelUp !== null && <LevelUpModal level={ui.levelUp} />}
       {ui.story && ui.levelUp === null && !ui.daily && <StoryDialog />}
+      {ui.notifyAsk && ui.levelUp === null && !ui.daily && !ui.story && <NotifyAskModal />}
     </>
   );
 }
@@ -1557,6 +1560,35 @@ function LanguagePicker() {
   );
 }
 
+// Phone notifications on or off (see notify.ts). Turning them on asks the phone for its yes first;
+// a phone that says no (or was told no before) leaves them off, with a word on where to change it.
+async function turnNotify(store: GameStore, on: boolean) {
+  setNotifyAsked();
+  const ok = on && (await askNotify());
+  store.s.settings = { ...store.s.settings, notify: ok };
+  if (on && !ok) store.toast(t('Notifications are off for this game in your phone settings.'));
+  store.emit();
+}
+
+// asked once on the phone, a little into playing (see Game)
+function NotifyAskModal() {
+  const store = useStore();
+  const answer = (yes: boolean) => {
+    store.ui.notifyAsk = false;
+    store.emit(false);
+    turnNotify(store, yes);
+  };
+  return (
+    <Modal title={t('Farm notifications')} icon="🔔" onClose={() => answer(false)}>
+      <p className="mb-4 text-center text-sm text-[#8a6a44]">{t('Get a heads up on your phone when your crops, animals and goods are ready, and when your daily gift is waiting.')}</p>
+      <div className="flex justify-center gap-2">
+        <button className="btn btn-wood px-6" onClick={() => answer(false)}>{t('Not now')}</button>
+        <button className="btn btn-green px-6" onClick={() => answer(true)}>{t('Turn on')}</button>
+      </div>
+    </Modal>
+  );
+}
+
 function SettingsModal() {
   const store = useStore();
   const st = store.s.settings;
@@ -1578,6 +1610,7 @@ function SettingsModal() {
         <Toggle label="Weather and seasons" on={st.weather} onChange={(v) => set('weather', v)} />
         <Toggle label="Soft shadows (turn off on slow phones)" on={st.shadows} onChange={(v) => set('shadows', v)} />
         <Toggle label="Battery saver (30 FPS, cooler phone)" on={!!st.saver} onChange={(v) => set('saver', v)} />
+        {notifyNative() && <Toggle label="Phone notifications (ready crops, animals, daily gift)" on={!!st.notify} onChange={(v) => turnNotify(store, v)} />}
         <QualityPicker />
         <LanguagePicker />
       </div>
