@@ -491,7 +491,7 @@ interface Actor {
 }
 interface Sparrow {
   g: THREE.Object3D; wings: THREE.Object3D[]; head: THREE.Object3D | null; x: number; y: number; h: number; heading: number;
-  state: 'ground' | 'fly' | 'perch' | 'nest' | 'bath'; until: number; t0: number; dur: number;
+  state: 'ground' | 'fly' | 'perch' | 'nest' | 'bath' | 'enter' | 'exit'; until: number; t0: number; dur: number;
   from: { x: number; y: number; h: number }; to: { x: number; y: number; h: number; kind: 'ground' | 'perch' | 'nest' | 'bath' };
   home: number | null; hopAt: number; hop: { x: number; y: number; t0: number } | null;
   // the middle of the bird bath it sits on the rim of
@@ -2363,13 +2363,36 @@ export class Renderer {
       if (sp.state === 'nest') {
         sp.g.visible = false;
         if (t < sp.until) return;
-        // out of the house (or back from wherever it spent the night) and down to the grass
+        // out of its house through the round door, onto the perch a moment, then off; one that
+        // spent the night elsewhere just turns up on the grass
         const hh = houses.find((o) => o.id === sp.home);
-        const at = hh ? { x: hh.x + 0.5, y: hh.y + 0.62, h: 0.86 } : this.sparrowGround(this.target.x, this.target.z);
-        sp.x = at.x; sp.y = at.y; sp.h = 'h' in at ? (at as { h: number }).h : 0;
-        this.sparrowFly(sp, t, this.sparrowGround(sp.x, sp.y), 'ground');
+        if (hh) { sp.state = 'exit'; sp.t0 = t; sp.dur = 900 + Math.random() * 1400; }
+        else {
+          const at = this.sparrowGround(this.target.x, this.target.z);
+          sp.x = at.x; sp.y = at.y; sp.h = 0;
+          this.sparrowFly(sp, t, this.sparrowGround(sp.x, sp.y), 'ground');
+        }
       }
       sp.g.visible = true;
+      sp.g.scale.setScalar(1.25);
+      if (sp.state === 'enter' || sp.state === 'exit') {
+        // on the perch before going in (facing the door), or coming out of it (facing out): a
+        // little hop through the round door, the bird shrinking into the dark as it goes in
+        const hh = houses.find((o) => o.id === sp.home);
+        if (!hh) { sp.state = 'ground'; sp.until = t; }
+        else {
+          const dr = this.birdHouseDoor(hh), u = t - sp.t0, HOP = 320;
+          const k = sp.state === 'enter' ? Math.max(0, (u - (sp.dur - HOP)) / HOP) : Math.max(0, 1 - u / HOP);
+          const e = Math.min(1, k), lift = Math.sin(e * Math.PI) * 0.03;
+          sp.x = dr.perch.x + (dr.door.x - dr.perch.x) * e;
+          sp.y = dr.perch.y + (dr.door.y - dr.perch.y) * e;
+          sp.h = dr.perch.h + (dr.door.h - dr.perch.h) * e + lift;
+          sp.heading = sp.state === 'enter' ? dr.out + Math.PI : dr.out + Math.sin(t / 600 + i) * 0.5 * (1 - e);
+          sp.g.scale.setScalar(1.25 * (1 - e * 0.65));
+          if (sp.state === 'enter' && u >= sp.dur) { sp.state = 'nest'; sp.until = t + 5000 + Math.random() * 10000; sp.g.visible = false; return; }
+          if (sp.state === 'exit' && u >= sp.dur) this.sparrowFly(sp, t, this.sparrowGround(sp.x, sp.y), 'ground');
+        }
+      }
       if (sp.state === 'fly') {
         const u = Math.min(1, (t - sp.t0) / sp.dur);
         const top = Math.max(sp.from.h, sp.to.h) + 0.4 + Math.hypot(sp.to.x - sp.from.x, sp.to.y - sp.from.y) * 0.08;
@@ -2377,7 +2400,10 @@ export class Renderer {
         sp.y = sp.from.y + (sp.to.y - sp.from.y) * u;
         sp.h = sp.from.h + (sp.to.h - sp.from.h) * u + Math.sin(u * Math.PI) * (top - Math.max(sp.from.h, sp.to.h));
         sp.heading = Math.atan2(sp.to.x - sp.from.x, sp.to.y - sp.from.y);
-        if (u >= 1) {
+        if (u >= 1 && sp.to.kind === 'nest') {
+          // on the perch in front of its house: a moment there, then in through the door
+          sp.state = 'enter'; sp.t0 = t; sp.dur = 700 + Math.random() * 1100;
+        } else if (u >= 1) {
           sp.state = sp.to.kind;
           sp.until = t + (sp.state === 'ground' ? 4000 + Math.random() * 8000 : sp.state === 'perch' ? 3000 + Math.random() * 9000 : sp.state === 'bath' ? 6000 + Math.random() * 8000 : 5000 + Math.random() * 10000);
           sp.hopAt = t + 400;
@@ -2425,6 +2451,14 @@ export class Renderer {
         : sp.state === 'bath' ? (splash ? 0.25 : sip > 0.2 ? 0.75 : sip < -0.6 ? -0.35 : 0) : 0;
     });
   }
+  // A bird house's perch, in front of its round door, and the door (where tools/blender/deco.py
+  // puts them: the door 0.09 in front of the middle at 0.92 high, the perch peg 0.12 in front at
+  // 0.86), turned with the house. `out` is the way the door faces.
+  private birdHouseDoor(o: FarmObject) {
+    const th = -(o.rot ?? 0) * Math.PI / 2, s = Math.sin(th), c = Math.cos(th);
+    const cx = o.x + 0.5, cy = o.y + 0.5;
+    return { perch: { x: cx + 0.12 * s, y: cy + 0.12 * c, h: 0.866 }, door: { x: cx + 0.08 * s, y: cy + 0.08 * c, h: 0.89 }, out: th };
+  }
   // a grassy spot near (x, y) for a sparrow to land on
   private sparrowGround(x: number, y: number) {
     for (let k = 0; k < 12; k++) {
@@ -2447,8 +2481,7 @@ export class Renderer {
     sp.bath = undefined;
     const home = houses.find((o) => o.id === sp.home);
     if (home && r < 0.22) {
-      const top = this.roofTop(home.id, home.x + 0.5, home.y + 0.5) ?? 0.9;
-      this.sparrowFly(sp, t, { x: home.x + 0.5, y: home.y + 0.62, h: Math.min(top, 0.86) }, 'nest');
+      this.sparrowFly(sp, t, this.birdHouseDoor(home).perch, 'nest');
       return;
     }
     // a drink and a bath: down onto the rim of a bird bath nearby, a spot of its own round it
@@ -6571,7 +6604,8 @@ function buildDeco(e: Entry, d: BuildingDef) {
       e.top = 1.2;
       e.update = (o, _n, t) => {
         const k = Math.sin(t / 700 + o.id);
-        bird.visible = Math.sin(t / 5000 + o.id) > -0.4;
+        // the farm's own sparrows come and go from it in the cartoon look; else a little bird of its own
+        bird.visible = artStyle() !== 'toon' && Math.sin(t / 5000 + o.id) > -0.4;
         bird.position.y = 0.87 + Math.max(0, k) * 0.04;
         bird.rotation.y = Math.sin(t / 900 + o.id) * 0.8;
       };
