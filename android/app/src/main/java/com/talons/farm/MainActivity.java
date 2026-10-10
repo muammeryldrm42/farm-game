@@ -9,6 +9,8 @@ import android.os.Bundle;
 import android.os.Handler;
 import android.os.Looper;
 import android.os.PowerManager;
+import android.os.SystemClock;
+import android.provider.Settings;
 import android.view.WindowManager;
 import android.webkit.RenderProcessGoneDetail;
 import android.webkit.WebView;
@@ -24,7 +26,8 @@ import com.getcapacitor.WebViewListener;
 // The game fills the whole screen (the status and navigation bars slide in on a swipe and hide
 // again), and the screen stays on while the farm is being played. If Android closes the game's
 // page to free memory, the game opens again from its last save instead of the whole app closing.
-// The page is told when the phone runs hot or is saving battery, and draws less then.
+// The page is told when the phone runs hot or is saving battery, and draws less then, and how
+// long the phone has been on (for the farm's clock).
 public class MainActivity extends BridgeActivity {
     // the screen stays on this long after the last touch, then goes off as the phone's own
     // screen timeout says: a farm left open on the table does not keep the screen lit for hours
@@ -55,6 +58,7 @@ public class MainActivity extends BridgeActivity {
                 @Override
                 public void onPageLoaded(WebView webView) {
                     sendPowerState();
+                    sendUptime();
                 }
             });
         }
@@ -87,6 +91,7 @@ public class MainActivity extends BridgeActivity {
         super.onResume();
         stayAwake();
         sendPowerState();
+        sendUptime();
     }
 
     @Override
@@ -131,6 +136,18 @@ public class MainActivity extends BridgeActivity {
         if (pm == null || getBridge() == null || getBridge().getWebView() == null) return;
         int thermal = Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q ? pm.getCurrentThermalStatus() : 0;
         String js = "window.__power={thermal:" + thermal + ",saver:" + pm.isPowerSaveMode() + "};window.dispatchEvent(new Event('farm-power'));";
+        WebView wv = getBridge().getWebView();
+        wv.post(() -> wv.evaluateJavascript(js, null));
+    }
+
+    // tells the page how long the phone has been on (its sleep counted) and how many times it has
+    // been switched on: with no internet the farm's clock counts on from it, and a change of the
+    // phone's clock does not touch it (see clock.ts); the page listens for the 'farm-clock' event
+    private void sendUptime() {
+        if (getBridge() == null || getBridge().getWebView() == null) return;
+        long up = SystemClock.elapsedRealtime();
+        int boot = Settings.Global.getInt(getContentResolver(), Settings.Global.BOOT_COUNT, -1);
+        String js = "window.__uptime={up:" + up + ",boot:" + boot + ",p:performance.now()};window.dispatchEvent(new Event('farm-clock'));";
         WebView wv = getBridge().getWebView();
         wv.post(() -> wv.evaluateJavascript(js, null));
     }
