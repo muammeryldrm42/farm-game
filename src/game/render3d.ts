@@ -733,6 +733,8 @@ export class Renderer {
   private dog: Actor;
   private cat: Actor;
   private catWait = 3;
+  // what the cat does once it gets where it was going (see updateCat)
+  private catAct: 'look' | 'sit' | 'stalk' | 'nap' = 'look';
   private wx: { pts: THREE.Points | null; rain: THREE.LineSegments | null; kind: string; vel: Float32Array | null } = { pts: null, rain: null, kind: 'none', vel: null };
   private season: Season = seasonOf();
   private last = 0;
@@ -1287,7 +1289,7 @@ export class Renderer {
   // boulders along the beach and in the surf, plus a few starfish on the sand
   private rockMesh: THREE.InstancedMesh | null = null;
   private bigRocks: ShoreRock[] = [];
-  private rockRay = new THREE.Raycaster();
+  private rockRay = (() => { const r = new THREE.Raycaster(); r.layers.enable(BATCH_LAYER); return r; })();
   // the height of a boulder's top, found once by dropping a ray on it
   private shoreRocks = () => {
     for (const r of this.bigRocks) {
@@ -2685,7 +2687,8 @@ export class Renderer {
   // the real height of a building's roof at a spot: a ray dropped onto its meshes (the model's
   // own roof, not the rough height used for its bubble), remembered for a few seconds
   private roofCache = new Map<string, { h: number | null; at: number }>();
-  private downRay = new THREE.Raycaster();
+  // (it sees the batched parts too: the trees, decorations and roofs drawn in batches)
+  private downRay = (() => { const r = new THREE.Raycaster(); r.layers.enable(BATCH_LAYER); return r; })();
   private roofTop(id: number, x: number, z: number) {
     const key = `${id}|${x.toFixed(2)}|${z.toFixed(2)}`;
     const now = performance.now();
@@ -3132,11 +3135,12 @@ export class Renderer {
       c.goHome = false;
       this.catWait -= dt;
       if (this.catWait <= 0 && !c.path.length) {
-        this.catWait = 4 + Math.random() * 6;
-        const f = this.farmer;
-        const around = Math.random() < 0.55 && home ? home.door : { x: Math.floor(f.x), y: Math.floor(f.y) };
-        const gx = around.x + Math.floor(Math.random() * 7) - 3, gy = around.y + Math.floor(Math.random() * 5) - 1;
-        if (this.free(gx, gy)) this.send(c, gx, gy);
+        // off somewhere new: the walk there, then a while doing what it went for
+        const to = this.catSpot();
+        if (to && this.send(c, to.x, to.y)) {
+          this.catAct = to.act;
+          this.catWait = c.path.length / 1.6 + (to.act === 'nap' ? 20 + Math.random() * 25 : 5 + Math.random() * 9);
+        } else this.catWait = 1.5;
       }
     }
     this.step(c, 1.6, dt);
@@ -3156,12 +3160,71 @@ export class Renderer {
       if (head) { head.rotation.x = 0.4; head.rotation.y = 0.5; }
       if (tail) tail.rotation.z = 1.1;
       for (const e of (head?.userData.eyes as THREE.Object3D[] | undefined) ?? []) e.scale.y = 0.1;
+    } else if (!c.moving && this.catAct === 'nap') {
+      // a nap in the sun: curled up as at night
+      legs.forEach((l, i) => { l.rotation.x = i < 2 ? -1.4 : 1.4; });
+      c.g.position.y = -0.07 + Math.sin(t / 900) * 0.003;
+      if (head) { head.rotation.x = 0.4; head.rotation.y = 0.5; }
+      if (tail) tail.rotation.z = 1.1;
+      for (const e of (head?.userData.eyes as THREE.Object3D[] | undefined) ?? []) e.scale.y = 0.1;
+    } else if (!c.moving && this.catAct === 'stalk') {
+      // crouched low at the field's edge, watching for mice, tail tip twitching; now and then a pounce
+      const pounce = Math.max(0, Math.sin(t / 1300) - 0.93) * 14;
+      legs.forEach((l, i) => { l.rotation.x = i < 2 ? -0.55 : 0.75; });
+      c.g.position.y = -0.035 + pounce * 0.05;
+      blink(c.g, t, 11);
+      if (head) { head.rotation.x = 0.25; head.rotation.y = Math.sin(t / 2600) * 0.2; }
+      if (tail) tail.rotation.z = Math.sin(t / 120) * 0.25;
+    } else if (!c.moving && this.catAct === 'sit') {
+      // sitting up, looking about, now and then a lick of a paw
+      legs.forEach((l, i) => { l.rotation.x = i < 2 ? 0 : 1.1; });
+      c.g.position.y = -0.025;
+      blink(c.g, t, 11);
+      const wash = Math.sin(t / 2300) > 0.6;
+      if (head) { head.rotation.x = wash ? 0.55 + Math.sin(t / 160) * 0.12 : 0; head.rotation.y = wash ? 0.3 : Math.sin(t / 1900) * 0.6; }
+      if (tail) tail.rotation.z = 0.9 + Math.sin(t / 900) * 0.15;
     } else {
       animateLegs(c.g, c.moving ? Math.sin(c.phase) * 0.6 : 0);
       blink(c.g, t, 11);
       if (head) { head.rotation.x = 0; head.rotation.y = c.moving ? 0 : Math.sin(t / 1900) * 0.6; }
       if (tail) tail.rotation.z = Math.sin(t / (c.moving ? 180 : 700)) * 0.45;
     }
+  }
+
+  // Where the cat goes next. It has the run of the whole farm: to the fields' edges to watch for
+  // mice (its job), round the pens, barns and workshops, over to the farmer for a sit, or to any
+  // open spot of the farm to look about or nap in the sun.
+  private catSpot(): { x: number; y: number; act: 'look' | 'sit' | 'stalk' | 'nap' } | null {
+    const s = this.store.s, r = Math.random();
+    const open = (x: number, y: number) => x >= 0 && y >= 0 && x < GRID && y < GRID && this.store.isUnlocked(x, y) && this.free(x, y);
+    const near = (x: number, y: number, rad: number) => {
+      for (let k = 0; k < 14; k++) {
+        const gx = Math.floor(x + (Math.random() * 2 - 1) * rad), gy = Math.floor(y + (Math.random() * 2 - 1) * rad);
+        if (open(gx, gy)) return { x: gx, y: gy };
+      }
+      return null;
+    };
+    const pick = <T,>(l: T[]) => l[Math.floor(Math.random() * l.length)];
+    if (r < 0.35) {
+      const plots = s.objects.filter((o) => o.type === 'plot');
+      const p = plots.length ? pick(plots) : null;
+      const q = p && near(p.x + 0.5, p.y + 0.5, 1.6);
+      if (q) return { ...q, act: 'stalk' };
+    } else if (r < 0.55) {
+      const homes = s.objects.filter((o) => o.pen || o.prod || BUILDING[o.type].kind === 'barn' || BUILDING[o.type].kind === 'silo');
+      const b = homes.length ? pick(homes) : null;
+      const f = b && footprint(b);
+      const q = b && f && near(b.x + f.w / 2, b.y + f.h / 2, Math.max(f.w, f.h) / 2 + 1.3);
+      if (q) return { ...q, act: 'look' };
+    } else if (r < 0.68) {
+      const q = near(this.farmer.x, this.farmer.y, 2.5);
+      if (q) return { ...q, act: 'sit' };
+    }
+    for (let k = 0; k < 40; k++) {
+      const gx = Math.floor(Math.random() * GRID), gy = Math.floor(Math.random() * GRID);
+      if (open(gx, gy)) return { x: gx, y: gy, act: Math.random() < 0.3 ? 'nap' : Math.random() < 0.5 ? 'sit' : 'look' };
+    }
+    return null;
   }
 
   // follow the path; returns true when standing still
@@ -3435,7 +3498,10 @@ function treePerch(o: FarmObject, d: BuildingDef, id: number) {
   const trees = GRAZE_NAV?.trees() ?? NO_SPOTS;
   const pick = memoSpot(trees, `${o.x}|${o.y}|${o.type}|${id}`, () => {
     const f = footprint(o), cx = o.x + f.w / 2, cy = o.y + f.h / 2;
-    const near = trees.map((t) => ({ t, k: Math.hypot(t.x - cx, t.y - cy) })).filter((q) => q.k < 14).sort((p, q) => p.k - q.k).slice(0, 4);
+    // the nearest few (a farm with no tree close by: the nearest anywhere)
+    const all = trees.map((t) => ({ t, k: Math.hypot(t.x - cx, t.y - cy) })).sort((p, q) => p.k - q.k);
+    const close = all.filter((q) => q.k < 14);
+    const near = (close.length ? close : all).slice(0, 4);
     if (!near.length) return null;
     const t = near[Math.floor(hash(id, 31, 2) * near.length)].t;
     return { id: t.id, x: t.x + (hash(id, 32, 3) - 0.5) * 0.3, y: t.y + (hash(id, 33, 4) - 0.5) * 0.3 };
@@ -3864,8 +3930,10 @@ function gatherStatics(root: THREE.Object3D) {
     // a field's crops are batched by the field itself
     if (o.userData.noBatch) return;
     const m = o as THREE.Mesh;
+    // (a part gathered before is on the batches' layer already: the parts a stand in keeps when its
+    // model comes in, its water say, are gathered again with the model's, or nothing would draw them)
     if (m.isMesh && !(m as THREE.InstancedMesh).isInstancedMesh && !Array.isArray(m.material)
-      && (!m.material.transparent || m.userData.decal) && m.material.visible && (m.layers.mask & 1)) {
+      && (!m.material.transparent || m.userData.decal) && m.material.visible && (m.layers.mask & 1 || m.layers.isEnabled(BATCH_LAYER))) {
       m.layers.set(BATCH_LAYER);
       out.push(m);
     }
@@ -4446,6 +4514,33 @@ function penPt(o: FarmObject, d: BuildingDef, x: number, z: number) {
   const th = -o.rot * Math.PI / 2, f = footprint(o);
   const c = Math.cos(th), s = Math.sin(th), dx = x - d.w / 2, dz = z - d.h / 2;
   return { x: f.w / 2 + dx * c + dz * s, z: f.h / 2 - dx * s + dz * c };
+}
+// The parrot aviary's two perch stands (where tools/blender/pens.py puts them: a bar 0.4 long at
+// 0.6 high, a seed cup at each end) and three seats along each bar. Each parrot spends part of a
+// round of its own up there: a short flight up from where it was walking, a sit (facing out from
+// the bar, turning its head), a flight down to where its walk goes on. A pure function of time.
+const AVIARY_BARS = [[0.5, 1.4], [1.5, 0.6]] as const;
+const BAR_TOP = 0.62, PERCH_FLY = 1300;
+function aviaryPerch(o: FarmObject, d: BuildingDef, id: number, t: number) {
+  const list = o.pen?.animals ?? [];
+  const slot = Math.max(0, list.findIndex((a) => a.id === id));
+  const P = 24000 + hash(id, 61, 2) * 12000, off = hash(id, 62, 3) * P;
+  const u = (t + off) % P, round = Math.floor((t + off) / P);
+  const up = P * 0.4;
+  if (u < up) return null;
+  const bar = AVIARY_BARS[(slot + round) % 2];
+  const seat = penPt(o, d, bar[0] + ((Math.floor(slot / 2) % 3) - 1) * 0.11, bar[1]);
+  const facing = (slot % 2 ? 0 : Math.PI) - (o.rot ?? 0) * Math.PI / 2;
+  const hopTo = (from: { x: number; z: number }, to: { x: number; z: number }, h0: number, h1: number, k: number) => {
+    const e = k * k * (3 - 2 * k);
+    return { x: from.x + (to.x - from.x) * e, z: from.z + (to.z - from.z) * e, h: h0 + (h1 - h0) * e + Math.sin(e * Math.PI) * 0.3, heading: Math.atan2(to.x - from.x, to.z - from.z), fly: true };
+  };
+  if (u < up + PERCH_FLY) return hopTo(animalSpot(o, d, id, t - (u - up)), seat, 0.04, BAR_TOP, (u - up) / PERCH_FLY);
+  if (u > P - PERCH_FLY) return hopTo(seat, animalSpot(o, d, id, t - u + P), BAR_TOP, 0.04, (u - (P - PERCH_FLY)) / PERCH_FLY);
+  // now and then a little sidestep along the bar
+  const side = Math.max(0, Math.sin(t / 3100 + id * 2.1) - 0.8) * 0.25 * (slot % 2 ? 1 : -1);
+  const q = penPt(o, d, bar[0] + ((Math.floor(slot / 2) % 3) - 1) * 0.11 + side, bar[1]);
+  return { x: q.x, z: q.z, h: BAR_TOP, heading: facing, fly: false };
 }
 // An animal's wandering in its pen: it stands a while (cropping the grass or looking about),
 // then walks at an easy pace to another spot and stands again. A pure function of time, like the
@@ -5919,6 +6014,22 @@ function buildPen(e: Entry, d: BuildingDef) {
         blink(m, t, id);
         // now and then a duck dips its head under water
         if (head) head.rotation.x = Math.max(0, Math.sin(t / 900 + id * 2.3) - 0.85) * 8;
+        return;
+      }
+      // parrots in their aviary go up on its perch stands now and then, sit a while looking
+      // about, and come down again
+      const pp = an?.id === 'parrot' && d.id === 'parrot_aviary' ? aviaryPerch(o, d, id, t) : null;
+      if (pp) {
+        m.position.set(pp.x, pp.h, pp.z);
+        m.rotation.y = pp.heading;
+        m.rotation.z = 0;
+        animateLegs(m, 0);
+        flap(m, pp.fly, t, id, 1.3);
+        blink(m, t, id);
+        if (head) { head.rotation.x = pp.fly ? 0 : Math.max(0, Math.sin(t / 2100 + id) - 0.7) * 1.2; head.rotation.y = pp.fly ? 0 : Math.sin(t / 1700 + id) * 0.6; }
+        if (tail) tail.rotation.z = Math.sin(t / 900 + id) * 0.15;
+        const ps = m.userData.shadow as THREE.Object3D | undefined;
+        if (ps) ps.position.y = 0.006 - (m.position.y - 0.04);
         return;
       }
       const sp = animalSpot(o, d, id, t);

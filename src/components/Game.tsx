@@ -295,14 +295,22 @@ function FarmCanvas({ onDrawn }: { onDrawn: () => void }) {
       mode = 'pending';
       if (hitObj && BUILDING[hitObj.type].kind !== 'obstacle') {
         const target = hitObj;
-        lp = setTimeout(() => {
-          if (mode === 'pending') {
-            longFired = true;
-            mode = 'none';
-            store.startMove(target.id);
-            navigator.vibrate?.(25);
-          }
-        }, 600);
+        // A press held still picks the thing up to move it. A timer that comes late (a long frame
+        // held everything up, a slow phone loading a model) may have the finger's moves of that
+        // time still waiting their turn: they are let in first (twice at most), so a drag begun
+        // then is not taken for a long press.
+        const arm = (due: number, late: number) => {
+          lp = setTimeout(() => {
+            if (late < 2 && performance.now() - due > 120) { arm(performance.now() + 50, late + 1); return; }
+            if (mode === 'pending') {
+              longFired = true;
+              mode = 'none';
+              store.startMove(target.id);
+              navigator.vibrate?.(25);
+            }
+          }, Math.max(0, due - performance.now()));
+        };
+        arm(performance.now() + 600, 0);
       }
     };
 
