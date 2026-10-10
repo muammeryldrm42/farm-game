@@ -1,10 +1,11 @@
 'use client';
 import Ico from './Ico';
 import { BUILDING, CROP, ITEMS } from '@/game/data';
-import { TUTORIAL, TUTORIAL_DONE, canFulfill, claimableAlbum, claimableBadges, claimableQuests, fmtNum, xpNeed } from '@/game/state';
+import { TUTORIAL, TUTORIAL_DONE, canFulfill, claimableAlbum, claimableBadges, claimableMuseum, claimableQuests, fmtNum, xpNeed } from '@/game/state';
 import { useStore, useVersion } from './ctx';
 import { CAST, LAST_CHAPTER, taskProgress } from '@/game/story';
 import { t } from '@/game/i18n';
+import { now as clockNow } from '@/game/clock';
 
 // the HUD keeps clear of a phone's camera cutout and rounded corners (zero on a desktop)
 const SAFE = { top: 'env(safe-area-inset-top)', right: 'env(safe-area-inset-right)', bottom: 'env(safe-area-inset-bottom)', left: 'env(safe-area-inset-left)' };
@@ -22,11 +23,11 @@ export default function Hud() {
   useVersion();
   const s = store.s;
   const ui = store.ui;
-  const now = Date.now();
+  const now = clockNow();
   const need = xpNeed(s.level);
   const sheetOpen = ui.selectedId !== null || ui.panel !== null || ui.placing !== null || ui.expand !== null || ui.daily || ui.levelUp !== null;
   const deliverable = s.orders.filter((o) => canFulfill(s, o, now)).length;
-  const claimable = claimableQuests(s).length + claimableBadges(s).length + claimableAlbum(s).length + (store.chapterReady() ? 1 : 0);
+  const claimable = claimableQuests(s).length + claimableBadges(s).length + claimableAlbum(s).length + claimableMuseum(s).length + (store.chapterReady() ? 1 : 0);
   const tut = s.tutorial < TUTORIAL.length && s.tutorial !== TUTORIAL_DONE ? TUTORIAL[s.tutorial] : null;
 
   return (
@@ -85,6 +86,9 @@ export default function Hud() {
 
       {/* story tracker */}
       {!tut && !ui.placing && !ui.story && <StoryCard />}
+
+      {/* the farm's beauty, under the story button */}
+      {!sheetOpen && <BeautyChip />}
 
       {/* toasts */}
       <div className={`absolute left-1/2 flex w-[92%] max-w-sm -translate-x-1/2 flex-col items-center gap-2 ${tut ? "top-36" : "top-20"}`}>
@@ -251,3 +255,20 @@ function StoryCard() {
     </button>
   );
 }
+
+// the farm's beauty points (see beauty.ts); a tap opens what they are and what they bring
+function BeautyChip() {
+  const store = useStore();
+  const b = store.beauty();
+  return (
+    <button
+      className="pointer-events-auto absolute left-2 top-[8rem] flex items-center gap-1 rounded-full border-[3px] border-[#d9468f] bg-[#fff6df] py-0.5 pl-1.5 pr-2.5 text-xs font-bold text-[#8a2a5e] shadow-[0_3px_0_#5d3a1f] sm:left-3 sm:top-[9.2rem] sm:text-sm"
+      onClick={() => store.openPanel('beauty')}
+      aria-label={t('{n} beauty points', { n: fmtNum(b.score) })}
+    >
+      <span className="emoji text-base sm:text-lg">🌸</span>
+      {fmtNum(b.score)}
+    </button>
+  );
+}
+

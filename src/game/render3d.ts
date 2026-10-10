@@ -25,6 +25,7 @@ import {
   CHUNK, FARM_OFF, FISH_SPOT, footprint, PET_IDS, petGift, type PetId, SEA_FISH_SPOT, fishSpotAt, type FishSpot, GRAZE, GRID, LAKE, MAP_OFF2, MAP_OFF3, NCH, isBeachTile, lakeE, animalReady, fishingInfo, boatState, canFulfill, chunkState, grazePhase, penInfo, plotProgress, prodInfo, treeInfo,
   type Animal, type FarmObject, type GameStore,
 } from './state';
+import { now as clockNow } from './clock';
 
 export const ZU = 1 / 40; // converts the old pixel heights used by effects into world units
 
@@ -1718,7 +1719,7 @@ export class Renderer {
     this.last = t;
     const s = this.store.s;
     const ui = this.store.ui;
-    const now = Date.now();
+    const now = clockNow();
     showOffView();
 
     U.time.value = t / 1000;
@@ -1897,12 +1898,12 @@ export class Renderer {
       if (d.kind === 'production') fake.prod = { queue: [], slots: 3 };
       if (d.kind === 'pen') fake.pen = { animals: [] };
       if (d.kind === 'plot') fake.plot = { crop: null, plantedAt: 0 };
-      if (d.kind === 'tree') fake.tree = { startAt: Date.now() };
+      if (d.kind === 'tree') fake.tree = { startAt: clockNow() };
       const real = p.moveId !== undefined ? this.store.obj(p.moveId) : undefined;
       const src = real ?? fake;
       const e: Entry = { id: -1, type: p.type, root: new THREE.Group(), hit: null as unknown as THREE.Mesh, top: 1 };
       buildObject(e, src, d, this.store);
-      e.update?.(src, Date.now(), t, 0);
+      e.update?.(src, clockNow(), t, 0);
       unbatch(e.root);
       e.root.traverse((m) => {
         const mesh = m as THREE.Mesh;
@@ -3041,7 +3042,8 @@ export class Renderer {
     }
 
     this.roam = false;
-    this.updateSpeech(now);
+    // the bubble's times are the phone's (see say): it goes when it should, whatever the farm's clock does
+    this.updateSpeech(Date.now());
     this.updateVisitor(dt, t, now);
     this.updateSparrows(dt, t);
 
@@ -3085,7 +3087,7 @@ export class Renderer {
         this.fxLayer.add(m);
         this.petMarks.set(id, m);
       }
-      const k = joy && joy.id === id ? (now - joy.at) / 1800 : 1;
+      const k = joy && joy.id === id ? (Date.now() - joy.at) / 1800 : 1;
       const mat = m.material, was = mat.map;
       const p = a.g.position;
       if (k < 1) {

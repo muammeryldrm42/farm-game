@@ -2,8 +2,11 @@
 import { ANIMAL, BUILDING, CATCHES, CROP, ITEMS, ITEM_LIST, LAKE_CATCHES, RECIPE, SEA_CATCHES, type BuildingDef } from './data';
 import { isRaining } from './weather';
 import { t as tr } from './i18n';
+import { clockFloor, keepClock, now as clockNow } from './clock';
+import { BEAUTY_LEVELS, beautyOf, type Beauty } from './beauty';
 import { LAST_CHAPTER, chapterAt, taskProgress, type StoryState, type StoryTask } from './story';
 import { ALBUM, ALBUM_IDS, CAT_FINDS, DOG_FINDS, albumEntry, type AlbumEntry } from './album';
+import { MUSEUM, findChance, museumSet, newMuseum, type FindSource, type MuseumState } from './museum';
 
 export const GRID = 68;
 // the map grew three times, from 28 to 44 tiles, then to 60, then to 68 with a sandy beach all
@@ -73,7 +76,7 @@ export interface OrderItem { id: string; qty: number }
 export interface Order { id: number; items: OrderItem[]; coins: number; xp: number; gems: number; readyAt: number }
 
 // `saver`: battery saver, the farm drawn at 30 frames a second (phones)
-export interface Settings { sound: boolean; dayNight: boolean; clouds: boolean; music: boolean; weather: boolean; shadows: boolean; saver?: boolean }
+export interface Settings { sound: boolean; dayNight: boolean; clouds: boolean; music: boolean; weather: boolean; shadows: boolean; saver?: boolean; notify?: boolean }
 
 export interface GameState {
   v: 1;
@@ -109,6 +112,9 @@ export interface GameState {
   album?: Record<string, number>; // album entries found, and when first found
   albumDone?: string[]; // album sets whose reward was taken
   pets?: Record<PetId, PetState>;
+  museum?: MuseumState; // the rare finds on show in the farm museum (see museum.ts)
+  clock?: { t: number }; // the farm's clock at the last save: it does not go back past it (see clock.ts)
+  beautyBest?: number; // the highest beauty level whose gift of gems was given (see beauty.ts)
 }
 
 // ---------------------------------------------------------------- pets
@@ -148,6 +154,11 @@ export const albumSetDone = (s: GameState, id: string) => {
   return !!a && a.entries.every((e) => s.album?.[e.id]);
 };
 export const claimableAlbum = (s: GameState) => ALBUM.filter((a) => albumSetDone(s, a.id) && !s.albumDone?.includes(a.id));
+export const museumSetDone = (s: GameState, id: string) => {
+  const m = MUSEUM.find((x) => x.id === id);
+  return !!m && m.items.every((i) => s.museum?.found[i.id]);
+};
+export const claimableMuseum = (s: GameState) => MUSEUM.filter((m) => museumSetDone(s, m.id) && !s.museum?.done.includes(m.id));
 
 // ---------------------------------------------------------------- helpers
 
@@ -353,7 +364,7 @@ export function pickCatch(level: number, roll: number, spot: FishSpot = 'sea') {
 export const NAP_MS = 20000;
 export const restBonus = (level: number) => 40 + level * 10;
 
-export function todayKey(d = new Date()) {
+export function todayKey(d = new Date(clockNow())) {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
 }
 
@@ -479,7 +490,7 @@ export function genOrder(s: GameState, readyAt: number): Order {
 // ---------------------------------------------------------------- new game / load
 
 export function newGame(): GameState {
-  const now = Date.now();
+  const now = clockNow();
   const s: GameState = {
     v: 1, coins: 200, gems: 10, xp: 0, level: 1,
     inv: { wheat: 4 },
@@ -491,7 +502,7 @@ export function newGame(): GameState {
     stall: Array.from({ length: STALL_SLOTS }, emptySlot),
     boat: null,
     achievements: {},
-    album: {}, albumDone: [], pets: { dog: newPet('dog'), cat: newPet('cat') },
+    album: {}, albumDone: [], pets: { dog: newPet('dog'), cat: newPet('cat') }, museum: newMuseum(),
     tutorial: 0,
     story: { ch: 1, started: 0, base: {}, seen: 0 },
     lake: 5,
@@ -555,7 +566,7 @@ function dropRemoved(s: GameState) {
   });
   // no dock, no cargo boat
   if (!s.objects.some((o) => BUILDING[o.type]?.kind === 'dock')) s.boat = null;
-  const now = Date.now();
+  const now = clockNow();
   s.orders = s.orders.map((o) => (o.items.every((it) => ITEMS[it.id]) ? o : genOrder(s, now)));
   for (const o of s.objects) if (o.prod) o.prod.queue = o.prod.queue.filter((e) => RECIPE[e.recipe]);
   for (const o of s.objects) if (o.plot?.crop && !CROP[o.plot.crop]) o.plot.crop = null;
@@ -577,7 +588,11 @@ export function loadGame(): GameState {
   let raw: string | null = null;
   try {
     raw = localStorage.getItem(SAVE_KEY);
-    if (raw) s = migrate(JSON.parse(raw));
+    if (raw) {
+      const d = JSON.parse(raw);
+      clockFloor(d?.clock?.t);
+      s = migrate(d);
+    }
   } catch {
     // a save that cannot be read: the game starts fresh, but the old save is put aside first,
     // or the first save of the new farm would write over it and nothing could bring it back
@@ -616,8 +631,10 @@ function migrate(d: Partial<GameState>): GameState {
   s.starterWell = d.starterWell;
   // the album and the pets came later: fish already in the barn count as found
   s.album = { ...(d.album ?? {}) };
-  for (const [id, n] of Object.entries(s.inv)) if (n > 0 && ALBUM_IDS.has(id) && !s.album[id]) s.album[id] = Date.now();
+  for (const [id, n] of Object.entries(s.inv)) if (n > 0 && ALBUM_IDS.has(id) && !s.album[id]) s.album[id] = clockNow();
   s.albumDone = d.albumDone ?? [];
+  // the museum came later still: an older farm starts with an empty one
+  s.museum = { found: { ...(d.museum?.found ?? {}) }, done: [...(d.museum?.done ?? [])], misses: { ...(d.museum?.misses ?? {}) } };
   s.pets = { dog: { ...newPet('dog'), ...(d.pets?.dog ?? {}) }, cat: { ...newPet('cat'), ...(d.pets?.cat ?? {}) } };
   // farms from before the story pick it up at the chapter of their level
   s.story = d.story ?? { ch: Math.min(LAST_CHAPTER + 1, Math.max(1, s.level ?? 1)), started: 0, base: {}, seen: 0 };
@@ -641,11 +658,11 @@ function migrate(d: Partial<GameState>): GameState {
 
 // ---------------------------------------------------------------- store
 
-export type Sfx = 'harvest' | 'plant' | 'coin' | 'build' | 'error' | 'levelup' | 'click' | 'collect';
+export type Sfx = 'harvest' | 'plant' | 'coin' | 'build' | 'error' | 'levelup' | 'click' | 'collect' | 'rare';
 export interface Fx { kind: 'float' | 'burst'; gx: number; gy: number; text?: string; color?: string; z?: number }
 export interface Placing { type: string; x: number; y: number; moveId?: number }
 export interface Tool { kind: 'plant'; crop: string }
-export type Panel = 'shop' | 'orders' | 'storage' | 'settings' | 'quests' | 'stall' | 'boat' | 'fishing' | 'home' | 'pet' | null;
+export type Panel = 'shop' | 'orders' | 'storage' | 'settings' | 'quests' | 'stall' | 'boat' | 'fishing' | 'home' | 'pet' | 'beauty' | null;
 export interface Flyer { icon: string; gx: number; gy: number; z: number; target: 'storage' | 'coins' | 'xp' }
 export interface Toast { id: number; text: string; tone: 'info' | 'bad' | 'good'; at: number }
 
@@ -668,6 +685,8 @@ export interface UIState {
   petJoy?: { id: PetId; at: number; kind: 'pat' | 'feed' | 'gift' }; // hearts over a pet just patted or fed
   guide?: { id: string; at: number }; // a shop card, crop or recipe a task pointed the player to (shown with an orange marker)
   guideAt?: { x: number; y: number; at: number }; // a place on the farm a task pointed to: an orange arrow bobs over it
+  notifyAsk?: boolean; // the question whether to send phone notifications is up (see notify.ts)
+  shopTab?: string; // the shop opens on this tab (once)
 }
 
 export class GameStore {
@@ -751,7 +770,9 @@ export class GameStore {
   saveNow = () => {
     if (this.saveT) { clearTimeout(this.saveT); this.saveT = null; }
     this.saveDue = 0;
+    this.s.clock = { t: clockNow() };
     try { localStorage.setItem(SAVE_KEY, JSON.stringify(this.s)); } catch { /* storage full or blocked */ }
+    keepClock();
   };
 
   // ------------------------------------------------ feedback
@@ -784,6 +805,31 @@ export class GameStore {
   stat(k: string, n = 1) { this.s.stats[k] = (this.s.stats[k] ?? 0) + n; }
 
   earn(n: number) { this.s.coins += n; this.stat('earned', n); }
+
+  // ------------------------------------------------ beauty (see beauty.ts)
+
+  // worked out again only when something on the farm was built, moved or taken away
+  private beautyMemo: { v: number; b: Beauty } | null = null;
+  beauty() {
+    if (!this.beautyMemo || this.beautyMemo.v !== this.objVersion) this.beautyMemo = { v: this.objVersion, b: beautyOf(this.s) };
+    return this.beautyMemo.b;
+  }
+  // what customers pay more on a farm this pretty (orders, boat crates, stall sales)
+  beautyBonus() { return BEAUTY_LEVELS[this.beauty().level].bonus; }
+  private startedAt = Date.now();
+  // a beauty level reached for the first time brings its gift of gems
+  checkBeauty() {
+    const level = this.beauty().level, best = this.s.beautyBest ?? 0;
+    if (level <= best) return;
+    let gems = 0;
+    for (let l = best + 1; l <= level; l++) gems += BEAUTY_LEVELS[l].gems;
+    this.s.beautyBest = level;
+    this.s.gems += gems;
+    const lv = BEAUTY_LEVELS[level];
+    this.sound('levelup');
+    this.toast(tr('Your farm is now {level}! Customers pay {n}% more. +{gems} gems', { level: tr(lv.name), n: Math.round(lv.bonus * 100), gems }), 'good');
+    this.emit();
+  }
 
   addXp(n: number) {
     const s = this.s;
@@ -907,7 +953,7 @@ export class GameStore {
 
   tapObject(o: FarmObject) {
     const d = BUILDING[o.type];
-    const now = Date.now();
+    const now = clockNow();
     this.sound('click');
     switch (d.kind) {
       case 'plot':
@@ -946,7 +992,7 @@ export class GameStore {
   fillBucket(o: FarmObject) {
     const wi = waterInfo(this.s);
     if (wi.n >= wi.max) { this.toast(tr('Your bucket is already full. Tap a growing field to water it.'), 'info'); return; }
-    this.s.water = { n: wi.max, at: Date.now() };
+    this.s.water = { n: wi.max, at: clockNow() };
     this.sound('collect');
     this.burst(o, '#6fc8ff');
     this.float(o, `🪣 ${wi.max}/${wi.max}`, '#dff4ff', 30);
@@ -957,7 +1003,7 @@ export class GameStore {
 
   tapFishing(spot: FishSpot = 'lake') {
     this.sound('click');
-    if (fishingInfo(this.s, Date.now(), spot).state === 'ready') { this.reelIn(spot); return; }
+    if (fishingInfo(this.s, clockNow(), spot).state === 'ready') { this.reelIn(spot); return; }
     this.ui.fishSpot = spot;
     this.openPanel('fishing');
   }
@@ -981,7 +1027,7 @@ export class GameStore {
   castLine(spot: FishSpot = 'lake') {
     const f = this.fishData(spot);
     if (!f?.open || f.castAt !== null) return;
-    const now = Date.now();
+    const now = clockNow();
     f.castAt = now;
     f.catchAt = now + FISHING.time * 1000;
     this.sound('plant');
@@ -990,7 +1036,7 @@ export class GameStore {
 
   reelIn(spot: FishSpot = 'lake') {
     const f = this.fishData(spot);
-    const now = Date.now();
+    const now = clockNow();
     if (!f || fishingInfo(this.s, now, spot).state !== 'ready') return;
     // what bites depends on the water, luck and level: plain fish most often, rarer catches as
     // you grow; fresh water fish at the lake, sea fish off the shore
@@ -1009,6 +1055,7 @@ export class GameStore {
     if (this.flyers.length < 40) this.flyers.push({ icon: ITEMS[id].icon, gx: p.x, gy: p.y, z: 20, target: 'storage' });
     this.fx.push({ kind: 'float', gx: p.x, gy: p.y, text: `+${qty} ${ITEMS[id].icon}`, color: '#ffffff', z: 40 });
     this.fx.push({ kind: 'burst', gx: p.x, gy: p.y, color: '#bfe9ff', z: 5 });
+    this.rareFind(spot === 'sea' ? 'sea' : 'lake', undefined, p);
     this.emit();
   }
 
@@ -1034,7 +1081,7 @@ export class GameStore {
     else if (this.s.coins >= c.seedCost) this.s.coins -= c.seedCost;
     else { if (!quiet) this.toast(tr('Not enough coins for seeds.'), 'bad'); else this.toast(tr('Out of seeds.'), 'bad'); this.ui.tool = null; this.emit(); return false; }
     o.plot.crop = cropId;
-    o.plot.plantedAt = Date.now();
+    o.plot.plantedAt = clockNow();
     o.plot.watered = false;
     this.stat('plant');
     this.sound('plant');
@@ -1044,7 +1091,7 @@ export class GameStore {
   }
 
   harvest(o: FarmObject, quiet = false) {
-    const pp = plotProgress(o, Date.now());
+    const pp = plotProgress(o, clockNow());
     if (!pp.ready || !pp.crop || !o.plot) return false;
     if (!this.canStore(pp.crop, 2)) { this.fullToast(pp.crop); return false; }
     const c = CROP[pp.crop];
@@ -1061,6 +1108,7 @@ export class GameStore {
     this.fly(o, ITEMS[c.id].icon, 'storage');
     this.burst(o, c.fruit);
     this.sound('harvest');
+    this.rareFind('harvest', o);
     if (!quiet) { /* reserved for future single tap feedback */ }
     this.emit();
     return true;
@@ -1070,7 +1118,7 @@ export class GameStore {
   // sprinkler; by hand it takes one pour from the bucket.
   // `quiet` leaves the redraw to the caller (rain waters many fields at once)
   waterPlot(o: FarmObject, free = false, quiet = false) {
-    const now = Date.now();
+    const now = clockNow();
     if (!o.plot || !needsWater(o, now)) return false;
     if (!free) {
       const wi = waterInfo(this.s);
@@ -1078,7 +1126,7 @@ export class GameStore {
         this.toast(tr(wi.wells ? 'Your bucket is empty. Tap a well to fill it.' : 'Your bucket is empty. Build a well to fill it.'), 'bad');
         return false;
       }
-      this.s.water = { n: wi.n - 1, at: this.s.water?.at ?? Date.now() };
+      this.s.water = { n: wi.n - 1, at: this.s.water?.at ?? clockNow() };
       this.stat('water');
       this.sound('plant');
     }
@@ -1092,12 +1140,12 @@ export class GameStore {
   }
 
   speedPlot(o: FarmObject) {
-    const pp = plotProgress(o, Date.now());
+    const pp = plotProgress(o, clockNow());
     if (!pp.crop || pp.ready || !o.plot) return;
     const cost = gemCost(pp.remaining);
     if (this.s.gems < cost) { this.toast(tr('Not enough gems.'), 'bad'); return; }
     this.s.gems -= cost;
-    o.plot.plantedAt = Date.now() - CROP[pp.crop].time * 1000;
+    o.plot.plantedAt = clockNow() - CROP[pp.crop].time * 1000;
     this.sound('coin');
     this.emit();
   }
@@ -1107,7 +1155,7 @@ export class GameStore {
   queueRecipe(o: FarmObject, recipeId: string) {
     const r = RECIPE[recipeId];
     if (!o.prod || !r) return;
-    const now = Date.now();
+    const now = clockNow();
     if (this.s.level < r.level) { this.toast(tr('Unlocks at level {n}.', { n: r.level }), 'bad'); return; }
     if (o.prod.queue.length >= o.prod.slots) { this.toast(tr('Queue is full. Collect goods or add a slot.'), 'bad'); return; }
     if (!this.hasItems(r.inputs)) { this.toast(tr('Missing ingredients.'), 'bad'); return; }
@@ -1121,7 +1169,7 @@ export class GameStore {
 
   collectProd(o: FarmObject) {
     if (!o.prod) return 0;
-    const now = Date.now();
+    const now = clockNow();
     let n = 0;
     while (o.prod.queue.length && o.prod.queue[0].endsAt <= now) {
       const e = o.prod.queue[0];
@@ -1142,7 +1190,7 @@ export class GameStore {
 
   speedProd(o: FarmObject) {
     if (!o.prod) return;
-    const now = Date.now();
+    const now = clockNow();
     const cur = o.prod.queue.find((e) => e.endsAt > now);
     if (!cur) return;
     const rem = cur.endsAt - Math.max(now, cur.startAt);
@@ -1189,14 +1237,14 @@ export class GameStore {
   }
 
   feedPen(o: FarmObject) {
-    const pi = penInfo(o, Date.now());
+    const pi = penInfo(o, clockNow());
     if (!o.pen) return;
     let n = 0;
     for (const a of o.pen.animals) {
       if (a.fedAt !== null || a.graze) continue;
       if ((this.s.inv[pi.animal.feed] ?? 0) <= 0) break;
       this.take(pi.animal.feed, 1);
-      a.fedAt = Date.now();
+      a.fedAt = clockNow();
       n++;
     }
     if (n) { this.sound('plant'); this.float(o, tr('Fed {n}', { n }) + ` ${pi.animal.icon}`, '#ffffff', 40); this.emit(); }
@@ -1207,7 +1255,7 @@ export class GameStore {
   // comes home by itself once full, ready to produce.
   openGate(o: FarmObject) {
     if (!o.pen) return;
-    const now = Date.now();
+    const now = clockNow();
     let n = 0;
     for (const a of o.pen.animals) if (a.fedAt === null && !a.graze) { a.graze = { at: now }; n++; }
     const an = penInfo(o, now).animal;
@@ -1221,7 +1269,7 @@ export class GameStore {
   // Call them home early: they walk back and stay hungry (unless the meal was already done).
   recallPen(o: FarmObject) {
     if (!o.pen) return;
-    const now = Date.now();
+    const now = clockNow();
     let n = 0;
     const bee = penInfo(o, now).animal.id === 'bee';
     for (const a of o.pen.animals) {
@@ -1233,7 +1281,7 @@ export class GameStore {
   }
 
   collectPen(o: FarmObject) {
-    const now = Date.now();
+    const now = clockNow();
     const pi = penInfo(o, now);
     if (!o.pen) return;
     let n = 0;
@@ -1256,12 +1304,13 @@ export class GameStore {
       this.fly(o, ITEMS[pi.animal.product].icon, 'storage', 30);
       this.burst(o, '#ffffff');
       this.sound('collect');
+      this.rareFind('barn', o);
       this.emit();
     }
   }
 
   speedPen(o: FarmObject) {
-    const now = Date.now();
+    const now = clockNow();
     const pi = penInfo(o, now);
     if (!o.pen || !pi.fed) return;
     let maxRem = 0;
@@ -1338,14 +1387,15 @@ export class GameStore {
     }
     const cost = this.costOf(d);
     if (this.s.coins < cost) { this.toast(tr('Not enough coins.'), 'bad'); this.ui.placing = null; this.emit(false); return; }
+    const beautyWas = this.beauty().score;
     if (this.countType(p.type) >= this.maxOf(d)) { this.ui.placing = null; this.emit(false); return; }
     this.s.coins -= cost;
     const o: FarmObject = { id: this.s.nextId++, type: p.type, x: p.x, y: p.y };
     if (d.kind === 'plot') o.plot = { crop: null, plantedAt: 0 };
     if (d.kind === 'production') o.prod = { queue: [], slots: 3 };
     if (d.kind === 'pen') o.pen = { animals: [] };
-    if (d.kind === 'tree') o.tree = { startAt: Date.now() };
-    if (d.kind === 'dock' && !this.s.boat) this.s.boat = genBoat(this.s, Date.now());
+    if (d.kind === 'tree') o.tree = { startAt: clockNow() };
+    if (d.kind === 'dock' && !this.s.boat) this.s.boat = genBoat(this.s, clockNow());
     this.s.objects.push(o);
     this.stat(`build:${p.type}`);
     this.addXp(d.xp);
@@ -1353,6 +1403,9 @@ export class GameStore {
     if (d.xp) this.float(o, `+${d.xp} XP`, '#b8f0ff', 50);
     this.sound('build');
     this.objVersion++;
+    const pretty = this.beauty().score - beautyWas;
+    if (pretty > 0) this.float(o, `🌸 +${pretty}`, '#ffd0ea', 64);
+    this.checkBeauty();
     if ((d.kind === 'plot' || d.kind === 'tree') && this.countType(p.type) < this.maxOf(d) && this.s.coins >= this.costOf(d)) {
       const next = this.findSpot(p.type, p.x + 1, p.y);
       this.ui.placing = next.ok ? { type: p.type, x: next.x, y: next.y } : null;
@@ -1450,6 +1503,7 @@ export class GameStore {
     this.ui.selectedId = null;
     this.objVersion++;
     this.sound('build');
+    this.rareFind('relics', o);
     this.emit();
   }
 
@@ -1474,6 +1528,7 @@ export class GameStore {
     this.addXp(10);
     this.fx.push({ kind: 'burst', gx: e.cx * CHUNK + 2, gy: e.cy * CHUNK + 2, color: '#ffe066', z: 10 });
     this.fx.push({ kind: 'float', gx: e.cx * CHUNK + 2, gy: e.cy * CHUNK + 2, text: tr('New land!'), color: '#fff6c8', z: 30 });
+    this.rareFind('relics', undefined, { x: e.cx * CHUNK + 2, y: e.cy * CHUNK + 2 });
     this.ui.expand = null;
     this.objVersion++;
     this.sound('levelup');
@@ -1508,28 +1563,28 @@ export class GameStore {
 
   ensureOrders() {
     const want = orderCount(this.s.level);
-    while (this.s.orders.length < want) this.s.orders.push(genOrder(this.s, Date.now()));
+    while (this.s.orders.length < want) this.s.orders.push(genOrder(this.s, clockNow()));
   }
 
   fulfillOrder(id: number) {
     const o = this.s.orders.find((x) => x.id === id);
     if (!o) return;
-    if (!canFulfill(this.s, o, Date.now())) { this.toast(tr('You do not have everything for this order yet.'), 'bad'); return; }
+    if (!canFulfill(this.s, o, clockNow())) { this.toast(tr('You do not have everything for this order yet.'), 'bad'); return; }
     for (const it of o.items) this.take(it.id, it.qty);
-    const coins = Math.round(o.coins * (1 + horseBonus(this.s)));
+    const coins = Math.round(o.coins * (1 + horseBonus(this.s) + this.beautyBonus()));
     this.earn(coins);
     this.s.gems += o.gems;
     this.stat('orders');
     this.addXp(o.xp);
     const board = this.s.objects.find((x) => x.type === 'board');
     if (board) { this.float(board, tr('+{n} coins', { n: coins }), '#ffe066', 60); this.fly(board, '🪙', 'coins', 60); }
-    this.s.orders = this.s.orders.map((x) => (x.id === id ? genOrder(this.s, Date.now() + 5000) : x));
+    this.s.orders = this.s.orders.map((x) => (x.id === id ? genOrder(this.s, clockNow() + 5000) : x));
     this.sound('coin');
     this.emit();
   }
 
   discardOrder(id: number) {
-    this.s.orders = this.s.orders.map((x) => (x.id === id ? genOrder(this.s, Date.now() + 45000) : x));
+    this.s.orders = this.s.orders.map((x) => (x.id === id ? genOrder(this.s, clockNow() + 45000) : x));
     this.sound('click');
     this.emit();
   }
@@ -1580,7 +1635,7 @@ export class GameStore {
     const s = this.s;
     s.album ??= {};
     if (s.album[id] || !ALBUM_IDS.has(id)) return false;
-    s.album[id] = Date.now();
+    s.album[id] = clockNow();
     const e = albumEntry(id)!;
     this.toast(tr('New in your album: {name}!', { name: tr(e.name) }), 'good');
     const set = ALBUM.find((a) => a.entries.some((x) => x.id === id));
@@ -1610,6 +1665,46 @@ export class GameStore {
     this.emit();
   }
 
+  // ------------------------------------------------ museum
+
+  // Now and then something rare turns up for the museum (see museum.ts): always one its set still
+  // lacks. `o` is where it turned up on the farm, or `at` a spot (the fishing jetties).
+  rareFind(source: FindSource, o?: FarmObject, at?: { x: number; y: number }) {
+    const m = (this.s.museum ??= newMuseum());
+    const set = museumSet(source);
+    if (!set) return false;
+    const missing = set.items.filter((i) => !m.found[i.id]);
+    if (!missing.length) return false;
+    const misses = m.misses[source] ?? 0;
+    if (Math.random() >= findChance(set, misses)) { m.misses[source] = misses + 1; return false; }
+    m.misses[source] = 0;
+    const it = missing[Math.floor(Math.random() * missing.length)];
+    m.found[it.id] = clockNow();
+    const text = `✨ ${it.icon} ${tr(it.name)}`;
+    if (o) { this.float(o, text, '#ffd84a', 90); this.burst(o, '#ffd84a'); }
+    else if (at) {
+      this.fx.push({ kind: 'float', gx: at.x, gy: at.y, text, color: '#ffd84a', z: 70 });
+      this.fx.push({ kind: 'burst', gx: at.x, gy: at.y, color: '#ffd84a', z: 10 });
+    }
+    this.toast(tr('Rare find for your museum: {name}!', { name: `${it.icon} ${tr(it.name)}` }), 'good');
+    if (museumSetDone(this.s, source)) this.toast(tr('Museum set complete: {name}! Claim it in Goals.', { name: tr(set.name) }), 'good');
+    this.sound('rare');
+    return true;
+  }
+
+  claimMuseum(id: string) {
+    const set = museumSet(id);
+    const m = (this.s.museum ??= newMuseum());
+    if (!set || !museumSetDone(this.s, id) || m.done.includes(id)) return;
+    m.done.push(id);
+    this.earn(set.reward.coins);
+    this.s.gems += set.reward.gems;
+    this.addXp(set.reward.xp);
+    this.sound('levelup');
+    this.toast(tr('{name} complete! +{coins} coins, +{gems} gems', { name: tr(set.name), coins: fmtNum(set.reward.coins), gems: set.reward.gems }), 'good');
+    this.emit();
+  }
+
   pet(id: PetId): PetState {
     const s = this.s;
     s.pets ??= { dog: newPet('dog'), cat: newPet('cat') };
@@ -1625,8 +1720,8 @@ export class GameStore {
   }
 
   patPet(id: PetId) {
-    const p = this.pet(id), now = Date.now();
-    this.ui.petJoy = { id, at: now, kind: 'pat' };
+    const p = this.pet(id), now = clockNow();
+    this.ui.petJoy = { id, at: Date.now(), kind: 'pat' };
     if (now - p.petAt >= PET_PAT_MS) { p.love = Math.min(100, p.love + 3); p.petAt = now; }
     this.sound('click');
     this.emit();
@@ -1641,7 +1736,7 @@ export class GameStore {
     if (!food) { this.toast(tr('{name} would like {foods}.', { name: this.petName(id), foods: PET[id].foods.map((f) => tr(ITEMS[f].name)).join(' / ') }), 'bad'); return; }
     this.take(food, 1);
     p.fedDay = todayKey();
-    p.fedAt = Date.now();
+    p.fedAt = clockNow();
     p.love = Math.min(100, p.love + 8);
     this.ui.petJoy = { id, at: Date.now(), kind: 'feed' };
     this.sound('collect');
@@ -1653,7 +1748,7 @@ export class GameStore {
   // what the pet brought back: most often something not yet in the album; a find it already
   // brought before is sold on for a few coins
   openPetGift(id: PetId) {
-    const p = this.pet(id), now = Date.now();
+    const p = this.pet(id), now = clockNow();
     if (petGift(p, now) !== 'ready') return;
     p.giftDay = todayKey();
     p.love = Math.min(100, p.love + 2);
@@ -1698,7 +1793,7 @@ export class GameStore {
     this.ui.story = null;
     const focus = this.focusOn;
     this.focusOn = (x: number, y: number) => { focus(x, y); this.ui.guideAt = { x, y, at: now }; };
-    try { this.guideTo(t, now, pointAt); } finally { this.focusOn = focus; }
+    try { this.guideTo(t, clockNow(), pointAt); } finally { this.focusOn = focus; }
     this.emit(false);
   }
 
@@ -1758,7 +1853,7 @@ export class GameStore {
 
   claimDaily() {
     if (!this.canDaily()) return;
-    const y = new Date(); y.setDate(y.getDate() - 1);
+    const y = new Date(clockNow()); y.setDate(y.getDate() - 1);
     this.s.streak = this.s.lastDaily === todayKey(y) ? this.s.streak + 1 : 1;
     this.s.lastDaily = todayKey();
     const r = dailyReward(this.s.streak);
@@ -1786,30 +1881,31 @@ export class GameStore {
   // ------------------------------------------------ fruit trees
 
   collectTree(o: FarmObject) {
-    const ti = treeInfo(o, Date.now());
+    const ti = treeInfo(o, clockNow());
     if (!ti.ready || !o.tree) return false;
     if (!this.canStore(ti.fruit, 2)) { this.fullToast(ti.fruit); return false; }
     const d = BUILDING[o.type];
     this.add(ti.fruit, 2);
     this.stat('fruit', 2);
     this.stat(`harvest:${ti.fruit}`, 2);
-    o.tree.startAt = Date.now();
+    o.tree.startAt = clockNow();
     this.addXp(Math.max(2, Math.round(d.xp / 2)));
     this.float(o, `+2 ${ITEMS[ti.fruit].icon}`, '#fff6c8', 70);
     this.fly(o, ITEMS[ti.fruit].icon, 'storage', 60);
     this.burst(o, '#7ccf4f');
     this.sound('harvest');
+    this.rareFind('orchard', o);
     this.emit();
     return true;
   }
 
   speedTree(o: FarmObject) {
-    const ti = treeInfo(o, Date.now());
+    const ti = treeInfo(o, clockNow());
     if (ti.ready || !o.tree) return;
     const cost = gemCost(ti.remaining);
     if (this.s.gems < cost) { this.toast(tr('Not enough gems.'), 'bad'); return; }
     this.s.gems -= cost;
-    o.tree.startAt = Date.now() - (BUILDING[o.type].growTime ?? 60) * 1000;
+    o.tree.startAt = clockNow() - (BUILDING[o.type].growTime ?? 60) * 1000;
     this.sound('coin');
     this.emit();
   }
@@ -1824,7 +1920,7 @@ export class GameStore {
     const base = stallValue(item, qty);
     const pr = Math.max(1, Math.min(base * 2, Math.round(price)));
     const ratio = pr / base;
-    const now = Date.now();
+    const now = clockNow();
     const wait = (20 + Math.pow(Math.max(0.5, ratio), 2.2) * 80) * (0.7 + Math.random() * 0.6) * 1000;
     this.take(item, qty);
     this.s.stall[slot] = { item, qty, price: pr, listedAt: now, soldAt: now + wait };
@@ -1834,12 +1930,13 @@ export class GameStore {
 
   collectSale(slot: number) {
     const sl = this.s.stall[slot];
-    if (!sl || !sl.item || sl.soldAt > Date.now()) return;
-    this.earn(sl.price);
+    if (!sl || !sl.item || sl.soldAt > clockNow()) return;
+    const coins = Math.round(sl.price * (1 + this.beautyBonus()));
+    this.earn(coins);
     this.stat('stall');
     this.addXp(Math.max(1, Math.round(sl.price / 25)));
     const stall = this.s.objects.find((x) => x.type === 'stall');
-    if (stall) { this.float(stall, `+${sl.price} coins`, '#ffe066', 50); this.fly(stall, '🪙', 'coins', 50); }
+    if (stall) { this.float(stall, `+${coins} coins`, '#ffe066', 50); this.fly(stall, '🪙', 'coins', 50); }
     this.s.stall[slot] = emptySlot();
     this.sound('coin');
     this.emit();
@@ -1847,7 +1944,7 @@ export class GameStore {
 
   cancelListing(slot: number) {
     const sl = this.s.stall[slot];
-    if (!sl || !sl.item || sl.soldAt <= Date.now()) return;
+    if (!sl || !sl.item || sl.soldAt <= clockNow()) return;
     if (!this.canStore(sl.item, sl.qty)) { this.fullToast(sl.item); return; }
     this.add(sl.item, sl.qty);
     this.s.stall[slot] = emptySlot();
@@ -1859,17 +1956,18 @@ export class GameStore {
 
   fillCrate(i: number) {
     const b = this.s.boat;
-    const now = Date.now();
+    const now = clockNow();
     if (!b || boatState(this.s, now) !== 'docked') return;
     const c = b.crates[i];
     if (!c || c.filled) return;
     if ((this.s.inv[c.item] ?? 0) < c.qty) { this.toast(tr('You need {n} {item}.', { n: c.qty, item: tr(ITEMS[c.item].name) }), 'bad'); return; }
     this.take(c.item, c.qty);
     c.filled = true;
-    this.earn(c.coins);
+    const coins = Math.round(c.coins * (1 + this.beautyBonus()));
+    this.earn(coins);
     this.addXp(c.xp);
     const dock = this.s.objects.find((x) => x.type === 'dock');
-    if (dock) { this.float(dock, `+${c.coins} coins`, '#ffe066', 50); this.fly(dock, '🪙', 'coins', 40); }
+    if (dock) { this.float(dock, `+${coins} coins`, '#ffe066', 50); this.fly(dock, '🪙', 'coins', 40); }
     this.sound('coin');
     this.emit();
   }
@@ -1882,7 +1980,7 @@ export class GameStore {
     this.stat('boat');
     this.addXp(20);
     this.toast(tr('Boat sent! Bonus {coins} coins and {gems} gems.', { coins: b.bonusCoins, gems: b.bonusGems }), 'good');
-    this.s.boat = { ...b, crates: [], returnAt: Date.now() + 8 * 60e3 };
+    this.s.boat = { ...b, crates: [], returnAt: clockNow() + 8 * 60e3 };
     this.sound('levelup');
     this.emit();
   }
@@ -1911,9 +2009,11 @@ export class GameStore {
   }
 
   tick() {
-    const now = Date.now();
+    const now = clockNow();
     topUp(this.s); // TEMP test mode
     if (this.settleGrazing(now)) this.emit();
+    // a new beauty level reached some other way (an older farm, a loaded save): a few seconds in, so it is seen
+    if (Date.now() - this.startedAt > 8000) this.checkBeauty();
     this.storyTick(now);
     // rain and sprinklers water thirsty fields for free
     const thirsty = this.s.objects.filter((o) => o.type === 'plot' && needsWater(o, now));
@@ -1986,7 +2086,7 @@ export class GameStore {
     this.ui.story = null;
     if (d.part === 'intro') {
       const t = ch.tasks.find((x) => taskProgress(x, this.s) < x.target);
-      if (t) { this.say(`${t.icon} ${tr(t.text)}`, 5000); this.hintAt = Date.now() + 60e3; }
+      if (t) { this.say(`${t.icon} ${tr(t.text)}`, 5000); this.hintAt = clockNow() + 60e3; }
     }
     this.emit(false);
   }
@@ -2097,6 +2197,7 @@ export class GameStore {
       const json = decodeURIComponent(escape(atob(code.trim())));
       const d = JSON.parse(json);
       if (!d || d.v !== 1) throw new Error('bad');
+      clockFloor(d.clock?.t);
       this.replace(migrate(d));
       this.toast(tr('Farm loaded.'), 'good');
       return true;

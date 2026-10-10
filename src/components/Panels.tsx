@@ -39,6 +39,7 @@ import {
   GRAZE,
   storyReward,
   type FarmObject,
+  type GameStore,
   PET,
   PET_PAT_MS,
   PET_SEARCH_MS,
@@ -48,9 +49,15 @@ import {
   petHelp,
   claimableAlbum,
   albumSetDone,
+  claimableMuseum,
+  museumSetDone,
 } from '@/game/state';
 import { CAST, LAST_CHAPTER, chapterAt, taskProgress, type Chapter } from '@/game/story';
 import { ALBUM } from '@/game/album';
+import { MUSEUM } from '@/game/museum';
+import { BEAUTY_LEVELS, VARIETY, beautyGain } from '@/game/beauty';
+import { askNotify, notifyNative, setNotifyAsked } from '@/game/notify';
+import { now as clockNow } from '@/game/clock';
 import { getQuality, setQuality, type Quality } from '@/game/quality';
 import { Coin } from './Hud';
 import { useStore, useVersion } from './ctx';
@@ -178,11 +185,13 @@ export default function Panels() {
       {ui.panel === 'fishing' && <FishingModal />}
       {ui.panel === 'home' && <HomeModal />}
       {ui.panel === 'pet' && <PetModal key={ui.pet} />}
+      {ui.panel === 'beauty' && <BeautyModal />}
       {ui.napping && <SleepOverlay />}
       {ui.expand && <ExpandModal />}
       {ui.daily && ui.levelUp === null && <DailyModal />}
       {ui.levelUp !== null && <LevelUpModal level={ui.levelUp} />}
       {ui.story && ui.levelUp === null && !ui.daily && <StoryDialog />}
+      {ui.notifyAsk && ui.levelUp === null && !ui.daily && !ui.story && <NotifyAskModal />}
     </>
   );
 }
@@ -210,7 +219,7 @@ function ObjectSheet({ o }: { o: FarmObject }) {
 function PlotSheet({ o }: { o: FarmObject }) {
   const store = useStore();
   const s = store.s;
-  const pp = plotProgress(o, Date.now());
+  const pp = plotProgress(o, clockNow());
   const close = () => store.select(null);
 
   if (pp.crop) {
@@ -334,7 +343,7 @@ function ProductionSheet({ o }: { o: FarmObject }) {
   const store = useStore();
   const s = store.s;
   const d = BUILDING[o.type];
-  const now = Date.now();
+  const now = clockNow();
   const info = prodInfo(o, now);
   const q = o.prod?.queue ?? [];
   const slots = o.prod?.slots ?? 3;
@@ -443,7 +452,7 @@ function PenSheet({ o }: { o: FarmObject }) {
   const store = useStore();
   const s = store.s;
   const d = BUILDING[o.type];
-  const now = Date.now();
+  const now = clockNow();
   const pi = penInfo(o, now);
   const an = pi.animal;
   const feedHave = s.inv[an.feed] ?? 0;
@@ -571,7 +580,7 @@ function TreeSheet({ o }: { o: FarmObject }) {
   const store = useStore();
   const s = store.s;
   const d = BUILDING[o.type];
-  const ti = treeInfo(o, Date.now());
+  const ti = treeInfo(o, clockNow());
   const it = ITEMS[ti.fruit];
   return (
     <Sheet title={t(d.name)} icon={d.icon} sub={ti.ready ? t('Ready: 2 × {item}', { item: t(it.name) }) : t('Growing: {item}', { item: t(it.name) })} onClose={() => store.select(null)}>
@@ -604,7 +613,7 @@ function TreeSheet({ o }: { o: FarmObject }) {
 function StallModal() {
   const store = useStore();
   const s = store.s;
-  const now = Date.now();
+  const now = clockNow();
   const [pick, setPick] = useState<number | null>(null);
   const [item, setItem] = useState<string | null>(null);
   const [qty, setQty] = useState(1);
@@ -690,6 +699,7 @@ function StallModal() {
   return (
     <Modal title={t('Roadside Stall')} icon="🏪" onClose={() => store.openPanel(null)} wide>
       <p className="mb-3 text-center text-xs text-[#8a6a44]">{t('Villagers passing by buy what you put out. Higher prices take longer to sell.')}</p>
+      <BeautyNote />
       <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
         {s.stall.map((sl, i) => {
           if (!sl.item) {
@@ -781,7 +791,7 @@ function SleepOverlay() {
 function FishingModal() {
   const store = useStore();
   const s = store.s;
-  const now = Date.now();
+  const now = clockNow();
   const spot = store.ui.fishSpot ?? 'lake';
   const sea = spot === 'sea';
   const fi = fishingInfo(s, now, spot);
@@ -833,7 +843,7 @@ function FishingModal() {
 function BoatModal() {
   const store = useStore();
   const s = store.s;
-  const now = Date.now();
+  const now = clockNow();
   const state = boatState(s, now);
   const b = s.boat;
   const close = () => store.openPanel(null);
@@ -858,6 +868,7 @@ function BoatModal() {
           {t('Full boat bonus:')} <Coins n={b.bonusCoins} /> <Gems n={b.bonusGems} />
         </span>
       </div>
+      <BeautyNote />
       <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
         {b.crates.map((c, i) => {
           const have = s.inv[c.item] ?? 0;
@@ -872,7 +883,7 @@ function BoatModal() {
                 <>
                   <span className={`text-xs font-bold ${ok ? 'text-[#2d5e14]' : 'text-[#c0392b]'}`}>{have}/{c.qty}</span>
                   <span className="flex items-center gap-2 text-xs font-bold">
-                    <Coins n={c.coins} /> <span className="text-[#2f8fd0]">+{c.xp} XP</span>
+                    <Coins n={Math.round(c.coins * (1 + store.beautyBonus()))} /> <span className="text-[#2f8fd0]">+{c.xp} XP</span>
                   </span>
                   <button className="btn btn-green mt-1 w-full py-1.5" disabled={!ok} onClick={() => store.fillCrate(i)}>{t('Fill')}</button>
                 </>
@@ -931,6 +942,7 @@ function ShopCard({ d }: { d: BuildingDef }) {
   const full = owned >= max;
   const cost = store.costOf(d);
   const poor = s.coins < cost;
+  const pretty = beautyGain(s, d.id);
   const guide = useGuide(d.id);
   return (
     <button
@@ -951,6 +963,7 @@ function ShopCard({ d }: { d: BuildingDef }) {
             <Coins n={cost} />
           </span>
           <span className="text-[11px] text-[#8a6a44]">{full ? t('Max owned') : Number.isFinite(max) ? t('Owned {n}/{max}', { n: owned, max }) : t('Owned {n}', { n: owned })}</span>
+          {pretty > 0 && <span className="text-[11px] font-bold text-[#b8327a]"><span className="emoji">🌸</span> {t('+{n} beauty', { n: pretty })}</span>}
         </>
       )}
     </button>
@@ -986,6 +999,10 @@ function CropCard({ id }: { id: string }) {
 function ShopModal() {
   const store = useStore();
   const [tab, setTab] = useState<ShopTab>(() => {
+    // opened on a tab (the beauty panel opens the decorations)
+    const want = SHOP_TABS.find((x) => x.id === store.ui.shopTab)?.id;
+    store.ui.shopTab = undefined;
+    if (want) return want;
     // opened by a story task: start on the tab that holds what it points at
     const g = store.ui.guide;
     const d = g && Date.now() - g.at < 60e3 ? BUILDING[g.id] : undefined;
@@ -1019,11 +1036,14 @@ function ShopModal() {
     );
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [cardsKey]);
+  // the chosen tab is kept in view along the row (the last ones sit past its end on a phone)
+  const tabRow = useRef<HTMLDivElement>(null);
+  useEffect(() => { tabRow.current?.querySelector('[data-on]')?.scrollIntoView({ block: 'nearest', inline: 'nearest' }); }, [tab]);
   return (
     <Modal title={t('Shop')} icon="🛒" onClose={() => store.openPanel(null)} wide>
-      <div className="mb-3 flex gap-1.5 overflow-x-auto pb-1">
+      <div ref={tabRow} className="mb-3 flex gap-1.5 overflow-x-auto pb-1">
         {SHOP_TABS.map((x) => (
-          <button key={x.id} className={`btn shrink-0 ${tab === x.id ? 'btn-yellow' : 'btn-ghost'}`} onClick={() => setTab(x.id)}>
+          <button key={x.id} data-on={tab === x.id ? '' : undefined} className={`btn shrink-0 ${tab === x.id ? 'btn-yellow' : 'btn-ghost'}`} onClick={() => setTab(x.id)}>
             <span className="emoji"><Ico i={x.icon} /></span> {t(x.label)}
           </button>
         ))}
@@ -1034,13 +1054,95 @@ function ShopModal() {
   );
 }
 
+// ------------------------------------------------------------------ beauty
+
+// what customers pay more on a pretty farm, over the orders, the boat and the stall
+function BeautyNote() {
+  const store = useStore();
+  const n = Math.round(store.beautyBonus() * 100);
+  if (!n) return null;
+  return (
+    <button className="mx-auto mb-2 block text-center text-xs font-bold text-[#b8327a]" onClick={() => store.openPanel('beauty')}>
+      <span className="emoji">🌸</span> {t('Beauty bonus: +{n}% coins', { n })}
+    </button>
+  );
+}
+
+// The farm's beauty (see beauty.ts): its points and level, what the next level brings, what makes
+// the farm pretty so far, and every level with what it gives.
+function BeautyModal() {
+  const store = useStore();
+  const b = store.beauty();
+  const lv = BEAUTY_LEVELS[b.level], next = BEAUTY_LEVELS[b.level + 1];
+  const from = lv.at, to = next?.at ?? lv.at;
+  return (
+    <Modal title={t('Farm Beauty')} icon="🌸" onClose={() => store.openPanel(null)}>
+      <div className="card mb-3 flex flex-col items-center gap-1 p-3 text-center">
+        <div className="text-3xl font-bold text-[#b8327a]">{fmtNum(b.score)}</div>
+        <div className="text-sm font-bold">{t('{n} beauty points', { n: fmtNum(b.score) })} · {t(lv.name)}</div>
+        <div className="text-xs text-[#2d5e14]">
+          {lv.bonus ? t('Customers pay {n}% more for orders, boat crates and stall sales.', { n: Math.round(lv.bonus * 100) }) : t('Make your farm prettier and customers pay more.')}
+        </div>
+        {next ? (
+          <>
+            <div className="mt-1 h-3 w-full overflow-hidden rounded-full bg-[#e2cc9c]">
+              <div className="h-full rounded-full bg-gradient-to-r from-[#ff9ccf] to-[#d9468f]" style={{ width: `${Math.min(100, ((b.score - from) / Math.max(1, to - from)) * 100)}%` }} />
+            </div>
+            <div className="text-[11px] text-[#8a6a44]">
+              {t('Next: {level} at {n} points (+{bonus}% and {gems} gems)', { level: t(next.name), n: fmtNum(next.at), bonus: Math.round(next.bonus * 100), gems: next.gems })}
+            </div>
+          </>
+        ) : (
+          <div className="text-xs font-bold text-[#b8327a]">{t('The most beautiful farm there is!')}</div>
+        )}
+      </div>
+      <p className="mb-2 text-center text-xs text-[#8a6a44]">
+        {t('Decorations, paths, fences, flower beds and fruit trees make your farm prettier. Grand things count for more, more of the same count less and less, and every different kind adds {n} points.', { n: VARIETY })}
+      </p>
+      <button className="btn btn-green mx-auto mb-3 block" onClick={() => { store.ui.shopTab = 'decor'; store.openPanel('shop'); }}>
+        <span className="emoji">🌷</span> {t('Decor shop')}
+      </button>
+      <h3 className="mb-1 font-bold">{t('Prettiest on your farm')}</h3>
+      {b.kinds.length ? (
+        <div className="mb-3 grid grid-cols-2 gap-1.5">
+          {b.kinds.slice(0, 8).map((k) => (
+            <div key={k.type} className="card flex items-center gap-2 px-2 py-1.5">
+              <span className="emoji text-xl"><Ico i={BUILDING[k.type].icon} id={k.type} /></span>
+              <span className="min-w-0 flex-1 truncate text-xs font-bold">{t(BUILDING[k.type].name)}{k.n > 1 ? ` ×${k.n}` : ''}</span>
+              <span className="text-xs font-bold text-[#b8327a]">{fmtNum(k.points)}</span>
+            </div>
+          ))}
+        </div>
+      ) : (
+        <p className="mb-3 text-center text-xs text-[#8a6a44]">{t('Place decorations to make your farm prettier.')}</p>
+      )}
+      <h3 className="mb-1 font-bold">{t('Beauty levels')}</h3>
+      <div className="flex flex-col gap-1">
+        {BEAUTY_LEVELS.slice(1).map((l, i) => {
+          const got = b.level >= i + 1;
+          return (
+            <div key={l.name} className={`flex items-center justify-between rounded-xl px-2 py-1 text-xs ${got ? 'bg-[#ffe3f1] font-bold text-[#8a2a5e]' : 'text-[#8a6a44]'}`}>
+              <span>{got ? '✓ ' : ''}{t(l.name)}</span>
+              <span className="flex items-center gap-2">
+                <span>{t('{n} points', { n: fmtNum(l.at) })}</span>
+                <span>+{Math.round(l.bonus * 100)}%</span>
+                <Gems n={l.gems} />
+              </span>
+            </div>
+          );
+        })}
+      </div>
+    </Modal>
+  );
+}
+
 // ------------------------------------------------------------------ orders
 
 function OrdersModal() {
   const store = useStore();
   const s = store.s;
-  const now = Date.now();
-  const bonus = horseBonus(s);
+  const now = clockNow();
+  const bonus = horseBonus(s), pretty = store.beautyBonus();
   return (
     <Modal title={t('Order Board')} icon="📋" onClose={() => store.openPanel(null)} wide>
       {bonus > 0 && (
@@ -1048,6 +1150,7 @@ function OrdersModal() {
           <span className="emoji">🐎</span> {t('Horse bonus: +{n}% coins on every order', { n: Math.round(bonus * 100) })}
         </p>
       )}
+      <BeautyNote />
       <div className="grid grid-cols-1 gap-2 sm:grid-cols-2 md:grid-cols-3">
         {s.orders.map((o) => {
           if (o.readyAt > now) {
@@ -1076,7 +1179,7 @@ function OrdersModal() {
                 })}
               </div>
               <div className="flex items-center gap-3 text-sm font-bold">
-                <Coins n={Math.round(o.coins * (1 + bonus))} />
+                <Coins n={Math.round(o.coins * (1 + bonus + pretty))} />
                 <span className="text-[#2f8fd0]">+{o.xp} XP</span>
                 {o.gems > 0 && <Gems n={o.gems} />}
               </div>
@@ -1184,31 +1287,37 @@ function StorageModal() {
 function QuestsModal() {
   const store = useStore();
   const s = store.s;
-  const [tab, setTab] = useState<'story' | 'goals' | 'badges' | 'album'>('story');
+  const [tab, setTab] = useState<'story' | 'goals' | 'badges' | 'album' | 'museum'>('story');
   const badgeCount = claimableBadges(s).length;
   const albumCount = claimableAlbum(s).length;
-  const title = { story: 'Farm Story', goals: 'Farm Goals', badges: 'Badges', album: 'Farm Album' }[tab];
-  const icon = { story: '📖', goals: '🏆', badges: '🎖️', album: '📔' }[tab];
+  const museumCount = claimableMuseum(s).length;
+  const title = { story: 'Farm Story', goals: 'Farm Goals', badges: 'Badges', album: 'Farm Album', museum: 'Farm Museum' }[tab];
+  const icon = { story: '📖', goals: '🏆', badges: '🎖️', album: '📔', museum: '🏛️' }[tab];
   return (
     <Modal title={t(title)} icon={icon} onClose={() => store.openPanel(null)}>
-      <div className="mb-3 flex gap-1.5">
-        <button className={`btn relative ${tab === 'story' ? 'btn-yellow' : 'btn-ghost'}`} onClick={() => setTab('story')}>
+      {/* five tabs on one row: a little smaller, and the row scrolls sideways if a language's words are long */}
+      <div className="-mt-1 mb-2 flex gap-1 overflow-x-auto pr-1 pt-1.5">
+        <button className={`btn shrink-0 px-2.5 text-sm relative ${tab === 'story' ? 'btn-yellow' : 'btn-ghost'}`} onClick={() => setTab('story')}>
           {t('Story')}
           {store.chapterReady() && <span className="badge">1</span>}
         </button>
-        <button className={`btn ${tab === 'goals' ? 'btn-yellow' : 'btn-ghost'}`} onClick={() => setTab('goals')}>
+        <button className={`btn shrink-0 px-2.5 text-sm ${tab === 'goals' ? 'btn-yellow' : 'btn-ghost'}`} onClick={() => setTab('goals')}>
           {t('Goals')}
         </button>
-        <button className={`btn relative ${tab === 'badges' ? 'btn-yellow' : 'btn-ghost'}`} onClick={() => setTab('badges')}>
+        <button className={`btn shrink-0 px-2.5 text-sm relative ${tab === 'badges' ? 'btn-yellow' : 'btn-ghost'}`} onClick={() => setTab('badges')}>
           {t('Badges')}
           {badgeCount > 0 && <span className="badge">{badgeCount}</span>}
         </button>
-        <button className={`btn relative ${tab === 'album' ? 'btn-yellow' : 'btn-ghost'}`} onClick={() => setTab('album')}>
+        <button className={`btn shrink-0 px-2.5 text-sm relative ${tab === 'album' ? 'btn-yellow' : 'btn-ghost'}`} onClick={() => setTab('album')}>
           {t('Album')}
           {albumCount > 0 && <span className="badge">{albumCount}</span>}
         </button>
+        <button className={`btn shrink-0 px-2.5 text-sm relative ${tab === 'museum' ? 'btn-yellow' : 'btn-ghost'}`} onClick={() => setTab('museum')}>
+          {t('Museum')}
+          {museumCount > 0 && <span className="badge">{museumCount}</span>}
+        </button>
       </div>
-      {tab === 'story' ? <StoryPage /> : tab === 'goals' ? <GoalsList /> : tab === 'badges' ? <BadgesList /> : <AlbumList />}
+      {tab === 'story' ? <StoryPage /> : tab === 'goals' ? <GoalsList /> : tab === 'badges' ? <BadgesList /> : tab === 'album' ? <AlbumList /> : <MuseumList />}
     </Modal>
   );
 }
@@ -1263,6 +1372,60 @@ function AlbumList() {
   );
 }
 
+// The museum: the rare finds on show, set by set (the ones still to find a question mark), with
+// where each set turns up and the reward for a finished one
+function MuseumList() {
+  const store = useStore();
+  const s = store.s;
+  const [open, setOpen] = useState<string | null>(null);
+  const found = s.museum?.found ?? {};
+  const all = MUSEUM.reduce((n, m) => n + m.items.length, 0);
+  const got = MUSEUM.reduce((n, m) => n + m.items.filter((i) => found[i.id]).length, 0);
+  return (
+    <div className="flex flex-col gap-2">
+      <div className="text-center text-[11px] text-[#8a6a44]">{t('Rare things turn up now and then as you work the farm. Each one goes on show here.')} <b>{got}/{all}</b></div>
+      {MUSEUM.map((m) => {
+        const n = m.items.filter((i) => found[i.id]).length;
+        const done = museumSetDone(s, m.id);
+        const taken = !!s.museum?.done.includes(m.id);
+        return (
+          <div key={m.id} className={`card p-3 ${done && !taken ? 'ring-2 ring-[#f5b92b]' : ''}`}>
+            <div className="flex items-center gap-2">
+              <button className="flex min-w-0 flex-1 items-center gap-2 text-left" onClick={() => setOpen(open === m.id ? null : m.id)} aria-expanded={open === m.id}>
+                <span className="emoji text-2xl">{m.icon}</span>
+                <span className="min-w-0 flex-1">
+                  <span className="block font-bold">{t(m.name)} <span className="text-xs text-[#8a6a44]">{n}/{m.items.length}</span></span>
+                  <span className="block text-[11px] text-[#8a6a44]">{t(m.how)}</span>
+                </span>
+                <span className="text-xs text-[#8a6a44]">{open === m.id ? '▲' : '▼'}</span>
+              </button>
+              {taken ? (
+                <span className="emoji text-xl" title={t('Reward taken')}>✅</span>
+              ) : (
+                <button className="btn btn-green shrink-0 py-1.5 text-xs" disabled={!done} onClick={() => store.claimMuseum(m.id)}>
+                  <Coins n={m.reward.coins} /> <Gems n={m.reward.gems} />
+                </button>
+              )}
+            </div>
+            <div className="my-1.5"><Bar p={n / m.items.length} color="#f5b92b" /></div>
+            {open === m.id && <div className="grid grid-cols-3 gap-1.5">
+              {m.items.map((it) => {
+                const f = !!found[it.id];
+                return (
+                  <div key={it.id} className={`flex flex-col items-center rounded-xl border-2 p-1 text-center ${f ? 'border-[#f5b92b] bg-gradient-to-b from-[#fff8dc] to-[#ffe9a8]' : 'border-dashed border-[#d8c49e] bg-[#f4ead4]'}`} title={f ? t(it.name) : t('Not found yet')}>
+                    <span className={`emoji text-2xl ${f ? 'drop-shadow-[0_0_4px_#ffd84a]' : 'opacity-50'}`}>{f ? it.icon : '❔'}</span>
+                    <span className="line-clamp-2 text-[10px] font-bold leading-tight">{f ? t(it.name) : '???'}</span>
+                  </div>
+                );
+              })}
+            </div>}
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
 // The dog or the cat: pat it, feed it once a day, open what it brings back, give it a name
 function PetModal() {
   const store = useStore();
@@ -1274,7 +1437,7 @@ function PetModal() {
   const id = store.ui.pet ?? 'dog';
   const def = PET[id];
   const p = store.pet(id);
-  const now = Date.now();
+  const now = clockNow();
   const shown = store.petName(id);
   const [name, setName] = useState(shown);
   const hearts = petHearts(p);
@@ -1494,6 +1657,35 @@ function LanguagePicker() {
   );
 }
 
+// Phone notifications on or off (see notify.ts). Turning them on asks the phone for its yes first;
+// a phone that says no (or was told no before) leaves them off, with a word on where to change it.
+async function turnNotify(store: GameStore, on: boolean) {
+  setNotifyAsked();
+  const ok = on && (await askNotify());
+  store.s.settings = { ...store.s.settings, notify: ok };
+  if (on && !ok) store.toast(t('Notifications are off for this game in your phone settings.'));
+  store.emit();
+}
+
+// asked once on the phone, a little into playing (see Game)
+function NotifyAskModal() {
+  const store = useStore();
+  const answer = (yes: boolean) => {
+    store.ui.notifyAsk = false;
+    store.emit(false);
+    turnNotify(store, yes);
+  };
+  return (
+    <Modal title={t('Farm notifications')} icon="🔔" onClose={() => answer(false)}>
+      <p className="mb-4 text-center text-sm text-[#8a6a44]">{t('Get a heads up on your phone when your crops, animals and goods are ready, and when your daily gift is waiting.')}</p>
+      <div className="flex justify-center gap-2">
+        <button className="btn btn-wood px-6" onClick={() => answer(false)}>{t('Not now')}</button>
+        <button className="btn btn-green px-6" onClick={() => answer(true)}>{t('Turn on')}</button>
+      </div>
+    </Modal>
+  );
+}
+
 function SettingsModal() {
   const store = useStore();
   const st = store.s.settings;
@@ -1515,6 +1707,7 @@ function SettingsModal() {
         <Toggle label="Weather and seasons" on={st.weather} onChange={(v) => set('weather', v)} />
         <Toggle label="Soft shadows (turn off on slow phones)" on={st.shadows} onChange={(v) => set('shadows', v)} />
         <Toggle label="Battery saver (30 FPS, cooler phone)" on={!!st.saver} onChange={(v) => set('saver', v)} />
+        {notifyNative() && <Toggle label="Phone notifications (ready crops, animals, daily gift)" on={!!st.notify} onChange={(v) => turnNotify(store, v)} />}
         <QualityPicker />
         <LanguagePicker />
       </div>
@@ -1647,7 +1840,7 @@ function LevelUpModal({ level }: { level: number }) {
 function DailyModal() {
   const store = useStore();
   const s = store.s;
-  const y = new Date();
+  const y = new Date(clockNow());
   y.setDate(y.getDate() - 1);
   const nextStreak = s.lastDaily === todayKey(y) ? s.streak + 1 : 1;
   const today = dailyReward(nextStreak).day;

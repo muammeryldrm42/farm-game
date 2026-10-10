@@ -45,6 +45,8 @@ export function sfx(name: Sfx) {
     case 'build': tone(140, 0.14, 'triangle', 0.18, 0, 90); tone(220, 0.1, 'sine', 0.1, 0.1); break;
     case 'error': tone(200, 0.16, 'sawtooth', 0.05, 0, 140); break;
     case 'levelup': [523, 659, 784, 1047].forEach((f, i) => tone(f, 0.22, 'triangle', 0.11, i * 0.1)); break;
+    // a rare find: a quick bright sparkle up the scale
+    case 'rare': [1047, 1319, 1568, 2093].forEach((f, i) => tone(f, 0.16, 'sine', 0.07, i * 0.06)); tone(2637, 0.3, 'sine', 0.05, 0.26); break;
   }
 }
 

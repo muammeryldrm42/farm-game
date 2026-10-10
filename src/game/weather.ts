@@ -1,8 +1,9 @@
 // Seasons and the rain schedule, shared by the renderer (sky, rain drops) and the game rules
 // (rain waters the fields). The schedule is a pure function of time, so everyone agrees on it.
+import { now as clockNow } from './clock';
 
 export type Season = 'spring' | 'summer' | 'autumn' | 'winter';
-export function seasonOf(d = new Date()): Season {
+export function seasonOf(d = new Date(clockNow())): Season {
   const m = d.getMonth();
   if (m === 11 || m <= 1) return 'winter';
   if (m <= 4) return 'spring';
