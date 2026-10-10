@@ -9,7 +9,7 @@ import { App } from '@capacitor/app';
 import { notifyAsked, notifyAway, notifyBack, setNotifyAsked } from '@/game/notify';
 import { StoreCtx, useStore } from './ctx';
 import { initLang, onLang, t } from '@/game/i18n';
-import { clockAhead, clockDrifted, now as clockNow, syncClock } from '@/game/clock';
+import { clockAhead, clockDrifted, clockOwed, now as clockNow, syncClock } from '@/game/clock';
 import Hud from './Hud';
 import Panels from './Panels';
 import Flyers from './Flyers';
@@ -81,10 +81,16 @@ function startFarm(show: (st: GameStore) => void) {
     saidAt = Date.now();
     st.toast(t('The phone clock was set ahead, so the farm waits {time} for the real time to catch up.', { time: fmtTime(a) }), 'bad');
   };
-  const reclock = () => syncClock().then(() => { ahead(); st.tick(); st.emit(false); });
+  // and after a restart of the phone with no internet, that the time from before it is still to come
+  const owed = () => {
+    const o = clockOwed();
+    if (o > 10 * 60e3) st.toast(t('No internet: the time from before the phone was restarted is added once you are back online ({time}).', { time: fmtTime(o) }));
+  };
+  const reclock = () => syncClock().then(() => { ahead(); owed(); st.tick(); st.emit(false); });
   const visClock = () => { if (document.visibilityState === 'visible') reclock(); };
   document.addEventListener('visibilitychange', visClock);
   const drift = setInterval(() => { if (clockDrifted()) reclock(); else ahead(); }, 5000);
+  const owedT = setTimeout(owed, 8000);
   // the Android app: the back button closes whatever is open (and only then leaves the game),
   // and the farm is saved whenever the app goes to the background. Leaving, the phone is told
   // when things will be ready (if the player wants notifications); coming back takes them away.
@@ -129,6 +135,7 @@ function startFarm(show: (st: GameStore) => void) {
     clearInterval(tick);
     clearInterval(askT);
     clearInterval(drift);
+    clearTimeout(owedT);
     document.removeEventListener('visibilitychange', visClock);
   };
 }

@@ -1329,6 +1329,7 @@
  "No animals yet. Buy your first {animal} below.": "还没有动物。在下方购买你的第一只{animal}。",
  "No food": "没有饲料",
  "No hungry {animal} to let out.": "没有饥饿的{animal}可以放出去。",
+ "No internet: the time from before the phone was restarted is added once you are back online ({time}).": "没有网络：手机重启前的时间会在你重新联网后补上（{time}）。",
  "Noodle Bar": "面馆",
  "Not enough coins for seeds.": "金币不够买种子。",
  "Not enough coins.": "金币不足。",

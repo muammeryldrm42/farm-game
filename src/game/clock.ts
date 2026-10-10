@@ -8,7 +8,10 @@
 //   clock part ways (the phone slept, or its clock was changed), the clock is set again from the
 //   real time: the time on the internet when it can be had (a second or so of waiting); else, in
 //   the Android app, the time the phone has been on (which a clock change does not touch either)
-//   counted from the last time it was known on this phone; else the phone's clock.
+//   counted from the last time it was known on this phone. If the phone was restarted since, only
+//   the time since the restart is sure: the farm counts that, and the time from before the restart
+//   is added once the internet tells the real time. The phone's clock is believed only by a game
+//   that never knew the time on this phone (the first start with no internet, or on the web).
 // - The farm's clock never goes back. If it ran ahead of the real time (the phone's clock was
 //   set forward with no internet), the farm waits until the real time catches up.
 import { Capacitor, CapacitorHttp } from '@capacitor/core';
@@ -18,9 +21,10 @@ const perf = () => performance.now();
 let anchor = { t: Date.now(), p: perf() };
 // the farm's clock is never behind this (its last reading, or the times in the save)
 let floor = 0;
-// how the real time was last set: from the internet, from the time the phone has been on, or
-// from the phone's clock
-export type ClockSource = 'net' | 'uptime' | 'device';
+// how the real time was last set: from the internet, from the time the phone has been on (since
+// the time was last known, or since a restart after it: then the time before the restart is still
+// to come), or from the phone's clock
+export type ClockSource = 'net' | 'uptime' | 'restart' | 'device';
 let source: ClockSource = 'device';
 
 export const realNow = () => anchor.t + (perf() - anchor.p);
@@ -34,6 +38,9 @@ export function now() {
 
 // how far the farm's clock runs ahead of the real time (0 when it does not): the farm waits that long
 export const clockAhead = () => Math.max(0, floor - realNow());
+// after a restart with no internet: how much more time the phone's clock shows than the farm can be
+// sure of (it comes once the internet tells the real time)
+export const clockOwed = () => (source === 'restart' ? Math.max(0, Date.now() - realNow()) : 0);
 export const clockSource = () => source;
 
 // a time on the farm's clock as the phone's clock will show it (for the phone's notifications)
@@ -64,7 +71,7 @@ const uptimeIn = () => new Promise<void>((ok) => {
 // the real time and the uptime at the same moment, kept on this phone, so the real time can be
 // counted on from it with no internet (until the phone is switched off)
 const KEY = 'talons-farm-clock';
-interface Known { real: number; up: number; boot: number }
+interface Known { real: number; up: number; boot: number; owed?: boolean }
 function readKnown(): Known | null {
   try {
     const k = JSON.parse(localStorage.getItem(KEY) ?? 'null');
@@ -77,7 +84,8 @@ function readKnown(): Known | null {
 export function keepClock() {
   const u = uptime();
   if (!u) return;
-  try { localStorage.setItem(KEY, JSON.stringify({ real: Math.round(realNow()), up: Math.round(upNow(u)), boot: u.boot })); } catch { /* storage full */ }
+  // (`owed`: the time from before a restart is still to come)
+  try { localStorage.setItem(KEY, JSON.stringify({ real: Math.round(realNow()), up: Math.round(upNow(u)), boot: u.boot, owed: source === 'restart' })); } catch { /* storage full */ }
 }
 
 // ---------------------------------------------------------------- the time on the internet
@@ -128,12 +136,17 @@ export function syncClock(): Promise<void> {
       anchor = net;
       source = 'net';
     } else {
-      // no internet: counted on from the last time known on this phone, if it was not switched off since
+      // no internet: counted on from the last time known on this phone
       await uptimeIn();
       const u = uptime(), k = readKnown();
       if (u && k && k.boot === u.boot && upNow(u) >= k.up) {
         anchor = { t: k.real + (upNow(u) - k.up), p: perf() };
-        source = 'uptime';
+        source = k.owed ? 'restart' : 'uptime';
+      } else if (u && k) {
+        // restarted since: sure is only the time since the restart (the phone's clock, which
+        // may have been set forward meanwhile, is not believed)
+        anchor = { t: k.real + upNow(u), p: perf() };
+        source = 'restart';
       } else {
         anchor = { t: Date.now(), p: perf() };
         source = 'device';

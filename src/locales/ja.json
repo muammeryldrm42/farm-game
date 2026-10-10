@@ -1329,6 +1329,7 @@
  "No animals yet. Buy your first {animal} below.": "まだ動物がいません。下で最初の{animal}を買おう。",
  "No food": "えさなし",
  "No hungry {animal} to let out.": "外に出せるおなかをすかせた{animal}はいません。",
+ "No internet: the time from before the phone was restarted is added once you are back online ({time}).": "インターネットがありません。スマホを再起動する前の時間は、オンラインに戻ると加算されます（{time}）。",
  "Noodle Bar": "麺屋",
  "Not enough coins for seeds.": "種を買うコインが足りません。",
  "Not enough coins.": "コインが足りません。",
