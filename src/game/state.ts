@@ -4,6 +4,7 @@ import { isRaining } from './weather';
 import { t as tr } from './i18n';
 import { LAST_CHAPTER, chapterAt, taskProgress, type StoryState, type StoryTask } from './story';
 import { ALBUM, ALBUM_IDS, CAT_FINDS, DOG_FINDS, albumEntry, type AlbumEntry } from './album';
+import { MUSEUM, findChance, museumSet, newMuseum, type FindSource, type MuseumState } from './museum';
 
 export const GRID = 68;
 // the map grew three times, from 28 to 44 tiles, then to 60, then to 68 with a sandy beach all
@@ -109,6 +110,7 @@ export interface GameState {
   album?: Record<string, number>; // album entries found, and when first found
   albumDone?: string[]; // album sets whose reward was taken
   pets?: Record<PetId, PetState>;
+  museum?: MuseumState; // the rare finds on show in the farm museum (see museum.ts)
 }
 
 // ---------------------------------------------------------------- pets
@@ -148,6 +150,11 @@ export const albumSetDone = (s: GameState, id: string) => {
   return !!a && a.entries.every((e) => s.album?.[e.id]);
 };
 export const claimableAlbum = (s: GameState) => ALBUM.filter((a) => albumSetDone(s, a.id) && !s.albumDone?.includes(a.id));
+export const museumSetDone = (s: GameState, id: string) => {
+  const m = MUSEUM.find((x) => x.id === id);
+  return !!m && m.items.every((i) => s.museum?.found[i.id]);
+};
+export const claimableMuseum = (s: GameState) => MUSEUM.filter((m) => museumSetDone(s, m.id) && !s.museum?.done.includes(m.id));
 
 // ---------------------------------------------------------------- helpers
 
@@ -491,7 +498,7 @@ export function newGame(): GameState {
     stall: Array.from({ length: STALL_SLOTS }, emptySlot),
     boat: null,
     achievements: {},
-    album: {}, albumDone: [], pets: { dog: newPet('dog'), cat: newPet('cat') },
+    album: {}, albumDone: [], pets: { dog: newPet('dog'), cat: newPet('cat') }, museum: newMuseum(),
     tutorial: 0,
     story: { ch: 1, started: 0, base: {}, seen: 0 },
     lake: 5,
@@ -618,6 +625,8 @@ function migrate(d: Partial<GameState>): GameState {
   s.album = { ...(d.album ?? {}) };
   for (const [id, n] of Object.entries(s.inv)) if (n > 0 && ALBUM_IDS.has(id) && !s.album[id]) s.album[id] = Date.now();
   s.albumDone = d.albumDone ?? [];
+  // the museum came later still: an older farm starts with an empty one
+  s.museum = { found: { ...(d.museum?.found ?? {}) }, done: [...(d.museum?.done ?? [])], misses: { ...(d.museum?.misses ?? {}) } };
   s.pets = { dog: { ...newPet('dog'), ...(d.pets?.dog ?? {}) }, cat: { ...newPet('cat'), ...(d.pets?.cat ?? {}) } };
   // farms from before the story pick it up at the chapter of their level
   s.story = d.story ?? { ch: Math.min(LAST_CHAPTER + 1, Math.max(1, s.level ?? 1)), started: 0, base: {}, seen: 0 };
@@ -641,7 +650,7 @@ function migrate(d: Partial<GameState>): GameState {
 
 // ---------------------------------------------------------------- store
 
-export type Sfx = 'harvest' | 'plant' | 'coin' | 'build' | 'error' | 'levelup' | 'click' | 'collect';
+export type Sfx = 'harvest' | 'plant' | 'coin' | 'build' | 'error' | 'levelup' | 'click' | 'collect' | 'rare';
 export interface Fx { kind: 'float' | 'burst'; gx: number; gy: number; text?: string; color?: string; z?: number }
 export interface Placing { type: string; x: number; y: number; moveId?: number }
 export interface Tool { kind: 'plant'; crop: string }
@@ -1009,6 +1018,7 @@ export class GameStore {
     if (this.flyers.length < 40) this.flyers.push({ icon: ITEMS[id].icon, gx: p.x, gy: p.y, z: 20, target: 'storage' });
     this.fx.push({ kind: 'float', gx: p.x, gy: p.y, text: `+${qty} ${ITEMS[id].icon}`, color: '#ffffff', z: 40 });
     this.fx.push({ kind: 'burst', gx: p.x, gy: p.y, color: '#bfe9ff', z: 5 });
+    this.rareFind(spot === 'sea' ? 'sea' : 'lake', undefined, p);
     this.emit();
   }
 
@@ -1061,6 +1071,7 @@ export class GameStore {
     this.fly(o, ITEMS[c.id].icon, 'storage');
     this.burst(o, c.fruit);
     this.sound('harvest');
+    this.rareFind('harvest', o);
     if (!quiet) { /* reserved for future single tap feedback */ }
     this.emit();
     return true;
@@ -1256,6 +1267,7 @@ export class GameStore {
       this.fly(o, ITEMS[pi.animal.product].icon, 'storage', 30);
       this.burst(o, '#ffffff');
       this.sound('collect');
+      this.rareFind('barn', o);
       this.emit();
     }
   }
@@ -1450,6 +1462,7 @@ export class GameStore {
     this.ui.selectedId = null;
     this.objVersion++;
     this.sound('build');
+    this.rareFind('relics', o);
     this.emit();
   }
 
@@ -1474,6 +1487,7 @@ export class GameStore {
     this.addXp(10);
     this.fx.push({ kind: 'burst', gx: e.cx * CHUNK + 2, gy: e.cy * CHUNK + 2, color: '#ffe066', z: 10 });
     this.fx.push({ kind: 'float', gx: e.cx * CHUNK + 2, gy: e.cy * CHUNK + 2, text: tr('New land!'), color: '#fff6c8', z: 30 });
+    this.rareFind('relics', undefined, { x: e.cx * CHUNK + 2, y: e.cy * CHUNK + 2 });
     this.ui.expand = null;
     this.objVersion++;
     this.sound('levelup');
@@ -1607,6 +1621,46 @@ export class GameStore {
     this.addXp(a.reward.xp);
     this.sound('levelup');
     this.toast(tr('{name} complete! +{coins} coins, +{gems} gems', { name: tr(a.name), coins: fmtNum(a.reward.coins), gems: a.reward.gems }), 'good');
+    this.emit();
+  }
+
+  // ------------------------------------------------ museum
+
+  // Now and then something rare turns up for the museum (see museum.ts): always one its set still
+  // lacks. `o` is where it turned up on the farm, or `at` a spot (the fishing jetties).
+  rareFind(source: FindSource, o?: FarmObject, at?: { x: number; y: number }) {
+    const m = (this.s.museum ??= newMuseum());
+    const set = museumSet(source);
+    if (!set) return false;
+    const missing = set.items.filter((i) => !m.found[i.id]);
+    if (!missing.length) return false;
+    const misses = m.misses[source] ?? 0;
+    if (Math.random() >= findChance(set, misses)) { m.misses[source] = misses + 1; return false; }
+    m.misses[source] = 0;
+    const it = missing[Math.floor(Math.random() * missing.length)];
+    m.found[it.id] = Date.now();
+    const text = `✨ ${it.icon} ${tr(it.name)}`;
+    if (o) { this.float(o, text, '#ffd84a', 90); this.burst(o, '#ffd84a'); }
+    else if (at) {
+      this.fx.push({ kind: 'float', gx: at.x, gy: at.y, text, color: '#ffd84a', z: 70 });
+      this.fx.push({ kind: 'burst', gx: at.x, gy: at.y, color: '#ffd84a', z: 10 });
+    }
+    this.toast(tr('Rare find for your museum: {name}!', { name: `${it.icon} ${tr(it.name)}` }), 'good');
+    if (museumSetDone(this.s, source)) this.toast(tr('Museum set complete: {name}! Claim it in Goals.', { name: tr(set.name) }), 'good');
+    this.sound('rare');
+    return true;
+  }
+
+  claimMuseum(id: string) {
+    const set = museumSet(id);
+    const m = (this.s.museum ??= newMuseum());
+    if (!set || !museumSetDone(this.s, id) || m.done.includes(id)) return;
+    m.done.push(id);
+    this.earn(set.reward.coins);
+    this.s.gems += set.reward.gems;
+    this.addXp(set.reward.xp);
+    this.sound('levelup');
+    this.toast(tr('{name} complete! +{coins} coins, +{gems} gems', { name: tr(set.name), coins: fmtNum(set.reward.coins), gems: set.reward.gems }), 'good');
     this.emit();
   }
 
@@ -1799,6 +1853,7 @@ export class GameStore {
     this.fly(o, ITEMS[ti.fruit].icon, 'storage', 60);
     this.burst(o, '#7ccf4f');
     this.sound('harvest');
+    this.rareFind('orchard', o);
     this.emit();
     return true;
   }

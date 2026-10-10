@@ -1,7 +1,7 @@
 'use client';
 import Ico from './Ico';
 import { BUILDING, CROP, ITEMS } from '@/game/data';
-import { TUTORIAL, TUTORIAL_DONE, canFulfill, claimableAlbum, claimableBadges, claimableQuests, fmtNum, xpNeed } from '@/game/state';
+import { TUTORIAL, TUTORIAL_DONE, canFulfill, claimableAlbum, claimableBadges, claimableMuseum, claimableQuests, fmtNum, xpNeed } from '@/game/state';
 import { useStore, useVersion } from './ctx';
 import { CAST, LAST_CHAPTER, taskProgress } from '@/game/story';
 import { t } from '@/game/i18n';
@@ -26,7 +26,7 @@ export default function Hud() {
   const need = xpNeed(s.level);
   const sheetOpen = ui.selectedId !== null || ui.panel !== null || ui.placing !== null || ui.expand !== null || ui.daily || ui.levelUp !== null;
   const deliverable = s.orders.filter((o) => canFulfill(s, o, now)).length;
-  const claimable = claimableQuests(s).length + claimableBadges(s).length + claimableAlbum(s).length + (store.chapterReady() ? 1 : 0);
+  const claimable = claimableQuests(s).length + claimableBadges(s).length + claimableAlbum(s).length + claimableMuseum(s).length + (store.chapterReady() ? 1 : 0);
   const tut = s.tutorial < TUTORIAL.length && s.tutorial !== TUTORIAL_DONE ? TUTORIAL[s.tutorial] : null;
 
   return (

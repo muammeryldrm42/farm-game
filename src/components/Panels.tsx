@@ -48,9 +48,12 @@ import {
   petHelp,
   claimableAlbum,
   albumSetDone,
+  claimableMuseum,
+  museumSetDone,
 } from '@/game/state';
 import { CAST, LAST_CHAPTER, chapterAt, taskProgress, type Chapter } from '@/game/story';
 import { ALBUM } from '@/game/album';
+import { MUSEUM } from '@/game/museum';
 import { getQuality, setQuality, type Quality } from '@/game/quality';
 import { Coin } from './Hud';
 import { useStore, useVersion } from './ctx';
@@ -1184,31 +1187,37 @@ function StorageModal() {
 function QuestsModal() {
   const store = useStore();
   const s = store.s;
-  const [tab, setTab] = useState<'story' | 'goals' | 'badges' | 'album'>('story');
+  const [tab, setTab] = useState<'story' | 'goals' | 'badges' | 'album' | 'museum'>('story');
   const badgeCount = claimableBadges(s).length;
   const albumCount = claimableAlbum(s).length;
-  const title = { story: 'Farm Story', goals: 'Farm Goals', badges: 'Badges', album: 'Farm Album' }[tab];
-  const icon = { story: '📖', goals: '🏆', badges: '🎖️', album: '📔' }[tab];
+  const museumCount = claimableMuseum(s).length;
+  const title = { story: 'Farm Story', goals: 'Farm Goals', badges: 'Badges', album: 'Farm Album', museum: 'Farm Museum' }[tab];
+  const icon = { story: '📖', goals: '🏆', badges: '🎖️', album: '📔', museum: '🏛️' }[tab];
   return (
     <Modal title={t(title)} icon={icon} onClose={() => store.openPanel(null)}>
-      <div className="mb-3 flex gap-1.5">
-        <button className={`btn relative ${tab === 'story' ? 'btn-yellow' : 'btn-ghost'}`} onClick={() => setTab('story')}>
+      {/* five tabs on one row: a little smaller, and the row scrolls sideways if a language's words are long */}
+      <div className="-mt-1 mb-2 flex gap-1 overflow-x-auto pr-1 pt-1.5">
+        <button className={`btn shrink-0 px-2.5 text-sm relative ${tab === 'story' ? 'btn-yellow' : 'btn-ghost'}`} onClick={() => setTab('story')}>
           {t('Story')}
           {store.chapterReady() && <span className="badge">1</span>}
         </button>
-        <button className={`btn ${tab === 'goals' ? 'btn-yellow' : 'btn-ghost'}`} onClick={() => setTab('goals')}>
+        <button className={`btn shrink-0 px-2.5 text-sm ${tab === 'goals' ? 'btn-yellow' : 'btn-ghost'}`} onClick={() => setTab('goals')}>
           {t('Goals')}
         </button>
-        <button className={`btn relative ${tab === 'badges' ? 'btn-yellow' : 'btn-ghost'}`} onClick={() => setTab('badges')}>
+        <button className={`btn shrink-0 px-2.5 text-sm relative ${tab === 'badges' ? 'btn-yellow' : 'btn-ghost'}`} onClick={() => setTab('badges')}>
           {t('Badges')}
           {badgeCount > 0 && <span className="badge">{badgeCount}</span>}
         </button>
-        <button className={`btn relative ${tab === 'album' ? 'btn-yellow' : 'btn-ghost'}`} onClick={() => setTab('album')}>
+        <button className={`btn shrink-0 px-2.5 text-sm relative ${tab === 'album' ? 'btn-yellow' : 'btn-ghost'}`} onClick={() => setTab('album')}>
           {t('Album')}
           {albumCount > 0 && <span className="badge">{albumCount}</span>}
         </button>
+        <button className={`btn shrink-0 px-2.5 text-sm relative ${tab === 'museum' ? 'btn-yellow' : 'btn-ghost'}`} onClick={() => setTab('museum')}>
+          {t('Museum')}
+          {museumCount > 0 && <span className="badge">{museumCount}</span>}
+        </button>
       </div>
-      {tab === 'story' ? <StoryPage /> : tab === 'goals' ? <GoalsList /> : tab === 'badges' ? <BadgesList /> : <AlbumList />}
+      {tab === 'story' ? <StoryPage /> : tab === 'goals' ? <GoalsList /> : tab === 'badges' ? <BadgesList /> : tab === 'album' ? <AlbumList /> : <MuseumList />}
     </Modal>
   );
 }
@@ -1252,6 +1261,60 @@ function AlbumList() {
                   <div key={e.id} className={`flex flex-col items-center rounded-xl border-2 p-1 text-center ${f ? 'border-[#e0c48f] bg-white' : 'border-dashed border-[#d8c49e] bg-[#f4ead4]'}`} title={f ? t(e.name) : t('Not found yet')}>
                     <span className={`emoji text-2xl ${f ? '' : 'opacity-50'}`}>{f ? <Ico i={e.icon} id={e.model} /> : '❔'}</span>
                     <span className="line-clamp-2 text-[9px] font-bold leading-tight">{f ? t(e.name) : '???'}</span>
+                  </div>
+                );
+              })}
+            </div>}
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
+// The museum: the rare finds on show, set by set (the ones still to find a question mark), with
+// where each set turns up and the reward for a finished one
+function MuseumList() {
+  const store = useStore();
+  const s = store.s;
+  const [open, setOpen] = useState<string | null>(null);
+  const found = s.museum?.found ?? {};
+  const all = MUSEUM.reduce((n, m) => n + m.items.length, 0);
+  const got = MUSEUM.reduce((n, m) => n + m.items.filter((i) => found[i.id]).length, 0);
+  return (
+    <div className="flex flex-col gap-2">
+      <div className="text-center text-[11px] text-[#8a6a44]">{t('Rare things turn up now and then as you work the farm. Each one goes on show here.')} <b>{got}/{all}</b></div>
+      {MUSEUM.map((m) => {
+        const n = m.items.filter((i) => found[i.id]).length;
+        const done = museumSetDone(s, m.id);
+        const taken = !!s.museum?.done.includes(m.id);
+        return (
+          <div key={m.id} className={`card p-3 ${done && !taken ? 'ring-2 ring-[#f5b92b]' : ''}`}>
+            <div className="flex items-center gap-2">
+              <button className="flex min-w-0 flex-1 items-center gap-2 text-left" onClick={() => setOpen(open === m.id ? null : m.id)} aria-expanded={open === m.id}>
+                <span className="emoji text-2xl">{m.icon}</span>
+                <span className="min-w-0 flex-1">
+                  <span className="block font-bold">{t(m.name)} <span className="text-xs text-[#8a6a44]">{n}/{m.items.length}</span></span>
+                  <span className="block text-[11px] text-[#8a6a44]">{t(m.how)}</span>
+                </span>
+                <span className="text-xs text-[#8a6a44]">{open === m.id ? '▲' : '▼'}</span>
+              </button>
+              {taken ? (
+                <span className="emoji text-xl" title={t('Reward taken')}>✅</span>
+              ) : (
+                <button className="btn btn-green shrink-0 py-1.5 text-xs" disabled={!done} onClick={() => store.claimMuseum(m.id)}>
+                  <Coins n={m.reward.coins} /> <Gems n={m.reward.gems} />
+                </button>
+              )}
+            </div>
+            <div className="my-1.5"><Bar p={n / m.items.length} color="#f5b92b" /></div>
+            {open === m.id && <div className="grid grid-cols-3 gap-1.5">
+              {m.items.map((it) => {
+                const f = !!found[it.id];
+                return (
+                  <div key={it.id} className={`flex flex-col items-center rounded-xl border-2 p-1 text-center ${f ? 'border-[#f5b92b] bg-gradient-to-b from-[#fff8dc] to-[#ffe9a8]' : 'border-dashed border-[#d8c49e] bg-[#f4ead4]'}`} title={f ? t(it.name) : t('Not found yet')}>
+                    <span className={`emoji text-2xl ${f ? 'drop-shadow-[0_0_4px_#ffd84a]' : 'opacity-50'}`}>{f ? it.icon : '❔'}</span>
+                    <span className="line-clamp-2 text-[10px] font-bold leading-tight">{f ? t(it.name) : '???'}</span>
                   </div>
                 );
               })}
