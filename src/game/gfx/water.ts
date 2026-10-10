@@ -59,14 +59,20 @@ export function makeWater(o: WaterOpts = {}) {
       .replace('#include <common>', '#include <common>\nvarying vec3 vWPos;')
       .replace('#include <common>', '#include <common>\nuniform float uTime;\nuniform float uSea;')
       .replace('#include <begin_vertex>', `#include <begin_vertex>
+      // where it is in the world (a pond drawn in a batch with others: its own copy's place)
+      #ifdef USE_INSTANCING
+        mat4 wMat = modelMatrix * instanceMatrix;
+      #else
+        mat4 wMat = modelMatrix;
+      #endif
       {
         // a slow swell rolls across the sea (the sea plane is laid flat, so local z is up)
-        vec2 sp = (modelMatrix * vec4(transformed, 1.0)).xz;
+        vec2 sp = (wMat * vec4(transformed, 1.0)).xz;
         float sw = sin(dot(sp, vec2(0.21, 0.13)) - uTime * 0.9) * 0.035 + sin(dot(sp, vec2(-0.17, 0.26)) - uTime * 1.3) * 0.022
                  + sin(dot(sp, vec2(0.5, -0.41)) - uTime * 1.9) * 0.01;
         transformed.z += sw * uSea;
       }
-      vWPos = (modelMatrix * vec4(transformed, 1.0)).xyz;`);
+      vWPos = (wMat * vec4(transformed, 1.0)).xyz;`);
     sh.fragmentShader = sh.fragmentShader
       .replace('#include <common>', '#include <common>\n' + common)
       .replace('#include <color_fragment>', /* glsl */ `
