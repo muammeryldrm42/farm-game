@@ -1621,7 +1621,7 @@ export class Renderer {
       this.sun.shadow.updateMatrices(this.sun);
       shadow = this.sun.shadow.getFrustum();
     }
-    this.foliage.cull(this.frustum, shadow, this.cam.zoom < 0.8);
+    this.foliage.cull(this.frustum, shadow, this.cam.zoom < 0.8, this.camera.position);
     for (const b of this.forest) b.cull(this.frustum, shadow);
   }
 

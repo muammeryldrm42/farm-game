@@ -48,6 +48,54 @@ export function windify<T extends THREE.Material>(m: T, height: number, amount =
   return m;
 }
 
+// Far from the camera the meadow thins out (low quality only, where a phone draws it): past `near`
+// fewer and fewer tufts and wild flowers are drawn, down to `min` of them from `far` on. Nothing
+// pops: each one has a rank of its own (from where it stands) and shrinks smoothly to nothing as
+// the share kept passes its rank, and the batch leaves out the ones shrunk to nothing everywhere
+// in a block. A far tuft or flower is a pixel or two; a phone's GPU is spared a third of the
+// meadow's triangles at the usual view.
+export const THIN = { near: 30, far: 55, min: 0.3, fade: 0.15 };
+// the share kept at a distance from the camera (above 1 near it: none of them is shrinking there)
+export function thinKeep(d: number) {
+  const t = Math.min(1, Math.max(0, (d - THIN.near) / (THIN.far - THIN.near)));
+  return 1 + THIN.fade + (THIN.min - 1 - THIN.fade) * t;
+}
+// a thing's rank in [0, 1), from its spot (worked out the same way in the shader, below)
+export function thinRank(x: number, z: number) {
+  const qx = Math.floor(x * 256 + 0.5) | 0, qz = Math.floor(z * 256 + 0.5) | 0;
+  let h = (Math.imul(qx, 374761393) ^ Math.imul(qz, 668265263)) >>> 0;
+  h = Math.imul(h ^ (h >>> 13), 1274126177) >>> 0;
+  h = (h ^ (h >>> 16)) >>> 0;
+  return h / 4294967296;
+}
+export function thinOut<T extends THREE.Material>(m: T): T {
+  const prev = m.onBeforeCompile;
+  m.onBeforeCompile = (sh, r) => {
+    prev.call(m, sh, r);
+    sh.uniforms.uThin = U.thin;
+    sh.vertexShader = sh.vertexShader
+      .replace('#include <common>', '#include <common>\nuniform float uThin;')
+      .replace('#include <project_vertex>', /* glsl */ `
+#ifdef USE_INSTANCING
+if (uThin > 0.5) {
+  ivec2 q = ivec2(floor(instanceMatrix[3].xz * 256.0 + 0.5));
+  uint h = (uint(q.x) * 374761393u) ^ (uint(q.y) * 668265263u);
+  h = (h ^ (h >> 13u)) * 1274126177u;
+  h ^= h >> 16u;
+  float rank = float(h) / 4294967296.0;
+  vec3 wp = (modelMatrix * instanceMatrix * vec4(0.0, 0.0, 0.0, 1.0)).xyz;
+  float t = clamp((distance(wp, cameraPosition) - ${THIN.near.toFixed(1)}) / ${(THIN.far - THIN.near).toFixed(1)}, 0.0, 1.0);
+  float keep = mix(${(1 + THIN.fade).toFixed(3)}, ${THIN.min.toFixed(3)}, t);
+  transformed *= clamp((keep - rank) / ${THIN.fade.toFixed(3)}, 0.0, 1.0);
+}
+#endif
+#include <project_vertex>`);
+  };
+  const key = m.customProgramCacheKey.bind(m);
+  m.customProgramCacheKey = () => `${key()}|thin`;
+  return m;
+}
+
 // one tuft: a handful of curved blades, darker at the root, with colors baked in vertex colors
 function tuftGeometry(seed: number) {
   const parts: THREE.BufferGeometry[] = [];
@@ -98,16 +146,22 @@ export interface Spot { x: number; z: number; open: boolean }
 export class BlockBatch {
   private src: Float32Array;
   private srcCol: Float32Array | null;
+  // (thinned: each thing's rank, sorted within its block)
+  private rank: Float32Array | null;
   private blocks: { start: number; n: number; sphere: THREE.Sphere }[] = [];
-  private shown: Uint8Array;
+  // how many of each block are drawn (0: out of view)
+  private shown: Uint32Array;
 
-  constructor(readonly mesh: THREE.InstancedMesh, size = 12) {
+  constructor(readonly mesh: THREE.InstancedMesh, size = 12, thin = false) {
     const n = mesh.count, a = mesh.instanceMatrix.array as Float32Array;
     const col = mesh.instanceColor ? (mesh.instanceColor.array as Float32Array) : null;
     const key = (i: number) => (Math.floor(a[i * 16 + 12] / size) + 64) * 256 + Math.floor(a[i * 16 + 14] / size) + 64;
-    const order = Array.from({ length: n }, (_, i) => i).sort((x, y) => key(x) - key(y));
+    // a thinned batch keeps each block in the order of rank: the ones kept far away come first
+    const ranks = thin ? Float32Array.from({ length: n }, (_, i) => thinRank(a[i * 16 + 12], a[i * 16 + 14])) : null;
+    const order = Array.from({ length: n }, (_, i) => i).sort((x, y) => key(x) - key(y) || (ranks ? ranks[x] - ranks[y] : 0));
     this.src = new Float32Array(n * 16);
     this.srcCol = col ? new Float32Array(n * 3) : null;
+    this.rank = ranks ? new Float32Array(n) : null;
     const g = mesh.geometry;
     if (!g.boundingSphere) g.computeBoundingSphere();
     const r0 = g.boundingSphere!.radius + g.boundingSphere!.center.length();
@@ -116,6 +170,7 @@ export class BlockBatch {
     order.forEach((from, i) => {
       this.src.set(a.subarray(from * 16, from * 16 + 16), i * 16);
       if (col && this.srcCol) this.srcCol.set(col.subarray(from * 3, from * 3 + 3), i * 3);
+      if (ranks && this.rank) this.rank[i] = ranks[from];
       const e = a.subarray(from * 16, from * 16 + 16);
       reach = Math.max(reach, Math.hypot(e[0], e[1], e[2]), Math.hypot(e[4], e[5], e[6]), Math.hypot(e[8], e[9], e[10]));
       box.expandByPoint(p.set(e[12], e[13], e[14]));
@@ -126,20 +181,31 @@ export class BlockBatch {
         start = i + 1; reach = 0; box.makeEmpty();
       }
     });
-    this.shown = new Uint8Array(this.blocks.length);
+    this.shown = new Uint32Array(this.blocks.length);
     (mesh.instanceMatrix.array as Float32Array).set(this.src);
     if (col && this.srcCol) col.set(this.srcCol);
-    this.shown.fill(1);
+    for (let b = 0; b < this.blocks.length; b++) this.shown[b] = this.blocks[b].n;
     // the blocks are culled here, so the batch as a whole never is
     mesh.frustumCulled = false;
   }
 
-  cull(view: THREE.Frustum) {
-    const blocks = this.blocks;
+  // `eye`: the camera, for a thinned batch
+  cull(view: THREE.Frustum, eye: THREE.Vector3 | null = null) {
+    const blocks = this.blocks, rank = U.thin.value && eye ? this.rank : null;
     let changed = false;
     for (let b = 0; b < blocks.length; b++) {
-      const on = view.intersectsSphere(blocks[b].sphere) ? 1 : 0;
-      if (on !== this.shown[b]) { this.shown[b] = on; changed = true; }
+      const { start, n, sphere } = blocks[b];
+      let want = view.intersectsSphere(sphere) ? n : 0;
+      if (want && rank) {
+        // as many as any spot of the block keeps (in steps, so a moving camera rarely repacks)
+        const k = Math.ceil(thinKeep(Math.max(0, eye!.distanceTo(sphere.center) - sphere.radius)) * 20) / 20 + 1e-4;
+        if (k < 1) {
+          let lo = 0, hi = n;
+          while (lo < hi) { const mid = (lo + hi) >> 1; if (rank[start + mid] < k) lo = mid + 1; else hi = mid; }
+          want = lo;
+        }
+      }
+      if (want !== this.shown[b]) { this.shown[b] = want; changed = true; }
     }
     // the same blocks as last time: the batch is as it was, but shown again (the small meadow
     // batches are hidden while the camera is far out, and must come back as it zooms in)
@@ -148,8 +214,9 @@ export class BlockBatch {
     const c = this.mesh.instanceColor ? (this.mesh.instanceColor.array as Float32Array) : null;
     let o = 0;
     for (let b = 0; b < blocks.length; b++) {
-      if (!this.shown[b]) continue;
-      const { start, n } = blocks[b];
+      const n = this.shown[b];
+      if (!n) continue;
+      const { start } = blocks[b];
       m.set(this.src.subarray(start * 16, (start + n) * 16), o * 16);
       if (c && this.srcCol) c.set(this.srcCol.subarray(start * 3, (start + n) * 3), o * 3);
       o += n;
@@ -161,20 +228,23 @@ export class BlockBatch {
   }
 }
 
-export interface Culled { cull(view: THREE.Frustum, shadow: THREE.Frustum | null): void }
+// (`eye`: the camera, for a batch thinned with distance)
+export interface Culled { cull(view: THREE.Frustum, shadow: THREE.Frustum | null, eye?: THREE.Vector3 | null): void }
 
 // Culls a big batch (already added to its parent) by blocks. A batch that casts shadow gets a
 // twin on layer 2, which only the sun's shadow camera sees: the twin draws the blocks inside the
 // shadow box, the batch itself only the blocks on screen. Light batches cost less drawn whole.
 // (A map wide batch of some tens of thousands of triangles is not light: most of it is out of
 // view, yet a phone's GPU would still work through every one of its corners.)
-export function blockBatch(im: THREE.InstancedMesh): Culled | null {
+// (`thin`: thinned far from the camera, with a material from thinOut; never one that casts shadow)
+export function blockBatch(im: THREE.InstancedMesh, thin = false): Culled | null {
   const g = im.geometry;
   const tris = ((g.index ? g.index.count : g.getAttribute('position').count) / 3) * im.count;
   if (tris < 20000) return null;
   if (!im.castShadow || !im.parent) {
-    const b = new BlockBatch(im);
-    return { cull: (view) => b.cull(view) };
+    // (a thinned batch in smaller blocks: each one's far side thins out more)
+    const b = new BlockBatch(im, thin ? 6 : 12, thin);
+    return { cull: (view, _shadow, eye) => b.cull(view, eye) };
   }
   const twin = new THREE.InstancedMesh(im.geometry, im.material, im.count);
   (twin.instanceMatrix.array as Float32Array).set(im.instanceMatrix.array as Float32Array);
@@ -196,25 +266,26 @@ const FLOWER_COLORS = ['#ffffff', '#ffd23a', '#ff8fb0', '#b58cff', '#ff6b6b', '#
 export class Foliage {
   group = new THREE.Group();
   private grassGeos: THREE.BufferGeometry[] = [];
-  private grassMat = windify(new THREE.MeshStandardMaterial({ vertexColors: true, side: THREE.DoubleSide, roughness: 0.95 }), 0.25, 1);
-  private flowerMat = windify(new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.6 }), 0.18, 0.8);
+  private grassMat = thinOut(windify(new THREE.MeshStandardMaterial({ vertexColors: true, side: THREE.DoubleSide, roughness: 0.95 }), 0.25, 1));
+  private flowerMat = thinOut(windify(new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.6 }), 0.18, 0.8));
   private bushMat = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.75 });
   private pebbleMat = new THREE.MeshStandardMaterial({ color: '#b7b3aa', roughness: 0.9, flatShading: true });
 
   private batches: { b: Culled | null; im: THREE.InstancedMesh; small: boolean }[] = [];
 
-  // small: wild flowers and pebbles, only a pixel or two when the camera is far out
-  private keep(im: THREE.InstancedMesh, small = false) {
+  // small: wild flowers and pebbles, only a pixel or two when the camera is far out; thin: thinned
+  // far from the camera (the tufts and wild flowers, whose materials are made for it)
+  private keep(im: THREE.InstancedMesh, small = false, thin = false) {
     this.group.add(im);
-    const b = blockBatch(im);
+    const b = blockBatch(im, thin);
     if (b || small) this.batches.push({ b, im, small });
   }
 
   // draw only the grass and flowers on the land in view; from far out, not the little things
-  cull(view: THREE.Frustum, shadow: THREE.Frustum | null, far = false) {
+  cull(view: THREE.Frustum, shadow: THREE.Frustum | null, far = false, eye: THREE.Vector3 | null = null) {
     for (const { b, im, small } of this.batches) {
       if (small && far) { im.visible = false; continue; }
-      if (b) b.cull(view, shadow);
+      if (b) b.cull(view, shadow, eye);
       else im.visible = true;
     }
   }
@@ -224,6 +295,8 @@ export class Foliage {
     // everything in the group goes, shadow twins of the batches included
     for (const m of [...this.group.children]) { this.group.remove(m); (m as THREE.InstancedMesh).dispose(); }
     this.batches = [];
+    // (thinned in low quality only, where there are no shadows to give the far ones away)
+    U.thin.value = lite ? 1 : 0;
     if (density <= 0 || !tiles.length) return;
     if (!this.grassGeos.length) for (let v = 0; v < 3; v++) this.grassGeos.push(tuftGeometry(100 + v * 31));
 
@@ -270,7 +343,7 @@ export class Foliage {
       });
       im.receiveShadow = true;
       im.castShadow = false;
-      this.keep(im);
+      this.keep(im, false, true);
     });
     if (bushes.length) {
       // a coarser sculpt than a tree crown: a bush is small on screen, and there are many (and
@@ -297,7 +370,7 @@ export class Foliage {
         im.setMatrixAt(i, m4);
       });
       im.receiveShadow = true;
-      this.keep(im, true);
+      this.keep(im, true, true);
     });
     if (pebbles.length) {
       const im = new THREE.InstancedMesh(PEBBLE, this.pebbleMat, pebbles.length);
@@ -321,7 +394,7 @@ export class Foliage {
         im.setMatrixAt(i, m4);
       });
       im.receiveShadow = true;
-      this.keep(im, true);
+      this.keep(im, true, true);
     });
   }
 }
