@@ -443,8 +443,10 @@ let VIEW: THREE.Frustum | null = null;
 // move since the last frame. Each part keeps the position, turn and size its matrix was last made
 // from; when they are the same, and its parent's place is the same, both are skipped. (A part
 // whose matrix is set by hand, with matrixAutoUpdate off, is redone as before when flagged.)
-type Kept = THREE.Object3D & { _trs?: Float64Array };
+// (`_off`: a thing on the farm left out of this frame, out of view: its matrices wait, see frame)
+type Kept = THREE.Object3D & { _trs?: Float64Array; _off?: boolean };
 THREE.Object3D.prototype.updateMatrixWorld = function (this: Kept, force?: boolean) {
+  if (this._off === true) return;
   if (this.matrixAutoUpdate) {
     const p = this.position, q = this.quaternion, s = this.scale;
     let c = this._trs;
@@ -504,7 +506,7 @@ function isUnder(o: THREE.Object3D, root: THREE.Object3D) {
   return false;
 }
 function showOffView() {
-  for (const g of offView) g.visible = true;
+  for (const g of offView) { g.visible = true; (g as Kept)._off = false; }
   offView.length = 0;
 }
 function bump(e: Entry, kind: 'bump' | 'big' | 'work' = 'bump') {
@@ -1742,6 +1744,7 @@ export class Renderer {
   private projM = new THREE.Matrix4();
   private frustum = new THREE.Frustum();
   private cullSphere = new THREE.Sphere();
+  private drawSphere = new THREE.Sphere();
   frame(t: number) {
     const rawMs = t - (this.last || t);
     // a clock that steps back (two drivers, a resumed WebView) must not run animations backwards
@@ -1779,6 +1782,9 @@ export class Renderer {
     this.frustum.setFromProjectionMatrix(this.projM);
     VIEW = this.frustum;
     batchDraw.length = 0;
+    // things out of view are left out of the draw and of the matrix work while the sun casts no
+    // shadows (a thing just out of view may cast one into it)
+    const hideOff = this.warm === 'done' && !(this.gl.shadowMap.enabled && this.sun.castShadow);
     for (const o of s.objects) {
       const e = this.entries.get(o.id);
       if (!e) continue;
@@ -1793,6 +1799,17 @@ export class Renderer {
       const out = !!o.pen && o.pen.animals.some((a) => a.graze);
       if (seen || (out && (e.herdSeen !== false || (this.frameNo + o.id) % 4 === 0)) || (this.frameNo + o.id) % 24 === 0) e.update?.(o, now, t, dt);
       if (e.bounce || e.root.scale.x !== 1) this.applyBounce(e, o, dt);
+      // Out of view (a sphere round its whole height), with none of its animals out or in view and
+      // no boat of its own out at sea: hidden for this frame's draw (three.js then does not look
+      // through its parts one by one) and its matrices wait (see updateMatrixWorld) until it is in
+      // view again, when they are brought up to date before it is drawn. Shown again after the draw.
+      if (hideOff && e.root.visible && !out && e.herdSeen !== true && BUILDING[o.type]?.kind !== 'dock') {
+        const top = Math.max(0.6, e.top);
+        this.drawSphere.center.set(o.x + d.w / 2, top / 2, o.y + d.h / 2);
+        // (wide of the footprint: a lamp's pool of light or a pen's yard spill a tile or two past it)
+        this.drawSphere.radius = Math.hypot(Math.max(d.w, d.h) * 0.75 + 1.6, top / 2 + 0.3);
+        if (!this.frustum.intersectsSphere(this.drawSphere)) { e.root.visible = false; (e.root as Kept)._off = true; offView.push(e.root); }
+      }
     }
     tickAnims(dt);
     for (const g of this.signs) {
