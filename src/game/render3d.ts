@@ -437,6 +437,34 @@ interface Entry {
 }
 // the camera's view this frame, for herds to tell whether their animals are in it
 let VIEW: THREE.Frustum | null = null;
+// Matrices worked out only when something changed. three.js makes every part's matrix again
+// from its position, turn and size every frame, and its place in the world again from its
+// parent's: on a farm most parts (walls, roofs, fences, trunks, a standing animal's legs) did not
+// move since the last frame. Each part keeps the position, turn and size its matrix was last made
+// from; when they are the same, and its parent's place is the same, both are skipped. (A part
+// whose matrix is set by hand, with matrixAutoUpdate off, is redone as before when flagged.)
+type Kept = THREE.Object3D & { _trs?: Float64Array };
+THREE.Object3D.prototype.updateMatrixWorld = function (this: Kept, force?: boolean) {
+  if (this.matrixAutoUpdate) {
+    const p = this.position, q = this.quaternion, s = this.scale;
+    let c = this._trs;
+    if (!c) c = this._trs = new Float64Array(10).fill(NaN);
+    if (c[0] !== p.x || c[1] !== p.y || c[2] !== p.z || c[3] !== q.x || c[4] !== q.y || c[5] !== q.z || c[6] !== q.w || c[7] !== s.x || c[8] !== s.y || c[9] !== s.z) {
+      c[0] = p.x; c[1] = p.y; c[2] = p.z; c[3] = q.x; c[4] = q.y; c[5] = q.z; c[6] = q.w; c[7] = s.x; c[8] = s.y; c[9] = s.z;
+      this.updateMatrix();
+    }
+  }
+  if (this.matrixWorldNeedsUpdate || force) {
+    if (this.matrixWorldAutoUpdate === true) {
+      if (this.parent === null) this.matrixWorld.copy(this.matrix);
+      else this.matrixWorld.multiplyMatrices(this.parent.matrixWorld, this.matrix);
+    }
+    this.matrixWorldNeedsUpdate = false;
+    force = true;
+  }
+  const ch = this.children;
+  for (let i = 0, l = ch.length; i < l; i++) ch[i].updateMatrixWorld(force);
+};
 const herdBall = new THREE.Sphere(new THREE.Vector3(), 2);
 // A wild creature, bird or boat out of the view skips its matrix work: there are some 1600 parts
 // of them round the island, most of them off screen at any time. Its matrices are brought up to
@@ -5874,10 +5902,12 @@ function buildPen(e: Entry, d: BuildingDef) {
   const herdAt = new THREE.Matrix4();
   herd.updateMatrixWorld = function (force?: boolean) {
     const pm = this.parent?.matrixWorld;
-    if (!herdMoved && pm && pm.equals(herdAt)) return;
+    const same = !!pm && pm.equals(herdAt);
+    if (!herdMoved && same) return;
     herdMoved = false;
     if (pm) herdAt.copy(pm);
-    THREE.Object3D.prototype.updateMatrixWorld.call(this, true);
+    // the pen moved: every animal's place again; else only the parts that moved
+    THREE.Object3D.prototype.updateMatrixWorld.call(this, !same);
     void force;
   };
   let count = -1, ver = -1;
