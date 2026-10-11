@@ -60,6 +60,7 @@ import { askNotify, notifyNative, setNotifyAsked } from '@/game/notify';
 import { now as clockNow } from '@/game/clock';
 import { getQuality, setQuality, type Quality } from '@/game/quality';
 import { Coin } from './Hud';
+import { PrivacyText } from './Privacy';
 import { useStore, useVersion } from './ctx';
 import { LANG_IDS, getLang, setLang, t, type Lang } from '@/game/i18n';
 import LANG_NAMES from '@/locales/names.json';
@@ -186,6 +187,11 @@ export default function Panels() {
       {ui.panel === 'home' && <HomeModal />}
       {ui.panel === 'pet' && <PetModal key={ui.pet} />}
       {ui.panel === 'beauty' && <BeautyModal />}
+      {ui.panel === 'privacy' && (
+        <Modal title={t('Privacy policy')} icon="🔒" onClose={() => store.openPanel('settings')}>
+          <PrivacyText />
+        </Modal>
+      )}
       {ui.napping && <SleepOverlay />}
       {ui.expand && <ExpandModal />}
       {ui.daily && ui.levelUp === null && <DailyModal />}
@@ -1789,7 +1795,12 @@ function SettingsModal() {
           'Fruit trees keep giving fruit, no replanting needed.',
           'Your stall pays more than selling from storage.'].map((l) => <li key={l}>{t(l)}</li>)}
       </ul>
-      <p className="mt-4 text-center text-[11px] text-[#b09a72]">Talons Farm by Talons Protocol</p>
+      <div className="mt-4 text-center">
+        <button className="btn btn-ghost text-xs" onClick={() => store.openPanel('privacy')}>
+          🔒 {t('Privacy policy')}
+        </button>
+      </div>
+      <p className="mt-2 text-center text-[11px] text-[#b09a72]">Talons Farm by Talons Protocol</p>
     </Modal>
   );
 }
