@@ -273,8 +273,9 @@ export class Foliage {
       this.keep(im);
     });
     if (bushes.length) {
-      // a coarser sculpt than a tree crown: a bush is small on screen, and there are many
-      const im = new THREE.InstancedMesh(toonCrown(4, 0.055), this.bushMat, bushes.length);
+      // a coarser sculpt than a tree crown: a bush is small on screen, and there are many (and
+      // coarser still in low quality: half the triangles, a phone shows it a few dozen pixels wide)
+      const im = new THREE.InstancedMesh(toonCrown(4, lite ? 0.075 : 0.055), this.bushMat, bushes.length);
       bushes.forEach(([x, z, s], i) => {
         q.setFromAxisAngle(up, rnd(i, 40) * 6);
         // the crown sits around y 0.8 with its underside near 0.36, so sink it to the ground
@@ -313,7 +314,7 @@ export class Foliage {
     FLOWER_COLORS.forEach((fc, ci) => {
       const list = flowers.filter(([, , , c]) => Math.floor(c * FLOWER_COLORS.length) === ci);
       if (!list.length) return;
-      const im = new THREE.InstancedMesh(flowerKit(ci % 3 === 1 ? 'tulip' : 'daisy', fc, 0.1), this.flowerMat, list.length);
+      const im = new THREE.InstancedMesh(flowerKit(ci % 3 === 1 ? 'tulip' : 'daisy', fc, 0.1, lite), this.flowerMat, list.length);
       list.forEach(([x, z, r], i) => {
         q.setFromAxisAngle(up, r);
         m4.compose(pv.set(x, 0, z), q, sv.setScalar(0.8 + rnd(i, 30) * 0.4));
@@ -346,15 +347,17 @@ function painted(src: THREE.BufferGeometry, color: string) {
   return g;
 }
 
-// a soft rounded petal or leaf: a squashed sphere pushed out along +x (`lite`: a coarser one)
-function blade(len: number, wid: number, thick: number, lite = false) {
-  const g = lite ? new THREE.SphereGeometry(1, 4, 2) : new THREE.SphereGeometry(1, 6, 4);
+// a soft rounded petal or leaf: a squashed sphere pushed out along +x (`lite`: a coarser one, a
+// leaf flat as a lozenge, a petal (`round`) still a little rounded)
+function blade(len: number, wid: number, thick: number, lite = false, round = false) {
+  const g = new THREE.SphereGeometry(1, lite ? 4 : 6, lite ? (round ? 3 : 2) : 4);
   g.scale(len, thick, wid);
   g.translate(len, 0, 0);
   return g;
 }
 
-// `lite`: fewer, simpler florets on a lupine, for low quality (they are a few pixels on a phone)
+// `lite`: fewer, simpler florets on a lupine and coarser petals on a daisy or tulip, for low
+// quality (a wild flower is a few pixels on a phone: a third of the triangles, the same look)
 export function flowerKit(kind: FlowerKind, petal: string, h = 0.22, lite = false) {
   const key = `${kind}|${petal}|${h}|${lite}`;
   const hit = kitCache.get(key);
@@ -376,20 +379,20 @@ export function flowerKit(kind: FlowerKind, petal: string, h = 0.22, lite = fals
   const dark = '#' + new THREE.Color(petal).multiplyScalar(0.8).getHexString();
   if (kind === 'daisy') {
     for (let i = 0; i < 9; i++) {
-      const p = blade(0.036, 0.014, 0.005);
+      const p = blade(0.036, 0.014, 0.005, lite, true);
       p.rotateZ(0.2);
       p.rotateY((i / 9) * Math.PI * 2);
       p.translate(0, h, 0);
       parts.push(painted(p, i % 2 ? petal : dark));
     }
-    const eye = new THREE.SphereGeometry(0.022, 10, 6);
+    const eye = lite ? new THREE.SphereGeometry(0.022, 6, 3) : new THREE.SphereGeometry(0.022, 10, 6);
     eye.scale(1, 0.6, 1);
     eye.translate(0, h + 0.004, 0);
     parts.push(painted(eye, '#f2b632'));
   } else if (kind === 'tulip') {
     // a cup of petals curving up around the center
     for (let i = 0; i < 6; i++) {
-      const p = blade(0.045, 0.026, 0.01);
+      const p = blade(0.045, 0.026, 0.01, lite, true);
       p.rotateZ(Math.PI / 2 - 0.28);
       p.translate(0.018, 0, 0);
       p.rotateY((i / 6) * Math.PI * 2 + (i % 2) * 0.5);
