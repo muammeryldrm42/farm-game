@@ -1954,11 +1954,14 @@ function StoryDialog() {
   const last = d.i >= lines.length - 1;
   const who = CAST[ch.who];
   const [shown, setShown] = useState(0);
+  // typed out two letters at a time; the timer stops once the whole line is shown
+  const typer = useRef<ReturnType<typeof setInterval> | undefined>(undefined);
   useEffect(() => {
     setShown(0);
-    const tm = setInterval(() => setShown((n) => (n >= text.length ? n : n + 2)), 22);
-    return () => clearInterval(tm);
+    typer.current = setInterval(() => setShown((n) => Math.min(text.length, n + 2)), 22);
+    return () => clearInterval(typer.current);
   }, [text]);
+  useEffect(() => { if (shown >= text.length) clearInterval(typer.current); }, [shown, text]);
   const typing = shown < text.length;
   const next = () => (typing ? setShown(text.length) : store.storyNext());
   const r = storyReward(ch.n);
