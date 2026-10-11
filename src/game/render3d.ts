@@ -2090,7 +2090,8 @@ export class Renderer {
       const was = b.material.map;
       b.material.map = bubbleTex(fi.state === 'idle' ? '🎣' : '🐟', mode, step, 0);
       if (was !== b.material.map) dropRecent(was);
-      b.material.needsUpdate = true;
+      // (a picture swapped for another needs no new shader: only having one at all does)
+      if (!was) b.material.needsUpdate = true;
       b.userData.key = key;
     }
     const sc = mode === 'ready' ? 0.62 : 0.5;
@@ -2122,7 +2123,7 @@ export class Renderer {
         const was = e.bubble.material.map;
         e.bubble.material.map = bubbleTex(b.icon, b.mode, step, b.count);
         if (was !== e.bubble.material.map) dropRecent(was);
-        e.bubble.material.needsUpdate = true;
+        if (!was) e.bubble.material.needsUpdate = true;
         e.bubbleKey = key;
       }
       const sc = b.mode === 'ready' ? 0.62 : 0.5;
@@ -2657,10 +2658,11 @@ export class Renderer {
     if (say.text !== this.speechText) {
       this.speechText = say.text;
       this.speechAt = now;
+      const had = !!m.map;
       m.map?.dispose();
       const bt = speechTex(say.text);
       m.map = bt.t;
-      m.needsUpdate = true;
+      if (!had) m.needsUpdate = true;
       b.userData.aspect = bt.aspect;
       b.userData.w = bt.w / 540;
     }
@@ -3170,7 +3172,7 @@ export class Renderer {
         m.position.set(p.x, p.y + 0.95 + Math.sin(t / 300) * 0.06, p.z);
         m.visible = true;
       } else m.visible = false;
-      if (mat.map !== was) mat.needsUpdate = true;
+      if (!!mat.map !== !!was) mat.needsUpdate = true;
     }
   }
 
@@ -4021,7 +4023,8 @@ const fullGeo = new WeakMap<THREE.Mesh, THREE.BufferGeometry>();
 class Batches {
   // per geometry and material: the batch, its copies this frame, and how many frames it has been
   // empty (one empty for long is let go: a stand in's parts, or a model no longer on the farm)
-  private by = new Map<THREE.BufferGeometry, Map<THREE.Material, { mesh: THREE.InstancedMesh; n: number; idle: number }>>();
+  // (`sent`: how many copies the GPU has now; `dirty`: a copy changed since then)
+  private by = new Map<THREE.BufferGeometry, Map<THREE.Material, { mesh: THREE.InstancedMesh; n: number; idle: number; sent: number; dirty: boolean }>>();
   constructor(private parent: THREE.Object3D) {}
   private add(geo: THREE.BufferGeometry, mat: THREE.Material, src: THREE.Mesh) {
     let row = this.by.get(geo);
@@ -4041,10 +4044,16 @@ class Batches {
         b.mesh.dispose();
       }
       this.parent.add(mesh);
-      b = { mesh, n: b?.n ?? 0, idle: 0 };
+      b = { mesh, n: b?.n ?? 0, idle: 0, sent: 0, dirty: true };
       row.set(mat, b);
     }
-    b.mesh.setMatrixAt(b.n++, src.matrixWorld);
+    // written only where it differs from what the copy held last frame (as the GPU keeps it,
+    // in single precision): a batch of things that did not move is not sent to the GPU again
+    const arr = b.mesh.instanceMatrix.array as Float32Array, at = b.n++ * 16, e = src.matrixWorld.elements;
+    for (let k = 0; k < 16; k++) {
+      const v = Math.fround(e[k]);
+      if (arr[at + k] !== v) { arr[at + k] = v; b.dirty = true; }
+    }
   }
   // after the scene's matrices are worked out: the fields and herds updated this frame
   build(cam: THREE.Camera) {
@@ -4075,7 +4084,18 @@ class Batches {
       for (const [mat, b] of row) {
         b.mesh.count = b.n;
         b.mesh.visible = b.n > 0;
-        if (b.n) { b.mesh.instanceMatrix.needsUpdate = true; b.idle = 0; }
+        if (b.n) {
+          // only the copies in use go to the GPU, and only when one of them changed (or more are in use)
+          if (b.dirty || b.n > b.sent) {
+            const im = b.mesh.instanceMatrix;
+            im.clearUpdateRanges();
+            im.addUpdateRange(0, b.n * 16);
+            im.needsUpdate = true;
+            b.sent = b.n;
+            b.dirty = false;
+          }
+          b.idle = 0;
+        }
         else if (++b.idle > 1800) { this.parent.remove(b.mesh); b.mesh.dispose(); row.delete(mat); }
       }
       if (!row.size) this.by.delete(geo);
