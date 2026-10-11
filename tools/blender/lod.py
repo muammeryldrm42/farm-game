@@ -1,10 +1,11 @@
-# Far detail levels for the Blender animals, crops, fruit trees and leafy decorations. Each model is read back, every
+# Far detail levels for the Blender animals, crops, fruit trees, leafy decorations and buildings. Each model is read back, every
 # part thinned out with Blender's Decimate (collapse) modifier, and written to
 # `public/models/lod/<name>.glb` with the same part names and no materials: the game swaps in only
 # this lighter geometry when the thing is far from the camera and keeps the near model's baked
 # texture, so it looks the same from afar, it just costs about a third of the triangles.
 # Run: python3 tools/blender/lod.py [names...]   (default: every public/models/animal_*.glb)
 #      python3 tools/blender/lod.py --plants     (every crop, fruit tree and leafy decoration)
+#      python3 tools/blender/lod.py --buildings  (the workshops, pens, barn, silo, stall and big decorations)
 import glob
 import os
 import re
@@ -17,9 +18,12 @@ ROOT = os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', '..', 'pub
 # thin and already light
 KEEP = {'body': 0.3, 'head': 0.35, 'small': 0.5}
 MIN_FACES = 120
+# a building's walls and roofs are flat and already light: its triangles are in the little
+# things (planks, tiles, pots, flowers), and these keep a little more of them than an animal does
+BUILDING_KEEP = 0.4
 
 
-def thin(name):
+def thin(name, building=False):
     bpy.ops.wm.read_factory_settings(use_empty=True)
     bpy.ops.import_scene.gltf(filepath=os.path.join(ROOT, f'{name}.glb'))
     before = after = 0
@@ -29,7 +33,7 @@ def thin(name):
         n = len(o.data.polygons)
         before += n
         part = 'head' if o.name == 'head' else 'body' if not (o.name.startswith('leg') or o.name in ('tail', 'fan', 'train')) else 'small'
-        ratio = max(KEEP[part], min(1.0, MIN_FACES / max(1, n)))
+        ratio = max(BUILDING_KEEP if building else KEEP[part], min(1.0, MIN_FACES / max(1, n)))
         if ratio < 1.0:
             bpy.context.view_layer.objects.active = o
             m = o.modifiers.new('thin', 'DECIMATE')
@@ -45,8 +49,10 @@ def thin(name):
     bpy.ops.export_scene.gltf(filepath=os.path.join(ROOT, 'lod', f'{name}.glb'), export_format='GLB', use_selection=True,
                               export_apply=True, export_yup=True, export_materials='NONE',
                               export_draco_mesh_compression_enable=True, export_draco_mesh_compression_level=7,
-                              export_draco_position_quantization=14, export_draco_normal_quantization=10,
-                              export_draco_texcoord_quantization=12)
+                              # a building seen from afar: coarser numbers are as good and the file a good deal smaller
+                              export_draco_position_quantization=12 if building else 14,
+                              export_draco_normal_quantization=8 if building else 10,
+                              export_draco_texcoord_quantization=11 if building else 12)
     print(f'LOD {name}: {before} -> {after} faces')
 
 
@@ -63,11 +69,53 @@ def plants():
     return crops + [t for t in trees + LEAFY if os.path.exists(os.path.join(ROOT, f'{t}.glb'))]
 
 
+def faces(name):
+    """How many triangles a model has, from its glTF header (no need to import it)."""
+    import json
+    import struct
+    with open(os.path.join(ROOT, f'{name}.glb'), 'rb') as f:
+        f.seek(12)
+        size = struct.unpack('<I', f.read(4))[0]
+        f.read(4)
+        j = json.loads(f.read(size))
+    n = 0
+    for node in j.get('nodes', []):
+        for p in j['meshes'][node['mesh']]['primitives'] if 'mesh' in node else []:
+            a = j['accessors'][p['indices'] if 'indices' in p else p['attributes']['POSITION']]
+            n += a['count'] // 3
+    return n
+
+
+# (keep in step with BUILDING_LOD in src/game/render3d.ts)
+BUILDING_KINDS = ('production', 'pen', 'barn', 'silo', 'stall')
+# decorations this heavy get a far model too
+HEAVY_DECO = 6000
+
+
+def buildings():
+    """The workshops, pens, barn, silo and stall, and the heavy decorations (not the houses: the
+    farmhouse and the manor are one of a kind and keep their full model)."""
+    data = open(os.path.join(ROOT, '..', '..', 'src', 'game', 'data.ts'), encoding='utf-8').read()
+    out = []
+    for i, kind in re.findall(r"b\(\{ id: '([a-z_]+)', [^}]*kind: '([a-z]+)'", data):
+        if not os.path.exists(os.path.join(ROOT, f'{i}.glb')):
+            continue
+        if kind in BUILDING_KINDS or (kind == 'deco' and i not in LEAFY and faces(i) >= HEAVY_DECO):
+            out.append(i)
+    return out
+
+
 if __name__ == '__main__':
     args = sys.argv[1:]
+    building = '--buildings' in args
     if '--plants' in args:
         names = plants()
+    elif building:
+        names = [a for a in args if not a.startswith('--')] or buildings()
     else:
         names = args or sorted(os.path.basename(p)[:-4] for p in glob.glob(os.path.join(ROOT, 'animal_*.glb')))
+    if '--list' in args:
+        print(' '.join(names))
+        sys.exit(0)
     for n in names:
-        thin(n)
+        thin(n, building)

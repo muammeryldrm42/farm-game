@@ -94,10 +94,11 @@ let slow: THREE.Raycaster | null = null;
 
 // The highest point of the meshes (their world matrices up to date) over (x, z) in the world, or
 // null when none is there. A mesh that stands tilted, is instanced or bends is left to a plain ray.
-export function dropOnto(meshes: THREE.Mesh[], x: number, z: number): number | null {
+// `geoOf`: the geometry to drop onto for a mesh (its full one, while a far twin stands in for it).
+export function dropOnto(meshes: THREE.Mesh[], x: number, z: number, geoOf?: (m: THREE.Mesh) => THREE.BufferGeometry): number | null {
   let best = -Infinity;
   for (let i = 0; i < meshes.length; i++) {
-    const m = meshes[i], g = m.geometry;
+    const m = meshes[i], g = geoOf ? geoOf(m) : m.geometry;
     const bent = (m as THREE.InstancedMesh).isInstancedMesh || (m as THREE.SkinnedMesh).isSkinnedMesh || Object.keys(g.morphAttributes).length > 0;
     let gr: Grid | null = null;
     if (!bent) {

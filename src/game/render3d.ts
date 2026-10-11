@@ -2783,7 +2783,7 @@ export class Renderer {
       const meshes = this.roofMeshes, seen = 1 | (1 << BATCH_LAYER);
       meshes.length = 0;
       e.root.traverse((c) => { const m = c as THREE.Mesh; if (m.isMesh && m.visible && m.layers.mask & seen && m.material !== HIT_MAT && !(m.material as THREE.Material).transparent) meshes.push(m); });
-      h = dropOnto(meshes, x, z);
+      h = dropOnto(meshes, x, z, (m) => fullGeo.get(m) ?? m.geometry);
       meshes.length = 0;
     }
     if (this.roofCache.size > 500) this.roofCache.clear();
@@ -4147,6 +4147,8 @@ function modelLod(g: THREE.Object3D, name: string) {
     const m = o as THREE.Mesh;
     if (!m.isMesh || m.onBeforeRender.length || o === g.userData.shadow) return;
     const full = m.geometry;
+    // (kept for what measures the model itself, like a bird landing on its roof)
+    if (!fullGeo.has(m)) fullGeo.set(m, full);
     let far = false;
     m.onBeforeRender = (_r, _s, cam) => {
       const d = cam.position.distanceTo(lodPos.setFromMatrixPosition(m.matrixWorld));
@@ -5062,6 +5064,12 @@ function keep<T extends THREE.Object3D>(o: T) {
 }
 // the leafy decorations and wild clutter that have far detail models (tools/blender/lod.py LEAFY)
 const PLANT_LOD = new Set(['flowers', 'oak', 'pumpkin_pile', 'topiary', 'hay_bale', 'tree_obs0', 'tree_obs1', 'bush_obs0', 'bush_obs1']);
+// the buildings that have far detail models (tools/blender/lod.py --buildings): the workshops,
+// pens, barn, silo and stall, and the heavy decorations (the houses keep their full model)
+const BUILDING_LOD = new Set(['production', 'pen', 'barn', 'silo', 'stall']);
+const DECO_LOD = new Set(['well', 'flower_arch', 'windmill', 'pond', 'gazebo', 'fountain', 'pergola', 'treehouse', 'greenhouse',
+  'golden_farmer', 'flower_cart', 'sand_turtle', 'sand_octopus', 'sand_starfish', 'sand_car', 'sand_whale', 'rock_garden',
+  'apple_crates', 'flower_bicycle']);
 function useModel(e: Entry, o: FarmObject, d: BuildingDef) {
   const spec = MODELS[d.id];
   if (!spec || e.id < 0 || artStyle() !== 'toon') return;
@@ -5073,8 +5081,9 @@ function useModel(e: Entry, o: FarmObject, d: BuildingDef) {
     const m = src.clone();
     m.position.set(cx, 0, cz);
     // fruit trees stand in orchards of a dozen, flower beds and oaks by the dozen, and new land
-    // comes wooded: the far ones are drawn from their thinned twin
-    if (d.kind === 'tree' || PLANT_LOD.has(name)) {
+    // comes wooded: the far ones are drawn from their thinned twin. So are the buildings, tens of
+    // thousands of triangles each: at the usual view on a phone they are all far.
+    if (d.kind === 'tree' || PLANT_LOD.has(name) || BUILDING_LOD.has(d.kind) || DECO_LOD.has(name)) {
       modelLod(m, name);
       m.traverse((c) => { if ((c as THREE.Mesh).isMesh) c.userData.lod = name; });
     }
