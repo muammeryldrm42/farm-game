@@ -9,6 +9,7 @@ import { fillRich, isDrawn, paintIcon } from './icons';
 import { U } from './gfx/shared';
 import { Sky } from './gfx/sky';
 import { makeWater } from './gfx/water';
+import { dropOnto } from './gfx/drop';
 import { seasonOf, weatherAt, type Season } from './weather';
 import { FLOWER_KIT_MAT, Foliage, blockBatch, flowerKit, windify, type Culled, type FlowerKind, type Spot } from './gfx/foliage';
 import { Post } from './gfx/post';
@@ -496,7 +497,7 @@ function skipOffView(g: THREE.Object3D, r: number, batch = false) {
     if (!meshes.length || !isUnder(meshes[0], this)) { unbatch(this); meshes = gatherStatics(this); }
     // drawn when the creature itself is in view (`r` reaches further, for its shadow: with the
     // sun's shadows off, one just past the edge of the view is not drawn at all)
-    if (meshes.length && (wildShadows || VIEW?.intersectsSphere(wildBall.set(this.position, 1)) !== false)) batchDraw.push({ root: this, meshes });
+    if (meshes.length && (wildShadows || VIEW?.intersectsSphere(wildBall.set(this.position, 1)) !== false)) drawBatched(this, meshes);
   };
 }
 // the sun casts shadows this frame (see skipOffView)
@@ -1781,7 +1782,7 @@ export class Renderer {
     this.projM.multiplyMatrices(this.camera.projectionMatrix, this.camera.matrixWorldInverse);
     this.frustum.setFromProjectionMatrix(this.projM);
     VIEW = this.frustum;
-    batchDraw.length = 0;
+    batchRoots.length = 0; batchLists.length = 0;
     // things out of view are left out of the draw and of the matrix work while the sun casts no
     // shadows (a thing just out of view may cast one into it)
     const hideOff = this.warm === 'done' && !(this.gl.shadowMap.enabled && this.sun.castShadow);
@@ -2764,13 +2765,13 @@ export class Renderer {
     return this.treeList;
   }
 
-  // the real height of a building's roof at a spot: a ray dropped onto its meshes (the model's
-  // own roof, not the rough height used for its bubble), remembered for a few seconds
-  private roofCache = new Map<string, { h: number | null; at: number }>();
-  // (it sees the batched parts too: the trees, decorations and roofs drawn in batches)
-  private downRay = (() => { const r = new THREE.Raycaster(); r.layers.enable(BATCH_LAYER); return r; })();
+  // the real height of a building's roof at a spot: a drop onto its meshes (the model's own roof,
+  // not the rough height used for its bubble), remembered a while (it is asked each frame for a
+  // bird up in a tree: a number for the key, not a string made each time)
+  private roofCache = new Map<number, { h: number | null; at: number }>();
+  private roofMeshes: THREE.Mesh[] = [];
   private roofTop(id: number, x: number, z: number) {
-    const key = `${id}|${x.toFixed(2)}|${z.toFixed(2)}`;
+    const key = (id * 8192 + (Math.round(x * 100) & 8191)) * 8192 + (Math.round(z * 100) & 8191);
     const now = performance.now();
     const hit = this.roofCache.get(key);
     if (hit && now - hit.at < 8000) return hit.h;
@@ -2778,11 +2779,12 @@ export class Renderer {
     let h: number | null = null;
     if (e) {
       e.root.updateWorldMatrix(true, true);
-      this.downRay.set(new THREE.Vector3(x, 30, z), new THREE.Vector3(0, -1, 0));
-      const meshes: THREE.Object3D[] = [];
-      e.root.traverse((c) => { const m = c as THREE.Mesh; if (m.isMesh && m.visible && m.material !== HIT_MAT && !(m.material as THREE.Material).transparent) meshes.push(m); });
-      const r = this.downRay.intersectObjects(meshes, false);
-      if (r.length) h = r[0].point.y;
+      // (the batched parts count too: the trees, decorations and roofs drawn in batches)
+      const meshes = this.roofMeshes, seen = 1 | (1 << BATCH_LAYER);
+      meshes.length = 0;
+      e.root.traverse((c) => { const m = c as THREE.Mesh; if (m.isMesh && m.visible && m.layers.mask & seen && m.material !== HIT_MAT && !(m.material as THREE.Material).transparent) meshes.push(m); });
+      h = dropOnto(meshes, x, z);
+      meshes.length = 0;
     }
     if (this.roofCache.size > 500) this.roofCache.clear();
     this.roofCache.set(key, { h, at: now });
@@ -3995,7 +3997,10 @@ function modelLodGeos(name: string) {
 // does not draw, and those in view are drawn from one instanced mesh per part, material and
 // detail level.
 const BATCH_LAYER = 5;
-const batchDraw: { root: THREE.Object3D; meshes: THREE.Mesh[] }[] = [];
+// what joins the batches this frame: each root with its parts (two plain lists, not a fresh
+// object per thing each frame)
+const batchRoots: THREE.Object3D[] = [], batchLists: THREE.Mesh[][] = [];
+const drawBatched = (root: THREE.Object3D, meshes: THREE.Mesh[]) => { batchRoots.push(root); batchLists.push(meshes); };
 // shown: it and its parents up to `stop` (or the scene) are visible
 function shownUpTo(o: THREE.Object3D, stop: THREE.Object3D | null) {
   for (let q: THREE.Object3D | null = o; q && q !== stop; q = q.parent) if (!q.visible) return false;
@@ -4028,7 +4033,7 @@ function batchStatics(e: Entry) {
   e.update = (o, now, t, dt) => {
     prev?.(o, now, t, dt);
     if (!e.statics) e.statics = gatherStatics(e.root);
-    if (e.statics.length) batchDraw.push({ root: e.root, meshes: e.statics });
+    if (e.statics.length) drawBatched(e.root, e.statics);
   };
 }
 // back to drawing itself: a copy, a ghost or an object on its way out is not in the batches
@@ -4037,11 +4042,15 @@ function unbatch(root: THREE.Object3D) {
 }
 
 const fullGeo = new WeakMap<THREE.Mesh, THREE.BufferGeometry>();
+// one batch: the copies of one geometry in one material (`sent`: how many copies the GPU has now;
+// `dirty`: a copy changed since then)
+interface Batch { geo: THREE.BufferGeometry; mat: THREE.Material; mesh: THREE.InstancedMesh; n: number; idle: number; sent: number; dirty: boolean }
 class Batches {
   // per geometry and material: the batch, its copies this frame, and how many frames it has been
-  // empty (one empty for long is let go: a stand in's parts, or a model no longer on the farm)
-  // (`sent`: how many copies the GPU has now; `dirty`: a copy changed since then)
-  private by = new Map<THREE.BufferGeometry, Map<THREE.Material, { mesh: THREE.InstancedMesh; n: number; idle: number; sent: number; dirty: boolean }>>();
+  // empty (one empty for long is let go: a stand in's parts, or a model no longer on the farm);
+  // the batches are gone through as a plain list each frame (a Map's walk makes garbage)
+  private by = new Map<THREE.BufferGeometry, Map<THREE.Material, Batch>>();
+  private all: Batch[] = [];
   constructor(private parent: THREE.Object3D) {}
   private add(geo: THREE.BufferGeometry, mat: THREE.Material, src: THREE.Mesh) {
     let row = this.by.get(geo);
@@ -4059,10 +4068,14 @@ class Batches {
         (mesh.instanceMatrix.array as Float32Array).set(b.mesh.instanceMatrix.array as Float32Array);
         this.parent.remove(b.mesh);
         b.mesh.dispose();
+        b.mesh = mesh; b.sent = 0; b.dirty = true;
+      }
+      else {
+        b = { geo, mat, mesh, n: 0, idle: 0, sent: 0, dirty: true };
+        row.set(mat, b);
+        this.all.push(b);
       }
       this.parent.add(mesh);
-      b = { mesh, n: b?.n ?? 0, idle: 0, sent: 0, dirty: true };
-      row.set(mat, b);
     }
     // written only where it differs from what the copy held last frame (as the GPU keeps it,
     // in single precision): a batch of things that did not move is not sent to the GPU again
@@ -4074,13 +4087,16 @@ class Batches {
   }
   // after the scene's matrices are worked out: the fields and herds updated this frame
   build(cam: THREE.Camera) {
-    for (const row of this.by.values()) for (const b of row.values()) b.n = 0;
-    for (const { root, meshes } of batchDraw) {
+    const all = this.all;
+    for (let i = 0; i < all.length; i++) all[i].n = 0;
+    for (let i = 0; i < batchRoots.length; i++) {
+      const root = batchRoots[i], meshes = batchLists[i];
       // left out while it (or the object it is on) is hidden, or taken off the farm
       let top: THREE.Object3D = root;
       while (top.parent) top = top.parent;
       if (!(top as THREE.Scene).isScene || !shownUpTo(root, null)) continue;
-      for (const m of meshes) {
+      for (let j = 0; j < meshes.length; j++) {
+        const m = meshes[j];
         if (!shownUpTo(m, root)) continue;
         // its own (full) geometry, as first seen here: a far twin never replaces it on the mesh
         let geo = fullGeo.get(m);
@@ -4097,25 +4113,31 @@ class Batches {
         this.add(geo, m.material as THREE.Material, m);
       }
     }
-    for (const [geo, row] of this.by) {
-      for (const [mat, b] of row) {
-        b.mesh.count = b.n;
-        b.mesh.visible = b.n > 0;
-        if (b.n) {
-          // only the copies in use go to the GPU, and only when one of them changed (or more are in use)
-          if (b.dirty || b.n > b.sent) {
-            const im = b.mesh.instanceMatrix;
-            im.clearUpdateRanges();
-            im.addUpdateRange(0, b.n * 16);
-            im.needsUpdate = true;
-            b.sent = b.n;
-            b.dirty = false;
-          }
-          b.idle = 0;
+    for (let i = all.length - 1; i >= 0; i--) {
+      const b = all[i];
+      b.mesh.count = b.n;
+      b.mesh.visible = b.n > 0;
+      if (b.n) {
+        // only the copies in use go to the GPU, and only when one of them changed (or more are in use)
+        if (b.dirty || b.n > b.sent) {
+          const im = b.mesh.instanceMatrix;
+          im.clearUpdateRanges();
+          im.addUpdateRange(0, b.n * 16);
+          im.needsUpdate = true;
+          b.sent = b.n;
+          b.dirty = false;
         }
-        else if (++b.idle > 1800) { this.parent.remove(b.mesh); b.mesh.dispose(); row.delete(mat); }
+        b.idle = 0;
       }
-      if (!row.size) this.by.delete(geo);
+      else if (++b.idle > 1800) {
+        this.parent.remove(b.mesh);
+        b.mesh.dispose();
+        const row = this.by.get(b.geo);
+        row?.delete(b.mat);
+        if (row && !row.size) this.by.delete(b.geo);
+        all[i] = all[all.length - 1];
+        all.pop();
+      }
     }
   }
 }
@@ -4881,7 +4903,7 @@ function buildPlot(e: Entry) {
         pl.ripe = ripe;
       }
     });
-    batchDraw.push({ root: e.root, meshes });
+    drawBatched(e.root, meshes);
   };
 }
 
@@ -6184,7 +6206,7 @@ function buildPen(e: Entry, d: BuildingDef) {
     }
     e.herdSeen = inView;
     herdMoved = inView || rebuilt;
-    if (inView && herdMeshes.length) batchDraw.push({ root: herd, meshes: herdMeshes });
+    if (inView && herdMeshes.length) drawBatched(herd, herdMeshes);
   };
 }
 
@@ -8546,7 +8568,7 @@ class Life {
       b.wings[0].rotation.z = flap;
       b.wings[1].rotation.z = -flap;
       b.meshes ??= gatherStatics(b.g);
-      batchDraw.push({ root: b.g, meshes: b.meshes });
+      drawBatched(b.g, b.meshes);
     });
     // gulls glide in wide circles, flapping now and then
     this.gulls.forEach((gl) => {
@@ -8557,7 +8579,7 @@ class Life {
       gl.wings[0].rotation.z = flap;
       gl.wings[1].rotation.z = -flap;
       gl.meshes ??= gatherStatics(gl.g);
-      batchDraw.push({ root: gl.g, meshes: gl.meshes });
+      drawBatched(gl.g, gl.meshes);
     });
     // now and then a fish leaps out of the sea near the shore in view
     this.nextFish -= dt;
