@@ -76,8 +76,8 @@ def main(path):
     src = Image.open(path).convert('RGBA')
     cut, reach = art(src)
     os.makedirs(STORE, exist_ok=True)
-    # the store icon: full square (the store rounds its corners itself)
-    fit(sky(512, 512), cut, reach, 512 * 0.47).convert('RGB').save(os.path.join(STORE, 'icon-512.png'))
+    # the store icon: full square (the store rounds its corners itself), a 32 bit PNG as it asks for
+    fit(sky(512, 512), cut, reach, 512 * 0.47).save(os.path.join(STORE, 'icon-512.png'))
     for name, k in DENSITY.items():
         d = os.path.join(RES, f'mipmap-{name}')
         os.makedirs(d, exist_ok=True)
