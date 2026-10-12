@@ -3,8 +3,8 @@
 // listing. Written in English here, in the player's language from the locale files.
 import { getLang, t } from '@/game/i18n';
 
-// who to write to about it
-export const PRIVACY_CONTACT = 'CONTACT_EMAIL';
+// who to write to about it (none yet: then the store page's contact details)
+export const PRIVACY_CONTACT = '';
 // the day this version took effect
 const UPDATED = new Date(2026, 9, 11);
 
@@ -82,7 +82,7 @@ export function PrivacyText() {
       ))}
       <section className="mt-4">
         <h3 className="mb-1 font-bold">{t('Contact')}</h3>
-        <p>{t('Questions about this policy: {email}', { email: PRIVACY_CONTACT })}</p>
+        <p>{PRIVACY_CONTACT ? t('Questions about this policy: {email}', { email: PRIVACY_CONTACT }) : t('Questions about this policy: write to the developer through the contact details on the game\'s Google Play page.')}</p>
       </section>
     </div>
   );
