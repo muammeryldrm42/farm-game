@@ -21,6 +21,7 @@ const SECTIONS: { title: string; lines: string[] }[] = [
       'Your farm (your progress, buildings, animals and items) and your settings (such as language, sound, graphics and notifications) are saved only on your device, in the game\'s own storage. We never receive them.',
       'Uninstalling the game or clearing its data deletes them. You can also delete your farm at any time with Settings, Start over.',
       'If you export a save code to move your farm to another device, the code holds only your game progress and goes only where you paste it. We do not receive it.',
+      'If backup is turned on on your phone, Android may include the game\'s data in your own Google backup, so your farm can come back on a new phone. This is handled by Google under its privacy policy; we do not receive it.',
     ],
   },
   {
