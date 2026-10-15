@@ -1800,7 +1800,7 @@ function SettingsModal() {
           🔒 {t('Privacy policy')}
         </button>
       </div>
-      <p className="mt-2 text-center text-[11px] text-[#b09a72]">Talons Farm by Talons Protocol</p>
+      <p className="mt-2 text-center text-[11px] text-[#b09a72]">{t('Talons Farm by Talons Protocol')}</p>
     </Modal>
   );
 }
