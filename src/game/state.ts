@@ -299,8 +299,43 @@ export function boatState(s: GameState, now: number): 'none' | 'docked' | 'away'
   return 'away';
 }
 
+// What the farm can come by now: its crops, the fruit of its trees, what its animals give, the
+// fish its open fishing spots bring in often enough, and what its workshops make out of these.
+// Orders and the boat ask only for these: one asking for a fish before the fishing spot is open
+// (or for eggs with no hens) could never be filled, and would sit on the board for good.
+const FISH_SHARE = 0.08;
+export function makeable(s: GameState) {
+  const can = new Set<string>();
+  for (const i of ITEM_LIST) if (CROP[i.id] && CROP[i.id].level <= s.level) can.add(i.id);
+  const own = new Set<string>();
+  for (const o of s.objects) {
+    own.add(o.type);
+    const d = BUILDING[o.type];
+    if (d?.fruit) can.add(d.fruit);
+    if (o.pen?.animals.length && d?.animal && ANIMAL[d.animal]) can.add(ANIMAL[d.animal].product);
+  }
+  for (const [spot, f] of [['lake', s.fishing], ['sea', s.seaFishing]] as const) {
+    if (!f?.open) continue;
+    const open = (spot === 'lake' ? LAKE_CATCHES : SEA_CATCHES).filter(([, lv]) => s.level >= lv);
+    const total = open.reduce((a, [, , w]) => a + w, 0);
+    for (const [id, , w] of open) if (w / total >= FISH_SHARE) can.add(id);
+  }
+  // goods made from goods: until nothing more can be added
+  const recipes = Object.values(RECIPE).filter((r) => r.level <= s.level && own.has(r.building));
+  for (let more = true; more;) {
+    more = false;
+    for (const r of recipes) if (!can.has(r.id) && Object.keys(r.inputs).every((id) => can.has(id))) { can.add(r.id); more = true; }
+  }
+  return can;
+}
+function askable(s: GameState) {
+  const can = makeable(s);
+  const pool = ITEM_LIST.filter((i) => i.level <= s.level && !i.id.endsWith('_feed') && can.has(i.id));
+  return pool.length ? pool : ITEM_LIST.filter((i) => CROP[i.id] && i.level <= s.level);
+}
+
 export function genBoat(s: GameState, now: number): Boat {
-  const pool = ITEM_LIST.filter((i) => i.level <= s.level && !i.id.endsWith('_feed'));
+  const pool = askable(s);
   const n = s.level < 10 ? 3 : s.level < 14 ? 4 : 6;
   const crates: Crate[] = [];
   for (let i = 0; i < n; i++) {
@@ -466,7 +501,7 @@ export const claimableQuests = (s: GameState) => activeQuests(s).filter((q) => q
 // ---------------------------------------------------------------- orders
 
 export function genOrder(s: GameState, readyAt: number): Order {
-  const pool = ITEM_LIST.filter((i) => i.level <= s.level && !i.id.endsWith('_feed'));
+  const pool = askable(s);
   const maxN = s.level < 3 ? 2 : 3;
   const n = Math.min(pool.length, 1 + Math.floor(Math.random() * maxN));
   const picked: typeof pool = [];
@@ -603,7 +638,7 @@ export function loadGame(): GameState {
 
 // TEMP test mode: level 200 and bottomless coins and gems while the game is being tested.
 // Set TEST_MODE to false (or delete this block and its three uses) to turn it off.
-export const TEST_MODE = true;
+export const TEST_MODE = false;
 const TEST_FUNDS = 999_999_999;
 function testBoost(s: GameState): GameState {
   if (!TEST_MODE) return s;
@@ -662,7 +697,7 @@ export type Sfx = 'harvest' | 'plant' | 'coin' | 'build' | 'error' | 'levelup' |
 export interface Fx { kind: 'float' | 'burst'; gx: number; gy: number; text?: string; color?: string; z?: number }
 export interface Placing { type: string; x: number; y: number; moveId?: number }
 export interface Tool { kind: 'plant'; crop: string }
-export type Panel = 'shop' | 'orders' | 'storage' | 'settings' | 'quests' | 'stall' | 'boat' | 'fishing' | 'home' | 'pet' | 'beauty' | null;
+export type Panel = 'shop' | 'orders' | 'storage' | 'settings' | 'quests' | 'stall' | 'boat' | 'fishing' | 'home' | 'pet' | 'beauty' | 'privacy' | null;
 export interface Flyer { icon: string; gx: number; gy: number; z: number; target: 'storage' | 'coins' | 'xp' }
 export interface Toast { id: number; text: string; tone: 'info' | 'bad' | 'good'; at: number }
 
@@ -2174,7 +2209,7 @@ export class GameStore {
       s.tutorial = TUTORIAL_DONE;
       s.coins += 50;
       s.gems += 2;
-      const t = { id: ++this.toastId, text: 'Tutorial complete! +50 coins and 2 gems.', tone: 'good' as const, at: Date.now() };
+      const t = { id: ++this.toastId, text: tr('Tutorial complete! +50 coins and 2 gems.'), tone: 'good' as const, at: Date.now() };
       this.toasts = [...this.toasts.slice(-3), t];
       setTimeout(() => { this.toasts = this.toasts.filter((x) => x.id !== t.id); this.emit(false); }, 3000);
     } else if (changed) this.sound('collect');

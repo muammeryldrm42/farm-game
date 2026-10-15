@@ -431,7 +431,7 @@ item('wasabi_pizza', 'Wasabi Pizza', '🍕', 'barn', 1406, 199);
 
 // ---- second wave: one more new thing on every level (fish, crops, fruit, animal goods, dishes)
 item('celery', 'Celery', '🥬', 'silo', 7, 1);
-item('sardine', 'Sardine', '@sardine', 'barn', 33, 2);
+item('sardine', 'Sardine', '@sardine', 'barn', 33, 5);
 item('damson', 'Damson', '🫐', 'silo', 17, 3);
 item('damson_tart', 'Damson Tart', '🥧', 'barn', 72, 5);
 item('pekin_down', 'Pekin Down', '🪶', 'barn', 33, 6);
@@ -665,7 +665,7 @@ item('lupin', 'Lupin', '🪻', 'silo', 441, 192);
 item('black_plume', 'Friesian Milk', '🥛', 'barn', 453, 197);
 item('sailfish', 'Sailfish', '@sailfish', 'barn', 545, 199);
 // more catches: fish of the lake and fish of the sea
-item('bluegill', 'Bluegill', '@bluegill', 'barn', 45, 4);
+item('bluegill', 'Bluegill', '@bluegill', 'barn', 45, 5);
 item('largemouth_bass', 'Largemouth Bass', '@largemouth_bass', 'barn', 52, 6);
 item('crayfish', 'Crayfish', '@crayfish', 'barn', 68, 12);
 item('crappie', 'Crappie', '@crappie', 'barn', 78, 17);
