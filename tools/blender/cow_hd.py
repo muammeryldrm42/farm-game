@@ -1,14 +1,13 @@
-# A detailed Holstein cow in the chunky storybook style of the game's trailer: a deep barrel of a
-# body with a straight back and the hip bones showing, sturdy legs on split hooves, a big kind
-# head with a broad pink muzzle, short horns, ears held out to the sides and glossy dark eyes.
-# The coat's black patches are drawn by a shader (not face by face), so their edges are clean
-# curves, with a little fur grain over everything; the bake adds soft shadows in the creases.
-# Parts and pivots are the cow's (`head`, `leg0..3`, `tail`, see breeds.py and the meta of
-# sculpts/real_cow.json), so it can stand in for animal_cow without changes to the game; it is
-# written as animal_cow_hd and leaves the cow in use untouched.
+# A Holstein cow drawn as in the game's trailer: true cow proportions (a long deep barrel on long
+# jointed legs, a long narrow face), soft cream white and charcoal patches with organic edges, a
+# big pink udder, a black head with a white blaze and a pink muzzle, small horns and level ears.
+# The patches, the blaze and a soft light from above (the underside a shade darker, as a painter
+# would) are drawn by shaders, so their edges are clean curves; the bake adds soft shadows in the
+# creases. The parts are the game's (`head`, `leg0..3`, `tail`, each turning about its own
+# joint), so it can stand in for animal_cow; it is written as animal_cow_hd and leaves the cow in
+# use untouched.
 # Coordinates below are the game's: x right, y up, z toward the cow's nose (see animals.B).
 # Run: python3 tools/blender/cow_hd.py
-import math
 import os
 import sys
 
@@ -18,10 +17,11 @@ from animals import B, Blob  # noqa: E402
 from common import _lin  # noqa: E402
 from kit import anim_group, finish, main  # noqa: E402
 
-HEAD = (0.0, 0.41, 0.26)            # the neck pivot
-HIPS = [(-0.075, 0.15), (0.075, 0.15), (-0.075, -0.15), (0.075, -0.15)]  # front left, front right, back left, back right
-LEG = 0.2                           # hip height
-TAIL = (0.0, 0.42, -0.25)
+# the joints: the head turns where it meets the neck, the legs at the shoulder and the hip
+HEAD = (0.0, 0.392, 0.282)
+FRONT, HIND = 0.15, -0.15
+LEGS = [(-0.062, 0.3, FRONT), (0.062, 0.3, FRONT), (-0.066, 0.31, HIND), (0.066, 0.31, HIND)]
+TAIL = (0.0, 0.415, -0.25)
 
 
 # ---------------------------------------------------------------- shader helpers
@@ -114,240 +114,233 @@ class NB:
         return self.m
 
 
-WHITE, BLACK = '#f6f2ea', '#1c1a19'
+
+# the trailer's colours: a warm cream white and a soft warm charcoal (never a hard black)
+WHITE, BLACK = '#f0e8da', '#45403c'
+
+
+def shade_from_above(n, col, low=0.88):
+    """The underside a shade darker than the back, as the soft daylight in the trailer."""
+    k = n.smooth(0.16, 0.44, n.y)
+    hsv = n.nt.nodes.new('ShaderNodeHueSaturation')
+    n._in(hsv.inputs['Value'], n.math('MULTIPLY_ADD', k, 1 - low, low))
+    n.nt.links.new(col, hsv.inputs['Color'])
+    return hsv.outputs['Color']
+
+
+def patches(n, white_below):
+    """Black where the patch pattern says so (about half the coat), never below `white_below`."""
+    # big smooth blobs, a few to a side, with clean soft edges
+    base = n.noise(8.6, detail=0.6, rough=0.5, dist=0.22, offset=(4.2, 1.3, 0.7))
+    s = n.math('ADD', base, n.math('MULTIPLY', n.math('SUBTRACT', n.y, 0.33), 0.3))
+    black = n.smooth(0.5, 0.512, s)
+    return n.math('MULTIPLY', black, n.smooth(white_below, white_below + 0.025, n.y))
 
 
 def coat_mat():
-    """Big rounded black patches over white; white low on the legs and under the belly."""
-    n = NB('hd_coat', rough=0.75)
-    spots = n.noise(4.6, detail=1.4, rough=0.45, dist=0.3, offset=(4.2, 1.3, 0.7))
-    # patches mostly up on the sides and the back; the lower legs and the belly stay white
-    bias = n.math('MULTIPLY', n.math('SUBTRACT', n.y, 0.36), 0.5)
-    s = n.math('ADD', spots, bias)
-    black = n.smooth(0.522, 0.536, s)
-    low = n.smooth(0.1, 0.13, n.y)
-    black = n.math('MULTIPLY', black, low)
-    col = n.mix(black, WHITE, BLACK)
-    return n.done(n.fur(col))
+    n = NB('hd_coat', rough=0.82)
+    col = n.mix(patches(n, 0.215), WHITE, BLACK)
+    return n.done(shade_from_above(n, col))
 
 
 def leg_mat():
-    """The legs carry the body's patches down to the knee, white below."""
-    n = NB('hd_leg', rough=0.75)
-    spots = n.noise(4.6, detail=1.4, rough=0.45, dist=0.3, offset=(4.2, 1.3, 0.7))
-    bias = n.math('MULTIPLY', n.math('SUBTRACT', n.y, 0.36), 0.5)
-    black = n.smooth(0.522, 0.536, n.math("ADD", spots, bias))
-    black = n.math('MULTIPLY', black, n.smooth(0.12, 0.15, n.y))
-    return n.done(n.fur(n.mix(black, WHITE, BLACK)))
+    n = NB('hd_leg', rough=0.82)
+    col = n.mix(patches(n, 0.15), WHITE, BLACK)
+    return n.done(shade_from_above(n, col))
 
 
 def face_mat():
-    """A black head with a white blaze down the face, narrow between the eyes and widening to
-    the muzzle, and white round the muzzle's top."""
-    hx, hy, hz = HEAD
-    n = NB('hd_face', rough=0.7)
-    ly = n.math('SUBTRACT', n.y, hy)
-    lz = n.math('SUBTRACT', n.z, hz)
-    ax = n.math('ABSOLUTE', n.x)
-    wobble = n.math('MULTIPLY', n.math('SUBTRACT', n.noise(18.0, detail=2.0), 0.5), 0.03)
-    # half width of the blaze at each height: 0.016 on the forehead, 0.05 by the muzzle
-    half = n.math('ADD', n.math('MULTIPLY_ADD', n.math('SUBTRACT', 0.09, ly), 0.32, 0.012), wobble)
-    inside = n.math('SUBTRACT', half, ax)
-    blaze = n.smooth(-0.003, 0.003, inside)
-    front = n.smooth(0.06, 0.08, lz)
-    white = n.math('MULTIPLY', blaze, front)
-    # the jaw and the muzzle's top white too
-    jaw = n.math('MULTIPLY', n.smooth(0.01, -0.01, n.math('ADD', ly, 0.035)), n.smooth(0.1, 0.13, lz))
-    white = n.math('MAXIMUM', white, jaw)
-    col = n.mix(white, BLACK, WHITE)
-    return n.done(n.fur(col, amt=0.06, scale=120.0))
+    """A black head with a white blaze down the front of the face, narrow on the forehead and
+    widening toward the muzzle."""
+    n = NB('hd_face', rough=0.75)
+    # the face runs from the forehead (y .405, z .305) down to the muzzle (y .345, z .385): how far
+    # along it, and how far out on its front
+    along = n.math('ADD', n.math('MULTIPLY', n.math('SUBTRACT', n.y, 0.405), -0.6), n.math('MULTIPLY', n.math('SUBTRACT', n.z, 0.305), 0.8))
+    front = n.math('ADD', n.math('MULTIPLY', n.math('SUBTRACT', n.y, 0.405), 0.8), n.math('MULTIPLY', n.math('SUBTRACT', n.z, 0.305), 0.6))
+    wobble = n.math('MULTIPLY', n.math('SUBTRACT', n.noise(30.0, detail=2.0), 0.5), 0.012)
+    half = n.math('ADD', n.math('MULTIPLY_ADD', along, 0.16, 0.008), wobble)
+    blaze = n.smooth(-0.002, 0.002, n.math('SUBTRACT', half, n.math('ABSOLUTE', n.x)))
+    blaze = n.math('MULTIPLY', blaze, n.smooth(0.016, 0.024, front))
+    blaze = n.math('MULTIPLY', blaze, n.smooth(-0.005, 0.005, along))
+    # the lower face white all across its front, from below the eyes
+    lower = n.math('MULTIPLY', n.smooth(0.035, 0.045, n.math('ADD', along, wobble)), n.smooth(0.004, 0.014, front))
+    col = n.mix(n.math('MAXIMUM', blaze, lower), BLACK, WHITE)
+    return n.done(shade_from_above(n, col, low=0.9))
 
 
 def muzzle_mat():
-    """Soft pink, a shade darker round the nostrils and lighter on top."""
-    hx, hy, hz = HEAD
+    """Pink going greyish toward the lips, darker in the nostrils."""
     n = NB('hd_muzzle', rough=0.45)
-    top = n.smooth(-0.07, -0.02, n.math('SUBTRACT', n.y, hy))
-    col = n.mix(top, '#d98d8f', '#f2b5b1')
+    col = n.mix(n.smooth(0.3, 0.335, n.y), '#e6aba5', '#f3cdc5')
     for sx in (-1, 1):
-        d = n.dist((hx + sx * 0.032, hy - 0.05, hz + 0.236))
-        col = n.mix(n.smooth(0.026, 0.012, d), col, '#8a4a4c')
-    mottle = n.noise(40.0, detail=3.0)
+        d = n.dist((sx * 0.017, 0.326, 0.428))
+        col = n.mix(n.smooth(0.013, 0.006, d), col, '#a8615e')
+    mottle = n.noise(30.0, detail=1.0)
     hsv = n.nt.nodes.new('ShaderNodeHueSaturation')
-    n._in(hsv.inputs['Value'], n.math('MULTIPLY_ADD', mottle, 0.12, 0.94))
+    n._in(hsv.inputs['Value'], n.math('MULTIPLY_ADD', mottle, 0.06, 0.97))
     n.nt.links.new(col, hsv.inputs['Color'])
     return n.done(hsv.outputs['Color'])
 
 
-def flat_mat(name, a, b=None, rough=0.7, along_y=None):
-    """One colour, or a blend from a to b up the game's y between along_y = (y0, y1)."""
+def flat_mat(name, a, b=None, rough=0.7, along_y=None, fur=0.04):
     n = NB(name, rough=rough)
-    if b and along_y:
-        col = n.mix(n.smooth(along_y[0], along_y[1], n.y), a, b)
-    else:
-        col = n.mix(0.0, a, a)
-    return n.done(n.fur(col, amt=0.04, scale=60.0))
+    col = n.mix(n.smooth(along_y[0], along_y[1], n.y), a, b) if b and along_y else n.mix(0.0, a, a)
+    return n.done(n.fur(col, amt=fur, scale=80.0))
 
 
 def eye_mat(sx):
-    """A glossy dark eye with a white catch light up front, toward the sun."""
-    hx, hy, hz = HEAD
+    """A dark brown eye with a small catch light."""
     n = NB(f'hd_eye{sx}', rough=0.2)
-    ex, ey, ez = hx + sx * 0.071, hy + 0.045, hz + 0.088
-    c = n.dist((ex + sx * 0.004, ey + 0.009, ez + 0.012))
-    col = n.mix(n.smooth(0.016, 0.0, n.dist((ex + sx * 0.012, ey, ez + 0.004))), '#120c0a', '#3a2418')
-    col = n.mix(n.smooth(0.0062, 0.0045, c), col, '#ffffff')
+    ex, ey, ez = sx * 0.051, 0.392, 0.322
+    col = n.mix(n.smooth(0.009, 0.0, n.dist((ex + sx * 0.006, ey, ez + 0.002))), '#0d0907', '#3b2416')
+    col = n.mix(n.smooth(0.0032, 0.0022, n.dist((ex + sx * 0.004, ey + 0.004, ez + 0.006))), col, '#f4f1ea')
     return n.done(col)
-
-
-# ---------------------------------------------------------------- the cow
-
-def body(coat):
-    b = Blob(0.0045)
-    # the barrel: deep chest, round belly, broad rump
-    b.ell((0, 0.335, -0.01), 0.128, 0.112, 0.225)
-    b.ell((0, 0.335, 0.13), 0.122, 0.116, 0.11)       # chest and shoulders
-    b.ell((0, 0.34, -0.16), 0.12, 0.108, 0.12)        # rump
-    b.ell((0, 0.27, -0.01), 0.11, 0.07, 0.17)         # belly
-    b.ell((0, 0.42, 0.14), 0.06, 0.035, 0.07)         # withers
-    for sx in (-1, 1):
-        b.ell((sx * 0.08, 0.415, -0.17), 0.04, 0.025, 0.04)  # hip bones, just showing
-        b.ell((sx * 0.058, 0.29, -0.185), 0.05, 0.088, 0.068)  # thighs, within the rump's width
-        b.ell((sx * 0.075, 0.32, 0.14), 0.055, 0.085, 0.06)  # shoulders
-    b.ell((0, 0.405, -0.265), 0.045, 0.035, 0.035)    # tail head
-    # the neck to the head, and the dewlap under it
-    b.ell((0, 0.385, 0.22), 0.085, 0.09, 0.08)
-    b.ell((0, 0.3, 0.2), 0.04, 0.06, 0.05)
-    return b.build(coat, 2400)
-
-
-def udder():
-    pink = flat_mat('hd_udder', '#e89a9a', '#f4b8b4', rough=0.5, along_y=(0.16, 0.24))
-    u = Blob(0.003)
-    u.ell((0, 0.205, -0.1), 0.062, 0.046, 0.058)
-    u.ell((0, 0.22, -0.08), 0.05, 0.03, 0.04)
-    for x, z in ((0.024, -0.075), (-0.024, -0.075), (0.024, -0.122), (-0.024, -0.122)):
-        u.cap((x, 0.18, z), (x, 0.142, z), 0.011, 0.0085)
-    u.build(pink, 450)
-
-
-def head(face, muzzle):
-    hx, hy, hz = HEAD
-    o = lambda x, y, z: (hx + x, hy + y, hz + z)  # noqa: E731
-    with anim_group('head', B(*HEAD)):
-        h = Blob(0.0035)
-        h.ell(o(0, 0.03, 0.04), 0.085, 0.085, 0.09)      # skull
-        h.ell(o(0, -0.005, 0.12), 0.07, 0.075, 0.09)     # face, tapering to the muzzle
-        h.ell(o(0, 0.09, 0.03), 0.06, 0.03, 0.05)        # poll between the horns
-        for sx in (-1, 1):
-            h.ell(o(sx * 0.055, 0.055, 0.085), 0.03, 0.022, 0.03)  # brow over the eye
-            h.ell(o(sx * 0.05, -0.04, 0.09), 0.035, 0.04, 0.05)    # cheeks
-            h.ell(o(sx * 0.071, 0.045, 0.088), 0.019, 0.019, 0.019, neg=True)  # eye socket
-        h.build(face, 1700)
-        m = Blob(0.003)
-        m.ell(o(0, -0.045, 0.2), 0.072, 0.056, 0.05)
-        m.ell(o(0, -0.07, 0.19), 0.06, 0.03, 0.045)      # chin and lower lip
-        for sx in (-1, 1):
-            m.ell(o(sx * 0.032, -0.05, 0.248), 0.015, 0.012, 0.016, neg=True)  # nostrils
-        m.build(muzzle, 650)
-        for sx in (-1, 1):
-            e = Blob(0.0022)
-            e.ell(o(sx * 0.071, 0.045, 0.088), 0.0185, 0.0185, 0.0185)
-            e.build(eye_mat(sx), 160)
-            # ears held out to the side, a little down, pink inside
-            ear = Blob(0.003)
-            ear.ell(o(sx * 0.125, 0.05, 0.018), 0.052, 0.02, 0.03)
-            ear.ell(o(sx * 0.09, 0.052, 0.02), 0.02, 0.016, 0.018)
-            ear.build(face_black(), 260)
-            inner = Blob(0.0025)
-            inner.ell(o(sx * 0.13, 0.049, 0.036), 0.038, 0.012, 0.018)
-            inner.build(ear_pink(), 110)
-            # short horns curving out and up, darker at the tips
-            hn = Blob(0.0025)
-            pts = [o(sx * 0.045, 0.085, 0.02), o(sx * 0.075, 0.1, 0.03), o(sx * 0.097, 0.123, 0.036), o(sx * 0.105, 0.145, 0.03)]
-            rs = [0.017, 0.014, 0.0105, 0.007]
-            for k in range(3):
-                hn.cap(pts[k], pts[k + 1], rs[k], rs[k + 1])
-            hn.build(horn_mat(), 220)
-        # a curly tuft between the horns
-        t = Blob(0.0025)
-        for dx, dz in ((0, 0.04), (0.018, 0.05), (-0.018, 0.05), (0, 0.065)):
-            t.ball(o(dx, 0.105, dz), 0.017)
-        t.build(face_black(), 160)
 
 
 _cache = {}
 
 
-def face_black():
-    if 'black' not in _cache:
-        _cache['black'] = flat_mat('hd_black', BLACK)
-    return _cache['black']
+def cached(key, make):
+    if key not in _cache:
+        _cache[key] = make()
+    return _cache[key]
 
 
-def ear_pink():
-    if 'ear' not in _cache:
-        _cache['ear'] = flat_mat('hd_ear', '#d88a8c', '#eeaaa8', rough=0.6, along_y=(0.44, 0.47))
-    return _cache['ear']
+# ---------------------------------------------------------------- the cow
+
+def body(coat):
+    b = Blob(0.004)
+    b.ell((0, 0.316, -0.02), 0.102, 0.102, 0.23)       # the barrel
+    b.ell((0, 0.315, 0.12), 0.09, 0.094, 0.105)        # chest
+    b.ell((0, 0.338, -0.17), 0.094, 0.082, 0.1)        # hindquarters, the flank tucked up below
+    b.ell((0, 0.228, -0.03), 0.092, 0.052, 0.13)       # the belly, hanging a little in the middle
+    b.ell((0, 0.393, -0.04), 0.066, 0.03, 0.19)        # a straight back, on to the rump
+    b.ell((0, 0.402, 0.12), 0.042, 0.032, 0.06)        # withers
+    b.ell((0, 0.255, 0.2), 0.045, 0.04, 0.04)          # brisket
+    for sx in (-1, 1):
+        b.ell((sx * 0.07, 0.392, -0.14), 0.03, 0.02, 0.03)     # hook bones, just showing
+        b.ell((sx * 0.034, 0.385, -0.238), 0.02, 0.018, 0.02)   # pin bones
+        b.ell((sx * 0.055, 0.32, 0.15), 0.04, 0.08, 0.05)       # shoulders
+        b.ell((sx * 0.058, 0.28, -0.18), 0.045, 0.085, 0.065)   # thighs
+    b.ell((0, 0.392, -0.24), 0.026, 0.02, 0.026)       # tail head
+    # the neck rising to the head, a little dewlap under it
+    b.cap((0, 0.35, 0.16), (0, 0.38, 0.27), 0.058, 0.042)
+    b.ell((0, 0.33, 0.2), 0.05, 0.07, 0.06)
+    b.ell((0, 0.285, 0.232), 0.018, 0.04, 0.03)
+    return b.build(coat, 2600)
+
+
+def udder():
+    pink = flat_mat('hd_udder', '#e59a8e', '#f2b6a8', rough=0.5, along_y=(0.13, 0.24), fur=0.0)
+    u = Blob(0.0028)
+    u.ell((0, 0.198, -0.13), 0.066, 0.056, 0.072)
+    u.ell((0, 0.222, -0.1), 0.054, 0.034, 0.058)
+    for x, z in ((0.026, -0.1), (-0.026, -0.1), (0.026, -0.158), (-0.026, -0.158)):
+        u.cap((x, 0.16, z), (x, 0.124, z), 0.011, 0.0085)
+    u.build(pink, 500)
+
+
+def head(face, muzzle):
+    black = cached('black', lambda: flat_mat('hd_black', BLACK, fur=0.0))
+    with anim_group('head', B(*HEAD)):
+        h = Blob(0.003)
+        h.ell((0, 0.418, 0.29), 0.058, 0.03, 0.034)        # poll, broad between the horns
+        h.ell((0, 0.398, 0.305), 0.056, 0.042, 0.04)        # forehead and eyes
+        h.cap((0, 0.395, 0.31), (0, 0.345, 0.385), 0.044, 0.032)   # the long face
+        h.cap((0, 0.355, 0.29), (0, 0.322, 0.36), 0.03, 0.021)    # jaw
+        for sx in (-1, 1):
+            h.ell((sx * 0.034, 0.362, 0.312), 0.028, 0.035, 0.04)  # cheeks
+            h.ell((sx * 0.046, 0.403, 0.319), 0.015, 0.008, 0.012)  # brow
+            h.ell((sx * 0.051, 0.392, 0.322), 0.0105, 0.0105, 0.0105, neg=True)  # eye socket
+        h.build(face, 1800)
+        m = Blob(0.0022)
+        m.ell((0, 0.326, 0.405), 0.041, 0.031, 0.031)
+        m.ell((0, 0.307, 0.396), 0.034, 0.017, 0.024)       # lower lip and chin
+        for sx in (-1, 1):
+            m.ell((sx * 0.017, 0.326, 0.432), 0.008, 0.006, 0.009, neg=True)  # nostrils
+        m.build(muzzle, 700)
+        for sx in (-1, 1):
+            e = Blob(0.0016)
+            e.ell((sx * 0.051, 0.392, 0.322), 0.0098, 0.0098, 0.0098)
+            e.build(eye_mat(sx), 120)
+            # level ears, a little drooping at the tips, pink inside
+            ear = Blob(0.0022)
+            ear.ell((sx * 0.068, 0.401, 0.29), 0.016, 0.01, 0.012)
+            ear.ell((sx * 0.097, 0.396, 0.291), 0.032, 0.01, 0.02)
+            ear.build(black, 260)
+            inner = Blob(0.0018)
+            inner.ell((sx * 0.099, 0.396, 0.298), 0.025, 0.006, 0.014)
+            inner.build(cached('ear', lambda: flat_mat('hd_ear', '#dc9c98', '#ecb6b0', rough=0.6, along_y=(0.39, 0.4), fur=0.0)), 110)
+            # small horns, out and up and a little forward, darker at the tips
+            hn = Blob(0.0016)
+            pts = [(sx * 0.036, 0.428, 0.288), (sx * 0.058, 0.442, 0.29), (sx * 0.072, 0.462, 0.3), (sx * 0.072, 0.482, 0.316)]
+            rs = [0.0125, 0.0105, 0.0075, 0.0042]
+            for k in range(3):
+                hn.cap(pts[k], pts[k + 1], rs[k], rs[k + 1])
+            hn.build(cached('horn', horn_mat), 200)
+        t = Blob(0.0018)
+        for dx, dz in ((0, 0.296), (0.012, 0.3), (-0.012, 0.3)):
+            t.ball((dx, 0.432, dz), 0.011)                 # a tuft of hair on the poll
+        t.build(black, 120)
 
 
 def horn_mat():
-    if 'horn' not in _cache:
-        n = NB('hd_horn', rough=0.4)
-        # pale at the root, darkening over the tip
-        col = n.mix(n.smooth(0.53, 0.56, n.y), '#efe2c0', '#5a4a3a')
-        _cache['horn'] = n.done(n.fur(col, amt=0.05, scale=50.0))
-    return _cache['horn']
+    n = NB('hd_horn', rough=0.4)
+    col = n.mix(n.smooth(0.462, 0.482, n.y), '#e8d8ae', '#a08e6a')
+    return n.done(col)
 
 
 def legs(leg, hoof):
-    for i, (x, z) in enumerate(HIPS):
+    for i, (x, py, z) in enumerate(LEGS):
         front = z > 0
-        with anim_group(f'leg{i}', B(x, LEG, z)):
-            b = Blob(0.0028)
+        with anim_group(f'leg{i}', B(x, py, z)):
+            b = Blob(0.0022)
             if front:
-                b.ell((x, 0.2, z), 0.05, 0.07, 0.055)                  # forearm into the shoulder
-                b.cap((x, 0.2, z), (x, 0.1, z + 0.005), 0.038, 0.03)
-                b.ball((x, 0.1, z + 0.006), 0.031)                     # knee
-                b.cap((x, 0.1, z + 0.006), (x, 0.045, z + 0.01), 0.027, 0.026)
+                b.cap((x, 0.27, z), (x, 0.135, z + 0.004), 0.033, 0.024)    # forearm
+                b.ball((x, 0.126, z + 0.006), 0.0225)                         # knee
+                b.cap((x, 0.12, z + 0.006), (x, 0.052, z + 0.009), 0.0185, 0.0175)  # cannon
+                b.ball((x, 0.046, z + 0.011), 0.0168)                         # fetlock
+                b.cap((x, 0.044, z + 0.012), (x, 0.03, z + 0.019), 0.0148, 0.0155)  # pastern
+                hz = z + 0.024
             else:
-                b.ell((x, 0.21, z - 0.005), 0.055, 0.08, 0.065)        # gaskin into the thigh
-                b.cap((x, 0.2, z - 0.01), (x, 0.11, z - 0.03), 0.042, 0.03)
-                b.ball((x, 0.105, z - 0.032), 0.03)                    # hock
-                b.cap((x, 0.105, z - 0.03), (x, 0.045, z - 0.012), 0.027, 0.026)
-            b.build(leg, 420)
-            # a split hoof, with a dew claw behind
-            zz = z + (0.012 if front else -0.01)
-            hf = Blob(0.0022)
-            hf.ell((x, 0.022, zz + 0.004), 0.032, 0.024, 0.036)
-            hf.ell((x, 0.018, zz + 0.04), 0.004, 0.03, 0.016, neg=True)
-            hf.build(hoof, 160)
-            dc = Blob(0.002)
-            dc.ell((x, 0.05, zz - 0.026), 0.012, 0.008, 0.01)
+                b.cap((x, 0.27, z - 0.012), (x, 0.145, z - 0.045), 0.037, 0.023)  # gaskin
+                b.ell((x, 0.137, z - 0.05), 0.0185, 0.021, 0.023)                # hock
+                b.ball((x, 0.142, z - 0.064), 0.011)                              # point of the hock
+                b.cap((x, 0.13, z - 0.047), (x, 0.052, z - 0.033), 0.0185, 0.0175)  # cannon
+                b.ball((x, 0.046, z - 0.031), 0.0168)
+                b.cap((x, 0.044, z - 0.03), (x, 0.03, z - 0.023), 0.0148, 0.0155)
+                hz = z - 0.018
+            b.build(leg, 520)
+            hf = Blob(0.0016)
+            hf.ell((x, 0.0145, hz), 0.0195, 0.0155, 0.024)
+            hf.ell((x, 0.012, hz + 0.022), 0.0025, 0.02, 0.012, neg=True)    # the split between the claws
+            hf.build(hoof, 180)
+            dc = Blob(0.0014)
+            dc.ell((x, 0.04, hz - 0.03), 0.008, 0.006, 0.007)                # dew claws
             dc.build(hoof, 40)
 
 
-def tail(coat_white, tuft):
+def tail(tuft):
     tx, ty, tz = TAIL
     with anim_group('tail', B(*TAIL)):
-        t = Blob(0.0022)
-        t.cap((tx, ty, tz), (tx, ty - 0.05, tz - 0.022), 0.014, 0.011)
-        t.cap((tx, ty - 0.05, tz - 0.022), (tx, 0.19, tz - 0.03), 0.011, 0.0085)
-        t.build(coat_white, 160)
-        f = Blob(0.0022)
-        f.ell((tx, 0.165, tz - 0.03), 0.022, 0.04, 0.02)
-        f.ell((tx, 0.14, tz - 0.03), 0.014, 0.018, 0.013)
+        t = Blob(0.0016)
+        t.cap((tx, ty, tz), (tx, ty - 0.03, tz - 0.018), 0.011, 0.008)
+        t.cap((tx, ty - 0.03, tz - 0.018), (tx, 0.15, tz - 0.024), 0.008, 0.0055)
+        t.build(cached('tailc', lambda: flat_mat('hd_tail', WHITE, fur=0.0)), 200)
+        f = Blob(0.0016)
+        f.ell((tx, 0.128, tz - 0.024), 0.012, 0.03, 0.011)
+        f.ell((tx, 0.104, tz - 0.024), 0.009, 0.014, 0.008)
         f.build(tuft, 140)
 
 
 def cow_hd():
-    coat = coat_mat()
-    body(coat)
+    _cache.clear()
+    body(coat_mat())
     udder()
     head(face_mat(), muzzle_mat())
-    legs(leg_mat(), flat_mat('hd_hoof', '#2a2422', '#4a403a', rough=0.45, along_y=(0.0, 0.045)))
-    tail(flat_mat('hd_tail', '#efebe2'), face_black())
-    finish('animal_cow_hd', tex=1024, vivid=1.06, ao_min=0.55, ao_dist=0.08)
+    legs(leg_mat(), flat_mat('hd_hoof', '#2e2a28', '#45403b', rough=0.4, along_y=(0.0, 0.03), fur=0.0))
+    tail(cached('black', lambda: flat_mat('hd_black', BLACK, fur=0.0)))
+    finish('animal_cow_hd', tex=1024, vivid=1.02, ao_min=0.5, ao_dist=0.07)
 
 
 MODELS = {'animal_cow_hd': cow_hd}

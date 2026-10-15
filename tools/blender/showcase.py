@@ -30,21 +30,21 @@ def setup():
     scn.cycles.samples = 64
     scn.cycles.use_denoising = True
     scn.view_settings.view_transform = 'AgX'
-    scn.view_settings.look = 'AgX - Medium High Contrast'
+    scn.view_settings.look = 'AgX - Base Contrast'
     world = bpy.data.worlds.new('sky')
     scn.world = world
     world.use_nodes = True
     world.node_tree.nodes['Background'].inputs['Color'].default_value = lin('#a9d4f2')
     world.node_tree.nodes['Background'].inputs['Strength'].default_value = 0.9
     sun = bpy.data.lights.new('sun', 'SUN')
-    sun.energy = 4.0
+    sun.energy = 4.6
     sun.angle = math.radians(6)
     sun.color = lin('#fff0d8')[:3]
     so = bpy.data.objects.new('sun', sun)
     scn.collection.objects.link(so)
     so.rotation_euler = (math.radians(48), math.radians(12), math.radians(-35))
     # grass: green with a soft mottling
-    bpy.ops.mesh.primitive_plane_add(size=12)
+    bpy.ops.mesh.primitive_plane_add(size=80)
     g = bpy.context.active_object
     m = bpy.data.materials.new('grass')
     m.use_nodes = True
@@ -52,8 +52,8 @@ def setup():
     n = nt.nodes.new('ShaderNodeTexNoise')
     n.inputs['Scale'].default_value = 6
     r = nt.nodes.new('ShaderNodeValToRGB')
-    r.color_ramp.elements[0].color = lin('#5f9a34')
-    r.color_ramp.elements[1].color = lin('#86b84a')
+    r.color_ramp.elements[0].color = lin('#7fa83a')
+    r.color_ramp.elements[1].color = lin('#a2c24e')
     nt.links.new(n.outputs['Fac'], r.inputs['Fac'])
     nt.links.new(r.outputs['Color'], nt.nodes['Principled BSDF'].inputs['Base Color'])
     nt.nodes['Principled BSDF'].inputs['Roughness'].default_value = 0.95
@@ -112,7 +112,26 @@ def main():
     dirs = {'front': ((0.6, -1.0, 0.45), 1.2), 'side': ((1.0, -0.15, 0.3), 1.2), 'close': ((0.35, -1.0, 0.3), 0.62),
             'top': ((0.8, -0.8, 1.25), 1.35), 'back': ((-0.6, 1.0, 0.45), 1.2)}
     rows = []
-    for v in VIEWS:
+    if 'herd' in VIEWS:
+        import random
+        rnd = random.Random(3)
+        herd = []
+        for k, (hx, hy, rz) in enumerate([(-0.45, 0.2, 20), (0.35, 0.05, -35), (-0.1, -0.55, 160), (0.55, -0.7, 75), (-0.7, -0.75, -100)]):
+            objs = load(MODELS[0], 0)
+            # the parts are separate objects: turned and moved together under one empty
+            root = bpy.data.objects.new(f'cow{k}', None)
+            bpy.context.scene.collection.objects.link(root)
+            for o in objs:
+                if o.parent is None:
+                    o.parent = root
+            root.location = (20 + hx, hy, 0)
+            root.rotation_euler[2] = math.radians(rz + rnd.uniform(-8, 8))
+            bpy.context.view_layer.update()
+            herd += objs
+        lo, hi = bounds(herd)
+        c = (lo + hi) / 2
+        rows.append([shoot('herd', c, (hi - lo).length * 1.25, (0.55, -1.0, 0.85), lens=45)] * len(groups))
+    for v in [v for v in VIEWS if v != 'herd']:
         d, k = dirs[v]
         row = []
         for i, g in enumerate(groups):
@@ -131,9 +150,8 @@ def main():
         for k, im in enumerate(row):
             out.paste(im, (k * w, r * h))
     out.save(OUT)
-    for r in rows:
-        for s in r:
-            os.remove(s)
+    for s in {s for r in rows for s in r}:
+        os.remove(s)
 
 
 main()
