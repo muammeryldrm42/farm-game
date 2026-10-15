@@ -140,13 +140,12 @@ function startFarm(show: (st: GameStore) => void) {
   };
 }
 
+// the loading screen: the logo (tools/blender/logo.py) on the sky of the app's icon and splash
 function Splash() {
   return (
-    <div className="fixed inset-0 z-[100] grid place-items-center bg-[#3f9fd8] font-game text-white">
-      <div className="text-center">
-        <div className="emoji animate-bob text-6xl">🌾</div>
-        <div className="mt-3 text-2xl font-bold">Talons Farm</div>
-      </div>
+    <div className="fixed inset-0 z-[100] grid place-items-center bg-gradient-to-b from-[#8fd0f7] to-[#3f9fd8] font-game text-white">
+      {/* eslint-disable-next-line @next/next/no-img-element */}
+      <img src="/logo.webp" alt="Talons Farm" draggable={false} className="animate-bob max-h-[55vh] w-[min(78vw,560px)] object-contain" />
     </div>
   );
 }
