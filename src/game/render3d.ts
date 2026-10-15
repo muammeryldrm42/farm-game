@@ -21,7 +21,7 @@ import { toonCrown, toonPersonParts } from './gfx/toon';
 import { SCULPT_MAT, TOON_MAT, TOON_WOOL, WOOL_MAT } from './gfx/sdf';
 import { leafShell, leafTexture, meterBox, meterHip, meterRoof, surface, surfaceMat, surfacesReady, type SurfaceKind } from './gfx/textures';
 import { ANIMAL, BUILDING, CROP, ITEMS, type BuildingDef, type CropDef } from './data';
-import { t as tr } from './i18n';
+import { getLang, t as tr } from './i18n';
 import {
   CHUNK, FARM_OFF, FISH_SPOT, footprint, PET_IDS, petGift, type PetId, SEA_FISH_SPOT, fishSpotAt, type FishSpot, GRAZE, GRID, LAKE, MAP_OFF2, MAP_OFF3, NCH, isBeachTile, lakeE, animalReady, fishingInfo, boatState, canFulfill, chunkState, grazePhase, penInfo, plotProgress, prodInfo, treeInfo,
   type Animal, type FarmObject, type GameStore,
@@ -1499,7 +1499,8 @@ export class Renderer {
 
   private rebuildLand() {
     const s = this.store.s;
-    const key = s.chunks.join(';');
+    // (the language too: the signs on land for sale are lettered in it)
+    const key = `${s.chunks.join(';')}|${getLang()}`;
     if (key === this.landKey) return;
     this.landKey = key;
     const col = new THREE.Color();
@@ -1630,12 +1631,17 @@ export class Renderer {
     const g = group(p, cx * CHUNK + CHUNK / 2, 0, cy * CHUNK + CHUNK / 2);
     if (artStyle() === 'toon' && WORLD_MODELS.forsale_sign) {
       g.add(WORLD_MODELS.forsale_sign.clone());
+      // the model's board is blank: its words go on both faces
+      const words = new THREE.Mesh(saleWordsGeo(), saleWordsMat());
+      words.position.y = 0.95;
+      g.add(words);
       g.userData.sign = true;
+      g.userData.model = true;
       this.signs.push(g);
       return;
     }
     cyl(g, 0.05, 0.05, 0.9, '#6b4226', 0, 0, 0, 6);
-    const tex = canvasTex('forsale', 256, 128, (c) => {
+    const tex = canvasTex(`forsale-${getLang()}`, 256, 128, (c) => {
       c.fillStyle = '#c98a45'; c.fillRect(0, 0, 256, 128);
       c.strokeStyle = '#6b4226'; c.lineWidth = 12; c.strokeRect(6, 6, 244, 116);
       c.fillStyle = '#fff8e6'; c.font = '900 48px ui-rounded, "Trebuchet MS", system-ui, sans-serif';
@@ -1820,7 +1826,7 @@ export class Renderer {
     for (const g of this.signs) {
       // the procedural board bobs on its post; the Blender sign is one piece and just turns
       const board = g.children[1];
-      if (board) board.position.y = 0.95 + Math.sin(t / 500 + g.position.x) * 0.03;
+      if (board && !g.userData.model) board.position.y = 0.95 + Math.sin(t / 500 + g.position.x) * 0.03;
       g.rotation.y = this.az;
     }
 
@@ -5017,6 +5023,46 @@ function loadModel(name: string) {
 
 // scenery models the land builder uses once loaded (forest trees, FOR SALE sign)
 const WORLD_MODELS: Record<string, THREE.Object3D> = {};
+
+// The FOR SALE sign's words in the player's language: cream letters with a soft dark edge, in the
+// game's font, made smaller for a language whose words are long. Both faces of the board share
+// one mesh: a quad just off each face (inside the frame's edge), the back one turned round.
+let saleGeo: THREE.BufferGeometry | null = null;
+function saleWordsGeo() {
+  if (saleGeo) return saleGeo;
+  const front = new THREE.PlaneGeometry(0.8, 0.325).translate(0, 0, 0.0275);
+  const back = new THREE.PlaneGeometry(0.8, 0.325).rotateY(Math.PI).translate(0, 0, -0.0275);
+  saleGeo = mergeGeometries([front, back])!;
+  front.dispose();
+  back.dispose();
+  return saleGeo;
+}
+const saleMats = new Map<string, THREE.MeshStandardMaterial>();
+function saleWordsMat() {
+  const lang = getLang();
+  let m = saleMats.get(lang);
+  if (m) return m;
+  const map = canvasTex(`forsale-words-${lang}`, 512, 208, (c) => {
+    const text = tr('FOR SALE');
+    const font = getComputedStyle(document.body).fontFamily || 'system-ui, sans-serif';
+    let size = 124;
+    c.font = `700 ${size}px ${font}`;
+    const w = c.measureText(text).width;
+    if (w > 476) size = Math.floor((size * 476) / w);
+    c.font = `700 ${size}px ${font}`;
+    c.textAlign = 'center';
+    c.textBaseline = 'middle';
+    c.lineJoin = 'round';
+    c.lineWidth = Math.max(4, size * 0.14);
+    c.strokeStyle = 'rgba(92, 52, 22, 0.6)';
+    c.strokeText(text, 256, 108);
+    c.fillStyle = '#fff6e2';
+    c.fillText(text, 256, 108);
+  });
+  m = new THREE.MeshStandardMaterial({ map, transparent: true, depthWrite: false, roughness: 0.8, metalness: 0, polygonOffset: true, polygonOffsetFactor: -2, polygonOffsetUnits: -2 });
+  saleMats.set(lang, m);
+  return m;
+}
 // a forest model could not load: the land makes its own trees after all
 let forestFailed = false;
 function firstMesh(o?: THREE.Object3D) {

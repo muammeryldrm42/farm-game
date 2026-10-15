@@ -49,11 +49,11 @@ def forest_round():
 
 
 def forsale_sign():
-    """A wooden FOR SALE sign on a post, lettered on both faces."""
+    """A wooden sign on a post for land that is for sale. Its board is left blank: the game letters
+    both faces in the player's language."""
     m = std()
     board = pm('fs_board', '#c98a45', '#d89a52', scale=6, kind='wave', stretch=(1, 8, 1))
     frame = pm('fs_frame', '#6b4226', '#7a4c2c', scale=6, kind='wave', stretch=(1, 8, 1))
-    letters = pm('fs_letters', '#fff6e2')
     box(uid('post'), (0.08, 0.08, 1.02), (0, 0.04, 0.51), frame, bev=0.015)
     ball(uid('cap'), 0.05, (0, 0.04, 1.03), frame, scale=(1, 1, 0.7), segs=10)
     box(uid('board'), (0.9, 0.05, 0.45), (0, 0, 0.95), board, bev=0.02)
@@ -63,27 +63,6 @@ def forsale_sign():
         box(uid('fr'), (0.04, 0.07, 0.47), (sx * 0.45, 0, 0.95), frame, bev=0.012)
     for sx in (-1, 1):
         box(uid('nail'), (0.02, 0.08, 0.02), (sx * 0.38, 0, 1.1), m['iron'], bev=0)
-    for side in (-1, 1):
-        bpy.ops.object.text_add(location=(0, side * 0.027, 0.95))
-        t = bpy.context.active_object
-        t.name = uid('text')
-        t.data.body = 'FOR SALE'
-        t.data.align_x = 'CENTER'
-        t.data.align_y = 'CENTER'
-        t.data.size = 0.16
-        t.data.extrude = 0.006
-        t.data.bevel_depth = 0.003
-        t.rotation_euler = (math.radians(90), 0, math.radians(180) if side > 0 else 0)
-        # heavy lettering: fatten the outline a little
-        t.data.offset = 0.004
-        # the letters are a few pixels tall in the game: three steps per curve and a single step
-        # round the bevel keep their shape (Blender's 12 and 4 made 8000 triangles a side)
-        t.data.resolution_u = 3
-        t.data.bevel_resolution = 1
-        bpy.ops.object.convert(target='MESH')
-        t = bpy.context.active_object
-        t.data.materials.clear()
-        t.data.materials.append(letters)
     for i in range(5):
         a = i * 1.3
         ball(uid('tuft'), 0.05, (math.cos(a) * 0.1, math.sin(a) * 0.1 + 0.04, 0.02), m['leaf'], scale=(1.3, 1, 0.6), segs=8)
