@@ -1778,6 +1778,10 @@ export class Renderer {
     // look right again the moment they scroll into view
     this.frameNo++;
     EYES_FAR = this.cam.zoom < 0.8;
+    // at full speed the far animals move every other frame (see the herds)
+    ANIM_HALF = dt > 0 && dt < 0.025;
+    FRAME_ODD = this.frameNo & 1;
+    CAM_AT.copy(this.camera.position);
     resetSculptBudget();
     this.projM.multiplyMatrices(this.camera.projectionMatrix, this.camera.matrixWorldInverse);
     this.frustum.setFromProjectionMatrix(this.projM);
@@ -3365,6 +3369,14 @@ function eyes(p: P, spread: number, y: number, z: number, r: number, white = tru
 
 // quick blink every few seconds, each creature on its own rhythm
 let EYES_FAR = false;
+// Far from the camera, while the game runs at full speed (60 frames a second), each animal is
+// moved every other frame, half of them on one frame and half on the next, and holds its pose in
+// between: a far animal is a few pixels, and 30 steps a second look the same as 60, for half the
+// work on a farm of hundreds. Close up, or when the game runs at 30 frames (battery saver, idle),
+// every animal moves every frame.
+let ANIM_HALF = false;
+let FRAME_ODD = 0;
+const CAM_AT = new THREE.Vector3();
 function blink(m: THREE.Object3D, t: number, id: number) {
   const head = (m.userData.head as THREE.Object3D | undefined) ?? m;
   const list = head.userData.eyes as THREE.Object3D[] | undefined;
@@ -6022,9 +6034,14 @@ function buildPen(e: Entry, d: BuildingDef) {
       if (prev !== undefined && prev !== a.fedAt) hop.set(a.id, t);
       fed.set(a.id, a.fedAt);
     }
+    const halfFar = ANIM_HALF && an?.id !== 'bee' ? (LOD_FAR * lodScale) ** 2 : Infinity;
     herd.children.forEach((m, i) => {
       const a = list[i];
       const id = a?.id ?? i;
+      if (((i + FRAME_ODD) & 1) && halfFar < Infinity && !hop.has(id) && !(a?.graze && FLIERS.has(an!.id))) {
+        const dx = o.x + m.position.x - CAM_AT.x, dz = o.y + m.position.z - CAM_AT.z;
+        if (dx * dx + dz * dz + CAM_AT.y * CAM_AT.y > halfFar) return;
+      }
       let jump = 0;
       const h0 = hop.get(id);
       if (h0 !== undefined) {
