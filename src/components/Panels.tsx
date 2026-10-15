@@ -775,7 +775,7 @@ function SleepOverlay() {
   const store = useStore();
   const [, tick] = useState(0);
   useEffect(() => {
-    const id = setInterval(() => tick((n) => n + 1), 500);
+    const id = setInterval(() => { if (!document.hidden) tick((n) => n + 1); }, 500);
     return () => clearInterval(id);
   }, []);
   const home = store.ui.napAt > 0;
@@ -1443,7 +1443,7 @@ function PetModal() {
   const store = useStore();
   const [, tick] = useState(0);
   useEffect(() => {
-    const tm = setInterval(() => tick((n) => n + 1), 1000);
+    const tm = setInterval(() => { if (!document.hidden) tick((n) => n + 1); }, 1000);
     return () => clearInterval(tm);
   }, []);
   const id = store.ui.pet ?? 'dog';

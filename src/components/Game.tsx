@@ -103,8 +103,11 @@ function startFarm(show: (st: GameStore) => void) {
   const vis = () => { if (document.visibilityState === 'hidden') save(); };
   window.addEventListener('beforeunload', save);
   document.addEventListener('visibilitychange', vis);
-  // while YouTube has the game paused nothing runs: no ticks, no frames (see FarmCanvas), no sound
-  const tick = setInterval(() => { if (!ytPaused()) st.tick(); }, 1000);
+  // while YouTube has the game paused nothing runs: no ticks, no frames (see FarmCanvas), no sound.
+  // Nor in the background (the Android app keeps its page running there): the farm's timers are
+  // all times, so nothing is missed, and the tick on coming back catches up at once (see visClock)
+  const busy = () => !ytPaused() && document.visibilityState !== 'hidden';
+  const tick = setInterval(() => { if (busy()) st.tick(); }, 1000);
   // music can only start after a user gesture
   let unlocked = false;
   const syncMusic = () => {
@@ -137,7 +140,7 @@ function startFarm(show: (st: GameStore) => void) {
   const reclock = () => syncClock().then(() => { ahead(); owed(); st.tick(); st.emit(false); });
   const visClock = () => { if (document.visibilityState === 'visible') reclock(); };
   document.addEventListener('visibilitychange', visClock);
-  const drift = setInterval(() => { if (ytPaused()) return; if (clockDrifted()) reclock(); else ahead(); }, 5000);
+  const drift = setInterval(() => { if (!busy()) return; if (clockDrifted()) reclock(); else ahead(); }, 5000);
   const owedT = setTimeout(owed, 8000);
   // YouTube pauses the game: the farm is saved and the sound stops; back, the clock is set again
   const offPause = onYtPause((p) => {

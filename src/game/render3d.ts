@@ -159,6 +159,34 @@ function blobGeo(seed: number, lo = false) {
   return g;
 }
 
+// The sky's light in low quality. A full sky map (image based light) is sampled at every pixel of
+// every lit surface: on a phone's GPU that is about a quarter of the drawing. Low quality lights
+// with the same sky as nine numbers instead (a light probe: the soft light from all round, at
+// almost no cost), and only the materials that mirror the sky keep the map: water, and the few
+// plain (Lambert) materials whose look was set with it. Set by Renderer.useEnvironment.
+let ENV_LOW: THREE.Texture | null = null;
+// The sky of Renderer.buildEnvironment as nine numbers (spherical harmonics), for the probe: worked
+// out from that sky once, with three's LightProbeGenerator (to be worked out again if the sky
+// there changes). Worked out as the game starts instead, the farm would draw dark until the GPU
+// hands the sky back.
+const SKY_SH = [[1.0915, 1.7931, 1.9518], [0.1356, 0.2492, 1.1683], [0.0494, 0.0435, 0.0312], [0.0826, 0.0727, 0.0521], [0.1256, 0.1105, 0.0792],
+  [0.0751, 0.0661, 0.0474], [0.1026, 0.1019, 0.1013], [0.0501, 0.0441, 0.0316], [0.2315, 0.2238, 0.2094]];
+let ENV_I = 0.75;
+const ENV_KEEP = new Set<THREE.MeshStandardMaterial | THREE.MeshLambertMaterial>();
+function keepEnv<T extends THREE.MeshStandardMaterial | THREE.MeshLambertMaterial>(m: T): T {
+  ENV_KEEP.add(m);
+  m.envMap = ENV_LOW;
+  m.envMapIntensity = ENV_I;
+  // the map already lights these: the probe would light them twice
+  const prev = m.onBeforeCompile, key = m.customProgramCacheKey();
+  m.onBeforeCompile = (sh, r) => {
+    prev.call(m, sh, r);
+    sh.fragmentShader = `#undef USE_LIGHT_PROBES\n${sh.fragmentShader}`;
+  };
+  m.customProgramCacheKey = () => `${key}|noprobe`;
+  return m;
+}
+
 const matCache = new Map<string, THREE.Material>();
 function M(color: string): THREE.MeshStandardMaterial {
   let m = matCache.get(color) as THREE.MeshStandardMaterial | undefined;
@@ -182,7 +210,7 @@ function MT(color: string, opacity: number): THREE.MeshStandardMaterial {
 // glowing materials, their emissive strength follows the night
 const WIN = new THREE.MeshStandardMaterial({ color: '#a9dcf5', roughness: 0.15, metalness: 0.1, emissive: '#ffc766', emissiveIntensity: 0 });
 const LAMP = new THREE.MeshStandardMaterial({ color: '#fff3c4', emissive: '#ffcf6b', emissiveIntensity: 0.2 });
-const WATER = makeWater({ shallow: '#6fd6cf', deep: '#2f8fcf', scale: 1.6 });
+const WATER = keepEnv(makeWater({ shallow: '#6fd6cf', deep: '#2f8fcf', scale: 1.6 }));
 // additive pool of light under lamps, only visible at night; drawn a hair toward the camera, so
 // where a building's base or a step sits at its height the light does not flicker on and off
 let glowTex: THREE.Texture | null = null;
@@ -730,6 +758,12 @@ export class Renderer {
   private ground = new THREE.Plane(new THREE.Vector3(0, 1, 0), 0);
   private sun = new THREE.DirectionalLight('#fff4e0', 3.2);
   private hemi = new THREE.HemisphereLight('#d6efff', '#5a7a3a', 0.55);
+  // the sky's light without its map, for low quality (see ENV_LOW and SKY_SH)
+  private probe = new THREE.LightProbe(new THREE.SphericalHarmonics3().fromArray(SKY_SH.flat()), 0);
+  private envTex: THREE.Texture | null = null;
+  // how strong the probe is against the sky map it stands in for (matched by eye and by the
+  // picture's average colour: the farm looks the same, and draws about a quarter faster)
+  probeK = 1;
   private world = new THREE.Group();
   private land = new THREE.Group();
   private fxLayer = new THREE.Group();
@@ -883,7 +917,7 @@ export class Renderer {
   }
 
   private onRestored = () => {
-    this.scene.environment?.dispose();
+    this.envTex?.dispose();
     this.buildEnvironment();
   };
 
@@ -903,14 +937,26 @@ export class Renderer {
     const envScene = new THREE.Scene();
     envScene.add(envSky.mesh);
     const pm = new THREE.PMREMGenerator(this.gl);
-    this.scene.environment = pm.fromScene(envScene, 0.04).texture;
-    this.scene.environmentIntensity = 0.7;
+    this.envTex = pm.fromScene(envScene, 0.04).texture;
     pm.dispose();
+    envSky.mesh.geometry.dispose();
+    this.useEnvironment();
+  }
+
+  // high quality lights with the sky map everywhere; low quality with the probe (see ENV_LOW)
+  private useEnvironment() {
+    const low = this.quality !== 'high';
+    ENV_LOW = low ? this.envTex : null;
+    this.scene.environment = low ? null : this.envTex;
+    for (const m of ENV_KEEP) m.envMap = ENV_LOW;
+    if (low) this.scene.add(this.probe);
+    else this.scene.remove(this.probe);
   }
 
   private applyQuality(q: Quality) {
     this.quality = q;
     const high = q === 'high';
+    this.useEnvironment();
     // the soft fur sheen is a costly extra lobe; low quality keeps plain matte fur
     SCULPT_MAT.sheen = high ? 0.55 : 0;
     WOOL_MAT.sheen = high ? 1 : 0;
@@ -941,6 +987,9 @@ export class Renderer {
     // is always drawn at full sharpness: no resolution drop, even on slower devices.
     const px = this.quality === 'high' ? Math.min(dpr, 2) : Math.min(dpr, 1.5);
     this.gl.setPixelRatio(px);
+    // the closest zoom shows 2 * (34 / 2.6) * tan(16 deg) = 7.5 units top to bottom; things near the
+    // bottom of the screen a third bigger
+    PX_PER_UNIT = (h * px / 7.5) * 1.33;
     this.gl.setSize(w, h, false);
     this.post?.setSize(w, h, px);
     this.camera.aspect = w / Math.max(1, h);
@@ -1115,7 +1164,7 @@ export class Renderer {
 
   private buildSea() {
     // island rectangle including the beach, used for shallow water and surf
-    const seaMat = makeWater({ sea: true, rect: [-BEACH, -BEACH, GRID + BEACH, GRID + BEACH], shallow: '#62d9d2', deep: '#1f78c2', cove: [COVE.x, COVE.z, COVE.rx, COVE.rz] });
+    const seaMat = keepEnv(makeWater({ sea: true, rect: [-BEACH, -BEACH, GRID + BEACH, GRID + BEACH], shallow: '#62d9d2', deep: '#1f78c2', cove: [COVE.x, COVE.z, COVE.rx, COVE.rz] }));
     // finely divided near the island so the swell can move the surface, flat far away
     this.sea = new THREE.Mesh(seaGeo(this.quality), seaMat);
     this.sea.rotation.x = -Math.PI / 2;
@@ -1918,7 +1967,10 @@ export class Renderer {
     this.sun.color.set('#fff2dc').lerp(c.set('#ff9a5a'), dk * 0.7).lerp(c.set('#8fa3ff'), n);
     this.hemi.intensity = lerp(0.55, 0.35, n) * (1 - 0.15 * rainK);
     this.hemi.color.set('#d6efff').lerp(c.set('#6b7cc4'), n);
-    this.scene.environmentIntensity = lerp(0.75, 0.16, n) * (1 - 0.2 * rainK);
+    ENV_I = lerp(0.75, 0.16, n) * (1 - 0.2 * rainK);
+    this.scene.environmentIntensity = ENV_I;
+    for (const m of ENV_KEEP) m.envMapIntensity = ENV_I;
+    this.probe.intensity = ENV_I * this.probeK;
 
     // gradient sky: blue by day, warm at dusk, deep navy with stars at night, grey when raining
     const grey = rainK * 0.55 * (1 - n);
@@ -4941,7 +4993,11 @@ function smoke(g: THREE.Group, x: number, y: number, z: number) {
       m.position.set(x + ph * 0.3 + Math.sin(t / 500 + k) * 0.04, y + ph * 1.1, z - ph * 0.1);
       const s = 0.08 + ph * 0.16;
       m.scale.set(s, s, s);
-      (m.material as THREE.MeshLambertMaterial).opacity = 0.6 * (1 - ph);
+      const mat = m.material as THREE.MeshLambertMaterial;
+      mat.opacity = 0.6 * (1 - ph);
+      // (made and dropped with their buildings: kept up with the sky light here, not listed)
+      mat.envMap = ENV_LOW;
+      mat.envMapIntensity = ENV_I;
     });
   };
 }
@@ -4953,12 +5009,24 @@ const gltfLoader = new GLTFLoader().setDRACOLoader(new DRACOLoader().setDecoderP
 const modelCache = new Map<string, Promise<THREE.Object3D>>();
 // model materials with a baked emission mask (windows, lamps), lit up at night like WIN
 const MODEL_GLOW = new Set<THREE.MeshStandardMaterial>();
-// Low quality (phones): a model's baked textures are scaled down to 512 px as it loads. A model
-// is a hundred or two pixels tall on a phone, and a busy farm of 1024 px textures takes some
-// 800 MB of GPU memory, far past what a phone can spare (the app then stalls or is closed).
+// A model's baked texture is scaled down as it loads to what the model can show: its size on the
+// screen at the closest zoom (a texture is the unwrapped map of the whole model, so two and a half
+// texels to each pixel across it), and in low quality (phones) to 512 px at most. A crab or a
+// parrot is a few dozen pixels across even then; a busy farm keeping every texture whole takes
+// hundreds of MB of GPU memory, more than a phone can spare (the app then stalls or is closed).
 const LOW_TEX = 512;
-function shrinkTextures(root: THREE.Object3D) {
-  if (getQuality() === 'high' || typeof createImageBitmap === 'undefined') return Promise.resolve();
+// how many screen pixels a unit of the farm covers at most (the closest zoom, near the bottom of
+// the screen): set by Renderer.resize
+let PX_PER_UNIT = 120;
+const texBox = new THREE.Box3();
+const texSize = new THREE.Vector3();
+function shrinkTextures(root: THREE.Object3D, far = false) {
+  if (typeof createImageBitmap === 'undefined') return Promise.resolve();
+  texBox.setFromObject(root).getSize(texSize);
+  // (the far twin of a model is only drawn from afar: half that is plenty)
+  const need = Math.max(texSize.x, texSize.y, texSize.z) * PX_PER_UNIT * (far ? 1.25 : 2.5);
+  const fit = 2 ** Math.ceil(Math.log2(Math.max(64, need)));
+  const cap = getQuality() === 'high' ? fit : Math.min(fit, LOW_TEX);
   const seen = new Set<THREE.Texture>();
   const jobs: Promise<void>[] = [];
   root.traverse((o) => {
@@ -4966,9 +5034,9 @@ function shrinkTextures(root: THREE.Object3D) {
     for (const m of (Array.isArray(mats) ? mats : mats ? [mats] : []) as THREE.MeshStandardMaterial[]) {
       for (const t of [m.map, m.emissiveMap, m.normalMap, m.roughnessMap, m.aoMap]) {
         const img = t?.image as { width?: number; height?: number } | undefined;
-        if (!t || seen.has(t) || !img?.width || !img.height || Math.max(img.width, img.height) <= LOW_TEX) continue;
+        if (!t || seen.has(t) || !img?.width || !img.height || Math.max(img.width, img.height) <= cap) continue;
         seen.add(t);
-        const k = LOW_TEX / Math.max(img.width, img.height);
+        const k = cap / Math.max(img.width, img.height);
         jobs.push(createImageBitmap(img as ImageBitmapSource, { resizeWidth: Math.round(img.width * k), resizeHeight: Math.round(img.height * k), resizeQuality: 'high' })
           .then((bm) => {
             const old = t.image as ImageBitmap;
@@ -5005,7 +5073,7 @@ function loadModel(name: string) {
         }
       });
       gl.scene.userData.top = new THREE.Box3().setFromObject(gl.scene).max.y;
-      return shrinkTextures(gl.scene).then(() => {
+      return shrinkTextures(gl.scene, name.startsWith('lod/')).then(() => {
         // its shaders compile in the background before it is used, so a model arriving mid
         // game never freezes the picture while the GPU compiles (crops, animals, decorations
         // and trees are drawn in batches: their instanced shaders too)
@@ -6597,7 +6665,7 @@ function buildDock(e: Entry, store: GameStore) {
   bx(boat, 0.46, 0.03, 1.05, '#c98a45', 0, 0.2, 0);
   bx(boat, 0.51, 0.04, 1.11, '#ffffff', 0, 0.12, 0, false);
   cyl(boat, 0.025, 0.03, 1.3, '#6b4226', 0, 0.2, 0.05, 6);
-  const sail = new THREE.Mesh(sailGeo(), new THREE.MeshLambertMaterial({ color: '#fffaf0', side: THREE.DoubleSide }));
+  const sail = new THREE.Mesh(sailGeo(), keepEnv(new THREE.MeshLambertMaterial({ color: '#fffaf0', side: THREE.DoubleSide })));
   sail.scale.set(1, 1.0, 0.55);
   sail.position.set(0, 0.35, 0.08);
   sail.castShadow = true;

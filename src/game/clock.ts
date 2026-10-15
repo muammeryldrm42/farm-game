@@ -8,7 +8,8 @@
 //   clock part ways (the phone slept, or its clock was changed), the clock is set again from the
 //   real time: the time on the internet when it can be had (a second or so of waiting); else, in
 //   the Android app, the time the phone has been on (which a clock change does not touch either)
-//   counted from the last time it was known on this phone. If the phone was restarted since, only
+//   counted from the last time it was known on this phone. (When the phone has not been
+//   restarted since, the Android app takes that at once and lets the internet check it after.) If the phone was restarted since, only
 //   the time since the restart is sure: the farm counts that, and the time from before the restart
 //   is added once the internet tells the real time. The phone's clock is believed only by a game
 //   that never knew the time on this phone (the first start with no internet, on the web, or inside
@@ -138,6 +139,27 @@ let syncing: Promise<void> | null = null;
 export function syncClock(): Promise<void> {
   if (syncing) return syncing;
   syncing = (async () => {
+    // In the Android app, when the phone has not been restarted since the time was last known on
+    // it, the time it has been on gives the real time straight away: the game need not wait for
+    // the internet to open (a second or so, longer on a poor connection). The internet still
+    // checks it, a moment later.
+    if (Capacitor.isNativePlatform()) {
+      await uptimeIn();
+      const u = uptime(), k = readKnown();
+      if (u && k && k.boot === u.boot && upNow(u) >= k.up) {
+        anchor = { t: k.real + (upNow(u) - k.up), p: perf() };
+        source = k.owed ? 'restart' : 'uptime';
+        keepClock();
+        watch = { d: Date.now(), p: perf() };
+        void netTime().then((net) => {
+          if (!net) return;
+          anchor = net;
+          source = 'net';
+          keepClock();
+        });
+        return;
+      }
+    }
     const net = await netTime();
     if (net) {
       anchor = net;
