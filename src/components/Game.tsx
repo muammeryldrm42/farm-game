@@ -13,10 +13,12 @@ import { clockAhead, clockDrifted, clockOwed, now as clockNow, syncClock } from 
 import Hud from './Hud';
 import Panels from './Panels';
 import Flyers from './Flyers';
+import { Guard } from './Guard';
 
 export default function Game() {
   const [store, setStore] = useState<GameStore | null>(null);
   const [drawn, setDrawn] = useState(false);
+  const [noGl, setNoGl] = useState(false);
   // the start up screen lifts by itself if the farm never draws (no 3D on the device, or an error
   // on the way): better the game as it is than a screen that never goes away
   useEffect(() => {
@@ -35,15 +37,51 @@ export default function Game() {
 
   if (!store) return <Splash />;
 
+  // a window or the HUD that fails is closed and drawn again (see Guard); should the whole game
+  // keep failing, a screen to open it again (the farm is saved first)
+  const closeFailed = () => {
+    store.openPanel(null);
+    store.select(null);
+    store.toast(t('Something went wrong with that window. Your farm is safe.'), 'bad');
+  };
   return (
-    <StoreCtx.Provider value={store}>
-      <FarmCanvas onDrawn={() => setDrawn(true)} />
-      <Hud />
-      <Flyers />
-      <Panels />
-      {/* the start up screen stays over the farm until its first picture is drawn */}
-      {!drawn && <Splash />}
-    </StoreCtx.Provider>
+    <Guard fallback={<Broken onReload={() => { store.saveNow(); location.reload(); }} />}>
+      <StoreCtx.Provider value={store}>
+        <FarmCanvas onDrawn={() => setDrawn(true)} onFail={() => setNoGl(true)} />
+        <Guard><Hud /></Guard>
+        <Guard><Flyers /></Guard>
+        <Guard onError={closeFailed}><Panels /></Guard>
+        {/* the start up screen stays over the farm until its first picture is drawn */}
+        {!drawn && !noGl && <Splash />}
+        {noGl && <NoGl />}
+      </StoreCtx.Provider>
+    </Guard>
+  );
+}
+
+// the game kept failing: the farm is saved, and opening it again starts afresh
+function Broken({ onReload }: { onReload: () => void }) {
+  return (
+    <div className="fixed inset-0 z-[110] grid place-items-center bg-gradient-to-b from-[#8fd0f7] to-[#3f9fd8] p-6 font-game">
+      <div className="panel max-w-sm p-5 text-center">
+        <div className="text-lg font-bold">{t('Something went wrong')}</div>
+        <p className="mt-2 text-sm text-[#8a6a44]">{t('Your farm is saved. Open the game again to go on.')}</p>
+        <button className="btn btn-green mt-4" onClick={onReload}>{t('Reload')}</button>
+      </div>
+    </div>
+  );
+}
+
+// no 3D on this device (WebGL could not start): what to do about it, rather than an empty screen
+function NoGl() {
+  return (
+    <div className="fixed inset-0 z-[110] grid place-items-center bg-gradient-to-b from-[#8fd0f7] to-[#3f9fd8] p-6 font-game">
+      <div className="panel max-w-sm p-5 text-center">
+        <div className="text-lg font-bold">{t('This device could not start the 3D farm.')}</div>
+        <p className="mt-2 text-sm text-[#8a6a44]">{t('Turn on hardware acceleration in your browser settings, or update your browser, then open the game again.')}</p>
+        <button className="btn btn-green mt-4" onClick={() => location.reload()}>{t('Reload')}</button>
+      </div>
+    </div>
   );
 }
 
@@ -152,14 +190,21 @@ function Splash() {
 
 type Mode = 'none' | 'pending' | 'pan' | 'harvest' | 'plant' | 'ghost' | 'pinch';
 
-function FarmCanvas({ onDrawn }: { onDrawn: () => void }) {
+function FarmCanvas({ onDrawn, onFail }: { onDrawn: () => void; onFail: () => void }) {
   const store = useStore();
   const ref = useRef<HTMLCanvasElement>(null);
 
   useEffect(() => {
     const canvas = ref.current;
     if (!canvas) return;
-    const r = new Renderer(canvas, store);
+    let r: Renderer;
+    try {
+      r = new Renderer(canvas, store);
+    } catch (e) {
+      console.error(e);
+      onFail();
+      return;
+    }
     r.onFirstDraw = onDrawn;
     (window as unknown as { __farm?: unknown }).__farm = { store, renderer: r };
     store.viewCenter = () => r.gridAt(r.W / 2, r.H / 2);
