@@ -4,6 +4,7 @@ import { isRaining } from './weather';
 import { t as tr } from './i18n';
 import { clockFloor, keepClock, now as clockNow } from './clock';
 import { kvGet, kvSet } from './kv';
+import { DAILY_LEVEL, dailyAllDone, dailyDone, dailyText, genDaily, type DailyState } from './daily';
 import { BEAUTY_LEVELS, beautyOf, type Beauty } from './beauty';
 import { LAST_CHAPTER, chapterAt, taskProgress, type StoryState, type StoryTask } from './story';
 import { ALBUM, ALBUM_IDS, CAT_FINDS, DOG_FINDS, albumEntry, type AlbumEntry } from './album';
@@ -116,6 +117,7 @@ export interface GameState {
   museum?: MuseumState; // the rare finds on show in the farm museum (see museum.ts)
   clock?: { t: number }; // the farm's clock at the last save: it does not go back past it (see clock.ts)
   beautyBest?: number; // the highest beauty level whose gift of gems was given (see beauty.ts)
+  daily?: DailyState; // today's three tasks and the bonus chest (see daily.ts)
 }
 
 // ---------------------------------------------------------------- pets
@@ -2051,6 +2053,7 @@ export class GameStore {
     // a new beauty level reached some other way (an older farm, a loaded save): a few seconds in, so it is seen
     if (Date.now() - this.startedAt > 8000) this.checkBeauty();
     this.storyTick(now);
+    this.dailyTick();
     // rain and sprinklers water thirsty fields for free
     const thirsty = this.s.objects.filter((o) => o.type === 'plot' && needsWater(o, now));
     if (thirsty.length) {
@@ -2186,6 +2189,69 @@ export class GameStore {
     if (next) this.say(`${next.icon} ${tr(next.text)}  ${taskProgress(next, this.s)}/${next.target}`, 5000);
     else this.say(`📖 ${tr('Chapter {n} is done! Open Goals for your reward.', { n: ch.n })}`, 5000);
     this.hintAt = now + 90e3;
+  }
+
+  // ------------------------------------------------ daily tasks (see daily.ts)
+
+  dailyOn() { return this.s.level >= DAILY_LEVEL && this.s.tutorial >= TUTORIAL_DONE; }
+  private dailyTold: Set<number> | null = null;
+
+  // the day's tasks come with its first tick; a task done is told once
+  private dailyTick() {
+    if (!this.dailyOn()) return;
+    const day = todayKey();
+    const d = this.s.daily;
+    if (d?.day !== day) {
+      // finished yesterday but not taken: handed out now
+      let coins = 0, gems = 0, xp = 0;
+      if (d) {
+        for (const t of d.tasks) if (!t.claimed && dailyDone(t, d, this.s)) { coins += t.coins; xp += t.xp; }
+        if (!d.bonus.claimed && dailyAllDone(d, this.s)) { coins += d.bonus.coins; gems += d.bonus.gems; xp += d.bonus.xp; }
+      }
+      this.s.daily = genDaily(this.s, day, makeable(this.s), xpNeed(this.s.level));
+      this.dailyTold = new Set();
+      if (coins) {
+        this.earn(coins);
+        this.s.gems += gems;
+        this.addXp(xp);
+        this.toast(`${tr("Rewards from yesterday's tasks:")} +${fmtNum(coins)} 🪙${gems ? ` +${gems} 💎` : ''}`, 'good');
+      }
+      this.toast(tr('New daily tasks are waiting in Goals.'), 'good');
+      this.emit();
+      return;
+    }
+    const told = this.dailyTold;
+    // (on loading, the ones already done are not told again)
+    if (!told) { this.dailyTold = new Set(d.tasks.map((t, i) => (dailyDone(t, d, this.s) ? i : -1))); return; }
+    d.tasks.forEach((t, i) => {
+      if (told.has(i) || t.claimed || !dailyDone(t, d, this.s)) return;
+      told.add(i);
+      this.sound('collect');
+      this.toast(tr('Daily task done: {task}', { task: dailyText(t) }), 'good');
+    });
+  }
+
+  claimDailyTask(i: number) {
+    const d = this.s.daily;
+    const t = d?.tasks[i];
+    if (!d || !t || t.claimed || d.day !== todayKey() || !dailyDone(t, d, this.s)) return;
+    t.claimed = true;
+    this.earn(t.coins);
+    this.addXp(t.xp);
+    this.sound('coin');
+    this.emit();
+  }
+
+  claimDailyBonus() {
+    const d = this.s.daily;
+    if (!d || d.bonus.claimed || d.day !== todayKey() || !dailyAllDone(d, this.s)) return;
+    d.bonus.claimed = true;
+    this.earn(d.bonus.coins);
+    this.s.gems += d.bonus.gems;
+    this.addXp(d.bonus.xp);
+    this.sound('levelup');
+    this.toast(tr('{name} complete! +{coins} coins, +{gems} gems', { name: tr('Daily tasks'), coins: fmtNum(d.bonus.coins), gems: d.bonus.gems }), 'good');
+    this.emit();
   }
 
   // ------------------------------------------------ badges and tutorial

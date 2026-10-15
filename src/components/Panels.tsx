@@ -11,6 +11,7 @@ import {
   FISHING,
   fishingInfo,
   claimableBadges,
+  claimableQuests,
   stallValue,
   treeInfo,
   feedHint,
@@ -53,6 +54,7 @@ import {
   museumSetDone,
 } from '@/game/state';
 import { CAST, LAST_CHAPTER, chapterAt, taskProgress, type Chapter } from '@/game/story';
+import { DAILY_LEVEL, dailyAllDone, dailyClaimable, dailyIcon, dailyProgress, dailyText } from '@/game/daily';
 import { ALBUM } from '@/game/album';
 import { MUSEUM } from '@/game/museum';
 import { BEAUTY_LEVELS, VARIETY, beautyGain } from '@/game/beauty';
@@ -1293,10 +1295,13 @@ function StorageModal() {
 function QuestsModal() {
   const store = useStore();
   const s = store.s;
-  const [tab, setTab] = useState<'story' | 'goals' | 'badges' | 'album' | 'museum'>('story');
   const badgeCount = claimableBadges(s).length;
   const albumCount = claimableAlbum(s).length;
   const museumCount = claimableMuseum(s).length;
+  const goalCount = claimableQuests(s).length + dailyClaimable(s);
+  // opens where there is something to claim
+  const [tab, setTab] = useState<'story' | 'goals' | 'badges' | 'album' | 'museum'>(() =>
+    store.chapterReady() ? 'story' : goalCount ? 'goals' : badgeCount ? 'badges' : albumCount ? 'album' : museumCount ? 'museum' : 'story');
   const title = { story: 'Farm Story', goals: 'Farm Goals', badges: 'Badges', album: 'Farm Album', museum: 'Farm Museum' }[tab];
   const icon = { story: '📖', goals: '🏆', badges: '🎖️', album: '📔', museum: '🏛️' }[tab];
   return (
@@ -1307,8 +1312,9 @@ function QuestsModal() {
           {t('Story')}
           {store.chapterReady() && <span className="badge">1</span>}
         </button>
-        <button className={`btn shrink-0 px-2.5 text-sm ${tab === 'goals' ? 'btn-yellow' : 'btn-ghost'}`} onClick={() => setTab('goals')}>
+        <button className={`btn shrink-0 px-2.5 text-sm relative ${tab === 'goals' ? 'btn-yellow' : 'btn-ghost'}`} onClick={() => setTab('goals')}>
           {t('Goals')}
+          {goalCount > 0 && <span className="badge">{goalCount}</span>}
         </button>
         <button className={`btn shrink-0 px-2.5 text-sm relative ${tab === 'badges' ? 'btn-yellow' : 'btn-ghost'}`} onClick={() => setTab('badges')}>
           {t('Badges')}
@@ -1541,6 +1547,69 @@ function BadgesList() {
   );
 }
 
+// The day's three tasks and the bonus chest for all three (see daily.ts)
+function DailyTasks() {
+  const store = useStore();
+  const s = store.s;
+  const d = s.daily;
+  if (s.level < DAILY_LEVEL) return <p className="mb-3 rounded-xl bg-[#f4e6c4] px-3 py-2 text-center text-xs text-[#8a6a44]">📅 {t('Daily tasks unlock at level {n}.', { n: DAILY_LEVEL })}</p>;
+  if (!store.dailyOn() || !d || d.day !== todayKey()) return null;
+  const now = new Date(clockNow());
+  const left = new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1).getTime() - now.getTime();
+  const all = dailyAllDone(d, s);
+  const finished = d.bonus.claimed && d.tasks.every((tk) => tk.claimed);
+  return (
+    <div className="card mb-3 p-3">
+      <div className="mb-2 flex items-center justify-between gap-2">
+        <span className="font-bold">📅 {t('Daily tasks')}</span>
+        <span className="shrink-0 text-[11px] text-[#8a6a44]">{t('New tasks in {time}', { time: fmtTime(left) })}</span>
+      </div>
+      {d.tasks.map((tk, i) => {
+        const p = dailyProgress(tk, d, s);
+        const done = p >= tk.target;
+        return (
+          <div key={i} className="mb-2 flex items-center gap-2">
+            <span className="emoji w-8 shrink-0 text-center text-2xl"><Ico i={dailyIcon(tk)} id={tk.item} /></span>
+            <div className="min-w-0 flex-1">
+              <div className="flex items-center justify-between gap-2 text-sm font-bold">
+                <span className="min-w-0 truncate">{dailyText(tk)}</span>
+                <span className="shrink-0 text-xs">{p}/{tk.target}</span>
+              </div>
+              <Bar p={p / tk.target} color={tk.claimed ? '#f5b92b' : '#5cb82e'} />
+              <div className="mt-0.5 flex items-center gap-2 text-xs font-bold">
+                <Coins n={tk.coins} />
+                <span className="text-[#2f8fd0]">+{tk.xp} XP</span>
+              </div>
+            </div>
+            {tk.claimed ? (
+              <span className="emoji w-14 shrink-0 text-center text-xl" title={t('Reward taken')}>✅</span>
+            ) : (
+              <button className="btn btn-green w-14 shrink-0 px-1 py-1.5 text-xs" disabled={!done} onClick={() => store.claimDailyTask(i)}>{t('Claim')}</button>
+            )}
+          </div>
+        );
+      })}
+      <div className={`mt-1 flex items-center gap-2 rounded-xl px-2 py-1.5 ${all && !d.bonus.claimed ? 'bg-[#e6f5d8] ring-2 ring-[#5cb82e]' : 'bg-[#f4e6c4]'}`}>
+        <span className={`emoji w-8 shrink-0 text-center text-2xl ${all && !d.bonus.claimed ? 'animate-bob' : ''}`}>🎁</span>
+        <div className="min-w-0 flex-1">
+          <div className="text-sm font-bold">{t('Bonus chest')}</div>
+          <div className="text-[11px] text-[#8a6a44]">{finished ? t('All done for today! New tasks come tomorrow.') : t('Finish all three for the bonus chest.')}</div>
+          <div className="mt-0.5 flex items-center gap-2 text-xs font-bold">
+            <Coins n={d.bonus.coins} />
+            <Gems n={d.bonus.gems} />
+            <span className="text-[#2f8fd0]">+{d.bonus.xp} XP</span>
+          </div>
+        </div>
+        {d.bonus.claimed ? (
+          <span className="emoji w-14 shrink-0 text-center text-xl" title={t('Reward taken')}>✅</span>
+        ) : (
+          <button className="btn btn-yellow w-14 shrink-0 px-1 py-1.5 text-xs" disabled={!all} onClick={() => store.claimDailyBonus()}>{t('Claim')}</button>
+        )}
+      </div>
+    </div>
+  );
+}
+
 function GoalsList() {
   const store = useStore();
   const s = store.s;
@@ -1553,6 +1622,7 @@ function GoalsList() {
   ];
   return (
     <>
+      <DailyTasks />
       {list.length === 0 ? (
         <p className="py-6 text-center text-sm text-[#8a6a44]">{t('You finished every goal. Great farming!')}</p>
       ) : (

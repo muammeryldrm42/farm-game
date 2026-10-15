@@ -545,5 +545,5 @@ function FarmCanvas({ onDrawn, onFail }: { onDrawn: () => void; onFail: () => vo
     };
   }, [store]);
 
-  return <canvas ref={ref} className="fixed inset-0 block h-full w-full touch-none select-none" aria-label="Farm map" />;
+  return <canvas ref={ref} className="fixed inset-0 block h-full w-full touch-none select-none" aria-label={t('Farm map')} />;
 }
