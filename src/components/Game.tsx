@@ -14,6 +14,8 @@ import Hud from './Hud';
 import Panels from './Panels';
 import Flyers from './Flyers';
 import { Guard } from './Guard';
+import { kvFlush, kvInit } from '@/game/kv';
+import { onYtAudio, onYtPause, ytAudioOn, ytFirstFrame, ytPaused, ytReady, ytWire } from '@/game/yt';
 
 export default function Game() {
   const [store, setStore] = useState<GameStore | null>(null);
@@ -28,12 +30,16 @@ export default function Game() {
   }, [store]);
 
   // the farm's clock is set from the real time (see clock.ts) and the chosen language loaded, a
-  // moment each: then the farm is loaded and shown
+  // moment each (inside YouTube, the saves fetched first): then the farm is loaded and shown
   useEffect(() => {
     let alive = true, stop = () => {};
-    Promise.all([syncClock(), initLang()]).finally(() => { if (alive) stop = startFarm(setStore); });
+    ytWire();
+    requestAnimationFrame(() => ytFirstFrame());
+    kvInit().then(() => Promise.all([syncClock(), initLang()])).finally(() => { if (alive) stop = startFarm(setStore); });
     return () => { alive = false; stop(); };
   }, []);
+  // YouTube is told once the farm can be played
+  useEffect(() => { if (drawn || noGl) ytReady(); }, [drawn, noGl]);
 
   if (!store) return <Splash />;
 
@@ -45,7 +51,7 @@ export default function Game() {
     store.toast(t('Something went wrong with that window. Your farm is safe.'), 'bad');
   };
   return (
-    <Guard fallback={<Broken onReload={() => { store.saveNow(); location.reload(); }} />}>
+    <Guard fallback={<Broken onReload={() => { store.saveNow(); void kvFlush().finally(() => location.reload()); }} />}>
       <StoreCtx.Provider value={store}>
         <FarmCanvas onDrawn={() => setDrawn(true)} onFail={() => setNoGl(true)} />
         <Guard><Hud /></Guard>
@@ -92,23 +98,27 @@ function startFarm(show: (st: GameStore) => void) {
   st.sound = (n) => { if (st.s.settings.sound) sfx(n); };
   // the farm redraws when the language changes
   const offLang = onLang(() => st.emit(false));
-  const save = () => st.saveNow();
+  // (inside YouTube the save is sent to it at once)
+  const save = () => { st.saveNow(); void kvFlush(); };
   const vis = () => { if (document.visibilityState === 'hidden') save(); };
   window.addEventListener('beforeunload', save);
   document.addEventListener('visibilitychange', vis);
-  const tick = setInterval(() => st.tick(), 1000);
+  // while YouTube has the game paused nothing runs: no ticks, no frames (see FarmCanvas), no sound
+  const tick = setInterval(() => { if (!ytPaused()) st.tick(); }, 1000);
   // music can only start after a user gesture
   let unlocked = false;
   const syncMusic = () => {
-    if (unlocked && st.s.settings.music && document.visibilityState === 'visible') startMusic();
+    const on = document.visibilityState === 'visible' && !ytPaused() && ytAudioOn();
+    if (unlocked && st.s.settings.music && on) startMusic();
     else stopMusic();
-    if (document.visibilityState === 'hidden') sleepAudio();
+    if (!on) sleepAudio(ytPaused());
   };
   const unlock = () => { unlocked = true; syncMusic(); };
   window.addEventListener('pointerdown', unlock, { once: true });
   window.addEventListener('keydown', unlock, { once: true });
   document.addEventListener('visibilitychange', syncMusic);
   const unsub = st.subscribe(syncMusic);
+  const offAudio = onYtAudio(syncMusic);
   // the farm's clock is set again from the real time when the game comes back, or when the
   // phone slept or had its clock changed; a farm whose clock ran ahead says it is waiting
   // (said once a minute while it waits)
@@ -127,8 +137,13 @@ function startFarm(show: (st: GameStore) => void) {
   const reclock = () => syncClock().then(() => { ahead(); owed(); st.tick(); st.emit(false); });
   const visClock = () => { if (document.visibilityState === 'visible') reclock(); };
   document.addEventListener('visibilitychange', visClock);
-  const drift = setInterval(() => { if (clockDrifted()) reclock(); else ahead(); }, 5000);
+  const drift = setInterval(() => { if (ytPaused()) return; if (clockDrifted()) reclock(); else ahead(); }, 5000);
   const owedT = setTimeout(owed, 8000);
+  // YouTube pauses the game: the farm is saved and the sound stops; back, the clock is set again
+  const offPause = onYtPause((p) => {
+    if (p) save(); else reclock();
+    syncMusic();
+  });
   // the Android app: the back button closes whatever is open (and only then leaves the game),
   // and the farm is saved whenever the app goes to the background. Leaving, the phone is told
   // when things will be ready (if the player wants notifications); coming back takes them away.
@@ -165,6 +180,8 @@ function startFarm(show: (st: GameStore) => void) {
   return () => {
     offLang();
     unsub();
+    offAudio();
+    offPause();
     for (const h of native) h.then((x) => x.remove());
     stopMusic();
     document.removeEventListener('visibilitychange', syncMusic);
@@ -183,7 +200,7 @@ function Splash() {
   return (
     <div className="fixed inset-0 z-[100] grid place-items-center bg-gradient-to-b from-[#8fd0f7] to-[#3f9fd8] font-game text-white">
       {/* eslint-disable-next-line @next/next/no-img-element */}
-      <img src="/logo.webp" alt="Talons Farm" draggable={false} className="animate-bob max-h-[55vh] w-[min(78vw,560px)] object-contain" />
+      <img src="logo.webp" alt="Talons Farm" draggable={false} className="animate-bob max-h-[55vh] w-[min(78vw,560px)] object-contain" />
     </div>
   );
 }
@@ -263,6 +280,8 @@ function FarmCanvas({ onDrawn, onFail }: { onDrawn: () => void; onFail: () => vo
     // instead of rushing to catch up.
     let last = 0, prev = 0, avg = 1000 / 60;
     const loop = (t: number) => {
+      // paused by YouTube: no frames until it says to go on
+      if (ytPaused()) { raf = 0; return; }
       raf = requestAnimationFrame(loop);
       // the screen's own frame time, smoothed
       if (prev) avg += (Math.min(100, t - prev) - avg) * 0.05;
@@ -275,6 +294,7 @@ function FarmCanvas({ onDrawn, onFail }: { onDrawn: () => void; onFail: () => vo
       r.frame(t);
     };
     raf = requestAnimationFrame(loop);
+    const offPause = onYtPause((p) => { if (!p && !raf) { prev = 0; raf = requestAnimationFrame(loop); } });
 
     // ---------------------------------------------- input
     const pts = new Map<number, { x: number; y: number }>();
@@ -505,6 +525,7 @@ function FarmCanvas({ onDrawn, onFail }: { onDrawn: () => void; onFail: () => vo
 
     return () => {
       cancelAnimationFrame(raf);
+      offPause();
       clearLP();
       window.removeEventListener('resize', resize);
       canvas.removeEventListener('pointerdown', onDown);

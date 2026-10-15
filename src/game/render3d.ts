@@ -4943,7 +4943,7 @@ function smoke(g: THREE.Group, x: number, y: number, z: number) {
 // ------------------------------------------------------------------ Blender models
 // Hand built models made in Blender (see tools/blender), loaded from public/models. They are Draco
 // compressed (the decoder lives in public/draco); each file is fetched once and cloned per copy.
-const gltfLoader = new GLTFLoader().setDRACOLoader(new DRACOLoader().setDecoderPath('/draco/'));
+const gltfLoader = new GLTFLoader().setDRACOLoader(new DRACOLoader().setDecoderPath('draco/'));
 const modelCache = new Map<string, Promise<THREE.Object3D>>();
 // model materials with a baked emission mask (windows, lamps), lit up at night like WIN
 const MODEL_GLOW = new Set<THREE.MeshStandardMaterial>();
@@ -4985,7 +4985,7 @@ function loadModel(name: string) {
   if (!p) {
     modelsLoading++;
     const done = () => { modelsLoading--; };
-    p = gltfLoader.loadAsync(`/models/${name}.glb`).finally(done).then((gl) => {
+    p = gltfLoader.loadAsync(`models/${name}.glb`).finally(done).then((gl) => {
       gl.scene.traverse((o) => {
         const m = o as THREE.Mesh;
         if (!m.isMesh) return;

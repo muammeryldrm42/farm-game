@@ -1,11 +1,13 @@
 // Tiny WebAudio synth, no audio files needed
 import type { Sfx } from './state';
+import { ytAudioOn, ytPaused } from './yt';
 
 let ac: AudioContext | null = null;
 const lastPlay: Record<string, number> = {};
 
 function ctx(): AudioContext | null {
-  if (typeof window === 'undefined') return null;
+  // not a sound while YouTube has the game paused or its sound off
+  if (typeof window === 'undefined' || ytPaused() || !ytAudioOn()) return null;
   if (!ac) {
     const C = window.AudioContext || (window as unknown as { webkitAudioContext?: typeof AudioContext }).webkitAudioContext;
     if (!C) return null;
@@ -124,10 +126,13 @@ export function stopMusic() {
 
 export const musicPlaying = () => musicTimer !== null;
 
-// The game in the background: the sound output is let go once the music has faded (a running
-// context keeps the phone's audio awake, silent or not). The next sound wakes it again.
-export function sleepAudio() {
+// The game in the background (or paused, or muted, by YouTube): the sound output is let go once
+// the music has faded (a running context keeps the phone's audio awake, silent or not), or at once
+// (`now`: YouTube paused the game). The next sound wakes it again.
+const quiet = () => document.visibilityState === 'hidden' || ytPaused() || !ytAudioOn();
+export function sleepAudio(now = false) {
   const a = ac;
   if (!a || a.state !== 'running') return;
-  setTimeout(() => { if (document.visibilityState === 'hidden' && !musicTimer && a.state === 'running') void a.suspend(); }, 800);
+  if (now) { void a.suspend(); return; }
+  setTimeout(() => { if (quiet() && !musicTimer && a.state === 'running') void a.suspend(); }, 800);
 }

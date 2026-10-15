@@ -7,7 +7,7 @@ import { MODEL_ICONS } from '@/game/modelIcons';
 export default function Ico({ i, id }: { i: string; id?: string }) {
   if (id && MODEL_ICONS.has(id)) {
     // eslint-disable-next-line @next/next/no-img-element
-    return <img src={`/icons/${id}.webp`} alt="" draggable={false} className="inline-block h-[1.45em] w-[1.45em] object-contain align-[-0.35em]" />;
+    return <img src={`icons/${id}.webp`} alt="" draggable={false} className="inline-block h-[1.45em] w-[1.45em] object-contain align-[-0.35em]" />;
   }
   if (!isDrawn(i)) return <>{i}</>;
   // eslint-disable-next-line @next/next/no-img-element

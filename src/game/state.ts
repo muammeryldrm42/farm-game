@@ -3,6 +3,7 @@ import { ANIMAL, BUILDING, CATCHES, CROP, ITEMS, ITEM_LIST, LAKE_CATCHES, RECIPE
 import { isRaining } from './weather';
 import { t as tr } from './i18n';
 import { clockFloor, keepClock, now as clockNow } from './clock';
+import { kvGet, kvSet } from './kv';
 import { BEAUTY_LEVELS, beautyOf, type Beauty } from './beauty';
 import { LAST_CHAPTER, chapterAt, taskProgress, type StoryState, type StoryTask } from './story';
 import { ALBUM, ALBUM_IDS, CAT_FINDS, DOG_FINDS, albumEntry, type AlbumEntry } from './album';
@@ -622,7 +623,7 @@ export function loadGame(): GameState {
   let s: GameState | null = null;
   let raw: string | null = null;
   try {
-    raw = localStorage.getItem(SAVE_KEY);
+    raw = kvGet(SAVE_KEY);
     if (raw) {
       const d = JSON.parse(raw);
       clockFloor(d?.clock?.t);
@@ -631,7 +632,7 @@ export function loadGame(): GameState {
   } catch {
     // a save that cannot be read: the game starts fresh, but the old save is put aside first,
     // or the first save of the new farm would write over it and nothing could bring it back
-    try { if (raw) localStorage.setItem(`${SAVE_KEY}-unreadable`, raw); } catch { /* storage full */ }
+    if (raw) kvSet(`${SAVE_KEY}-unreadable`, raw);
   }
   return testBoost(s ?? newGame());
 }
@@ -806,7 +807,7 @@ export class GameStore {
     if (this.saveT) { clearTimeout(this.saveT); this.saveT = null; }
     this.saveDue = 0;
     this.s.clock = { t: clockNow() };
-    try { localStorage.setItem(SAVE_KEY, JSON.stringify(this.s)); } catch { /* storage full or blocked */ }
+    kvSet(SAVE_KEY, JSON.stringify(this.s));
     keepClock();
   };
 

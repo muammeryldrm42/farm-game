@@ -10,6 +10,7 @@ import { ANIMAL, BUILDING } from './data';
 import { GRAZE, PET_IDS, PET_SEARCH_MS, dailyReward, petFed, plotProgress, todayKey, treeInfo, type GameState } from './state';
 import { t } from './i18n';
 import { now as clockNow, toDevice } from './clock';
+import { kvGet, kvSet } from './kv';
 
 export type NotifyKind = 'crops' | 'animals' | 'goods' | 'trees' | 'fish' | 'pet' | 'daily';
 export interface FarmEvent { at: number; kind: NotifyKind; name?: string }
@@ -174,5 +175,5 @@ export async function askNotify() {
 
 // whether the game asked on this phone yet (the question is asked once, a while into playing)
 const ASKED = 'talons-farm-notify-asked';
-export const notifyAsked = () => { try { return !!localStorage.getItem(ASKED); } catch { return true; } };
-export const setNotifyAsked = () => { try { localStorage.setItem(ASKED, '1'); } catch { /* storage blocked */ } };
+export const notifyAsked = () => !!kvGet(ASKED);
+export const setNotifyAsked = () => kvSet(ASKED, '1');

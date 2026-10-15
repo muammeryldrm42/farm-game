@@ -1,7 +1,10 @@
 // Languages. The English text is the key: t('Sound effects') shows the chosen language's
 // translation, or the English when a line has none yet. Translations live in src/locales/<id>.json
 // (one file per language, loaded only when chosen) and the choice is kept per device, like the
-// graphics quality, so saves are untouched.
+// graphics quality, so saves are untouched. Inside YouTube the game starts in the player's YouTube
+// language, and a language picked in the game holds until it is closed.
+import { kvGet, kvSet } from './kv';
+import { inYouTube, ytLanguage } from './yt';
 
 export type Lang = 'en' | 'zh' | 'zht' | 'es' | 'ja' | 'ko' | 'de' | 'fr' | 'it' | 'pt' | 'ru' | 'tr' | 'ar' | 'id' | 'th' | 'vi' | 'pl' | 'nl' | 'hi' | 'bn' | 'ur';
 // zh: Simplified Chinese, zht: Traditional Chinese
@@ -37,13 +40,14 @@ let current: Lang = 'en';
 let dict: Dict = {};
 const listeners = new Set<() => void>();
 
-// the device's language on the first start, English when it is not one of ours
-function guess(): Lang {
-  if (typeof navigator === 'undefined') return 'en';
-  const nav = (navigator.language || 'en').toLowerCase();
+// the device's (or YouTube's) language on the first start, English when it is not one of ours
+function guess(tag?: string | null): Lang {
+  if (!tag && typeof navigator === 'undefined') return 'en';
+  const nav = (tag || navigator.language || 'en').toLowerCase().replace(/_/g, '-');
   // Traditional Chinese: Taiwan, Hong Kong, Macau or an explicit Hant script
   if (nav.startsWith('zh') && /hant|tw|hk|mo/.test(nav)) return 'zht';
-  const base = nav === 'in' ? 'id' : nav.split('-')[0];
+  // (Indonesian may come as its old code, 'in')
+  const base = nav.split('-')[0].replace(/^in$/, 'id');
   return (LANG_IDS as string[]).includes(base) ? (base as Lang) : 'en';
 }
 
@@ -59,16 +63,16 @@ function applyDocument(l: Lang) {
 export async function setLang(l: Lang) {
   dict = l === 'en' ? {} : (await LOADERS[l]()).default;
   current = l;
-  try { localStorage.setItem(KEY, l); } catch { /* storage blocked */ }
+  if (!inYouTube()) kvSet(KEY, l);
   applyDocument(l);
   listeners.forEach((f) => f());
 }
 
 // called once before the game shows: the saved language (or the device's) is loaded
 export async function initLang() {
-  let saved: string | null = null;
-  try { saved = localStorage.getItem(KEY); } catch { /* storage blocked */ }
-  const l = saved && (LANG_IDS as string[]).includes(saved) ? (saved as Lang) : guess();
+  const yt = await ytLanguage();
+  const saved = yt ? null : kvGet(KEY);
+  const l = saved && (LANG_IDS as string[]).includes(saved) ? (saved as Lang) : guess(yt);
   try { await setLang(l); } catch { current = 'en'; dict = {}; applyDocument('en'); }
 }
 
