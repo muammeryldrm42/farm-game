@@ -2034,17 +2034,28 @@ function StoryDialog() {
   const text = lines[Math.min(d.i, lines.length - 1)] ?? '';
   const last = d.i >= lines.length - 1;
   const who = CAST[ch.who];
-  const [shown, setShown] = useState(0);
-  // typed out two letters at a time; the timer stops once the whole line is shown
+  // typed out two letters at a time; the timer stops itself at the end of the line. The count is
+  // kept with its line, so a new line (the next chapter opening in the same bubble, or a shorter
+  // line after a longer one) always types out from its first letter
+  const [typed, setTyped] = useState({ text, n: 0 });
+  const shown = typed.text === text ? typed.n : 0;
   const typer = useRef<ReturnType<typeof setInterval> | undefined>(undefined);
   useEffect(() => {
-    setShown(0);
-    typer.current = setInterval(() => setShown((n) => Math.min(text.length, n + 2)), 22);
-    return () => clearInterval(typer.current);
+    let n = 0;
+    const id = setInterval(() => {
+      n = Math.min(text.length, n + 2);
+      setTyped({ text, n });
+      if (n >= text.length) clearInterval(id);
+    }, 22);
+    typer.current = id;
+    return () => clearInterval(id);
   }, [text]);
-  useEffect(() => { if (shown >= text.length) clearInterval(typer.current); }, [shown, text]);
   const typing = shown < text.length;
-  const next = () => (typing ? setShown(text.length) : store.storyNext());
+  const next = () => {
+    if (!typing) { store.storyNext(); return; }
+    clearInterval(typer.current);
+    setTyped({ text, n: text.length });
+  };
   const r = storyReward(ch.n);
   return (
     <div className="pointer-events-auto fixed inset-0 z-40 flex flex-col justify-end bg-black/35 p-3 pb-6 font-game sm:items-center" style={safePad('0.75rem', ['top', 'right', 'bottom', 'left'], { bottom: '1.5rem' })} onPointerDown={next}>
