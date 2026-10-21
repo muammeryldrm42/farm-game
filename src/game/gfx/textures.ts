@@ -2,7 +2,7 @@
 // an albedo map (kept close to white so the material color still tints it) and a tangent space
 // normal map derived from a height field. Everything tiles seamlessly.
 import * as THREE from 'three';
-import { h2, paintSurface, type SurfaceKind, type SurfacePixels } from './texpaint';
+import { h2, paintPrint, paintSurface, type SurfaceKind, type SurfacePixels } from './texpaint';
 
 export type { SurfaceKind };
 // ------------------------------------------------------------------ texture building
@@ -54,6 +54,50 @@ function workers() {
 const pending = new Set<SurfaceKind>();
 export const surfacesReady = () => pending.size === 0;
 
+// The painted pixels are kept on the device (IndexedDB), so only the first start (and the first
+// after the painting changed) paints them: the next starts read them back in a moment instead of
+// painting for seconds. Never inside YouTube, where the game keeps nothing in the browser.
+const YT_BUILD = process.env.NEXT_PUBLIC_TARGET === 'youtube';
+let kept: Promise<IDBDatabase | null> | null = null;
+let print = '';
+function keptDb(): Promise<IDBDatabase | null> {
+  if (YT_BUILD) return Promise.resolve(null);
+  return (kept ??= new Promise((ok) => {
+    try {
+      print = paintPrint();
+      const r = indexedDB.open('talons-farm-surfaces', 1);
+      r.onupgradeneeded = () => r.result.createObjectStore('px');
+      r.onsuccess = () => {
+        const db = r.result;
+        ok(db);
+        // pixels of an older painting are let go
+        try {
+          const st = db.transaction('px', 'readwrite').objectStore('px');
+          const all = st.getAllKeys();
+          all.onsuccess = () => { for (const k of all.result) if (!String(k).endsWith(`:${print}`)) st.delete(k); };
+        } catch { /* kept as they are */ }
+      };
+      r.onerror = r.onblocked = () => ok(null);
+    } catch { ok(null); }
+  }));
+}
+function keptPixels(kind: SurfaceKind): Promise<SurfacePixels | null> {
+  return keptDb().then((db) => new Promise((ok) => {
+    if (!db) { ok(null); return; }
+    try {
+      const g = db.transaction('px').objectStore('px').get(`${kind}:${print}`);
+      g.onsuccess = () => { const v = g.result as SurfacePixels | undefined; ok(v && v.albedo && v.normal ? v : null); };
+      g.onerror = () => ok(null);
+    } catch { ok(null); }
+  }));
+}
+function keepPixels(kind: SurfaceKind, px: SurfacePixels) {
+  keptDb().then((db) => {
+    if (!db) return;
+    try { db.transaction('px', 'readwrite').objectStore('px').put({ size: px.size, albedo: px.albedo, normal: px.normal }, `${kind}:${print}`); } catch { /* not kept: painted again next time */ }
+  });
+}
+
 function build(kind: SurfaceKind): Surface {
   const map = blank([255, 255, 255, 255]);
   map.colorSpace = THREE.SRGBColorSpace;
@@ -61,14 +105,27 @@ function build(kind: SurfaceKind): Surface {
   const s = { map, normalMap };
   cache.set(kind, s);
   users.set(kind, [map, normalMap]);
-  const pool = workers();
-  if (pool.length) {
-    pending.add(kind);
-    const w = pool[next++ % pool.length];
-    const done = (e: MessageEvent<{ kind: SurfaceKind }>) => { if (e.data.kind === kind) { pending.delete(kind); w.removeEventListener('message', done); } };
-    w.addEventListener('message', done);
-    w.postMessage(kind);
-  } else fill(kind, paintSurface(kind));
+  pending.add(kind);
+  keptPixels(kind).then((px) => {
+    if (px) { fill(kind, px); pending.delete(kind); return; }
+    const pool = workers();
+    if (pool.length) {
+      const w = pool[next++ % pool.length];
+      const done = (e: MessageEvent<{ kind: SurfaceKind } & SurfacePixels>) => {
+        if (e.data.kind !== kind) return;
+        pending.delete(kind);
+        w.removeEventListener('message', done);
+        keepPixels(kind, e.data);
+      };
+      w.addEventListener('message', done);
+      w.postMessage(kind);
+    } else {
+      const p = paintSurface(kind);
+      fill(kind, p);
+      pending.delete(kind);
+      keepPixels(kind, p);
+    }
+  });
   return s;
 }
 
