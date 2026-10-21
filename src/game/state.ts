@@ -9,6 +9,7 @@ import { BEAUTY_LEVELS, beautyOf, type Beauty } from './beauty';
 import { LAST_CHAPTER, chapterAt, taskProgress, type StoryState, type StoryTask } from './story';
 import { ALBUM, ALBUM_IDS, CAT_FINDS, DOG_FINDS, albumEntry, type AlbumEntry } from './album';
 import { MUSEUM, findChance, museumSet, newMuseum, type FindSource, type MuseumState } from './museum';
+import { MARKET, genMarket, validMarket, type MarketState } from './market';
 import { FESTS, FEST_BITE, FEST_COINS, FEST_EXTRA, FEST_FAST, festActive, festNow, festOn, keepFest, type FestKind, type FestSave } from './fest';
 
 export const GRID = 68;
@@ -121,6 +122,7 @@ export interface GameState {
   beautyBest?: number; // the highest beauty level whose gift of gems was given (see beauty.ts)
   daily?: DailyState; // today's three tasks and the bonus chest (see daily.ts)
   fest?: FestSave; // the festival on now and the next one (see fest.ts)
+  market?: MarketState; // what the neighbors' stalls sell now (see market.ts)
 }
 
 // ---------------------------------------------------------------- pets
@@ -681,6 +683,7 @@ function migrate(d: Partial<GameState>): GameState {
   // the festivals came later; a damaged entry is dropped and made again
   const f = d.fest;
   s.fest = f && typeof f.slot === 'number' && Array.isArray(f.kinds) && f.kinds.length === 2 && f.kinds.every((k) => k in FESTS) ? f : undefined;
+  s.market = validMarket(d.market);
   // saves from before the tutorial existed skip it
   s.tutorial = typeof d.tutorial === 'number' ? d.tutorial : TUTORIAL_DONE;
   if (!Array.isArray(s.objects) || !Array.isArray(s.chunks)) return base;
@@ -2009,6 +2012,44 @@ export class GameStore {
     this.emit();
   }
 
+  // ------------------------------------------------ the neighbors' stalls (see market.ts)
+
+  marketOn() { return this.s.level >= MARKET.level && this.countType('stall') > 0; }
+
+  // new goods once the old ones have had their time
+  private marketTick(now: number) {
+    if (!this.marketOn()) return;
+    if (!this.s.market || now >= this.s.market.refreshAt) {
+      this.s.market = genMarket(this.s, now, makeable(this.s));
+      this.scheduleSave();
+    }
+  }
+
+  buyOffer(i: number) {
+    const o = this.s.market?.offers[i];
+    if (!o || o.sold || !this.marketOn()) return;
+    if (this.s.coins < o.price) { this.toast(tr('Not enough coins.'), 'bad'); return; }
+    if (!this.canStore(o.item, o.qty)) { this.fullToast(o.item); return; }
+    this.s.coins -= o.price;
+    this.add(o.item, o.qty);
+    o.sold = true;
+    this.stat('neighbor');
+    const stall = this.s.objects.find((x) => x.type === 'stall');
+    if (stall) { this.float(stall, `+${o.qty} ${ITEMS[o.item].icon}`, '#fff6c8', 50); this.fly(stall, ITEMS[o.item].icon, 'storage', 50); }
+    this.sound('coin');
+    this.emit();
+  }
+
+  // new goods at once, for a few gems
+  refreshMarket() {
+    if (!this.marketOn()) return;
+    if (this.s.gems < MARKET.gems) { this.toast(tr('Not enough gems.'), 'bad'); return; }
+    this.s.gems -= MARKET.gems;
+    this.s.market = genMarket(this.s, clockNow(), makeable(this.s));
+    this.sound('coin');
+    this.emit();
+  }
+
   // ------------------------------------------------ boat
 
   fillCrate(i: number) {
@@ -2074,6 +2115,7 @@ export class GameStore {
     this.storyTick(now);
     this.dailyTick();
     this.festTick(now);
+    this.marketTick(now);
     // rain and sprinklers water thirsty fields for free
     const thirsty = this.s.objects.filter((o) => o.type === 'plot' && needsWater(o, now));
     if (thirsty.length) {

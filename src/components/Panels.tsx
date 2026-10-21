@@ -59,6 +59,7 @@ import { ALBUM } from '@/game/album';
 import { MUSEUM } from '@/game/museum';
 import { BEAUTY_LEVELS, VARIETY, beautyGain } from '@/game/beauty';
 import { FESTS, FEST_FAST, festNow, type FestKind } from '@/game/fest';
+import { MARKET } from '@/game/market';
 import { askNotify, notifyNative, setNotifyAsked } from '@/game/notify';
 import { now as clockNow } from '@/game/clock';
 import { getQuality, setQuality, type Quality } from '@/game/quality';
@@ -743,8 +744,58 @@ function StallModal() {
           );
         })}
       </div>
+      <NeighborStalls />
       <PanelObjectActions />
     </Modal>
+  );
+}
+
+// The neighbors' stalls (see market.ts): what they sell now and who sells it, and when new goods
+// come. A good an order on the board is short of carries the board's mark.
+function NeighborStalls() {
+  const store = useStore();
+  const s = store.s;
+  const now = useNow(1000);
+  const m = s.market;
+  if (!store.marketOn() || !m) return null;
+  const short = new Set(s.orders.filter((o) => o.readyAt <= now).flatMap((o) => o.items.filter((it) => (s.inv[it.id] ?? 0) < it.qty).map((it) => it.id)));
+  return (
+    <div className="mt-4">
+      <div className="mb-1 flex flex-wrap items-center justify-between gap-x-3 gap-y-1">
+        <h3 className="font-bold"><span className="emoji">🏘️</span> {t("Neighbors' stalls")}</h3>
+        <div className="flex items-center gap-2 text-xs font-bold text-[#8a6a44]">
+          {t('New goods in {time}', { time: fmtTime(m.refreshAt - now) })}
+          <button className="btn btn-blue px-2 py-1 text-xs" disabled={s.gems < MARKET.gems} onClick={() => store.refreshMarket()}>
+            {t('New goods now')} <Gems n={MARKET.gems} />
+          </button>
+        </div>
+      </div>
+      <p className="mb-2 text-xs text-[#8a6a44]">{t('Your neighbors sell what they have spare, dearer than storage pays.')}</p>
+      <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
+        {m.offers.map((o, i) => {
+          const it = ITEMS[o.item], who = CAST[o.seller];
+          return (
+            <div key={i} className={`card relative flex flex-col items-center gap-1 p-2 text-center ${o.sold ? 'opacity-60' : ''}`}>
+              {!o.sold && short.has(o.item) && <span className="emoji absolute right-1.5 top-1.5 text-sm" title={t('Order Board')}>📋</span>}
+              <div className="flex w-full items-center gap-1 pr-5 text-[10px] font-bold" style={{ color: who.color }}>
+                <span className="emoji text-sm">{who.icon}</span>
+                <span className="truncate">{t(who.name)}</span>
+              </div>
+              <span className="emoji text-3xl"><Ico i={it.icon} /></span>
+              <span className="text-xs font-bold leading-tight">x{o.qty} {t(it.name)}</span>
+              <span className="text-[10px] text-[#8a6a44]">{t('Have {n}', { n: s.inv[o.item] ?? 0 })}</span>
+              {o.sold ? (
+                <span className="mt-auto py-1 text-xs font-bold text-[#2d5e14]">{t('Bought')}</span>
+              ) : (
+                <button className="btn btn-green mt-auto w-full py-1 text-sm" disabled={s.coins < o.price} onClick={() => store.buyOffer(i)} aria-label={`${t('Buy')} ${t(it.name)}`}>
+                  <Coins n={o.price} />
+                </button>
+              )}
+            </div>
+          );
+        })}
+      </div>
+    </div>
   );
 }
 
@@ -1203,6 +1254,8 @@ function OrdersModal() {
   const s = store.s;
   const now = clockNow();
   const bonus = horseBonus(s), all = store.orderBonus();
+  // what the neighbors' stalls sell now
+  const neighbors = new Set(store.marketOn() ? (s.market?.offers ?? []).filter((o) => !o.sold).map((o) => o.item) : []);
   return (
     <Modal title={t('Order Board')} icon="📋" onClose={() => store.openPanel(null)} wide>
       {bonus > 0 && (
@@ -1229,12 +1282,20 @@ function OrdersModal() {
               <div className="flex flex-wrap gap-2">
                 {o.items.map((it) => {
                   const have = s.inv[it.id] ?? 0;
+                  // short of it, and a neighbor sells it: a tap goes to their stalls
+                  const sold = have < it.qty && neighbors.has(it.id);
                   return (
-                    <div key={it.id} className="flex flex-col items-center rounded-xl bg-[#f4e6c4] px-2 py-1">
+                    <div key={it.id} className="relative flex flex-col items-center rounded-xl bg-[#f4e6c4] px-2 py-1">
                       <span className="emoji text-2xl"><Ico i={ITEMS[it.id].icon} /></span>
                       <span className={`text-xs font-bold ${have >= it.qty ? 'text-[#2d5e14]' : 'text-[#c0392b]'}`}>
                         {have}/{it.qty}
                       </span>
+                      {sold && (
+                        // (a small mark, in a finger sized button)
+                        <button className="absolute -right-4 -top-4 grid h-8 w-8 place-items-center" onClick={() => store.openPanel('stall')} aria-label={t("Neighbors' stalls")} title={t("Neighbors' stalls")}>
+                          <span className="emoji grid h-6 w-6 place-items-center rounded-full border-2 border-[#5d3a1f] bg-[#fff6df] text-[11px] shadow">🏘️</span>
+                        </button>
+                      )}
                     </div>
                   );
                 })}

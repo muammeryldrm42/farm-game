@@ -44,6 +44,7 @@ By Talons Protocol.
 - Fishing Pier, Jam Maker, Ice Cream Shop and Sushi Bar, 3 new crops (rice, cotton, chili) and 20 new goods
 - Cargo boat with crates to fill for big bonus rewards
 - Roadside stall where you set your own prices and villagers buy over time
+- Neighbors' stalls in the stall window: the story's folk sell six goods at a time, the ones the orders on the board are short of first, new ones every three hours (or at once for 2 gems); two and a half times the storage price, so buying to sell again never pays. A short good on the order board that a neighbor sells carries a mark that leads there
 - 11 badges with bronze, silver and gold tiers
 - A 5 step tutorial for new players (older saves skip it)
 - Animals: chickens, cows, sheep, ducks, geese, gobblers, quails, goats, rabbits, alpacas, donkeys, water buffalo, peacocks, ostriches, yaks, camels, bees and horses (each horse adds 5% to order coins)
