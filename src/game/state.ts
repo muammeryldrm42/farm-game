@@ -585,7 +585,8 @@ export function newGame(): GameState {
 
 // Pigs and unicorns, and their goods, were taken out of the game. Saves that still hold them are paid back in
 // coins, and orders, stall slots, boat crates and queues that mention them are cleaned up.
-const REMOVED_VALUE: Record<string, number> = { bacon: 50, pig_feed: 14, rainbow_mane: 520, owl_feather: 504 };
+// (the butternut squash went too: it looked and was called much like the pumpkin)
+const REMOVED_VALUE: Record<string, number> = { bacon: 50, pig_feed: 14, rainbow_mane: 520, owl_feather: 504, butternut: 307 };
 const REMOVED_BUILDING: Record<string, { cost: number; animal: number }> = {
   pigpen: { cost: 1000, animal: 160 }, unicorn_meadow: { cost: 32000, animal: 4000 },
   // decorations taken out later: paid back in full
@@ -615,7 +616,17 @@ function dropRemoved(s: GameState) {
   const now = clockNow();
   s.orders = s.orders.map((o) => (o.items.every((it) => ITEMS[it.id]) ? o : genOrder(s, now)));
   for (const o of s.objects) if (o.prod) o.prod.queue = o.prod.queue.filter((e) => RECIPE[e.recipe]);
-  for (const o of s.objects) if (o.plot?.crop && !CROP[o.plot.crop]) o.plot.crop = null;
+  // a field of a crop taken out: emptied, and its worth paid back
+  for (const o of s.objects) {
+    if (!o.plot?.crop || CROP[o.plot.crop]) continue;
+    s.coins += REMOVED_VALUE[o.plot.crop] ?? 0;
+    o.plot.crop = null;
+    delete o.plot.dur;
+  }
+  // crates of the cargo boat, and daily tasks, asking for something taken out: the boat's are
+  // dropped, the day's tasks made again
+  if (s.boat) s.boat.crates = s.boat.crates.filter((c) => ITEMS[c.item]);
+  if (s.daily?.tasks.some((t) => t.item && !ITEMS[t.item])) delete s.daily;
 }
 
 // Moves a farm laid out on the old 28 tile map to the middle of the current map.

@@ -373,7 +373,6 @@ item('hibiscus_wreath', 'Hibiscus Wreath', '💐', 'barn', 919, 125);
 item('bok_choy', 'Bok Choy', '🥬', 'silo', 296, 126);
 item('yuzu', 'Yuzu', '🍋', 'silo', 172, 129);
 item('yuzu_sorbet', 'Yuzu Sorbet', '🍨', 'barn', 571, 130);
-item('butternut', 'Butternut Squash', '🎃', 'silo', 307, 131);
 item('passion_fruit', 'Passion Fruit', '🟣', 'silo', 176, 133);
 item('flax', 'Flax', '🌾', 'silo', 315, 135);
 item('flax_linen', 'Flax Linen', '🧵', 'barn', 914, 137);
@@ -950,7 +949,6 @@ export const CROPS: CropDef[] = [
   { id: 'chickpea', time: 2522, xp: 79, seedCost: 154, level: 121, shape: 'bush', leaf: '#6aa84a', fruit: '#e0c890' },
   { id: 'hibiscus', time: 2564, xp: 81, seedCost: 157, level: 124, shape: 'flower', leaf: '#3f8a3a', fruit: '#e8304a' },
   { id: 'bok_choy', time: 2592, xp: 82, seedCost: 160, level: 126, shape: 'leafy', leaf: '#6ab84a', fruit: '#e8f4d8' },
-  { id: 'butternut', time: 2662, xp: 85, seedCost: 166, level: 131, shape: 'vine', leaf: '#4d9a3c', fruit: '#e8a850' },
   { id: 'flax', time: 2718, xp: 87, seedCost: 170, level: 135, shape: 'grain', leaf: '#6a9a5a', fruit: '#6a8ad8' },
   { id: 'cranberry', time: 2760, xp: 89, seedCost: 174, level: 138, shape: 'bush', leaf: '#3a7a3a', fruit: '#b0102a' },
   { id: 'shallot', time: 2816, xp: 91, seedCost: 179, level: 142, shape: 'bulb', leaf: '#6cb84a', fruit: '#b85a6a' },
