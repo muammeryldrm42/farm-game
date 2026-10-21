@@ -1159,8 +1159,9 @@ function FestivalModal() {
   return (
     <Modal title={t('Festivals')} icon="🎪" onClose={() => store.openPanel(null)}>
       {cur && (
-        <div className="card mb-3 flex flex-col items-center gap-1 border-[3px] p-4 text-center" style={{ borderColor: cur.color }}>
-          <span className="emoji animate-bob text-5xl">{cur.icon}</span>
+        // (tighter on a short screen, a phone on its side, so the next festival shows below it)
+        <div className="card mb-3 flex flex-col items-center gap-1 border-[3px] p-4 text-center [@media(max-height:480px)]:mb-2 [@media(max-height:480px)]:gap-0 [@media(max-height:480px)]:p-2" style={{ borderColor: cur.color }}>
+          <span className="emoji animate-bob text-5xl [@media(max-height:480px)]:text-3xl">{cur.icon}</span>
           <div className="text-lg font-bold" style={{ color: cur.color }}>{t(cur.name)}</div>
           <div className="text-sm font-bold">{t(cur.text)}</div>
           <div className="text-xs font-bold text-[#8a6a44]">{t('{time} left', { time: fmtTime(f.end - now) })}</div>
