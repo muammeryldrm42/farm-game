@@ -1,0 +1,27 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- What Android 12 and later back up to the player's Google account and move to a new phone: all
+     of the app's data (the farm is in the WebView's local storage) but the caches below. -->
+<data-extraction-rules>
+    <cloud-backup>
+        <!-- the browser keeps these for speed and can make them again: the painted textures of the
+             farm (about 22 MB, which would put the app over the 25 MB the backup allows, and then
+             nothing would be backed up, the farm included), its GPU and service worker caches -->
+        <exclude domain="root" path="app_webview/Default/IndexedDB" />
+        <exclude domain="root" path="app_webview/IndexedDB" />
+        <exclude domain="root" path="app_webview/Default/GPUCache" />
+        <exclude domain="root" path="app_webview/GPUCache" />
+        <exclude domain="root" path="app_webview/Default/Service Worker" />
+        <exclude domain="root" path="app_webview/Service Worker" />
+    </cloud-backup>
+    <device-transfer>
+        <!-- the browser keeps these for speed and can make them again: the painted textures of the
+             farm (about 22 MB, which would put the app over the 25 MB the backup allows, and then
+             nothing would be backed up, the farm included), its GPU and service worker caches -->
+        <exclude domain="root" path="app_webview/Default/IndexedDB" />
+        <exclude domain="root" path="app_webview/IndexedDB" />
+        <exclude domain="root" path="app_webview/Default/GPUCache" />
+        <exclude domain="root" path="app_webview/GPUCache" />
+        <exclude domain="root" path="app_webview/Default/Service Worker" />
+        <exclude domain="root" path="app_webview/Service Worker" />
+    </device-transfer>
+</data-extraction-rules>
