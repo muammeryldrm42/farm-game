@@ -676,14 +676,27 @@ function topUp(s: GameState) {
   if (s.gems < TEST_FUNDS) s.gems = TEST_FUNDS;
 }
 
+// (a hand edited or damaged save, a save code from somewhere: each part is checked, and what does
+// not fit is put right or started afresh, so the farm opens whatever it holds)
+const plain = (v: unknown): v is Record<string, unknown> => !!v && typeof v === 'object' && !Array.isArray(v);
+function counts(v: unknown): Record<string, number> {
+  const out: Record<string, number> = {};
+  if (plain(v)) for (const [k, x] of Object.entries(v)) if (typeof x === 'number' && Number.isFinite(x)) out[k] = x;
+  return out;
+}
+
 function migrate(d: Partial<GameState>): GameState {
   const base = newGame();
   const s = { ...base, ...d } as GameState;
-  s.settings = { ...base.settings, ...(d.settings ?? {}) };
-  s.stats = d.stats ?? {};
-  s.inv = d.inv ?? {};
-  s.quests = d.quests ?? [];
-  s.achievements = d.achievements ?? {};
+  for (const k of ['coins', 'gems', 'xp', 'level', 'siloLevel', 'barnLevel', 'nextId', 'streak', 'createdAt'] as const) {
+    if (typeof s[k] !== 'number' || !Number.isFinite(s[k])) s[k] = base[k];
+  }
+  if (typeof s.lastDaily !== 'string') s.lastDaily = base.lastDaily;
+  s.settings = { ...base.settings, ...(plain(d.settings) ? d.settings : {}) };
+  s.stats = counts(d.stats);
+  s.inv = counts(d.inv);
+  s.quests = Array.isArray(d.quests) ? d.quests.filter((q) => typeof q === 'string') : [];
+  s.achievements = counts(d.achievements);
   s.stall = Array.isArray(d.stall) && d.stall.length === STALL_SLOTS ? d.stall : Array.from({ length: STALL_SLOTS }, emptySlot);
   s.boat = d.boat ?? null;
   s.starterWell = d.starterWell;
@@ -695,14 +708,26 @@ function migrate(d: Partial<GameState>): GameState {
   s.museum = { found: { ...(d.museum?.found ?? {}) }, done: [...(d.museum?.done ?? [])], misses: { ...(d.museum?.misses ?? {}) } };
   s.pets = { dog: { ...newPet('dog'), ...(d.pets?.dog ?? {}) }, cat: { ...newPet('cat'), ...(d.pets?.cat ?? {}) } };
   // farms from before the story pick it up at the chapter of their level
-  s.story = d.story ?? { ch: Math.min(LAST_CHAPTER + 1, Math.max(1, s.level ?? 1)), started: 0, base: {}, seen: 0 };
+  const so = d.story;
+  s.story = so && typeof so.ch === 'number' && Number.isFinite(so.ch)
+    ? { ch: so.ch, started: typeof so.started === 'number' ? so.started : 0, base: counts(so.base), seen: typeof so.seen === 'number' ? so.seen : 0 }
+    : { ch: Math.min(LAST_CHAPTER + 1, Math.max(1, s.level ?? 1)), started: 0, base: {}, seen: 0 };
+  // today's tasks: kept when whole, else made again
+  const dl = d.daily;
+  s.daily = dl && typeof dl.day === 'string' && Array.isArray(dl.tasks) && plain(dl.base) && plain(dl.bonus)
+    && dl.tasks.every((t) => plain(t) && typeof t.key === 'string' && typeof t.kind === 'string' && typeof t.target === 'number' && typeof t.coins === 'number' && typeof t.xp === 'number')
+    && typeof dl.bonus.coins === 'number' && typeof dl.bonus.gems === 'number' && typeof dl.bonus.xp === 'number'
+    ? { ...dl, base: counts(dl.base) } : undefined;
   // the festivals came later; a damaged entry is dropped and made again
   const f = d.fest;
   s.fest = f && typeof f.slot === 'number' && Array.isArray(f.kinds) && f.kinds.length === 2 && f.kinds.every((k) => k in FESTS) ? f : undefined;
   s.market = validMarket(d.market);
   // saves from before the tutorial existed skip it
   s.tutorial = typeof d.tutorial === 'number' ? d.tutorial : TUTORIAL_DONE;
+  if (s.tutorial !== TUTORIAL_DONE && !(Number.isInteger(s.tutorial) && s.tutorial >= 0 && s.tutorial <= TUTORIAL.length)) s.tutorial = TUTORIAL_DONE;
   if (!Array.isArray(s.objects) || !Array.isArray(s.chunks)) return base;
+  // the land bought: "x,y" each
+  s.chunks = s.chunks.filter((k) => typeof k === 'string' && /^\d+,\d+$/.test(k));
   if ((d.mapV ?? 1) < 2) shiftMap(s, MAP_OFF, 2);
   if ((s.mapV ?? 1) < 3) shiftMap(s, MAP_OFF2, 3);
   if ((s.mapV ?? 1) < 4) shiftMap(s, MAP_OFF3, 4);

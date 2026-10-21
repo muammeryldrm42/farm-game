@@ -8,7 +8,7 @@ import { YT_BUILD } from '@/game/yt';
 // who to write to about it (none yet: then the store page's contact details)
 export const PRIVACY_CONTACT = '';
 // the day this version took effect
-const UPDATED = new Date(2026, 9, 11);
+const UPDATED = new Date(2026, 9, 21);
 
 type Section = { title: string; lines: string[] };
 const SHORT: Section = {
@@ -39,6 +39,7 @@ const PLAY_SECTIONS: Section[] = [
       'Your farm (your progress, buildings, animals and items) and your settings (such as language, sound, graphics and notifications) are saved only on your device, in the game\'s own storage. We never receive them.',
       'Uninstalling the game or clearing its data deletes them. You can also delete your farm at any time with Settings, Start over.',
       SAVE_CODE,
+      'To start faster, the game also keeps on your device the pictures it paints for the farm\'s ground and buildings. They hold no personal information.',
       'If backup is turned on on your phone, Android may include the game\'s data in your own Google backup, so your farm can come back on a new phone. This is handled by Google under its privacy policy; we do not receive it.',
     ],
   },
@@ -54,7 +55,7 @@ const PLAY_SECTIONS: Section[] = [
   {
     title: 'Notifications',
     lines: [
-      'If you allow notifications, the game reminds you when things on your farm are ready: crops, animals, goods and the daily gift. The game schedules these reminders on your phone itself; no server is involved.',
+      'If you allow notifications, the game reminds you when things on your farm are ready: crops, animals, goods and the daily gift, and when a festival begins. The game schedules these reminders on your phone itself; no server is involved.',
       'You can turn them off at any time in the game\'s settings or in your phone\'s settings.',
     ],
   },
@@ -63,7 +64,7 @@ const PLAY_SECTIONS: Section[] = [
     lines: [
       'Internet: for the time check above.',
       'Notifications, starting with the phone and keeping it awake briefly: to show the reminders above, also after the phone restarts.',
-      'Vibration: a short buzz when you pick something up to move it.',
+      'Vibration: a short buzz when you harvest, collect, level up or pick something up to move it. You can turn it off in the game\'s settings.',
     ],
   },
   CHILDREN,
