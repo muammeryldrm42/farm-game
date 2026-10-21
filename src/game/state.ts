@@ -9,6 +9,7 @@ import { BEAUTY_LEVELS, beautyOf, type Beauty } from './beauty';
 import { LAST_CHAPTER, chapterAt, taskProgress, type StoryState, type StoryTask } from './story';
 import { ALBUM, ALBUM_IDS, CAT_FINDS, DOG_FINDS, albumEntry, type AlbumEntry } from './album';
 import { MUSEUM, findChance, museumSet, newMuseum, type FindSource, type MuseumState } from './museum';
+import { FESTS, FEST_BITE, FEST_COINS, FEST_EXTRA, FEST_FAST, festActive, festNow, festOn, keepFest, type FestKind, type FestSave } from './fest';
 
 export const GRID = 68;
 // the map grew three times, from 28 to 44 tiles, then to 60, then to 68 with a sandy beach all
@@ -42,8 +43,9 @@ export const FISH_SPOT = { x: LAKE.x - LAKE.rx * 1.12 + 1.85, y: LAKE.z };
 export const SEA_FISH_SPOT = { x: GRID / 2, y: GRID + 2.3 };
 export const fishSpotAt = (spot: FishSpot) => (spot === 'sea' ? SEA_FISH_SPOT : FISH_SPOT);
 export const FISHING = { level: 5, cost: 800, time: 45 };
-// `watered`: the current crop got its drink (by hand, rain or a sprinkler) and grows faster
-export interface PlotData { crop: string | null; plantedAt: number; watered?: boolean }
+// `watered`: the current crop got its drink (by hand, rain or a sprinkler) and grows faster;
+// `dur`: how long it grows in all when that is not the crop's own time (sown at a harvest festival)
+export interface PlotData { crop: string | null; plantedAt: number; watered?: boolean; dur?: number }
 export interface QueueEntry { recipe: string; startAt: number; endsAt: number }
 export interface ProdData { queue: QueueEntry[]; slots: number }
 // `graze`: the animal left through the open gate at `at` to eat grass (bees: nectar); `back`
@@ -118,6 +120,7 @@ export interface GameState {
   clock?: { t: number }; // the farm's clock at the last save: it does not go back past it (see clock.ts)
   beautyBest?: number; // the highest beauty level whose gift of gems was given (see beauty.ts)
   daily?: DailyState; // today's three tasks and the bonus chest (see daily.ts)
+  fest?: FestSave; // the festival on now and the next one (see fest.ts)
 }
 
 // ---------------------------------------------------------------- pets
@@ -224,8 +227,7 @@ export const needsWater = (o: FarmObject, now: number) => {
 export function plotProgress(o: FarmObject, now: number) {
   const p = o.plot;
   if (!p || !p.crop) return { crop: null as string | null, p: 0, ready: false, remaining: 0 };
-  const c = CROP[p.crop];
-  const total = c.time * 1000;
+  const total = p.dur ?? CROP[p.crop].time * 1000;
   const el = now - p.plantedAt;
   return { crop: p.crop, p: Math.min(1, el / total), ready: el >= total, remaining: Math.max(0, total - el) };
 }
@@ -676,6 +678,9 @@ function migrate(d: Partial<GameState>): GameState {
   s.pets = { dog: { ...newPet('dog'), ...(d.pets?.dog ?? {}) }, cat: { ...newPet('cat'), ...(d.pets?.cat ?? {}) } };
   // farms from before the story pick it up at the chapter of their level
   s.story = d.story ?? { ch: Math.min(LAST_CHAPTER + 1, Math.max(1, s.level ?? 1)), started: 0, base: {}, seen: 0 };
+  // the festivals came later; a damaged entry is dropped and made again
+  const f = d.fest;
+  s.fest = f && typeof f.slot === 'number' && Array.isArray(f.kinds) && f.kinds.length === 2 && f.kinds.every((k) => k in FESTS) ? f : undefined;
   // saves from before the tutorial existed skip it
   s.tutorial = typeof d.tutorial === 'number' ? d.tutorial : TUTORIAL_DONE;
   if (!Array.isArray(s.objects) || !Array.isArray(s.chunks)) return base;
@@ -700,7 +705,7 @@ export type Sfx = 'harvest' | 'plant' | 'coin' | 'build' | 'error' | 'levelup' |
 export interface Fx { kind: 'float' | 'burst'; gx: number; gy: number; text?: string; color?: string; z?: number }
 export interface Placing { type: string; x: number; y: number; moveId?: number }
 export interface Tool { kind: 'plant'; crop: string }
-export type Panel = 'shop' | 'orders' | 'storage' | 'settings' | 'quests' | 'stall' | 'boat' | 'fishing' | 'home' | 'pet' | 'beauty' | 'privacy' | null;
+export type Panel = 'shop' | 'orders' | 'storage' | 'settings' | 'quests' | 'stall' | 'boat' | 'fishing' | 'home' | 'pet' | 'beauty' | 'festival' | 'privacy' | null;
 export interface Flyer { icon: string; gx: number; gy: number; z: number; target: 'storage' | 'coins' | 'xp' }
 export interface Toast { id: number; text: string; tone: 'info' | 'bad' | 'good'; at: number }
 
@@ -1067,7 +1072,7 @@ export class GameStore {
     if (!f?.open || f.castAt !== null) return;
     const now = clockNow();
     f.castAt = now;
-    f.catchAt = now + FISHING.time * 1000;
+    f.catchAt = now + FISHING.time * 1000 * (this.fest('fish') ? FEST_BITE : 1);
     this.sound('plant');
     this.emit();
   }
@@ -1121,6 +1126,8 @@ export class GameStore {
     o.plot.crop = cropId;
     o.plot.plantedAt = clockNow();
     o.plot.watered = false;
+    if (this.fest('harvest')) o.plot.dur = Math.round(c.time * 1000 * FEST_FAST);
+    else delete o.plot.dur;
     this.stat('plant');
     this.sound('plant');
     this.burst(o, '#8a5a34');
@@ -1141,6 +1148,7 @@ export class GameStore {
     if (extra) this.float(o, `🐈 +1 ${ITEMS[pp.crop].icon}`, '#ffe3f0', 55);
     o.plot.crop = null;
     o.plot.watered = false;
+    delete o.plot.dur;
     this.addXp(c.xp);
     this.float(o, `+2 ${ITEMS[c.id].icon}`, '#fff6c8', 30);
     this.fly(o, ITEMS[c.id].icon, 'storage');
@@ -1183,7 +1191,7 @@ export class GameStore {
     const cost = gemCost(pp.remaining);
     if (this.s.gems < cost) { this.toast(tr('Not enough gems.'), 'bad'); return; }
     this.s.gems -= cost;
-    o.plot.plantedAt = clockNow() - CROP[pp.crop].time * 1000;
+    o.plot.plantedAt = clockNow() - (o.plot.dur ?? CROP[pp.crop].time * 1000);
     this.sound('coin');
     this.emit();
   }
@@ -1200,7 +1208,7 @@ export class GameStore {
     for (const [id, n] of Object.entries(r.inputs)) this.take(id, n);
     const last = o.prod.queue[o.prod.queue.length - 1];
     const start = Math.max(now, last ? last.endsAt : now);
-    o.prod.queue.push({ recipe: recipeId, startAt: start, endsAt: start + r.time * 1000 });
+    o.prod.queue.push({ recipe: recipeId, startAt: start, endsAt: start + Math.round(r.time * 1000 * (this.fest('craft') ? FEST_FAST : 1)) });
     this.sound('click');
     this.emit();
   }
@@ -1322,7 +1330,8 @@ export class GameStore {
     const now = clockNow();
     const pi = penInfo(o, now);
     if (!o.pen) return;
-    let n = 0;
+    let n = 0, fair = 0;
+    const fest = this.fest('animals');
     for (const a of o.pen.animals) {
       if (!animalReady(a, pi.animal.time, now)) continue;
       if (!this.canStore(pi.animal.product, 1)) { this.fullToast(pi.animal.product); break; }
@@ -1331,7 +1340,14 @@ export class GameStore {
       this.stat(`collect:${pi.animal.product}`);
       this.addXp(pi.animal.xp);
       n++;
+      // the animal fair: now and then one more
+      if (fest && Math.random() < FEST_EXTRA && this.canStore(pi.animal.product, 1)) {
+        this.add(pi.animal.product, 1);
+        this.stat(`collect:${pi.animal.product}`);
+        fair++;
+      }
     }
+    if (fair) this.float(o, `${FESTS.animals.icon} +${fair} ${ITEMS[pi.animal.product].icon}`, '#ffe3f0', 80);
     // the dog kept the herd together: now and then one product more
     if (n && Math.random() < petHelp(this.pet('dog')) && this.canStore(pi.animal.product, 1)) {
       this.add(pi.animal.product, 1);
@@ -1609,7 +1625,7 @@ export class GameStore {
     if (!o) return;
     if (!canFulfill(this.s, o, clockNow())) { this.toast(tr('You do not have everything for this order yet.'), 'bad'); return; }
     for (const it of o.items) this.take(it.id, it.qty);
-    const coins = Math.round(o.coins * (1 + horseBonus(this.s) + this.beautyBonus()));
+    const coins = Math.round(o.coins * (1 + this.orderBonus()));
     this.earn(coins);
     this.s.gems += o.gems;
     this.stat('orders');
@@ -1620,6 +1636,9 @@ export class GameStore {
     this.sound('coin');
     this.emit();
   }
+
+  // what every order pays over its coins: horses, the farm's beauty and a market festival
+  orderBonus() { return horseBonus(this.s) + this.beautyBonus() + (this.fest('market') ? FEST_COINS : 0); }
 
   discardOrder(id: number) {
     this.s.orders = this.s.orders.map((x) => (x.id === id ? genOrder(this.s, clockNow() + 45000) : x));
@@ -2054,6 +2073,7 @@ export class GameStore {
     if (Date.now() - this.startedAt > 8000) this.checkBeauty();
     this.storyTick(now);
     this.dailyTick();
+    this.festTick(now);
     // rain and sprinklers water thirsty fields for free
     const thirsty = this.s.objects.filter((o) => o.type === 'plot' && needsWater(o, now));
     if (thirsty.length) {
@@ -2229,6 +2249,29 @@ export class GameStore {
       this.sound('collect');
       this.toast(tr('Daily task done: {task}', { task: dailyText(t) }), 'good');
     });
+  }
+
+  // ------------------------------------------------ festivals
+
+  // the festival of this kind is on now
+  fest(kind: FestKind) { return festActive(this.s, clockNow(), kind); }
+
+  // the save keeps up with the festivals, and one that has just begun is told once
+  private festTick(now: number) {
+    if (!festOn(this.s)) return;
+    if (keepFest(this.s, now)) this.scheduleSave();
+    const f = festNow(this.s, now), fs = this.s.fest!;
+    if (!f.kind || fs.seen || this.festTold === f.slot) return;
+    this.festTold = f.slot;
+    this.toast(`${FESTS[f.kind].icon} ${tr('{name} has begun!', { name: tr(FESTS[f.kind].name) })} ${tr(FESTS[f.kind].text)}`, 'good');
+  }
+  private festTold = -1;
+
+  // the festival window: opened while a festival is on, the HUD stops calling for it
+  openFestival() {
+    const f = this.s.fest;
+    if (f && festNow(this.s, clockNow()).kind && !f.seen) { f.seen = true; this.scheduleSave(); }
+    this.openPanel('festival');
   }
 
   claimDailyTask(i: number) {

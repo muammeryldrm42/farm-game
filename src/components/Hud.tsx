@@ -2,9 +2,10 @@
 import Ico from './Ico';
 import { BUILDING, CROP, ITEMS } from '@/game/data';
 import { dailyClaimable } from '@/game/daily';
-import { TUTORIAL, TUTORIAL_DONE, canFulfill, claimableAlbum, claimableBadges, claimableMuseum, claimableQuests, fmtNum, xpNeed } from '@/game/state';
+import { TUTORIAL, TUTORIAL_DONE, canFulfill, claimableAlbum, claimableBadges, claimableMuseum, claimableQuests, fmtNum, fmtTime, xpNeed } from '@/game/state';
 import { useStore, useVersion } from './ctx';
 import { CAST, LAST_CHAPTER, taskProgress } from '@/game/story';
+import { FESTS, festNow, festOn } from '@/game/fest';
 import { t } from '@/game/i18n';
 import { now as clockNow } from '@/game/clock';
 
@@ -42,11 +43,13 @@ export default function Hud() {
             </svg>
             <span className="relative text-lg font-bold text-[#5a3a1a]">{s.level}</span>
           </div>
-          <div data-fly="xp" className="-ml-4 w-24 rounded-r-full border-[3px] border-l-0 border-[#5d3a1f] bg-[#fff6df] py-0.5 pl-5 pr-2 shadow-[0_3px_0_#5d3a1f] sm:w-40">
+          {/* on the narrowest phones (320 wide, or a 360 one with large display size) the bar alone,
+              so the coins, gems and settings still fit beside it */}
+          <div data-fly="xp" className="-ml-4 w-24 rounded-r-full border-[3px] border-l-0 border-[#5d3a1f] bg-[#fff6df] py-0.5 pl-5 pr-2 shadow-[0_3px_0_#5d3a1f] sm:w-40 [@media(max-width:339px)]:w-14 [@media(max-width:339px)]:py-1.5">
             <div className="h-3 overflow-hidden rounded-full bg-[#e2cc9c]">
               <div className="h-full rounded-full bg-gradient-to-r from-[#57c3f0] to-[#2f8fd0] transition-all" style={{ width: `${Math.min(100, (s.xp / need) * 100)}%` }} />
             </div>
-            <div className="whitespace-nowrap text-center text-[10px] font-bold leading-4 text-[#5a3a1a] sm:text-[11px]">
+            <div className="whitespace-nowrap text-center text-[10px] font-bold leading-4 text-[#5a3a1a] sm:text-[11px] [@media(max-width:339px)]:hidden">
               {s.xp} / {need} XP
             </div>
           </div>
@@ -90,6 +93,9 @@ export default function Hud() {
 
       {/* the farm's beauty, under the story button */}
       {!sheetOpen && <BeautyChip />}
+
+      {/* the festival, under the beauty points */}
+      {!sheetOpen && <FestChip />}
 
       {/* toasts */}
       <div className={`absolute left-1/2 flex w-[92%] max-w-sm -translate-x-1/2 flex-col items-center gap-2 ${tut ? "top-36" : "top-20"}`}>
@@ -273,3 +279,26 @@ function BeautyChip() {
   );
 }
 
+// the festival on now (see fest.ts) and the time it has left, bobbing until its window is seen;
+// on the quiet day between two, the next one, faded, and when it starts. A tap opens them.
+function FestChip() {
+  const store = useStore();
+  const s = store.s;
+  if (!festOn(s)) return null;
+  const now = clockNow();
+  const f = festNow(s, now);
+  const on = !!f.kind;
+  const d = FESTS[f.kind ?? f.next];
+  const time = fmtTime((on ? f.end : f.nextAt) - now);
+  return (
+    <button
+      className={`pointer-events-auto absolute left-2 top-[10.2rem] flex items-center gap-1 rounded-full border-[3px] bg-[#fff6df] py-0.5 pl-1.5 pr-2.5 text-xs font-bold shadow-[0_3px_0_#5d3a1f] sm:left-3 sm:top-[11.6rem] sm:text-sm ${on && !s.fest?.seen ? 'animate-bob' : ''}`}
+      style={{ borderColor: on ? d.color : '#c9a878', color: on ? d.color : '#8a6a44' }}
+      onClick={() => store.openFestival()}
+      aria-label={on ? `${t(d.name)}, ${t('{time} left', { time })}` : `${t('Next festival')}: ${t(d.name)}, ${t('Starts in {time}', { time })}`}
+    >
+      <span className={`emoji text-base sm:text-lg ${on ? '' : 'opacity-60 grayscale'}`}>{d.icon}</span>
+      {time}
+    </button>
+  );
+}

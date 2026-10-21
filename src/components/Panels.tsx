@@ -58,12 +58,13 @@ import { DAILY_LEVEL, dailyAllDone, dailyClaimable, dailyIcon, dailyProgress, da
 import { ALBUM } from '@/game/album';
 import { MUSEUM } from '@/game/museum';
 import { BEAUTY_LEVELS, VARIETY, beautyGain } from '@/game/beauty';
+import { FESTS, FEST_FAST, festNow, type FestKind } from '@/game/fest';
 import { askNotify, notifyNative, setNotifyAsked } from '@/game/notify';
 import { now as clockNow } from '@/game/clock';
 import { getQuality, setQuality, type Quality } from '@/game/quality';
 import { Coin } from './Hud';
 import { PrivacyText } from './Privacy';
-import { useStore, useVersion } from './ctx';
+import { useNow, useStore, useVersion } from './ctx';
 import { LANG_IDS, getLang, setLang, t, type Lang } from '@/game/i18n';
 import LANG_NAMES from '@/locales/names.json';
 
@@ -189,6 +190,7 @@ export default function Panels() {
       {ui.panel === 'home' && <HomeModal />}
       {ui.panel === 'pet' && <PetModal key={ui.pet} />}
       {ui.panel === 'beauty' && <BeautyModal />}
+      {ui.panel === 'festival' && <FestivalModal />}
       {ui.panel === 'privacy' && (
         <Modal title={t('Privacy policy')} icon="🔒" onClose={() => store.openPanel('settings')}>
           <PrivacyText />
@@ -229,6 +231,7 @@ function PlotSheet({ o }: { o: FarmObject }) {
   const s = store.s;
   const pp = plotProgress(o, clockNow());
   const close = () => store.select(null);
+  const fast = store.fest('harvest') ? FEST_FAST : 1;
 
   if (pp.crop) {
     const it = ITEMS[pp.crop];
@@ -261,6 +264,7 @@ function PlotSheet({ o }: { o: FarmObject }) {
 
   return (
     <Sheet title={t('Empty Field')} icon="🟫" sub={t('Pick a seed, then tap or drag over empty fields')} onClose={close}>
+      <FestNote kind="harvest" />
       <div className="grid grid-cols-3 gap-2 sm:grid-cols-5">
         {CROPS.map((c) => {
           const it = ITEMS[c.id];
@@ -284,7 +288,7 @@ function PlotSheet({ o }: { o: FarmObject }) {
                 <Lock level={c.level} />
               ) : (
                 <span className="text-[11px] text-[#8a6a44]">
-                  {have > 0 ? t('Have {n}', { n: have }) : <span className="inline-flex items-center gap-1">{c.seedCost} <Coin /></span>} · {fmtTime(c.time * 1000)}
+                  {have > 0 ? t('Have {n}', { n: have }) : <span className="inline-flex items-center gap-1">{c.seedCost} <Coin /></span>} · {fmtTime(c.time * 1000 * fast)}
                 </span>
               )}
             </button>
@@ -356,6 +360,7 @@ function ProductionSheet({ o }: { o: FarmObject }) {
   const q = o.prod?.queue ?? [];
   const slots = o.prod?.slots ?? 3;
   const recipes = RECIPES.filter((r) => r.building === o.type);
+  const fast = store.fest('craft') ? FEST_FAST : 1;
 
   return (
     <Sheet
@@ -364,6 +369,7 @@ function ProductionSheet({ o }: { o: FarmObject }) {
       sub={info.current ? t('Making {item}, {time} left', { item: t(ITEMS[info.current.recipe].name), time: fmtTime(info.current.endsAt - now) }) : q.length ? t('Goods are ready') : t('Idle. Pick something to make.')}
       onClose={() => store.select(null)}
     >
+      <FestNote kind="craft" />
       {/* queue */}
       <div className="flex flex-wrap items-center gap-2">
         {Array.from({ length: slots }).map((_, i) => {
@@ -443,7 +449,7 @@ function ProductionSheet({ o }: { o: FarmObject }) {
                 </div>
               </div>
               <div className="shrink-0 text-right text-[11px] text-[#8a6a44]">
-                <div>{fmtTime(r.time * 1000)}</div>
+                <div>{fmtTime(r.time * 1000 * fast)}</div>
                 <div>+{r.xp} XP</div>
               </div>
             </button>
@@ -476,6 +482,7 @@ function PenSheet({ o }: { o: FarmObject }) {
       sub={t('{n}/{cap} {animal} · makes {item} every {time}', { n: pi.total, cap, animal: t(an.name), item: t(ITEMS[an.product].name), time: fmtTime(an.time * 1000) })}
       onClose={() => store.select(null)}
     >
+      <FestNote kind="animals" />
       {pi.total === 0 ? (
         <p className="py-2 text-center text-sm text-[#8a6a44]">{t('No animals yet. Buy your first {animal} below.', { animal: t(an.name) })}</p>
       ) : (
@@ -806,6 +813,7 @@ function FishingModal() {
   const close = () => store.openPanel(null);
   return (
     <Modal title={t(sea ? 'Sea Fishing' : 'Lake Fishing')} icon="🎣" onClose={close}>
+      {fi.state !== 'locked' && <FestNote kind="fish" />}
       <div className="flex flex-col items-center gap-3 py-2 text-center">
         <span className="emoji animate-bob text-5xl">{fi.state === 'ready' ? '🐟' : '🌊'}</span>
         {fi.state === 'locked' && (
@@ -1076,6 +1084,50 @@ function BeautyNote() {
   );
 }
 
+// A festival on now that changes what this window does: its bonus in a line; a tap opens it
+function FestNote({ kind }: { kind: FestKind }) {
+  const store = useStore();
+  if (!store.fest(kind)) return null;
+  const f = FESTS[kind];
+  return (
+    <button className="mx-auto mb-2 block text-center text-xs font-bold" style={{ color: f.color }} onClick={() => store.openFestival()}>
+      <span className="emoji">{f.icon}</span> {t(f.name)}: {t(f.text)}
+    </button>
+  );
+}
+
+// The festivals (see fest.ts): the one on now with its bonus and the time it has left, and the
+// next one with when it starts
+function FestivalModal() {
+  const store = useStore();
+  const now = useNow(1000);
+  const f = festNow(store.s, now);
+  const cur = f.kind ? FESTS[f.kind] : null;
+  const nx = FESTS[f.next];
+  return (
+    <Modal title={t('Festivals')} icon="🎪" onClose={() => store.openPanel(null)}>
+      {cur && (
+        <div className="card mb-3 flex flex-col items-center gap-1 border-[3px] p-4 text-center" style={{ borderColor: cur.color }}>
+          <span className="emoji animate-bob text-5xl">{cur.icon}</span>
+          <div className="text-lg font-bold" style={{ color: cur.color }}>{t(cur.name)}</div>
+          <div className="text-sm font-bold">{t(cur.text)}</div>
+          <div className="text-xs font-bold text-[#8a6a44]">{t('{time} left', { time: fmtTime(f.end - now) })}</div>
+        </div>
+      )}
+      <div className="card flex items-center gap-3 p-3">
+        <span className={`emoji text-3xl ${cur ? 'opacity-70' : ''}`}>{nx.icon}</span>
+        <div className="min-w-0 flex-1">
+          <div className="text-[10px] font-bold uppercase tracking-wide text-[#a8733f]">{t('Next festival')}</div>
+          <div className="font-bold">{t(nx.name)}</div>
+          <div className="text-xs">{t(nx.text)}</div>
+          <div className="text-xs font-bold text-[#8a6a44]">{t('Starts in {time}', { time: fmtTime(f.nextAt - now) })}</div>
+        </div>
+      </div>
+      <p className="mt-3 text-center text-xs text-[#8a6a44]">{t('A festival comes every three days and lasts two.')}</p>
+    </Modal>
+  );
+}
+
 // The farm's beauty (see beauty.ts): its points and level, what the next level brings, what makes
 // the farm pretty so far, and every level with what it gives.
 function BeautyModal() {
@@ -1150,7 +1202,7 @@ function OrdersModal() {
   const store = useStore();
   const s = store.s;
   const now = clockNow();
-  const bonus = horseBonus(s), pretty = store.beautyBonus();
+  const bonus = horseBonus(s), all = store.orderBonus();
   return (
     <Modal title={t('Order Board')} icon="📋" onClose={() => store.openPanel(null)} wide>
       {bonus > 0 && (
@@ -1159,6 +1211,7 @@ function OrdersModal() {
         </p>
       )}
       <BeautyNote />
+      <FestNote kind="market" />
       <div className="grid grid-cols-1 gap-2 sm:grid-cols-2 md:grid-cols-3">
         {s.orders.map((o) => {
           if (o.readyAt > now) {
@@ -1187,7 +1240,7 @@ function OrdersModal() {
                 })}
               </div>
               <div className="flex items-center gap-3 text-sm font-bold">
-                <Coins n={Math.round(o.coins * (1 + bonus + pretty))} />
+                <Coins n={Math.round(o.coins * (1 + all))} />
                 <span className="text-[#2f8fd0]">+{o.xp} XP</span>
                 {o.gems > 0 && <Gems n={o.gems} />}
               </div>

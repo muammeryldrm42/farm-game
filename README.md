@@ -30,6 +30,8 @@ By Talons Protocol.
 - Silo and barn storage with capacity upgrades and a market to sell goods
 - Land expansion, obstacles to clear, 10 decorations
 - Levels with unlocks, farm goals, 7 day daily gift streak
+- Daily tasks from level 3: three small tasks a day made from what the farm can do, and a bonus chest for all three
+- Festivals from level 4: every three days a two day festival comes to the farm with its own bonus (Harvest Festival: crops grow 25% faster; Craft Fair: workshops 25% faster; Animal Fair: an extra product one time in four; Market Days: orders pay 25% more; Fishing Festival: bites come twice as fast), only ones the farm can enjoy and never the same twice running
 - Gems to finish timers early or add production slots (earned by leveling, goals, orders, clearing land)
 - Offline progress (timers are timestamp based), autosave in the browser, save code export and import
 - Mouse, touch and pinch controls, hold anything to move it, keyboard shortcuts (Esc, Enter, + and -)
