@@ -27,8 +27,9 @@ export const FEST_BITE = 0.5;
 // a festival for DAYS days of every CYCLE
 const CYCLE = 3, DAYS = 2;
 // `slot`: the festival's place in the run of cycles; `kinds`: the festival of that slot and of
-// the next; `seen`: the festival window was opened while it was on
-export interface FestSave { slot: number; kinds: [FestKind, FestKind]; seen?: boolean }
+// the next; `seen`: the festival window was opened while it was on; `joined`: the farm was played
+// while it was on (for the Festival Goer badge)
+export interface FestSave { slot: number; kinds: [FestKind, FestKind]; seen?: boolean; joined?: boolean }
 
 // the day a time falls on, counted from 1970 in the farm's own calendar, and back
 const dayNum = (t: number) => { const d = new Date(t); return Math.round(Date.UTC(d.getFullYear(), d.getMonth(), d.getDate()) / 864e5); };

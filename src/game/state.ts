@@ -482,6 +482,9 @@ export const ACHIEVEMENTS: Achievement[] = [
   { id: 'tycoon', name: 'Tycoon', icon: '💰', unit: 'coins earned', tiers: [10000, 100000, 1000000], progress: (s) => st(s, 'earned') },
   { id: 'baron', name: 'Land Baron', icon: '🪧', unit: 'land expansions', tiers: [3, 10, 30], progress: (s) => st(s, 'expand') },
   { id: 'lumberjack', name: 'Lumberjack', icon: '🪓', unit: 'obstacles cleared', tiers: [10, 50, 150], progress: (s) => st(s, 'clear') },
+  { id: 'tasker', name: 'Task Master', icon: '✅', unit: 'daily tasks done', tiers: [15, 100, 400], progress: (s) => st(s, 'dailyTask') },
+  { id: 'festive', name: 'Festival Goer', icon: '🎪', unit: 'festivals joined', tiers: [3, 15, 50], progress: (s) => st(s, 'festivals') },
+  { id: 'neighborly', name: 'Good Neighbor', icon: '🏘️', unit: 'purchases from neighbors', tiers: [5, 50, 200], progress: (s) => st(s, 'neighbor') },
 ];
 export const claimableBadges = (s: GameState) => ACHIEVEMENTS.filter((a) => {
   const k = s.achievements[a.id] ?? 0;
@@ -2267,7 +2270,7 @@ export class GameStore {
       // finished yesterday but not taken: handed out now
       let coins = 0, gems = 0, xp = 0;
       if (d) {
-        for (const t of d.tasks) if (!t.claimed && dailyDone(t, d, this.s)) { coins += t.coins; xp += t.xp; }
+        for (const t of d.tasks) if (!t.claimed && dailyDone(t, d, this.s)) { coins += t.coins; xp += t.xp; this.stat('dailyTask'); }
         if (!d.bonus.claimed && dailyAllDone(d, this.s)) { coins += d.bonus.coins; gems += d.bonus.gems; xp += d.bonus.xp; }
       }
       this.s.daily = genDaily(this.s, day, makeable(this.s), xpNeed(this.s.level));
@@ -2303,6 +2306,8 @@ export class GameStore {
     if (!festOn(this.s)) return;
     if (keepFest(this.s, now)) this.scheduleSave();
     const f = festNow(this.s, now), fs = this.s.fest!;
+    // played during this festival: it counts as joined (once)
+    if (f.kind && !fs.joined) { fs.joined = true; this.stat('festivals'); this.scheduleSave(); }
     if (!f.kind || fs.seen || this.festTold === f.slot) return;
     this.festTold = f.slot;
     this.toast(`${FESTS[f.kind].icon} ${tr('{name} has begun!', { name: tr(FESTS[f.kind].name) })} ${tr(FESTS[f.kind].text)}`, 'good');
@@ -2321,6 +2326,7 @@ export class GameStore {
     const t = d?.tasks[i];
     if (!d || !t || t.claimed || d.day !== todayKey() || !dailyDone(t, d, this.s)) return;
     t.claimed = true;
+    this.stat('dailyTask');
     this.earn(t.coins);
     this.addXp(t.xp);
     this.sound('coin');
