@@ -134,5 +134,121 @@ export function sleepAudio(now = false) {
   const a = ac;
   if (!a || a.state !== 'running') return;
   if (now) { void a.suspend(); return; }
-  setTimeout(() => { if (quiet() && !musicTimer && a.state === 'running') void a.suspend(); }, 800);
+  setTimeout(() => { if (quiet() && !musicTimer && !amb && a.state === 'running') void a.suspend(); }, 800);
 }
+
+// ---------------------------------------------------------------- the farm's own sounds
+// Under the music, soft: birds singing by day, crickets and now and then an owl by night, the
+// rain while it rains, and always a little wind and the sea on the shore. All made here (filtered
+// noise and little sweeps of tone), no audio files. `now()` tells how dark it is (0 day, 1 night)
+// and how hard it rains (0 to 1).
+
+interface AmbState { night: number; rain: number }
+let amb: { out: GainNode; timer: ReturnType<typeof setInterval>; wind: GainNode; rain: GainNode; sea: GainNode; birdAt: number; crickAt: number; owlAt: number; seaAt: number } | null = null;
+let noiseBuf: AudioBuffer | null = null;
+
+function noise(a: AudioContext) {
+  if (noiseBuf) return noiseBuf;
+  const n = a.sampleRate * 2;
+  noiseBuf = a.createBuffer(1, n, a.sampleRate);
+  const d = noiseBuf.getChannelData(0);
+  for (let i = 0; i < n; i++) d[i] = Math.random() * 2 - 1;
+  return noiseBuf;
+}
+
+// a looping noise through a filter, into its own level
+function bed(a: AudioContext, out: AudioNode, type: BiquadFilterType, f: number, q = 0.7) {
+  const src = a.createBufferSource();
+  src.buffer = noise(a);
+  src.loop = true;
+  src.loopStart = Math.random();
+  const fl = a.createBiquadFilter();
+  fl.type = type; fl.frequency.value = f; fl.Q.value = q;
+  const g = a.createGain();
+  g.gain.value = 0.0001;
+  src.connect(fl).connect(g).connect(out);
+  src.start();
+  return g;
+}
+
+// a short sweep of tone, as a bird's note or a cricket's pulse
+function chirp(a: AudioContext, out: AudioNode, t: number, f0: number, f1: number, d: number, v: number) {
+  const o = a.createOscillator(), g = a.createGain();
+  o.type = 'sine';
+  o.frequency.setValueAtTime(f0, t);
+  o.frequency.exponentialRampToValueAtTime(f1, t + d);
+  g.gain.setValueAtTime(0.0001, t);
+  g.gain.exponentialRampToValueAtTime(v, t + Math.min(0.012, d / 3));
+  g.gain.exponentialRampToValueAtTime(0.0001, t + d);
+  o.connect(g).connect(out);
+  o.start(t);
+  o.stop(t + d + 0.02);
+}
+
+// a bird's song: one of a few kinds, at a slightly different pitch each time
+function song(a: AudioContext, out: AudioNode, t: number) {
+  const p = 0.85 + Math.random() * 0.3, kind = Math.floor(Math.random() * 4);
+  if (kind === 0) for (let i = 0; i < 4 + Math.floor(Math.random() * 4); i++) chirp(a, out, t + i * 0.09, 3200 * p, 4400 * p, 0.06, 0.018);
+  else if (kind === 1) { chirp(a, out, t, 4200 * p, 3600 * p, 0.16, 0.02); chirp(a, out, t + 0.22, 3000 * p, 2500 * p, 0.22, 0.018); }
+  else if (kind === 2) for (let i = 0; i < 6; i++) chirp(a, out, t + i * 0.07, (i % 2 ? 2600 : 3400) * p, (i % 2 ? 3100 : 2900) * p, 0.06, 0.014);
+  else { chirp(a, out, t, 2200 * p, 3800 * p, 0.12, 0.016); chirp(a, out, t + 0.15, 3800 * p, 3500 * p, 0.08, 0.014); }
+}
+
+// a cricket: a few quick pulses at its own pitch
+function cricket(a: AudioContext, out: AudioNode, t: number, f: number) {
+  for (let i = 0; i < 3; i++) chirp(a, out, t + i * 0.045, f, f * 0.98, 0.022, 0.006);
+}
+
+export function startAmbience(now: () => AmbState) {
+  const a = ctx();
+  if (!a || amb) return;
+  const out = a.createGain();
+  out.gain.setValueAtTime(0.0001, a.currentTime);
+  out.gain.exponentialRampToValueAtTime(1, a.currentTime + 3);
+  out.connect(a.destination);
+  const t0 = a.currentTime;
+  amb = {
+    // (the wind and the sea a little brighter than a real one: a phone's speaker hardly plays the low end)
+    out, wind: bed(a, out, 'lowpass', 750), rain: bed(a, out, 'bandpass', 2600, 0.4), sea: bed(a, out, 'lowpass', 850),
+    birdAt: t0 + 1 + Math.random() * 2, crickAt: t0 + 0.5, owlAt: t0 + 15 + Math.random() * 20, seaAt: t0,
+    timer: setInterval(() => {
+      const s = amb;
+      if (!s) return;
+      const t = a.currentTime, st = now(), day = 1 - st.night;
+      // the beds: the wind breathes, the rain comes and goes with the shower, the sea swells
+      s.wind.gain.setTargetAtTime(0.03 + Math.random() * 0.025 + st.rain * 0.02, t, 1.5);
+      s.rain.gain.setTargetAtTime(0.0001 + st.rain * 0.06, t, 0.8);
+      if (t >= s.seaAt) { s.sea.gain.setTargetAtTime(0.01 + Math.random() * 0.03, t, 1.8); s.seaAt = t + 3 + Math.random() * 4; }
+      // birds by day (fewer in the rain)
+      if (t >= s.birdAt) {
+        if (day > 0.5 && Math.random() < 1 - st.rain * 0.8) song(a, s.out, t + 0.05);
+        s.birdAt = t + 1.5 + Math.random() * 5;
+      }
+      // crickets by night, two or three of them at their own pitches
+      if (t >= s.crickAt) {
+        if (st.night > 0.4 && st.rain < 0.5) {
+          const n = 1 + Math.floor(Math.random() * 3);
+          for (let k = 0; k < n; k++) cricket(a, s.out, t + 0.05 + k * 0.19 + Math.random() * 0.05, 4300 + k * 260);
+        }
+        s.crickAt = t + 0.55 + Math.random() * 0.5;
+      }
+      // now and then an owl
+      if (t >= s.owlAt) {
+        if (st.night > 0.7) { chirp(a, s.out, t + 0.05, 420, 380, 0.32, 0.02); chirp(a, s.out, t + 0.55, 400, 360, 0.5, 0.018); }
+        s.owlAt = t + 18 + Math.random() * 25;
+      }
+    }, 250),
+  };
+}
+
+export function stopAmbience() {
+  const s = amb, a = ac;
+  amb = null;
+  if (!s || !a) return;
+  clearInterval(s.timer);
+  s.out.gain.setValueAtTime(Math.max(0.0001, s.out.gain.value), a.currentTime);
+  s.out.gain.exponentialRampToValueAtTime(0.0001, a.currentTime + 0.6);
+  setTimeout(() => s.out.disconnect(), 800);
+}
+
+export const ambiencePlaying = () => amb !== null;

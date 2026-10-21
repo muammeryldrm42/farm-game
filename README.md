@@ -36,6 +36,7 @@ By Talons Protocol.
 - Offline progress (timers are timestamp based), autosave in the browser, save code export and import
 - Mouse, touch and pinch controls, hold anything to move it, keyboard shortcuts (Esc, Enter, + and -)
 - Sound effects and a soft generative background tune, all synthesized with WebAudio, no asset files needed
+- The farm's own sounds under the music (Nature sounds in Settings): birds singing by day, crickets and an owl by night, the rain during a shower, and a soft wind and sea, all synthesized
 - A farmer and his dog walking around the farm, harvested goods flying into storage
 - Weather and seasons (winter snow, spring petals, autumn leaves); showers come on some days only, not every day
 - Grazing: open a pen's gate and the hungry animals walk out through it to graze on the grass near the pen (bees fly off to flower beds, flowering crops and fruit trees), then walk back by themselves once full and start producing. Call them back early any time; they always walk, never teleport. Feeding works as before

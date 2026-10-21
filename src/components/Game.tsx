@@ -2,8 +2,9 @@
 import { useEffect, useRef, useState } from 'react';
 import { GameStore, TUTORIAL_DONE, fmtTime, loadGame, plotProgress, type FarmObject } from '@/game/state';
 import { BUILDING } from '@/game/data';
-import { Renderer } from '@/game/render3d';
-import { sfx, sleepAudio, startMusic, stopMusic } from '@/game/audio';
+import { Renderer, nightFactor } from '@/game/render3d';
+import { sfx, sleepAudio, startAmbience, startMusic, stopAmbience, stopMusic } from '@/game/audio';
+import { weatherAt } from '@/game/weather';
 import { buzz } from '@/game/haptics';
 import { Capacitor } from '@capacitor/core';
 import { App } from '@capacitor/app';
@@ -115,10 +116,17 @@ function startFarm(show: (st: GameStore) => void) {
   const tick = setInterval(() => { if (busy()) st.tick(); }, 1000);
   // music can only start after a user gesture
   let unlocked = false;
+  // the farm's own sounds follow the day and night and the showers (as the farm shows them)
+  const ambState = () => {
+    const now = clockNow(), w = weatherAt(now);
+    return { night: st.s.settings.dayNight ? nightFactor(now).night : 0, rain: st.s.settings.weather && w.kind === 'rain' ? w.k : 0 };
+  };
   const syncMusic = () => {
     const on = document.visibilityState === 'visible' && !ytPaused() && ytAudioOn();
     if (unlocked && st.s.settings.music && on) startMusic();
     else stopMusic();
+    if (unlocked && st.s.settings.nature !== false && on) startAmbience(ambState);
+    else stopAmbience();
     if (!on) sleepAudio(ytPaused());
   };
   const unlock = () => { unlocked = true; syncMusic(); };

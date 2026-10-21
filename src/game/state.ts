@@ -81,8 +81,9 @@ export interface OrderItem { id: string; qty: number }
 export interface Order { id: number; items: OrderItem[]; coins: number; xp: number; gems: number; readyAt: number }
 
 // `saver`: battery saver, the farm drawn at 30 frames a second (phones); `vibrate`: a light buzz with
-// harvests, collecting and the like (on unless turned off)
-export interface Settings { sound: boolean; dayNight: boolean; clouds: boolean; music: boolean; weather: boolean; shadows: boolean; saver?: boolean; notify?: boolean; vibrate?: boolean }
+// harvests, collecting and the like (on unless turned off); `nature`: the farm's own sounds, birds,
+// crickets, rain, wind and the sea (on unless turned off)
+export interface Settings { sound: boolean; dayNight: boolean; clouds: boolean; music: boolean; weather: boolean; shadows: boolean; saver?: boolean; notify?: boolean; vibrate?: boolean; nature?: boolean }
 
 export interface GameState {
   v: 1;
