@@ -763,6 +763,8 @@ export class GameStore {
   toScreen: (gx: number, gy: number, z: number) => { x: number; y: number } | null = () => null;
   toasts: Toast[] = [];
   sound: (n: Sfx) => void = () => {};
+  // a pen's animals answer (see voice in audio.ts)
+  voice: (animal: string) => void = () => {};
   viewCenter: () => { x: number; y: number } = () => ({ x: GRID / 2, y: GRID / 2 });
   focusOn: (x: number, y: number) => void = () => {};
   private listeners = new Set<() => void>();
@@ -1031,6 +1033,7 @@ export class GameStore {
         return;
       case 'pen': {
         const pi = penInfo(o, now);
+        if (pi.total) this.voice(pi.animal.id);
         // collect when ready; feeding is the player's choice (the Feed button), so animals that
         // came home hungry from grazing are not fed behind their back
         if (pi.ready) this.collectPen(o);

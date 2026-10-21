@@ -252,3 +252,123 @@ export function stopAmbience() {
 }
 
 export const ambiencePlaying = () => amb !== null;
+
+// ---------------------------------------------------------------- the animals' voices
+// A tap on a pen and its animals answer: a moo, a baa, a cluck, a quack... each made here like the
+// rest (a buzzing tone shaped by a couple of filters, as a voice is), at a slightly different
+// pitch each time. The quiet ones (rabbits, squirrels, chinchillas and the like) say nothing.
+
+export type Voice = 'moo' | 'baa' | 'bleat' | 'cluck' | 'quack' | 'honk' | 'neigh' | 'heehaw' | 'gobble' | 'chirp' | 'buzz';
+export function voiceOf(animal: string): Voice | null {
+  const a = animal;
+  if (/cow|buffalo|yak|bison|galloway|zebu|musk_ox|watusi|hereford|angus|charolais|longhorn|guernsey|brown_swiss|dexter/.test(a)) return 'moo';
+  if (/sheep|dorper|blacknose|karakul/.test(a)) return 'baa';
+  if (/goat/.test(a)) return 'bleat';
+  if (/chicken|ayam|orpington|leghorn|rhode_island|wyandotte|marans|guinea_fowl|pheasant/.test(a)) return 'cluck';
+  if (/duck|runner|campbell/.test(a)) return 'quack';
+  if (/goose|swan/.test(a)) return 'honk';
+  if (/horse|pony|appaloosa|clydesdale|palomino|friesian/.test(a)) return 'neigh';
+  if (/donkey|mule/.test(a)) return 'heehaw';
+  if (/gobbler|turkey/.test(a)) return 'gobble';
+  if (/quail|parrot|kiwi|crane|heron|flamingo|peacock|rhea|emu|ostrich|cassowary/.test(a)) return 'chirp';
+  if (a === 'bee') return 'buzz';
+  return null;
+}
+
+// one sound of a voice: a tone from f0 through f1 to f2 (at `mid` of the way), with a wobble of
+// its pitch (vib Hz, depth) and of its loudness (trem Hz, depth), through formant filters
+function voiced(a: BaseAudioContext, out: AudioNode, t: number, o: { type?: OscillatorType; f0: number; f1: number; f2?: number; mid?: number; d: number; v: number; formants: [number, number][]; vib?: [number, number]; trem?: [number, number]; att?: number }) {
+  const osc = a.createOscillator();
+  osc.type = o.type ?? 'sawtooth';
+  const f2 = o.f2 ?? o.f1, mid = o.mid ?? 0.5;
+  osc.frequency.setValueAtTime(o.f0, t);
+  osc.frequency.linearRampToValueAtTime(o.f1, t + o.d * mid);
+  osc.frequency.linearRampToValueAtTime(f2, t + o.d);
+  const stop = t + o.d + 0.05;
+  if (o.vib) {
+    const l = a.createOscillator(), lg = a.createGain();
+    l.frequency.value = o.vib[0]; lg.gain.value = o.vib[1];
+    l.connect(lg).connect(osc.frequency); l.start(t); l.stop(stop);
+  }
+  const env = a.createGain();
+  const att = o.att ?? Math.min(0.05, o.d / 4);
+  env.gain.setValueAtTime(0.0001, t);
+  env.gain.exponentialRampToValueAtTime(o.v, t + att);
+  env.gain.setValueAtTime(o.v, t + o.d * 0.7);
+  env.gain.exponentialRampToValueAtTime(0.0001, t + o.d);
+  let last: AudioNode = env;
+  if (o.trem) {
+    const tg = a.createGain(), l = a.createOscillator(), lg = a.createGain();
+    tg.gain.value = 1 - o.trem[1] / 2;
+    l.frequency.value = o.trem[0]; lg.gain.value = o.trem[1] / 2;
+    l.connect(lg).connect(tg.gain); l.start(t); l.stop(stop);
+    env.connect(tg); last = tg;
+  }
+  for (const [f, q] of o.formants) {
+    const bp = a.createBiquadFilter();
+    bp.type = 'bandpass'; bp.frequency.value = f; bp.Q.value = q;
+    osc.connect(bp).connect(env);
+  }
+  last.connect(out);
+  osc.start(t); osc.stop(stop);
+}
+
+export function speak(a: BaseAudioContext, out: AudioNode, t: number, v: Voice, p = 1) {
+  switch (v) {
+    case 'moo':
+      voiced(a, out, t, { f0: 105 * p, f1: 132 * p, f2: 96 * p, mid: 0.35, d: 1.0, v: 0.5, att: 0.14, vib: [5, 2], formants: [[520, 4], [880, 5]] });
+      break;
+    case 'baa':
+      voiced(a, out, t, { f0: 270 * p, f1: 255 * p, f2: 235 * p, d: 0.65, v: 0.32, trem: [9, 0.7], vib: [7, 8], formants: [[700, 3], [1300, 4], [2500, 5]] });
+      break;
+    case 'bleat':
+      voiced(a, out, t, { f0: 380 * p, f1: 360 * p, f2: 320 * p, d: 0.45, v: 0.28, trem: [11, 0.8], vib: [8, 12], formants: [[800, 3], [1600, 4], [2800, 5]] });
+      break;
+    case 'cluck':
+      for (let i = 0; i < 3; i++) voiced(a, out, t + i * 0.13, { type: 'square', f0: 560 * p, f1: 400 * p, d: 0.07, v: 0.16, att: 0.008, formants: [[1100, 2], [2200, 3]] });
+      voiced(a, out, t + 0.42, { type: 'square', f0: 640 * p, f1: 700 * p, f2: 460 * p, mid: 0.3, d: 0.2, v: 0.18, att: 0.01, formants: [[1200, 2], [2400, 3]] });
+      break;
+    case 'quack':
+      for (let i = 0; i < 2; i++) voiced(a, out, t + i * 0.22, { f0: 300 * p, f1: 240 * p, d: 0.15, v: 0.3, att: 0.01, formants: [[950, 2], [1900, 4]] });
+      break;
+    case 'honk':
+      for (let i = 0; i < 2; i++) voiced(a, out, t + i * 0.3, { f0: 430 * p, f1: 400 * p, f2: 370 * p, d: 0.22, v: 0.26, att: 0.015, formants: [[1100, 4], [2200, 5]] });
+      break;
+    case 'neigh':
+      voiced(a, out, t, { f0: 620 * p, f1: 950 * p, f2: 420 * p, mid: 0.6, d: 0.95, v: 0.24, att: 0.04, vib: [11, 70], trem: [12, 0.5], formants: [[1200, 2], [2400, 3]] });
+      break;
+    case 'heehaw':
+      for (let i = 0; i < 2; i++) {
+        voiced(a, out, t + i * 0.7, { f0: 680 * p, f1: 720 * p, d: 0.26, v: 0.22, att: 0.02, formants: [[1500, 3], [2600, 4]] });
+        voiced(a, out, t + i * 0.7 + 0.3, { f0: 230 * p, f1: 200 * p, d: 0.36, v: 0.32, att: 0.03, formants: [[650, 3], [1100, 4]] });
+      }
+      break;
+    case 'gobble':
+      voiced(a, out, t, { f0: 520 * p, f1: 360 * p, d: 0.55, v: 0.24, att: 0.01, trem: [22, 1], formants: [[1000, 2], [2000, 3]] });
+      break;
+    case 'chirp':
+      voiced(a, out, t, { type: 'sine', f0: 1800 * p, f1: 2700 * p, d: 0.12, v: 0.06, att: 0.01, formants: [[2200, 0.5]] });
+      voiced(a, out, t + 0.16, { type: 'sine', f0: 2600 * p, f1: 2000 * p, d: 0.16, v: 0.06, att: 0.01, formants: [[2200, 0.5]] });
+      break;
+    case 'buzz':
+      voiced(a, out, t, { f0: 210 * p, f1: 230 * p, f2: 200 * p, d: 0.7, v: 0.08, vib: [7, 6], trem: [3, 0.6], formants: [[700, 1]] });
+      break;
+  }
+}
+
+let lastVoice = 0;
+// a pen's animals answer a tap (once a second and a half at most)
+export function voice(animal: string) {
+  const v = voiceOf(animal);
+  const now = performance.now();
+  if (!v || now - lastVoice < 1500) return;
+  const a = ctx();
+  if (!a) return;
+  lastVoice = now;
+  // (at the level of the other sounds of the game)
+  const g = a.createGain();
+  g.gain.value = 0.4;
+  g.connect(a.destination);
+  speak(a, g, a.currentTime + 0.02, v, 0.92 + Math.random() * 0.16);
+  setTimeout(() => g.disconnect(), 2500);
+}

@@ -3,7 +3,7 @@ import { useEffect, useRef, useState } from 'react';
 import { GameStore, TUTORIAL_DONE, fmtTime, loadGame, plotProgress, type FarmObject } from '@/game/state';
 import { BUILDING } from '@/game/data';
 import { Renderer, nightFactor } from '@/game/render3d';
-import { sfx, sleepAudio, startAmbience, startMusic, stopAmbience, stopMusic } from '@/game/audio';
+import { sfx, sleepAudio, startAmbience, startMusic, stopAmbience, stopMusic, voice } from '@/game/audio';
 import { weatherAt } from '@/game/weather';
 import { buzz } from '@/game/haptics';
 import { Capacitor } from '@capacitor/core';
@@ -101,6 +101,7 @@ function NoGl() {
 function startFarm(show: (st: GameStore) => void) {
   const st = new GameStore(loadGame());
   st.sound = (n) => { if (st.s.settings.sound) sfx(n); if (st.s.settings.vibrate !== false) buzz(n); };
+  st.voice = (a) => { if (st.s.settings.sound) voice(a); };
   // the farm redraws when the language changes
   const offLang = onLang(() => st.emit(false));
   // (inside YouTube the save is sent to it at once)
