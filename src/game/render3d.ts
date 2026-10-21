@@ -1414,7 +1414,7 @@ export class Renderer {
     this.bigRocks = [];
     // a few low, broad ledges a little way out to sea: haul outs with room for two seals each
     if (artStyle() === 'toon') {
-      loadModel('sea_rock').then((mdl) => {
+      loadLater('sea_rock').then((mdl) => {
         SEA_ROCKS.forEach(([side, along, sc], k) => {
           const out = BEACH + 1.9 + hash(k, 1, 91) * 0.4;
           const x = side === 0 || side === 1 ? along : side === 3 ? GRID + out : -out;
@@ -1435,7 +1435,7 @@ export class Renderer {
     if (artStyle() === 'toon') {
       // the Blender boulder (tools/blender/world.py) takes over the shoreline rocks once loaded;
       // its stone is painted already, so the tints only nudge each copy lighter or darker
-      loadModel('shore_rock').then((mdl) => {
+      loadLater('shore_rock').then((mdl) => {
         const src = firstMesh(mdl);
         if (!src) return;
         im.geometry = src.geometry;
@@ -1924,6 +1924,7 @@ export class Renderer {
     if (this.post) this.post.render();
     else this.gl.render(this.scene, this.camera);
     showOffView();
+    if (!drawnOnce) farmDrawn();
     if (this.onFirstDraw) { const f = this.onFirstDraw; this.onFirstDraw = null; f(); }
   }
   private warm: 'cold' | 'warming' | 'compiled' | 'done' = 'cold';
@@ -4042,9 +4043,10 @@ function lodMesh(m: THREE.Mesh, kind: string, part: LodPart) {
 // the full model shows. `name` is the model's file name (animal_cow, crop_wheat, apple_tree).
 const modelLodSrc = new Map<string, Map<string, THREE.BufferGeometry> | null>();
 function modelLodGeos(name: string) {
-  // the far models are only a saving: they never queue ahead of the farm's own models, and come
-  // in a few at a time (the full model stays until its twin arrives)
-  if (!modelLodSrc.has(name) && modelsLoading < 3) {
+  // the far models are only a saving: they never queue ahead of the farm's own models (nor hold up
+  // its first picture: they start once it is drawn), and come in a few at a time (the full model
+  // stays until its twin arrives)
+  if (!modelLodSrc.has(name) && drawnOnce && modelsLoading < 3) {
     modelLodSrc.set(name, null);
     loadModel(`lod/${name}`).then((m) => {
       const map = new Map<string, THREE.BufferGeometry>();
@@ -5001,6 +5003,26 @@ function smoke(g: THREE.Group, x: number, y: number, z: number) {
 // compressed (the decoder lives in public/draco); each file is fetched once and cloned per copy.
 const gltfLoader = new GLTFLoader().setDRACOLoader(new DRACOLoader().setDecoderPath('draco/'));
 const modelCache = new Map<string, Promise<THREE.Object3D>>();
+// Models of what is not on the farm when it opens (the sea's and the shore's animals, the night's
+// creatures, the rocks along the coast, the sea jetty): fetched only once the farm is first drawn,
+// two at a time, so the first picture does not wait for them (about half the models at start up)
+// and the first seconds of play do not stutter while they come in.
+let drawnOnce = false, laterBusy = 0;
+const laterQ: (() => void)[] = [];
+function pumpLater() {
+  while (drawnOnce && laterBusy < 2 && laterQ.length) { laterBusy++; laterQ.shift()!(); }
+}
+function loadLater(name: string): Promise<THREE.Object3D> {
+  if (drawnOnce && modelCache.has(name)) return loadModel(name);
+  return new Promise((ok, no) => {
+    laterQ.push(() => { loadModel(name).then(ok, no).finally(() => { laterBusy--; setTimeout(pumpLater, 40); }); });
+    pumpLater();
+  });
+}
+function farmDrawn() {
+  drawnOnce = true;
+  pumpLater();
+}
 // model materials with a baked emission mask (windows, lamps), lit up at night like WIN
 const MODEL_GLOW = new Set<THREE.MeshStandardMaterial>();
 // A model's baked texture is scaled down as it loads to what the model can show: its size on the
@@ -7134,7 +7156,7 @@ function buildFishingSpot(spot: FishSpot) {
   const end = sea ? { x: P.x + 0.15, z: Z0 + L - 0.2 } : { x: jx + 8 * 0.16, z: P.y + 0.14 };
   const yaw = sea ? 0 : Math.PI / 2;
   if (sea && artStyle() === 'toon') {
-    loadModel('fishing_jetty').then((m) => { const j = m.clone(); j.position.set(P.x, 0, Z0); root.add(j); }).catch(() => {});
+    loadLater('fishing_jetty').then((m) => { const j = m.clone(); j.position.set(P.x, 0, Z0); root.add(j); }).catch(() => {});
   }
   const lock = badge(root, '🔒', 0.3, shore.x, deckY + 0.35, shore.z);
   lock.rotation.x = -0.3;
@@ -7345,7 +7367,7 @@ function turtleRig(kind: 'sea_turtle' | 'turtle_hatchling', scale: number): Turt
   }
   body.scale.setScalar(scale);
   if (artStyle() === 'toon') {
-    loadModel(kind).then((m) => {
+    loadLater(kind).then((m) => {
       const c = m.clone();
       body.clear();
       body.add(c);
@@ -7591,7 +7613,7 @@ class ShoreLife {
         skipOffView(g, 2, true);
         this.crabs.push(c);
         if (artStyle() === 'toon') {
-          loadModel(kind).then((m) => {
+          loadLater(kind).then((m) => {
             const mc = m.clone();
             mc.traverse((o) => { o.castShadow = false; });
             body.add(mc);
@@ -7619,7 +7641,7 @@ class ShoreLife {
       skipOffView(g, 3);
       this.seals.push(s);
       if (artStyle() === 'toon') {
-        loadModel('harbor_seal').then((m) => {
+        loadLater('harbor_seal').then((m) => {
           const c = m.clone();
           // each seal its own shade, from warm brown to nearly black, and a wet sheen on the coat
           const tint = SEAL_TINTS[k % SEAL_TINTS.length];
@@ -7747,7 +7769,7 @@ class ShoreLife {
         skipOffView(g, 2, true);
         fl.birds.push(b);
         if (artStyle() === 'toon') {
-          loadModel('sandpiper').then((m) => {
+          loadLater('sandpiper').then((m) => {
             const c = m.clone();
             c.traverse((o) => { o.castShadow = false; });
             g.add(c);
@@ -8084,7 +8106,7 @@ class NightLife {
     }
     if (toon) {
       for (const o of this.owls) {
-        loadModel(o.kind).then((m) => {
+        loadLater(o.kind).then((m) => {
           const c = m.clone();
           c.traverse((x) => { x.castShadow = true; });
           c.scale.setScalar(1.25);
@@ -8108,7 +8130,7 @@ class NightLife {
         const c: Critter = { kind, g, body, legs: [], wings: [], seed: k * 5.3 + kind.length, ready: false, x: 0, z: 0, tx: 0, tz: 0, wait: 0, curl: 0, heading: 0, hop: -1, a: 0, a1: 0 };
         list.push(c);
         if (toon) {
-          loadModel(kind).then((m) => {
+          loadLater(kind).then((m) => {
             const mc = m.clone();
             mc.traverse((o) => { o.castShadow = kind !== 'bat'; });
             body.add(mc);
@@ -8563,7 +8585,7 @@ class Life {
     }
     if (artStyle() !== 'toon') return;
     // the Blender gulls, yacht, trawler and sea animals (tools/blender/sea.py)
-    loadModel('seagull').then((src) => {
+    loadLater('seagull').then((src) => {
       for (const gl of this.gulls) {
         gl.g.clear();
         const m = src.clone();
@@ -8574,11 +8596,11 @@ class Life {
         gl.meshes = null;
       }
     }).catch(() => {});
-    loadModel('sailboat').then((src) => {
+    loadLater('sailboat').then((src) => {
       this.sail.clear();
       for (const g of [this.sail, this.sail2]) { const m = src.clone(); m.position.y = -0.08; g.add(m); }
     }).catch(() => {});
-    loadModel('dolphin').then((src) => {
+    loadLater('dolphin').then((src) => {
       for (let i = 0; i < 3; i++) {
         const m = src.clone();
         m.scale.setScalar(0.9 - i * 0.08);
@@ -8590,8 +8612,8 @@ class Life {
         this.dolphinRings.push(ring);
       }
     }).catch(() => {});
-    loadModel('whale').then((src) => { this.whale = src.clone(); this.whale.visible = false; scene.add(this.whale); skipOffView(this.whale, 8); }).catch(() => {});
-    loadModel('shark').then((src) => { this.shark = src.clone(); this.shark.visible = false; scene.add(this.shark); skipOffView(this.shark, 4); }).catch(() => {});
+    loadLater('whale').then((src) => { this.whale = src.clone(); this.whale.visible = false; scene.add(this.whale); skipOffView(this.whale, 8); }).catch(() => {});
+    loadLater('shark').then((src) => { this.shark = src.clone(); this.shark.visible = false; scene.add(this.shark); skipOffView(this.shark, 4); }).catch(() => {});
   }
 
   // off the shore nearest the view, a few tiles out to sea, heading along the coast
