@@ -60,6 +60,7 @@ import { MUSEUM } from '@/game/museum';
 import { BEAUTY_LEVELS, VARIETY, beautyGain } from '@/game/beauty';
 import { FESTS, FEST_FAST, festNow, type FestKind } from '@/game/fest';
 import { MARKET } from '@/game/market';
+import { canBuzz } from '@/game/haptics';
 import { askNotify, notifyNative, setNotifyAsked } from '@/game/notify';
 import { now as clockNow } from '@/game/clock';
 import { getQuality, setQuality, type Quality } from '@/game/quality';
@@ -1782,6 +1783,9 @@ function GoalsList() {
 
 // ------------------------------------------------------------------ settings
 
+// a phone or tablet (a finger, not a mouse): where vibration means something
+const touchScreen = () => typeof window !== 'undefined' && !!window.matchMedia?.('(pointer: coarse)').matches;
+
 function Toggle({ label, on, onChange }: { label: string; on: boolean; onChange: (v: boolean) => void }) {
   return (
     <button className="card flex w-full items-center justify-between p-3" onClick={() => onChange(!on)}>
@@ -1897,6 +1901,7 @@ function SettingsModal() {
         <Toggle label="Weather and seasons" on={st.weather} onChange={(v) => set('weather', v)} />
         <Toggle label="Soft shadows (turn off on slow phones)" on={st.shadows} onChange={(v) => set('shadows', v)} />
         <Toggle label="Battery saver (30 FPS, cooler phone)" on={!!st.saver} onChange={(v) => set('saver', v)} />
+        {canBuzz() && touchScreen() && <Toggle label="Vibration" on={st.vibrate !== false} onChange={(v) => set('vibrate', v)} />}
         {notifyNative() && <Toggle label="Phone notifications (ready crops, animals, daily gift)" on={!!st.notify} onChange={(v) => turnNotify(store, v)} />}
         <QualityPicker />
         <LanguagePicker />

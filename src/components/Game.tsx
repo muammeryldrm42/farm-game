@@ -4,6 +4,7 @@ import { GameStore, TUTORIAL_DONE, fmtTime, loadGame, plotProgress, type FarmObj
 import { BUILDING } from '@/game/data';
 import { Renderer } from '@/game/render3d';
 import { sfx, sleepAudio, startMusic, stopMusic } from '@/game/audio';
+import { buzz } from '@/game/haptics';
 import { Capacitor } from '@capacitor/core';
 import { App } from '@capacitor/app';
 import { notifyAsked, notifyAway, notifyBack, setNotifyAsked } from '@/game/notify';
@@ -95,7 +96,7 @@ function NoGl() {
 // app the back button and the phone's notifications. Gives back what stops it all.
 function startFarm(show: (st: GameStore) => void) {
   const st = new GameStore(loadGame());
-  st.sound = (n) => { if (st.s.settings.sound) sfx(n); };
+  st.sound = (n) => { if (st.s.settings.sound) sfx(n); if (st.s.settings.vibrate !== false) buzz(n); };
   // the farm redraws when the language changes
   const offLang = onLang(() => st.emit(false));
   // (inside YouTube the save is sent to it at once)
@@ -372,7 +373,7 @@ function FarmCanvas({ onDrawn, onFail }: { onDrawn: () => void; onFail: () => vo
               longFired = true;
               mode = 'none';
               store.startMove(target.id);
-              navigator.vibrate?.(25);
+              if (store.s.settings.vibrate !== false) buzz(25);
             }
           }, Math.max(0, due - performance.now()));
         };
