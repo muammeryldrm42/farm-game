@@ -4056,6 +4056,22 @@ function modelLodGeos(name: string) {
   }
   return modelLodSrc.get(name) ?? null;
 }
+// The animals' very far level (tools/blender/lod.py --far2, about a tenth of the full model's
+// triangles), for a camera zoomed far out where an animal is a few dozen pixels tall. Loaded like
+// the far level, once the farm is drawn and a few at a time.
+const LOD2_NEAR = 40, LOD2_FAR = 44;
+const modelLod2Src = new Map<string, Map<string, THREE.BufferGeometry> | null>();
+function modelLod2Geos(name: string) {
+  if (!modelLod2Src.has(name) && drawnOnce && modelsLoading < 3) {
+    modelLod2Src.set(name, null);
+    loadModel(`lod2/${name}`).then((m) => {
+      const map = new Map<string, THREE.BufferGeometry>();
+      m.traverse((o) => { if ((o as THREE.Mesh).isMesh) map.set(o.name, (o as THREE.Mesh).geometry); });
+      modelLod2Src.set(name, map);
+    }).catch(() => { /* no very far model: the far one stays */ });
+  }
+  return modelLod2Src.get(name) ?? null;
+}
 // Crops in the fields and the animals in the pens. Each field shows four plants of one or two
 // parts (plant, fruit) and each Blender animal is some eight parts (body, head, legs, tail, eyes);
 // drawn one by one a busy farm makes hundreds of draws, a heavy load for a phone. The plants and
@@ -4172,8 +4188,16 @@ class Batches {
           // far away a crop or an animal is drawn from its thinned twin, as the trees are
           const d = cam.position.distanceTo(lodPos.setFromMatrixPosition(m.matrixWorld));
           const far = m.userData.far ? d > LOD_NEAR * lodScale : d > LOD_FAR * lodScale;
-          const twin = far ? modelLodGeos(lod)?.get(m.name) : undefined;
+          let twin = far ? modelLodGeos(lod)?.get(m.name) : undefined;
           m.userData.far = !!twin;
+          // farther still, an animal from its very far level
+          let twin2: THREE.BufferGeometry | undefined;
+          if (twin && lod.startsWith('animal_')) {
+            const far2 = m.userData.far2 ? d > LOD2_NEAR * lodScale : d > LOD2_FAR * lodScale;
+            twin2 = far2 ? modelLod2Geos(lod)?.get(m.name) : undefined;
+            if (twin2) twin = twin2;
+          }
+          m.userData.far2 = !!twin2;
           if (twin) geo = twin;
         }
         this.add(geo, m.material as THREE.Material, m);

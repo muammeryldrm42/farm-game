@@ -3,7 +3,11 @@
 # `public/models/lod/<name>.glb` with the same part names and no materials: the game swaps in only
 # this lighter geometry when the thing is far from the camera and keeps the near model's baked
 # texture, so it looks the same from afar, it just costs about a third of the triangles.
+# A second, much lighter level for the animals (about a tenth of the full model's triangles) goes to
+# `public/models/lod2/<name>.glb`, for when the camera is zoomed far out and an animal is a few
+# dozen pixels tall.
 # Run: python3 tools/blender/lod.py [names...]   (default: every public/models/animal_*.glb)
+#      python3 tools/blender/lod.py --far2 [names...]  (the very far level of the animals)
 #      python3 tools/blender/lod.py --plants     (every crop, fruit tree and leafy decoration)
 #      python3 tools/blender/lod.py --buildings  (the workshops, pens, barn, silo, stall and big decorations)
 import glob
@@ -18,12 +22,15 @@ ROOT = os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', '..', 'pub
 # thin and already light
 KEEP = {'body': 0.3, 'head': 0.35, 'small': 0.5}
 MIN_FACES = 120
+# the very far level: what an animal a few dozen pixels tall needs
+KEEP2 = {'body': 0.1, 'head': 0.12, 'small': 0.25}
+MIN_FACES2 = 60
 # a building's walls and roofs are flat and already light: its triangles are in the little
 # things (planks, tiles, pots, flowers), and these keep a little more of them than an animal does
 BUILDING_KEEP = 0.4
 
 
-def thin(name, building=False):
+def thin(name, building=False, far2=False):
     bpy.ops.wm.read_factory_settings(use_empty=True)
     bpy.ops.import_scene.gltf(filepath=os.path.join(ROOT, f'{name}.glb'))
     before = after = 0
@@ -33,7 +40,10 @@ def thin(name, building=False):
         n = len(o.data.polygons)
         before += n
         part = 'head' if o.name == 'head' else 'body' if not (o.name.startswith('leg') or o.name in ('tail', 'fan', 'train')) else 'small'
-        ratio = max(BUILDING_KEEP if building else KEEP[part], min(1.0, MIN_FACES / max(1, n)))
+        if far2:
+            ratio = max(KEEP2[part], min(1.0, MIN_FACES2 / max(1, n)))
+        else:
+            ratio = max(BUILDING_KEEP if building else KEEP[part], min(1.0, MIN_FACES / max(1, n)))
         if ratio < 1.0:
             bpy.context.view_layer.objects.active = o
             m = o.modifiers.new('thin', 'DECIMATE')
@@ -46,14 +56,17 @@ def thin(name, building=False):
         o.data.materials.clear()
         after += len(o.data.polygons)
     bpy.ops.object.select_all(action='SELECT')
-    bpy.ops.export_scene.gltf(filepath=os.path.join(ROOT, 'lod', f'{name}.glb'), export_format='GLB', use_selection=True,
+    coarse = building or far2
+    out = os.path.join(ROOT, 'lod2' if far2 else 'lod')
+    os.makedirs(out, exist_ok=True)
+    bpy.ops.export_scene.gltf(filepath=os.path.join(out, f'{name}.glb'), export_format='GLB', use_selection=True,
                               export_apply=True, export_yup=True, export_materials='NONE',
                               export_draco_mesh_compression_enable=True, export_draco_mesh_compression_level=7,
-                              # a building seen from afar: coarser numbers are as good and the file a good deal smaller
-                              export_draco_position_quantization=12 if building else 14,
-                              export_draco_normal_quantization=8 if building else 10,
-                              export_draco_texcoord_quantization=11 if building else 12)
-    print(f'LOD {name}: {before} -> {after} faces')
+                              # a building (or an animal) seen from far: coarser numbers are as good and the file a good deal smaller
+                              export_draco_position_quantization=12 if coarse else 14,
+                              export_draco_normal_quantization=8 if coarse else 10,
+                              export_draco_texcoord_quantization=11 if coarse else 12)
+    print(f'LOD{"2" if far2 else ""} {name}: {before} -> {after} faces')
 
 
 # leafy decorations a farm may have by the dozen, and the wild trees and bushes on new land
@@ -113,9 +126,9 @@ if __name__ == '__main__':
     elif building:
         names = [a for a in args if not a.startswith('--')] or buildings()
     else:
-        names = args or sorted(os.path.basename(p)[:-4] for p in glob.glob(os.path.join(ROOT, 'animal_*.glb')))
+        names = [a for a in args if not a.startswith('--')] or sorted(os.path.basename(p)[:-4] for p in glob.glob(os.path.join(ROOT, 'animal_*.glb')))
     if '--list' in args:
         print(' '.join(names))
         sys.exit(0)
     for n in names:
-        thin(n, building)
+        thin(n, building, '--far2' in args)
