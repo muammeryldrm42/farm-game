@@ -58,7 +58,7 @@ import { DAILY_LEVEL, dailyAllDone, dailyClaimable, dailyIcon, dailyProgress, da
 import { ALBUM } from '@/game/album';
 import { MUSEUM } from '@/game/museum';
 import { BEAUTY_LEVELS, VARIETY, beautyGain } from '@/game/beauty';
-import { FESTS, FEST_FAST, festNow, type FestKind } from '@/game/fest';
+import { FESTS, FEST_FAST, FEST_LEVEL, festNow, type FestKind } from '@/game/fest';
 import { MARKET } from '@/game/market';
 import { canBuzz } from '@/game/haptics';
 import { askNotify, notifyNative, setNotifyAsked } from '@/game/notify';
@@ -1996,9 +1996,19 @@ function SettingsModal() {
 
 // ------------------------------------------------------------------ small modals
 
+// the parts of the game a level opens (beside the crops, animals, buildings and goods of unlocksAt)
+function featuresAt(level: number): { icon: string; name: string; id?: string }[] {
+  const out: { icon: string; name: string; id?: string }[] = [];
+  if (level === DAILY_LEVEL) out.push({ icon: '✅', name: 'Daily tasks' });
+  if (level === FEST_LEVEL) out.push({ icon: '🎪', name: 'Festivals' });
+  if (level === MARKET.level) out.push({ icon: '🏘️', name: "Neighbors' stalls" });
+  if (level === FISHING.level) out.push({ icon: '🎣', name: 'Lake Fishing' }, { icon: '🌊', name: 'Sea Fishing' });
+  return out;
+}
+
 function LevelUpModal({ level }: { level: number }) {
   const store = useStore();
-  const list = unlocksAt(level);
+  const list = [...featuresAt(level), ...unlocksAt(level)];
   const close = () => {
     store.ui.levelUp = null;
     store.emit(false);
