@@ -18,6 +18,9 @@ import { Guard } from './Guard';
 import { kvFlush, kvInit } from '@/game/kv';
 import { onYtAudio, onYtPause, ytAudioOn, ytFirstFrame, ytPaused, ytReady, ytWire } from '@/game/yt';
 
+// the farm was drawn once (the card of what is ready on coming back waits for it)
+let drawnOnce = false;
+
 export default function Game() {
   const [store, setStore] = useState<GameStore | null>(null);
   const [drawn, setDrawn] = useState(false);
@@ -54,7 +57,7 @@ export default function Game() {
   return (
     <Guard fallback={<Broken onReload={() => { store.saveNow(); void kvFlush().finally(() => location.reload()); }} />}>
       <StoreCtx.Provider value={store}>
-        <FarmCanvas onDrawn={() => setDrawn(true)} onFail={() => setNoGl(true)} />
+        <FarmCanvas onDrawn={() => { setDrawn(true); drawnOnce = true; store.welcomeBack(); }} onFail={() => setNoGl(true)} />
         <Guard><Hud /></Guard>
         <Guard><Flyers /></Guard>
         <Guard onError={closeFailed}><Panels /></Guard>
@@ -101,7 +104,8 @@ function startFarm(show: (st: GameStore) => void) {
   const offLang = onLang(() => st.emit(false));
   // (inside YouTube the save is sent to it at once)
   const save = () => { st.saveNow(); void kvFlush(); };
-  const vis = () => { if (document.visibilityState === 'hidden') save(); };
+  // (and where the player left off, for the card of what is ready when they are back)
+  const vis = () => { if (document.visibilityState === 'hidden') { save(); st.awayFrom ??= clockNow(); } };
   window.addEventListener('beforeunload', save);
   document.addEventListener('visibilitychange', vis);
   // while YouTube has the game paused nothing runs: no ticks, no frames (see FarmCanvas), no sound.
@@ -138,7 +142,7 @@ function startFarm(show: (st: GameStore) => void) {
     const o = clockOwed();
     if (o > 10 * 60e3) st.toast(t('No internet: the time from before the phone was restarted is added once you are back online ({time}).', { time: fmtTime(o) }));
   };
-  const reclock = () => syncClock().then(() => { ahead(); owed(); st.tick(); st.emit(false); });
+  const reclock = () => syncClock().then(() => { ahead(); owed(); st.tick(); st.emit(false); if (document.visibilityState === 'visible' && drawnOnce) st.welcomeBack(); });
   const visClock = () => { if (document.visibilityState === 'visible') reclock(); };
   document.addEventListener('visibilitychange', visClock);
   const drift = setInterval(() => { if (!busy()) return; if (clockDrifted()) reclock(); else ahead(); }, 5000);

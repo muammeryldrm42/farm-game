@@ -748,6 +748,8 @@ export interface UIState {
   guideAt?: { x: number; y: number; at: number }; // a place on the farm a task pointed to: an orange arrow bobs over it
   notifyAsk?: boolean; // the question whether to send phone notifications is up (see notify.ts)
   shopTab?: string; // the shop opens on this tab (once)
+  // back after a while: what is ready on the farm, shown for a moment (see welcomeBack)
+  welcome?: { fields: number; animals: number; goods: number; trees: number; sales: number; fish: number } | null;
 }
 
 export class GameStore {
@@ -767,6 +769,7 @@ export class GameStore {
   private toastId = 0;
 
   constructor(s: GameState) {
+    this.awayFrom = typeof s.clock?.t === 'number' ? s.clock.t : null;
     this.s = s;
     this.ui = { selectedId: null, placing: null, tool: null, panel: null, storageTab: 'silo', expand: null, levelUp: null, daily: false, napping: false, napAt: 0, story: null, say: null };
     this.ensureOrders();
@@ -2325,6 +2328,31 @@ export class GameStore {
     this.toast(`${FESTS[f.kind].icon} ${tr('{name} has begun!', { name: tr(FESTS[f.kind].name) })} ${tr(FESTS[f.kind].text)}`, 'good');
   }
   private festTold = -1;
+
+  // ------------------------------------------------ back after a while
+
+  // when the player last left (the farm's clock at the last save when the game opens, or when it
+  // went to the background); null once told
+  awayFrom: number | null = null;
+  // back after twenty minutes or more: what is ready on the farm now, in a card for a moment
+  welcomeBack() {
+    const from = this.awayFrom;
+    this.awayFrom = null;
+    const now = clockNow();
+    if (from === null || now - from < 20 * 60e3 || this.s.tutorial < TUTORIAL_DONE) return;
+    const w = { fields: 0, animals: 0, goods: 0, trees: 0, sales: 0, fish: 0 };
+    for (const o of this.s.objects) {
+      if (o.plot && plotProgress(o, now).ready) w.fields++;
+      else if (o.pen && BUILDING[o.type]?.animal) w.animals += penInfo(o, now).ready;
+      else if (o.prod) { for (const e of o.prod.queue) if (e.endsAt <= now) w.goods += RECIPE[e.recipe]?.qty ?? 1; }
+      else if (o.tree && treeInfo(o, now).ready) w.trees++;
+    }
+    w.sales = this.s.stall.filter((x) => x.item && x.soldAt <= now).length;
+    w.fish = (['lake', 'sea'] as FishSpot[]).filter((sp) => fishingInfo(this.s, now, sp).state === 'ready').length;
+    if (!Object.values(w).some((v) => v > 0)) return;
+    this.ui.welcome = w;
+    this.emit(false);
+  }
 
   // the festival window: opened while a festival is on, the HUD stops calling for it
   openFestival() {

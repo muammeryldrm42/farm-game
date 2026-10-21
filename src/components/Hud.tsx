@@ -1,4 +1,5 @@
 'use client';
+import { useEffect } from 'react';
 import Ico from './Ico';
 import { BUILDING, CROP, ITEMS } from '@/game/data';
 import { dailyClaimable } from '@/game/daily';
@@ -97,8 +98,9 @@ export default function Hud() {
       {/* the festival, under the beauty points */}
       {!sheetOpen && <FestChip />}
 
-      {/* toasts */}
+      {/* toasts, with the card of what is ready on coming back first */}
       <div className={`absolute left-1/2 flex w-[92%] max-w-sm -translate-x-1/2 flex-col items-center gap-2 ${tut ? "top-36" : "top-20"}`}>
+        {ui.welcome && !sheetOpen && !ui.story && <WelcomeCard />}
         {store.toasts.map((tt) => (
           <div
             key={tt.id}
@@ -299,6 +301,31 @@ function FestChip() {
     >
       <span className={`emoji text-base sm:text-lg ${on ? '' : 'opacity-60 grayscale'}`}>{d.icon}</span>
       {time}
+    </button>
+  );
+}
+
+// Back after a while (see welcomeBack in state.ts): what is ready on the farm, for a few seconds or
+// until tapped
+function WelcomeCard() {
+  const store = useStore();
+  const w = store.ui.welcome!;
+  const close = () => { store.ui.welcome = null; store.emit(false); };
+  useEffect(() => {
+    const tm = setTimeout(() => { if (store.ui.welcome === w) { store.ui.welcome = null; store.emit(false); } }, 9000);
+    return () => clearTimeout(tm);
+  }, [store, w]);
+  const items: [string, number, string][] = [['🌾', w.fields, 'Fields'], ['🥚', w.animals, 'Animals'], ['🧺', w.goods, 'Goods made'], ['🍎', w.trees, 'Fruit trees'], ['🏪', w.sales, 'Stall sales']];
+  return (
+    <button className="pointer-events-auto w-full animate-pop rounded-2xl border-[3px] border-[#5d3a1f] bg-[#fff6df] px-4 py-2 text-center text-[#5a3a1a] shadow-lg" onClick={close}>
+      <div className="font-bold"><span className="emoji">🏡</span> {t('Welcome back!')}</div>
+      <div className="text-xs text-[#8a6a44]">{t('Ready on your farm:')}</div>
+      <div className="mt-1 flex flex-wrap justify-center gap-x-3 gap-y-1 text-sm font-bold">
+        {items.filter(([, n]) => n > 0).map(([icon, n, label]) => (
+          <span key={label} className="whitespace-nowrap"><span className="emoji">{icon}</span> {t(label)} ×{n}</span>
+        ))}
+        {w.fish > 0 && <span className="whitespace-nowrap"><span className="emoji">🎣</span> {t('A bite on the line')}</span>}
+      </div>
     </button>
   );
 }
