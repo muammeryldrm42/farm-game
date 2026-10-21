@@ -302,7 +302,7 @@ function FarmCanvas({ onDrawn, onFail }: { onDrawn: () => void; onFail: () => vo
     // ---------------------------------------------- input
     const pts = new Map<number, { x: number; y: number }>();
     let mode: Mode = 'none';
-    let sx = 0, sy = 0, pinchD = 1, pinchZ = 1, pinchA = 0;
+    let sx = 0, sy = 0, pinchD = 1, pinchZ = 1;
     let hitObj: FarmObject | null = null;
     let hitSpot: 'fishing' | 'seaFishing' | 'visitor' | null = null;
     let hitPick: ReturnType<typeof r.pick> | null = null;
@@ -327,7 +327,6 @@ function FarmCanvas({ onDrawn, onFail }: { onDrawn: () => void; onFail: () => vo
         const [a, b] = [...pts.values()];
         pinchD = Math.max(1, dist(a, b));
         pinchZ = r.cam.zoom;
-        pinchA = Math.atan2(b.y - a.y, b.x - a.x);
         mode = 'pinch';
         return;
       }
@@ -386,15 +385,11 @@ function FarmCanvas({ onDrawn, onFail }: { onDrawn: () => void; onFail: () => vo
       const p = pos(e);
       pts.set(e.pointerId, p);
       if (mode === 'pinch') {
+        // two fingers only zoom: the camera keeps its heading however the fingers turn (it turns
+        // with the buttons, or Q and E)
         if (pts.size >= 2) {
           const [a, b] = [...pts.values()];
           r.zoomAt((a.x + b.x) / 2, (a.y + b.y) / 2, (pinchZ * dist(a, b)) / pinchD);
-          const ang = Math.atan2(b.y - a.y, b.x - a.x);
-          let da = ang - pinchA;
-          if (da > Math.PI) da -= Math.PI * 2;
-          if (da < -Math.PI) da += Math.PI * 2;
-          r.rotateBy(-da);
-          pinchA = ang;
         }
         return;
       }

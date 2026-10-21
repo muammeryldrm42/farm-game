@@ -22,7 +22,7 @@ By Talons Protocol.
 - Hand painted canvas icons for goods without a fitting emoji; leaf card tree crowns; realistic Holstein cows; ruffled lettuce
 - Sculpted signed distance field animals, rolling sea swell, drawn at full sharpness
 - High and Low graphics quality in Settings (kept per device, outside the save)
-- Free camera: drag to pan, pinch or scroll to zoom, twist with two fingers or press Q and E to rotate
+- Free camera: drag to pan, pinch or scroll to zoom, turn it with the rotate button or Q and E
 - 9 crops (wheat to sunflower) with drag to plant and drag to harvest
 - 7 production buildings (Bakery, Feed Mill, Dairy, Sugar Mill, BBQ Grill, Juice Press, Loom) with queues and extra slots
 - Animal homes (chickens, cows, sheep and more) that need feed and give eggs, milk, wool and other goods

@@ -1103,12 +1103,6 @@ export class Renderer {
     this.azGoal += (dir * Math.PI) / 2;
   }
 
-  rotateBy(rad: number) {
-    this.az += rad;
-    this.azGoal = this.az;
-    this.updateCamera();
-  }
-
   resetView(zoom: number) {
     this.centerOn(FARM_C.x, FARM_C.y);
     this.cam.zoom = zoom;

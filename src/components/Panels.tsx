@@ -1857,7 +1857,7 @@ function SettingsModal() {
 
       <h3 className="mb-1 mt-4 font-bold">{t('How to play')}</h3>
       <ul className="list-disc space-y-0.5 pl-5 text-xs text-[#8a6a44]">
-        {['Drag to move around, pinch or scroll to zoom. Twist with two fingers, the rotate button or Q and E to turn the camera.',
+        {['Drag to move around, pinch or scroll to zoom. Turn the camera with the rotate button or Q and E.',
           'Press and drag across ready fields to harvest them all.',
           'Hold anything for a moment to move it.',
           'Tap the order board for orders, the farmhouse for goals, the barn and silo for storage.',
