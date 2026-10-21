@@ -10,6 +10,7 @@ import { LAST_CHAPTER, chapterAt, taskProgress, type StoryState, type StoryTask 
 import { ALBUM, ALBUM_IDS, CAT_FINDS, DOG_FINDS, albumEntry, type AlbumEntry } from './album';
 import { MUSEUM, findChance, museumSet, newMuseum, type FindSource, type MuseumState } from './museum';
 import { MARKET, genMarket, validMarket, type MarketState } from './market';
+import { CUP_PRIZES, cupOn, keepCup, type CupState } from './cup';
 import { FESTS, FEST_BITE, FEST_COINS, FEST_EXTRA, FEST_FAST, festActive, festNow, festOn, keepFest, type FestKind, type FestSave } from './fest';
 
 export const GRID = 68;
@@ -125,6 +126,7 @@ export interface GameState {
   daily?: DailyState; // today's three tasks and the bonus chest (see daily.ts)
   fest?: FestSave; // the festival on now and the next one (see fest.ts)
   market?: MarketState; // what the neighbors' stalls sell now (see market.ts)
+  cup?: CupState; // the Valley Cup: the week on now, and how the last one ended (see cup.ts)
 }
 
 // ---------------------------------------------------------------- pets
@@ -722,6 +724,10 @@ function migrate(d: Partial<GameState>): GameState {
   const f = d.fest;
   s.fest = f && typeof f.slot === 'number' && Array.isArray(f.kinds) && f.kinds.length === 2 && f.kinds.every((k) => k in FESTS) ? f : undefined;
   s.market = validMarket(d.market);
+  const cu = d.cup;
+  s.cup = cu && typeof cu.week === 'number' && plain(cu.base)
+    ? { week: cu.week, base: counts(cu.base), ...(typeof cu.lv === 'number' && cu.lv >= 1 ? { lv: cu.lv } : {}), ...(typeof cu.from === 'number' ? { from: cu.from } : {}), ...(plain(cu.last) && typeof cu.last.place === 'number' && typeof cu.last.points === 'number' && typeof cu.last.week === 'number' ? { last: cu.last } : {}) }
+    : undefined;
   // saves from before the tutorial existed skip it
   s.tutorial = typeof d.tutorial === 'number' ? d.tutorial : TUTORIAL_DONE;
   if (s.tutorial !== TUTORIAL_DONE && !(Number.isInteger(s.tutorial) && s.tutorial >= 0 && s.tutorial <= TUTORIAL.length)) s.tutorial = TUTORIAL_DONE;
@@ -2041,6 +2047,7 @@ export class GameStore {
     const coins = Math.round(sl.price * (1 + this.beautyBonus()));
     this.earn(coins);
     this.stat('stall');
+    this.stat('stallCoins', coins);
     this.addXp(Math.max(1, Math.round(sl.price / 25)));
     const stall = this.s.objects.find((x) => x.type === 'stall');
     if (stall) { this.float(stall, `+${coins} coins`, '#ffe066', 50); this.fly(stall, '🪙', 'coins', 50); }
@@ -2056,6 +2063,36 @@ export class GameStore {
     this.add(sl.item, sl.qty);
     this.s.stall[slot] = emptySlot();
     this.sound('click');
+    this.emit();
+  }
+
+  // ------------------------------------------------ the Valley Cup (see cup.ts)
+
+  // the cup keeps up with the weeks; a week that ended is told once
+  private cupTick(now: number) {
+    if (!cupOn(this.s)) return;
+    const had = !!this.s.cup;
+    if (keepCup(this.s, now)) {
+      const l = this.s.cup!.last!;
+      this.toast(`🏆 ${tr('The Valley Cup is over: place {n}! Your prize is in Goals.', { n: l.place })}`, 'good');
+      this.scheduleSave();
+    } else if (!had && this.s.cup) this.scheduleSave();
+  }
+
+  // the prize of the week that ended: gems by the place, and coins with them
+  cupPrize(place: number) {
+    const gems = CUP_PRIZES[Math.max(0, Math.min(CUP_PRIZES.length - 1, place - 1))];
+    return { gems, coins: Math.round(gems * (20 + this.s.level * 2)) };
+  }
+
+  claimCup() {
+    const l = this.s.cup?.last;
+    if (!l || l.claimed) return;
+    const p = this.cupPrize(l.place);
+    l.claimed = true;
+    this.earn(p.coins);
+    this.s.gems += p.gems;
+    this.sound('levelup');
     this.emit();
   }
 
@@ -2163,6 +2200,7 @@ export class GameStore {
     this.dailyTick();
     this.festTick(now);
     this.marketTick(now);
+    this.cupTick(now);
     // rain and sprinklers water thirsty fields for free
     const thirsty = this.s.objects.filter((o) => o.type === 'plot' && needsWater(o, now));
     if (thirsty.length) {
@@ -2406,6 +2444,7 @@ export class GameStore {
     const d = this.s.daily;
     if (!d || d.bonus.claimed || d.day !== todayKey() || !dailyAllDone(d, this.s)) return;
     d.bonus.claimed = true;
+    this.stat('dailyChest');
     this.earn(d.bonus.coins);
     this.s.gems += d.bonus.gems;
     this.addXp(d.bonus.xp);

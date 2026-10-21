@@ -60,6 +60,7 @@ import { MUSEUM } from '@/game/museum';
 import { BEAUTY_LEVELS, VARIETY, beautyGain } from '@/game/beauty';
 import { FESTS, FEST_FAST, FEST_LEVEL, festNow, type FestKind } from '@/game/fest';
 import { MARKET } from '@/game/market';
+import { CUP_LEVEL, CUP_POINTS, CUP_PRIZES, RIVALS, cupBoard, cupClaimable, cupOn, weekEnd, weekOf } from '@/game/cup';
 import { canBuzz } from '@/game/haptics';
 import { askNotify, notifyNative, setNotifyAsked } from '@/game/notify';
 import { now as clockNow } from '@/game/clock';
@@ -1415,11 +1416,12 @@ function QuestsModal() {
   const albumCount = claimableAlbum(s).length;
   const museumCount = claimableMuseum(s).length;
   const goalCount = claimableQuests(s).length + dailyClaimable(s);
+  const cupCount = cupClaimable(s);
   // opens where there is something to claim
-  const [tab, setTab] = useState<'story' | 'goals' | 'badges' | 'album' | 'museum'>(() =>
-    store.chapterReady() ? 'story' : goalCount ? 'goals' : badgeCount ? 'badges' : albumCount ? 'album' : museumCount ? 'museum' : 'story');
-  const title = { story: 'Farm Story', goals: 'Farm Goals', badges: 'Badges', album: 'Farm Album', museum: 'Farm Museum' }[tab];
-  const icon = { story: '📖', goals: '🏆', badges: '🎖️', album: '📔', museum: '🏛️' }[tab];
+  const [tab, setTab] = useState<'story' | 'goals' | 'cup' | 'badges' | 'album' | 'museum'>(() =>
+    store.chapterReady() ? 'story' : goalCount ? 'goals' : cupCount ? 'cup' : badgeCount ? 'badges' : albumCount ? 'album' : museumCount ? 'museum' : 'story');
+  const title = { story: 'Farm Story', goals: 'Farm Goals', cup: 'Valley Cup', badges: 'Badges', album: 'Farm Album', museum: 'Farm Museum' }[tab];
+  const icon = { story: '📖', goals: '🏆', cup: '🥇', badges: '🎖️', album: '📔', museum: '🏛️' }[tab];
   return (
     <Modal title={t(title)} icon={icon} onClose={() => store.openPanel(null)}>
       {/* five tabs on one row: a little smaller, and the row scrolls sideways if a language's words are long */}
@@ -1431,6 +1433,10 @@ function QuestsModal() {
         <button className={`btn shrink-0 px-2.5 text-sm relative ${tab === 'goals' ? 'btn-yellow' : 'btn-ghost'}`} onClick={() => setTab('goals')}>
           {t('Goals')}
           {goalCount > 0 && <span className="badge">{goalCount}</span>}
+        </button>
+        <button className={`btn shrink-0 px-2.5 text-sm relative ${tab === 'cup' ? 'btn-yellow' : 'btn-ghost'}`} onClick={() => setTab('cup')}>
+          {t('Cup')}
+          {cupCount > 0 && <span className="badge">{cupCount}</span>}
         </button>
         <button className={`btn shrink-0 px-2.5 text-sm relative ${tab === 'badges' ? 'btn-yellow' : 'btn-ghost'}`} onClick={() => setTab('badges')}>
           {t('Badges')}
@@ -1445,8 +1451,64 @@ function QuestsModal() {
           {museumCount > 0 && <span className="badge">{museumCount}</span>}
         </button>
       </div>
-      {tab === 'story' ? <StoryPage /> : tab === 'goals' ? <GoalsList /> : tab === 'badges' ? <BadgesList /> : tab === 'album' ? <AlbumList /> : <MuseumList />}
+      {tab === 'story' ? <StoryPage /> : tab === 'goals' ? <GoalsList /> : tab === 'cup' ? <CupPage /> : tab === 'badges' ? <BadgesList /> : tab === 'album' ? <AlbumList /> : <MuseumList />}
     </Modal>
+  );
+}
+
+// The Valley Cup (see cup.ts): how last week ended and its prize to take, this week's table with
+// the time left, what earns points and the prizes
+const MEDAL = ['🥇', '🥈', '🥉'];
+function CupPage() {
+  const store = useStore();
+  const s = store.s;
+  const now = useNow(1000);
+  if (!cupOn(s)) return <p className="py-6 text-center text-sm text-[#8a6a44]">{t('The Valley Cup opens at level {n}.', { n: CUP_LEVEL })}</p>;
+  const c = s.cup;
+  const last = c?.last;
+  const prize = last ? store.cupPrize(last.place) : null;
+  const rows = cupBoard(s, now);
+  const end = weekEnd(c?.week ?? weekOf(now));
+  return (
+    <div className="flex flex-col gap-3">
+      {last && !last.claimed && prize && (
+        <div className="card flex items-center gap-3 border-[3px] border-[#e0a21a] p-3">
+          <span className="emoji text-3xl">{MEDAL[last.place - 1] ?? '🎀'}</span>
+          <div className="min-w-0 flex-1">
+            <div className="font-bold">{t('Last week: place {n}', { n: last.place })}</div>
+            <div className="text-xs text-[#8a6a44]">{t('{n} points', { n: fmtNum(last.points) })}</div>
+          </div>
+          <button className="btn btn-green shrink-0 gap-2" onClick={() => store.claimCup()}>
+            <Gems n={prize.gems} /> <Coins n={prize.coins} />
+          </button>
+        </div>
+      )}
+      <div className="flex items-center justify-between gap-2 text-sm font-bold">
+        <span>{t('This week')}</span>
+        <span className="text-xs text-[#8a6a44]">{t('{time} left', { time: fmtTime(end - now) })}</span>
+      </div>
+      <div className="flex flex-col gap-1.5">
+        {rows.map((r, i) => {
+          const rv = RIVALS.find((x) => x.id === r.id);
+          return (
+            <div key={r.id} className={`card flex items-center gap-2 px-3 py-2 ${r.you ? 'ring-2 ring-[#5cb82e]' : ''}`}>
+              <span className="emoji w-7 text-center font-bold">{MEDAL[i] ?? i + 1}</span>
+              <span className="emoji text-xl">{rv ? CAST[rv.who].icon : '🏡'}</span>
+              <span className="min-w-0 flex-1 truncate font-bold">{rv ? t(rv.name) : t('Your farm')}</span>
+              <span className="font-bold text-[#2f8fd0]">{fmtNum(r.points)}</span>
+            </div>
+          );
+        })}
+      </div>
+      <div className="text-xs text-[#8a6a44]">
+        <div className="mb-1 font-bold text-[#5a3a1a]">{t('How to earn points')}</div>
+        <div className="grid grid-cols-1 gap-x-4 sm:grid-cols-2">
+          {CUP_POINTS.map(([k, p, per, label]) => <div key={k}>{t(label, { n: per })} <b className="text-[#2f8fd0]">+{p}</b></div>)}
+        </div>
+        <div className="mb-1 mt-2 font-bold text-[#5a3a1a]">{t('Prizes')}</div>
+        <div>{CUP_PRIZES.map((g, i) => `${MEDAL[i] ?? i + 1 + '.'} ${g} 💎`).join('  ·  ')}</div>
+      </div>
+    </div>
   );
 }
 
