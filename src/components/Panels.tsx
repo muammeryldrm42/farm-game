@@ -1476,7 +1476,7 @@ function QuestsModal() {
   const icon = { story: '📖', goals: '🏆', cup: '🥇', badges: '🎖️', album: '📔', museum: '🏛️' }[tab];
   return (
     <Modal title={t(title)} icon={icon} onClose={() => store.openPanel(null)}>
-      {/* five tabs on one row: a little smaller, and the row scrolls sideways if a language's words are long */}
+      {/* six tabs on one row: a little smaller, and the row scrolls sideways if a language's words are long */}
       <div className="-mt-1 mb-2 flex gap-1 overflow-x-auto pr-1 pt-1.5">
         <button className={`btn shrink-0 px-2.5 text-sm relative ${tab === 'story' ? 'btn-yellow' : 'btn-ghost'}`} onClick={() => setTab('story')}>
           {t('Story')}
