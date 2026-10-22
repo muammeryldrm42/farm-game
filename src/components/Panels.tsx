@@ -1190,6 +1190,10 @@ function SeasonModal() {
           <div className="shrink-0 text-center">
             <div className="text-2xl font-bold" style={{ color: d.color }}><span className="emoji">{d.token}</span> {fmtNum(tokens)}</div>
             <div className="text-[10px] font-bold text-[#8a6a44]">{t(d.tokenName)}</div>
+            {/* a step reached: claimed from here too (the track's own button may be below the fold) */}
+            {got < SEASON_TRACK.length && tokens >= SEASON_TRACK[got].at && (
+              <button className="btn btn-green mt-1 animate-bob px-3 py-1 text-xs" onClick={() => store.claimSeason()}>{t('Claim')}</button>
+            )}
           </div>
         )}
       </div>
@@ -1586,9 +1590,12 @@ function AlbumList() {
   const store = useStore();
   const s = store.s;
   const [open, setOpen] = useState<string | null>(null);
+  // pages ready to claim first (the rest keep their order): on a phone the last is below the fold
+  const ready = new Set(claimableAlbum(s).map((a) => a.id));
+  const list = [...ALBUM].sort((a, b) => Number(ready.has(b.id)) - Number(ready.has(a.id)));
   return (
     <div className="flex flex-col gap-2">
-      {ALBUM.map((a) => {
+      {list.map((a) => {
         const got = a.entries.filter((e) => s.album?.[e.id]).length;
         const done = albumSetDone(s, a.id);
         const taken = !!s.albumDone?.includes(a.id);
@@ -1639,10 +1646,13 @@ function MuseumList() {
   const found = s.museum?.found ?? {};
   const all = MUSEUM.reduce((n, m) => n + m.items.length, 0);
   const got = MUSEUM.reduce((n, m) => n + m.items.filter((i) => found[i.id]).length, 0);
+  // halls ready to claim first (the rest keep their order)
+  const ready = new Set(claimableMuseum(s).map((m) => m.id));
+  const list = [...MUSEUM].sort((a, b) => Number(ready.has(b.id)) - Number(ready.has(a.id)));
   return (
     <div className="flex flex-col gap-2">
       <div className="text-center text-[11px] text-[#8a6a44]">{t('Rare things turn up now and then as you work the farm. Each one goes on show here.')} <b>{got}/{all}</b></div>
-      {MUSEUM.map((m) => {
+      {list.map((m) => {
         const n = m.items.filter((i) => found[i.id]).length;
         const done = museumSetDone(s, m.id);
         const taken = !!s.museum?.done.includes(m.id);
@@ -1760,9 +1770,12 @@ function BadgesList() {
   const store = useStore();
   const s = store.s;
   const medal = ['🥉', '🥈', '🥇'];
+  // badges with a tier to claim first (the rest keep their order): there are dozens of them
+  const claim = new Set(claimableBadges(s).map((a) => a.id));
+  const list = [...ACHIEVEMENTS].sort((a, b) => Number(claim.has(b.id)) - Number(claim.has(a.id)));
   return (
     <div className="flex flex-col gap-2">
-      {ACHIEVEMENTS.map((a) => {
+      {list.map((a) => {
         const k = s.achievements[a.id] ?? 0;
         const done = k >= a.tiers.length;
         const target = done ? a.tiers[a.tiers.length - 1] : a.tiers[k];
