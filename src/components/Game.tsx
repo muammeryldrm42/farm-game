@@ -391,6 +391,14 @@ function FarmCanvas({ onDrawn, onFail }: { onDrawn: () => void; onFail: () => vo
               mode = 'none';
               store.startMove(target.id);
               if (store.s.settings.vibrate !== false) buzz(25);
+              // the finger still down carries it: a drag from here moves it, as from its ghost
+              const pl = store.ui.placing;
+              if (pl && pts.size === 1) {
+                const d = store.placingFootprint();
+                const g = r.gridAt(sx, sy);
+                ghostOff = { x: Math.min(d.w - 1, Math.max(0, g.x - pl.x)), y: Math.min(d.h - 1, Math.max(0, g.y - pl.y)) };
+                mode = 'ghost';
+              }
             }
           }, Math.max(0, due - performance.now()));
         };
