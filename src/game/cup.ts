@@ -1,6 +1,6 @@
 // The Valley Cup: a week long contest among the valley's farms, from level CUP_LEVEL. The farm earns
-// points for what it does that week (orders, daily tasks and the daily chest, the cargo boat, story
-// chapters, the coins its stall takes), counted from where its counters stood when the week began;
+// points for what it does that week (orders, daily tasks and the daily chest, story chapters, the
+// coins its stall takes), counted from where its counters stood when the week began;
 // four of the story's folk run farms of their own, whose points grow over the week a few times a
 // day, a little differently every week. At the week's end the places are given out, and the farm's
 // prize waits in Goals. The weeks run Monday to Sunday on the farm's clock. The stall counts by its
@@ -15,7 +15,6 @@ export const CUP_POINTS: [string, number, number, string][] = [
   ['orders', 3, 1, 'Deliver an order'],
   ['dailyTask', 4, 1, 'Finish a daily task'],
   ['dailyChest', 6, 1, 'Open the daily chest'],
-  ['boat', 10, 1, 'Send off the cargo boat'],
   ['chapters', 10, 1, 'Finish a story chapter'],
   ['stallCoins', 1, 50, 'Every {n} coins from your stall'],
 ];

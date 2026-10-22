@@ -33,7 +33,6 @@ for (const id of SEASON_IDS) for (const d of SEASONS[id].decos) PRIZE_OF[d] = id
 export const SEASON_TOKENS: [string, number, number, string][] = [
   ['orders', 3, 1, 'Deliver an order'],
   ['dailyTask', 5, 1, 'Finish a daily task'],
-  ['boat', 8, 1, 'Send off the cargo boat'],
   ['harvest', 1, 10, 'Every {n} crops harvested'],
   ['make', 1, 4, 'Every {n} goods made'],
   ['collect', 1, 4, 'Every {n} animal goods collected'],
