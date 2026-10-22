@@ -1881,39 +1881,43 @@ function GoalsList() {
     ['Orders delivered', s.stats.orders ?? 0],
     ['Coins earned', s.stats.earned ?? 0],
   ];
+  const card = (q: (typeof list)[number]) => {
+    const p = Math.min(q.target, q.progress(s));
+    const done = p >= q.target;
+    return (
+      <div key={q.id} className={`card p-3 ${done ? 'ring-2 ring-[#5cb82e]' : ''}`}>
+        <div className="flex items-center justify-between gap-2">
+          <span className="font-bold">{t(q.text)}</span>
+          <span className="shrink-0 text-xs font-bold">
+            {fmtNum(p)}/{fmtNum(q.target)}
+          </span>
+        </div>
+        <div className="my-2">
+          <Bar p={p / q.target} />
+        </div>
+        <div className="flex items-center gap-3 text-sm font-bold">
+          <Coins n={q.coins} />
+          {q.gems > 0 && <Gems n={q.gems} />}
+          {q.xp > 0 && <span className="text-[#2f8fd0]">+{q.xp} XP</span>}
+          <button className="btn btn-green ml-auto py-1.5" disabled={!done} onClick={() => store.claimQuest(q.id)}>
+            {t('Claim')}
+          </button>
+        </div>
+      </div>
+    );
+  };
+  // goals done come above the day's tasks, the rest below them: on a phone on its side the
+  // day's tasks fill the first screen
+  const ready = list.filter((q) => q.progress(s) >= q.target);
+  const rest = list.filter((q) => q.progress(s) < q.target);
   return (
     <>
+      {ready.length > 0 && <div className="mb-3 flex flex-col gap-2">{ready.map(card)}</div>}
       <DailyTasks />
       {list.length === 0 ? (
         <p className="py-6 text-center text-sm text-[#8a6a44]">{t('You finished every goal. Great farming!')}</p>
       ) : (
-        <div className="flex flex-col gap-2">
-          {list.map((q) => {
-            const p = Math.min(q.target, q.progress(s));
-            const done = p >= q.target;
-            return (
-              <div key={q.id} className={`card p-3 ${done ? 'ring-2 ring-[#5cb82e]' : ''}`}>
-                <div className="flex items-center justify-between gap-2">
-                  <span className="font-bold">{t(q.text)}</span>
-                  <span className="shrink-0 text-xs font-bold">
-                    {fmtNum(p)}/{fmtNum(q.target)}
-                  </span>
-                </div>
-                <div className="my-2">
-                  <Bar p={p / q.target} />
-                </div>
-                <div className="flex items-center gap-3 text-sm font-bold">
-                  <Coins n={q.coins} />
-                  {q.gems > 0 && <Gems n={q.gems} />}
-                  {q.xp > 0 && <span className="text-[#2f8fd0]">+{q.xp} XP</span>}
-                  <button className="btn btn-green ml-auto py-1.5" disabled={!done} onClick={() => store.claimQuest(q.id)}>
-                    {t('Claim')}
-                  </button>
-                </div>
-              </div>
-            );
-          })}
-        </div>
+        rest.length > 0 && <div className="flex flex-col gap-2">{rest.map(card)}</div>
       )}
       <div className="mt-4 grid grid-cols-2 gap-2">
         {stats.map(([l, v]) => (
