@@ -23,7 +23,7 @@ import { leafShell, leafTexture, meterBox, meterHip, meterRoof, surface, surface
 import { ANIMAL, BUILDING, CROP, ITEMS, type BuildingDef, type CropDef } from './data';
 import { getLang, t as tr } from './i18n';
 import {
-  CHUNK, FARM_OFF, FISH_SPOT, footprint, PET_IDS, petGift, type PetId, SEA_FISH_SPOT, fishSpotAt, type FishSpot, GRAZE, GRID, LAKE, MAP_OFF2, MAP_OFF3, NCH, isBeachTile, lakeE, animalReady, fishingInfo, boatState, canFulfill, chunkState, grazePhase, penInfo, plotProgress, prodInfo, treeInfo,
+  CHUNK, FARM_OFF, footprint, PET_IDS, petGift, type PetId, SEA_FISH_SPOT, fishSpotAt, type FishSpot, GRAZE, GRID, LAKE, MAP_OFF2, MAP_OFF3, NCH, isBeachTile, lakeE, animalReady, fishingInfo, boatState, canFulfill, chunkState, grazePhase, penInfo, plotProgress, prodInfo, treeInfo,
   type Animal, type FarmObject, type GameStore,
 } from './state';
 import { now as clockNow } from './clock';
@@ -594,7 +594,6 @@ function tickAnims(dt: number) {
   }
 }
 const easeOutBack = (k: number) => { const c = 1.9; return 1 + (c + 1) * Math.pow(k - 1, 3) + c * Math.pow(k - 1, 2); };
-const tmpV = new THREE.Vector3();
 
 // A copy for a passing effect, without the userData: three.js copies that through JSON, and
 // a crop keeps its ripe and unripe materials there, so each copy turned their textures into
@@ -1741,7 +1740,6 @@ export class Renderer {
 
   // squash and stretch around the footprint center
   private applyBounce(e: Entry, o: FarmObject, dt: number) {
-    const d = BUILDING[o.type];
     const b = e.bounce;
     let sx = 1, sy = 1;
     if (b) {
@@ -3601,13 +3599,6 @@ export function buildDog() {
 }
 
 // ------------------------------------------------------------------ animals
-
-function fourLegs(g: THREE.Group, w: number, d: number, len: number, th: number, color: string, foot?: string) {
-  const legs: THREE.Object3D[] = [];
-  for (const [x, z] of [[-w / 2, d / 2], [w / 2, d / 2], [-w / 2, -d / 2], [w / 2, -d / 2]]) legPivot(g, x, len, z, len, th, color, legs, foot);
-  g.userData.legs = legs;
-  g.userData.signs = [1, -1, -1, 1];
-}
 
 // Birds that can fly flutter about their pen and fly (rather than walk) out through the open
 // gate to feed. The water birds find their food at sea: they fly to the shallows and fish there.

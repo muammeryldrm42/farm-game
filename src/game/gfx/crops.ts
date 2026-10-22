@@ -26,7 +26,7 @@ function leaves(k: Kit, n: number, color: string, len: number, width: number, y:
 
 function build(cd: CropDef): CropGeo {
   const plant = new Kit(), fruit = new Kit();
-  const L = cd.leaf, F = cd.fruit;
+  const L = cd.leaf;
   const dark = shade(L, -0.1);
   const W = '#ffffff';
   if (!lateCrop(cd, plant, fruit)) switch (cd.shape) {
