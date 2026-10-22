@@ -21,7 +21,7 @@ import { toonCrown, toonPersonParts } from './gfx/toon';
 import { SCULPT_MAT, TOON_MAT, TOON_WOOL, WOOL_MAT } from './gfx/sdf';
 import { leafShell, leafTexture, meterBox, meterHip, meterRoof, surface, surfaceMat, surfacesReady, type SurfaceKind } from './gfx/textures';
 import { ANIMAL, BUILDING, CROP, ITEMS, type BuildingDef, type CropDef } from './data';
-import { getLang, t as tr } from './i18n';
+import { RTL, getLang, t as tr } from './i18n';
 import {
   CHUNK, FARM_OFF, footprint, PET_IDS, petGift, type PetId, SEA_FISH_SPOT, fishSpotAt, type FishSpot, GRAZE, GRID, LAKE, MAP_OFF2, MAP_OFF3, NCH, isBeachTile, lakeE, animalReady, fishingInfo, canFulfill, chunkState, grazePhase, penInfo, plotProgress, prodInfo, treeInfo,
   type Animal, type FarmObject, type GameStore,
@@ -357,6 +357,8 @@ function speechTex(text: string) {
   const W = Math.ceil(Math.min(540, tw + 60)), LH = 48, H = lines.length * LH + 44 + 26;
   cv.width = W; cv.height = H;
   c.font = font;
+  // Arabic and Urdu read right to left: the full stop at the sentence's end, icons in their place
+  c.direction = RTL.has(getLang()) ? 'rtl' : 'ltr';
   const r = 30, bh = H - 26;
   c.lineWidth = 7; c.strokeStyle = '#5d3a1f'; c.fillStyle = '#ffffff'; c.lineJoin = 'round';
   c.beginPath();

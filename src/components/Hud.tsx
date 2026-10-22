@@ -76,7 +76,7 @@ export default function Hud() {
       {/* tutorial coach */}
       {tut && !ui.placing && (
         <div className="absolute inset-x-0 top-16 flex justify-center px-3 sm:top-20">
-        <div className="pointer-events-auto flex w-full max-w-md animate-pop items-center gap-3 rounded-2xl border-[3px] border-[#5d3a1f] bg-[#fff6df] px-3 py-2 text-[#5a3a1a] shadow-[0_4px_0_#5d3a1f]">
+        <div className="rtl-text pointer-events-auto flex w-full max-w-md animate-pop items-center gap-3 rounded-2xl border-[3px] border-[#5d3a1f] bg-[#fff6df] px-3 py-2 text-[#5a3a1a] shadow-[0_4px_0_#5d3a1f]">
           <span className="emoji animate-bob text-3xl"><Ico i={tut.icon} /></span>
           <div className="min-w-0 flex-1">
             <div className="text-[10px] font-bold uppercase tracking-wide text-[#a8733f]">
@@ -111,7 +111,7 @@ export default function Hud() {
         {store.toasts.map((tt) => (
           <div
             key={tt.id}
-            className={`animate-pop rounded-2xl border-[3px] px-4 py-2 text-center text-sm font-bold shadow-lg ${
+            className={`rtl-text animate-pop rounded-2xl border-[3px] px-4 py-2 text-center text-sm font-bold shadow-lg ${
               tt.tone === 'bad' ? 'border-[#9c3020] bg-[#ffe3dc] text-[#8a2a18]' : tt.tone === 'good' ? 'border-[#3a7d1a] bg-[#e6f8d8] text-[#2d5e14]' : 'border-[#5d3a1f] bg-[#fff6df] text-[#5a3a1a]'
             }`}
           >
@@ -122,7 +122,7 @@ export default function Hud() {
 
       {/* planting tool banner */}
       {ui.tool && !ui.placing && (
-        <div className="pointer-events-auto absolute bottom-4 left-1/2 flex -translate-x-1/2 items-center gap-3 rounded-3xl border-4 border-[#8a5a2b] bg-[#fff6df] px-4 py-2 text-[#5a3a1a] shadow-[0_6px_0_#5d3a1f]">
+        <div className="rtl-text pointer-events-auto absolute bottom-4 left-1/2 flex -translate-x-1/2 items-center gap-3 rounded-3xl border-4 border-[#8a5a2b] bg-[#fff6df] px-4 py-2 text-[#5a3a1a] shadow-[0_6px_0_#5d3a1f]">
           <span className="emoji text-3xl"><Ico i={ITEMS[ui.tool.crop].icon} /></span>
           <div className="leading-tight">
             <div className="font-bold">{t('Planting {item}', { item: t(ITEMS[ui.tool.crop].name) })}</div>
@@ -357,7 +357,7 @@ function WelcomeCard() {
   }, [store, w]);
   const items: [string, number, string][] = [['🌾', w.fields, 'Fields'], ['🥚', w.animals, 'Animals'], ['🧺', w.goods, 'Goods made'], ['🍎', w.trees, 'Fruit trees'], ['🏪', w.sales, 'Stall sales']];
   return (
-    <button className="pointer-events-auto w-full animate-pop rounded-2xl border-[3px] border-[#5d3a1f] bg-[#fff6df] px-4 py-2 text-center text-[#5a3a1a] shadow-lg" onClick={close}>
+    <button className="rtl-text pointer-events-auto w-full animate-pop rounded-2xl border-[3px] border-[#5d3a1f] bg-[#fff6df] px-4 py-2 text-center text-[#5a3a1a] shadow-lg" onClick={close}>
       <div className="font-bold"><span className="emoji">🏡</span> {t('Welcome back!')}</div>
       <div className="text-xs text-[#8a6a44]">{t('Ready on your farm:')}</div>
       <div className="mt-1 flex flex-wrap justify-center gap-x-3 gap-y-1 text-sm font-bold">

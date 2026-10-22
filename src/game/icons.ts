@@ -973,7 +973,8 @@ export function fillRich(c: CanvasRenderingContext2D, text: string, cx: number, 
   let x = cx - w / 2;
   const align = c.textAlign;
   c.textAlign = 'left';
-  for (const p of parts) {
+  // (right to left, as the canvas is set for Arabic: the first part on the right)
+  for (const p of c.direction === 'rtl' ? [...parts].reverse() : parts) {
     if (isDrawn(p)) { paintIcon(c, p, x + size / 2, cy, size); x += size; continue; }
     if (stroke) c.strokeText(p, x, cy);
     c.fillText(p, x, cy);

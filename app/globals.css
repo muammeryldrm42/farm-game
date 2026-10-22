@@ -111,7 +111,9 @@ canvas {
   }
 }
 
-/* Arabic: the panels, cards and messages read right to left; the farm and the HUD layout stay */
+/* Arabic and Urdu: the panels, cards and messages (the tutorial card, the toasts, the story's
+   words) read right to left, so a sentence's full stop lands at its end; the farm and the HUD
+   layout stay */
 html[data-rtl='1'] .panel,
 html[data-rtl='1'] .card,
 html[data-rtl='1'] .rtl-text {

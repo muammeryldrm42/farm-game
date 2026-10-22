@@ -2330,7 +2330,7 @@ function StoryDialog() {
           <div className="relative mb-6 min-w-0 flex-1 rounded-3xl border-[3px] border-[#5d3a1f] bg-white px-4 py-3 text-[#4a2e14] shadow-[0_5px_0_#5d3a1f]">
             {/* the bubble's tail points at the speaker */}
             <span className="absolute -left-[13px] bottom-5 h-5 w-5 rotate-45 border-b-[3px] border-l-[3px] border-[#5d3a1f] bg-white" />
-            <p className="relative min-h-[3rem] text-base font-bold leading-snug sm:text-lg">
+            <p className="rtl-text relative min-h-[3rem] text-base font-bold leading-snug sm:text-lg">
               {text.slice(0, shown)}
               <span className="opacity-0">{text.slice(shown)}</span>
             </p>
