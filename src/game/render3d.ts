@@ -5210,6 +5210,7 @@ for (const id of ['hay_bale', 'picket_fence', 'bird_house', 'pumpkin_pile', 'bir
   'garden_gnome', 'wheelbarrow', 'rain_barrel', 'flower_cart', 'compost_bin', 'mushroom_ring', 'stone_lantern', 'bamboo_grove', 'fairy_house', 'snowman', 'sandcastle', 'seesaw', 'outdoor_oven', 'telescope', 'obelisk', 'hammock', 'water_wheel', 'koi_pond', 'camping_tent', 'beach_hut', 'log_cabin', 'playground_slide', 'observatory', 'ferris_wheel', 'sun_lounger', 'beach_umbrella', 'lifeguard_tower', 'surfboard_rack',
   'hay_stack', 'picnic_table', 'lemonade_stand', 'insect_hotel', 'weathervane', 'rock_garden', 'veggie_stand', 'windchime', 'dovecote', 'flag_pole', 'ice_cream_cart', 'pumpkin_carriage',
   'firewood_pile', 'milk_churns', 'apple_crates', 'tool_shed', 'sunflower_patch', 'flower_bicycle',
+  'jack_lantern', 'lantern_arch', 'festive_pine', 'gift_sleigh', 'blossom_tree', 'butterfly_dome', 'lawn_flamingos', 'paddling_pool',
   'sand_turtle', 'sand_dolphin', 'sand_crab', 'sand_octopus', 'sand_starfish', 'sand_pyramid', 'sand_tower', 'sand_car', 'sand_serpent', 'sand_whale']) MODELS[id] = {};
 for (const d of Object.values(BUILDING)) if (d.kind === 'pen') MODELS[d.id] = {};
 for (const d of Object.values(BUILDING)) if (d.kind === 'tree') MODELS[d.id] = {};

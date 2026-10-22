@@ -54,5 +54,6 @@ export function genMarket(s: GameState, now: number, can: Set<string>): MarketSt
 export function validMarket(m: unknown): MarketState | undefined {
   const x = m as MarketState | undefined;
   if (!x || typeof x.refreshAt !== 'number' || !Array.isArray(x.offers)) return undefined;
-  return x.offers.every((o) => o && ITEMS[o.item] && o.qty > 0 && o.price > 0 && o.seller in CAST) ? x : undefined;
+  const own = (r: object, k: unknown) => typeof k === 'string' && Object.prototype.hasOwnProperty.call(r, k);
+  return x.offers.every((o) => o && own(ITEMS, o.item) && o.qty > 0 && o.price > 0 && own(CAST, o.seller)) ? x : undefined;
 }

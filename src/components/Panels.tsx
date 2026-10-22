@@ -61,6 +61,7 @@ import { BEAUTY_LEVELS, VARIETY, beautyGain } from '@/game/beauty';
 import { FESTS, FEST_FAST, FEST_LEVEL, festNow, type FestKind } from '@/game/fest';
 import { MARKET } from '@/game/market';
 import { CUP_LEVEL, CUP_POINTS, CUP_PRIZES, RIVALS, cupBoard, cupClaimable, cupOn, weekEnd, weekOf } from '@/game/cup';
+import { PRIZE_OF, SEASONS, SEASON_LEVEL, SEASON_TOKENS, SEASON_TRACK, hasPrize, seasonNext, seasonNow, seasonPurse, seasonTokens, type SeasonId } from '@/game/season';
 import { canBuzz } from '@/game/haptics';
 import { askNotify, notifyNative, setNotifyAsked } from '@/game/notify';
 import { now as clockNow } from '@/game/clock';
@@ -194,6 +195,7 @@ export default function Panels() {
       {ui.panel === 'pet' && <PetModal key={ui.pet} />}
       {ui.panel === 'beauty' && <BeautyModal />}
       {ui.panel === 'festival' && <FestivalModal />}
+      {ui.panel === 'season' && <SeasonModal />}
       {ui.panel === 'privacy' && (
         <Modal title={t('Privacy policy')} icon="🔒" onClose={() => store.openPanel('settings')}>
           <PrivacyText />
@@ -1005,7 +1007,9 @@ const SHOP_TABS: { id: ShopTab; label: string; icon: string; filter: (d: Buildin
 function ShopCard({ d }: { d: BuildingDef }) {
   const store = useStore();
   const s = store.s;
-  const locked = s.level < d.level;
+  const prizeOf = PRIZE_OF[d.id];
+  const won = prizeOf ? hasPrize(s, d.id) : false;
+  const locked = s.level < d.level || (!!prizeOf && !won);
   const owned = store.countType(d.id);
   const max = store.maxOf(d);
   const full = owned >= max;
@@ -1024,12 +1028,16 @@ function ShopCard({ d }: { d: BuildingDef }) {
       <span className={`emoji text-4xl ${locked ? 'grayscale' : ''}`}><Ico i={d.icon} id={d.id} /></span>
       <span className="font-bold leading-tight">{t(d.name)}</span>
       <span className="line-clamp-2 min-h-[2rem] text-[11px] leading-4 text-[#8a6a44]">{t(d.desc)}</span>
-      {locked ? (
+      {prizeOf && !won ? (
+        <span className="rounded-full px-2 py-0.5 text-[11px] font-bold text-white" style={{ background: SEASONS[prizeOf].color }}>
+          <span className="emoji">{SEASONS[prizeOf].icon}</span> {t('Prize of {event}', { event: t(SEASONS[prizeOf].name) })}
+        </span>
+      ) : locked ? (
         <Lock level={d.level} />
       ) : (
         <>
           <span className={`text-sm font-bold ${poor ? 'text-[#c0392b]' : ''}`}>
-            <Coins n={cost} />
+            {prizeOf ? <span className="text-[#2d7a2a]"><span className="emoji">🎁</span> {t('Free')}</span> : <Coins n={cost} />}
           </span>
           <span className="text-[11px] text-[#8a6a44]">{full ? t('Max owned') : Number.isFinite(max) ? t('Owned {n}/{max}', { n: owned, max }) : t('Owned {n}', { n: owned })}</span>
           {pretty > 0 && <span className="text-[11px] font-bold text-[#b8327a]"><span className="emoji">🌸</span> {t('+{n} beauty', { n: pretty })}</span>}
@@ -1084,9 +1092,11 @@ function ShopModal() {
   const s = store.s, g = store.ui.guide;
   const seeds = CROPS.map((c) => s.inv[c.id] ?? 0).join(',');
   const pointing = !!g && Date.now() - g.at < 60e3;
-  const cardsKey = `${tab}|${s.level}|${s.coins}|${store.objVersion}|${s.objects.length}|${seeds}|${pointing ? `${g!.id}@${g!.at}` : ''}|${getLang()}`;
+  const cardsKey = `${tab}|${s.level}|${s.coins}|${store.objVersion}|${s.objects.length}|${seeds}|${(s.prizes ?? []).join()}|${pointing ? `${g!.id}@${g!.at}` : ''}|${getLang()}`;
   const cards = useMemo(() => {
-    const list = BUILDINGS.filter((d) => d.buyable && st.filter(d)).sort((a, b) => a.level - b.level || a.cost - b.cost);
+    // the season prizes won come first, the ones still to win last
+    const rank = (d: BuildingDef) => (PRIZE_OF[d.id] ? (hasPrize(s, d.id) ? -1 : 1) : 0);
+    const list = BUILDINGS.filter((d) => d.buyable && st.filter(d)).sort((a, b) => rank(a) - rank(b) || a.level - b.level || a.cost - b.cost);
     const crops = [...CROPS].sort((a, b) => a.level - b.level || a.seedCost - b.seedCost);
     return (
       <>
@@ -1178,6 +1188,90 @@ function FestivalModal() {
         </div>
       </div>
       <p className="mt-3 text-center text-xs text-[#8a6a44]">{t('A festival comes every three days and lasts two.')}</p>
+    </Modal>
+  );
+}
+
+// A season event (see season.ts): its tokens, the prize track with a claim on the next step
+// reached, the two decorations to win and how the tokens are earned; between events, the next one
+// and its prizes.
+function SeasonModal() {
+  const store = useStore();
+  const s = store.s;
+  const now = useNow(1000);
+  const ev = seasonNow(now);
+  const e = s.season && ev && s.season.id === ev.id && s.season.year === ev.year ? s.season : null;
+  const id: SeasonId = ev?.id ?? seasonNext(now).id;
+  const d = SEASONS[id];
+  const tokens = e ? seasonTokens(s, e) : 0;
+  const got = e?.got ?? 0;
+  const prize = (i: 0 | 1) => {
+    const b = BUILDING[d.decos[i]];
+    return (
+      <div className="card flex min-w-0 flex-1 flex-col items-center gap-0.5 p-2 text-center">
+        <span className="emoji text-3xl"><Ico i={b.icon} id={b.id} /></span>
+        <span className="text-xs font-bold leading-tight">{t(b.name)}</span>
+        <span className="text-[10px] font-bold uppercase tracking-wide text-[#a8733f]">{hasPrize(s, b.id) ? `✅ ${t('Won')}` : t(i ? 'Grand prize' : 'Halfway prize')}</span>
+      </div>
+    );
+  };
+  return (
+    <Modal title={t(d.name)} icon={d.icon} onClose={() => store.openPanel(null)}>
+      <div className="card mb-3 flex items-center gap-3 border-[3px] p-3" style={{ borderColor: d.color }}>
+        <span className="emoji animate-bob text-4xl">{d.icon}</span>
+        <div className="min-w-0 flex-1">
+          <div className="text-sm font-bold">{t(d.text)}</div>
+          {ev ? (
+            <div className="text-xs font-bold text-[#8a6a44]">{t('{time} left', { time: fmtTime(ev.end - now) })}</div>
+          ) : (
+            <div className="text-xs font-bold text-[#8a6a44]">{t('Starts in {time}', { time: fmtTime(seasonNext(now).at - now) })}</div>
+          )}
+        </div>
+        {e && (
+          <div className="shrink-0 text-center">
+            <div className="text-2xl font-bold" style={{ color: d.color }}><span className="emoji">{d.token}</span> {fmtNum(tokens)}</div>
+            <div className="text-[10px] font-bold text-[#8a6a44]">{t(d.tokenName)}</div>
+          </div>
+        )}
+      </div>
+      {ev && !e && <p className="mb-3 text-center text-sm font-bold text-[#8a6a44]">{t('Season events open at level {n}.', { n: SEASON_LEVEL })}</p>}
+      <div className="mb-3 flex gap-2">{prize(0)}{prize(1)}</div>
+      <div className="mb-1 text-sm font-bold">{t('Prize track')}</div>
+      <div className="flex flex-col gap-1.5">
+        {SEASON_TRACK.map((st, i) => {
+          const done = i < got;
+          const ready = !!e && !done && i === got && tokens >= st.at;
+          const prev = i ? SEASON_TRACK[i - 1].at : 0;
+          const part = Math.max(0, Math.min(1, (tokens - prev) / (st.at - prev)));
+          const deco = st.deco !== undefined ? BUILDING[d.decos[st.deco]] : null;
+          return (
+            <div key={i} className={`card flex items-center gap-2 px-3 py-1.5 ${ready ? 'ring-2 ring-[#5cb82e]' : ''} ${done ? 'opacity-60' : ''}`}>
+              <span className="w-12 shrink-0 text-xs font-bold" style={{ color: d.color }}><span className="emoji">{d.token}</span> {st.at}</span>
+              <span className="flex min-w-0 flex-1 items-center gap-1 text-sm font-bold">
+                {st.coins ? <Coins n={Math.round(st.coins * seasonPurse(s.level))} /> : null}
+                {st.gems ? <Gems n={st.gems} /> : null}
+                {deco ? <><span className="emoji text-xl"><Ico i={deco.icon} id={deco.id} /></span><span className="truncate">{t(deco.name)}</span></> : null}
+              </span>
+              {done ? (
+                <span className="emoji text-lg">✅</span>
+              ) : ready ? (
+                <button className="btn btn-green shrink-0 px-3 py-1 text-xs" onClick={() => store.claimSeason()}>{t('Claim')}</button>
+              ) : e && i === got ? (
+                <span className="h-2 w-16 shrink-0 overflow-hidden rounded-full bg-[#e2cc9c]">
+                  <span className="block h-full rounded-full" style={{ width: `${part * 100}%`, background: d.color }} />
+                </span>
+              ) : null}
+            </div>
+          );
+        })}
+      </div>
+      <div className="mt-3 text-xs text-[#8a6a44]">
+        <div className="mb-1 font-bold text-[#5a3a1a]">{t('How to earn {token}', { token: t(d.tokenName) })}</div>
+        <div className="grid grid-cols-1 gap-x-4 sm:grid-cols-2">
+          {SEASON_TOKENS.map(([k, p, per, label]) => <div key={k}>{t(label, { n: per })} <b style={{ color: d.color }}>+{p} <span className="emoji">{d.token}</span></b></div>)}
+        </div>
+        <p className="mt-2">{t('Four events a year, two weeks each. Prizes not claimed by the end are given to you when it ends.')}</p>
+      </div>
     </Modal>
   );
 }

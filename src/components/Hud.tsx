@@ -4,6 +4,7 @@ import Ico from './Ico';
 import { BUILDING, CROP, ITEMS } from '@/game/data';
 import { dailyClaimable } from '@/game/daily';
 import { cupClaimable } from '@/game/cup';
+import { SEASONS, seasonNext, seasonNow, seasonOn, seasonReady, seasonTokens } from '@/game/season';
 import { TUTORIAL, TUTORIAL_DONE, canFulfill, claimableAlbum, claimableBadges, claimableMuseum, claimableQuests, fmtNum, fmtTime, xpNeed } from '@/game/state';
 import { useStore, useVersion } from './ctx';
 import { CAST, LAST_CHAPTER, taskProgress } from '@/game/story';
@@ -93,8 +94,13 @@ export default function Hud() {
       {/* story tracker */}
       {!tut && !ui.placing && !ui.story && <StoryCard />}
 
-      {/* the farm's beauty, under the story button */}
-      {!sheetOpen && <BeautyChip />}
+      {/* the farm's beauty under the story button, and a season event beside it */}
+      {!sheetOpen && (
+        <div className="pointer-events-none absolute left-2 top-[8rem] flex items-center gap-1.5 sm:left-3 sm:top-[9.2rem]">
+          <BeautyChip />
+          <SeasonChip />
+        </div>
+      )}
 
       {/* the festival, under the beauty points */}
       {!sheetOpen && <FestChip />}
@@ -272,7 +278,7 @@ function BeautyChip() {
   const b = store.beauty();
   return (
     <button
-      className="pointer-events-auto absolute left-2 top-[8rem] flex items-center gap-1 rounded-full border-[3px] border-[#d9468f] bg-[#fff6df] py-0.5 pl-1.5 pr-2.5 text-xs font-bold text-[#8a2a5e] shadow-[0_3px_0_#5d3a1f] sm:left-3 sm:top-[9.2rem] sm:text-sm"
+      className="pointer-events-auto relative flex items-center gap-1 rounded-full border-[3px] border-[#d9468f] bg-[#fff6df] py-0.5 pl-1.5 pr-2.5 text-xs font-bold text-[#8a2a5e] shadow-[0_3px_0_#5d3a1f] sm:text-sm"
       onClick={() => store.openPanel('beauty')}
       aria-label={t('{n} beauty points', { n: fmtNum(b.score) })}
     >
@@ -302,6 +308,39 @@ function FestChip() {
     >
       <span className={`emoji text-base sm:text-lg ${on ? '' : 'opacity-60 grayscale'}`}>{d.icon}</span>
       {time}
+    </button>
+  );
+}
+
+// a season event (see season.ts), beside the beauty points: its tokens so far, bobbing with a count when a prize is ready;
+// in the last three days before one, faded, and when it starts. A tap opens it.
+function SeasonChip() {
+  const store = useStore();
+  const s = store.s;
+  if (!seasonOn(s)) return null;
+  const now = clockNow();
+  const ev = seasonNow(now);
+  const e = s.season;
+  let icon: string, label: string, color: string, on = false;
+  if (ev && e && e.id === ev.id) {
+    const d = SEASONS[ev.id];
+    icon = d.token; label = fmtNum(seasonTokens(s, e)); color = d.color; on = true;
+  } else {
+    const nx = seasonNext(now);
+    if (ev || nx.at - now > 3 * 864e5) return null;
+    icon = SEASONS[nx.id].icon; label = fmtTime(nx.at - now); color = '#8a6a44';
+  }
+  const ready = on ? seasonReady(s) : 0;
+  return (
+    <button
+      className={`pointer-events-auto relative flex items-center gap-1 rounded-full border-[3px] bg-[#fff6df] py-0.5 pl-1.5 pr-2.5 text-xs font-bold shadow-[0_3px_0_#5d3a1f] sm:text-sm ${ready ? 'animate-bob' : ''}`}
+      style={{ borderColor: on ? color : '#c9a878', color }}
+      onClick={() => store.openPanel('season')}
+      aria-label={t(SEASONS[ev?.id ?? seasonNext(now).id].name)}
+    >
+      <span className={`emoji text-base sm:text-lg ${on ? '' : 'opacity-60 grayscale'}`}>{icon}</span>
+      {label}
+      {ready > 0 && <span className="absolute -right-1 -top-1 grid h-5 min-w-5 place-items-center rounded-full border-2 border-white bg-[#e0332b] px-1 text-[11px] font-bold leading-none text-white">{ready}</span>}
     </button>
   );
 }

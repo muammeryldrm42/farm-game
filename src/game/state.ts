@@ -11,6 +11,7 @@ import { ALBUM, ALBUM_IDS, CAT_FINDS, DOG_FINDS, albumEntry, type AlbumEntry } f
 import { MUSEUM, findChance, museumSet, newMuseum, type FindSource, type MuseumState } from './museum';
 import { MARKET, genMarket, validMarket, type MarketState } from './market';
 import { CUP_PRIZES, cupOn, keepCup, type CupState } from './cup';
+import { PRIZE_OF, SEASONS, SEASON_TRACK, hasPrize, joinSeason, seasonNow, seasonOn, seasonPurse, seasonReady, type SeasonSave } from './season';
 import { FESTS, FEST_BITE, FEST_COINS, FEST_EXTRA, FEST_FAST, festActive, festNow, festOn, keepFest, type FestKind, type FestSave } from './fest';
 
 export const GRID = 68;
@@ -127,6 +128,8 @@ export interface GameState {
   fest?: FestSave; // the festival on now and the next one (see fest.ts)
   market?: MarketState; // what the neighbors' stalls sell now (see market.ts)
   cup?: CupState; // the Valley Cup: the week on now, and how the last one ended (see cup.ts)
+  season?: SeasonSave; // the season event joined and the prizes claimed (see season.ts)
+  prizes?: string[]; // the decorations won in season events, the farm's for good
 }
 
 // ---------------------------------------------------------------- pets
@@ -204,7 +207,10 @@ export function fmtTime(ms: number) {
   if (t < 60) return tr('{n}s', { n: t });
   const m = Math.floor(t / 60);
   if (m < 60) return tr('{m}m {s}s', { m, s: t % 60 });
-  return tr('{h}h {m}m', { h: Math.floor(m / 60), m: m % 60 });
+  const h = Math.floor(m / 60);
+  // two days and more: in days and hours (a season event, the cup's week)
+  if (h >= 48) return tr('{d}d {h}h', { d: Math.floor(h / 24), h: h % 24 });
+  return tr('{h}h {m}m', { h, m: m % 60 });
 }
 
 export function fmtNum(n: number) {
@@ -722,12 +728,17 @@ function migrate(d: Partial<GameState>): GameState {
     ? { ...dl, base: counts(dl.base) } : undefined;
   // the festivals came later; a damaged entry is dropped and made again
   const f = d.fest;
-  s.fest = f && typeof f.slot === 'number' && Array.isArray(f.kinds) && f.kinds.length === 2 && f.kinds.every((k) => k in FESTS) ? f : undefined;
+  s.fest = f && typeof f.slot === 'number' && Array.isArray(f.kinds) && f.kinds.length === 2 && f.kinds.every((k) => typeof k === 'string' && Object.prototype.hasOwnProperty.call(FESTS, k)) ? f : undefined;
   s.market = validMarket(d.market);
   const cu = d.cup;
   s.cup = cu && typeof cu.week === 'number' && plain(cu.base)
     ? { week: cu.week, base: counts(cu.base), ...(typeof cu.lv === 'number' && cu.lv >= 1 ? { lv: cu.lv } : {}), ...(typeof cu.from === 'number' ? { from: cu.from } : {}), ...(plain(cu.last) && typeof cu.last.place === 'number' && typeof cu.last.points === 'number' && typeof cu.last.week === 'number' ? { last: cu.last } : {}) }
     : undefined;
+  const se = d.season;
+  s.season = se && typeof se.id === 'string' && Object.prototype.hasOwnProperty.call(SEASONS, se.id) && typeof se.year === 'number' && plain(se.base) && Number.isInteger(se.got) && se.got >= 0 && se.got <= SEASON_TRACK.length
+    ? { id: se.id, year: se.year, base: counts(se.base), got: se.got }
+    : undefined;
+  s.prizes = Array.isArray(d.prizes) ? [...new Set(d.prizes.filter((x): x is string => typeof x === 'string' && x in PRIZE_OF))] : undefined;
   // saves from before the tutorial existed skip it
   s.tutorial = typeof d.tutorial === 'number' ? d.tutorial : TUTORIAL_DONE;
   if (s.tutorial !== TUTORIAL_DONE && !(Number.isInteger(s.tutorial) && s.tutorial >= 0 && s.tutorial <= TUTORIAL.length)) s.tutorial = TUTORIAL_DONE;
@@ -755,7 +766,7 @@ export type Sfx = 'harvest' | 'plant' | 'coin' | 'build' | 'error' | 'levelup' |
 export interface Fx { kind: 'float' | 'burst'; gx: number; gy: number; text?: string; color?: string; z?: number }
 export interface Placing { type: string; x: number; y: number; moveId?: number }
 export interface Tool { kind: 'plant'; crop: string }
-export type Panel = 'shop' | 'orders' | 'storage' | 'settings' | 'quests' | 'stall' | 'boat' | 'fishing' | 'home' | 'pet' | 'beauty' | 'festival' | 'privacy' | null;
+export type Panel = 'shop' | 'orders' | 'storage' | 'settings' | 'quests' | 'stall' | 'boat' | 'fishing' | 'home' | 'pet' | 'beauty' | 'festival' | 'season' | 'privacy' | null;
 export interface Flyer { icon: string; gx: number; gy: number; z: number; target: 'storage' | 'coins' | 'xp' }
 export interface Toast { id: number; text: string; tone: 'info' | 'bad' | 'good'; at: number }
 
@@ -829,7 +840,7 @@ export class GameStore {
     for (const o of [...s.objects]) {
       if (!on(o)) continue;
       const sp = this.findSpot(o.type, LAKE.x - 12, LAKE.z, o.id);
-      if (sp.ok) { o.x = sp.x; o.y = sp.y; } else { s.objects = s.objects.filter((x) => x !== o); s.coins += BUILDING[o.type].cost; }
+      if (sp.ok) { o.x = sp.x; o.y = sp.y; } else { s.objects = s.objects.filter((x) => x !== o); s.coins += PRIZE_OF[o.type] ? 0 : BUILDING[o.type].cost; }
     }
     this.objVersion++;
   }
@@ -959,10 +970,12 @@ export class GameStore {
 
   // no buying limit in the shop, but for the Home & Trade things (the stall, the homes) and
   // the farm's own fixed buildings
-  maxOf(d: BuildingDef) { return LIMITED.has(d.kind) ? d.max : Infinity; }
+  // a season prize: one, once won
+  maxOf(d: BuildingDef) { return PRIZE_OF[d.id] ? (hasPrize(this.s, d.id) ? 1 : 0) : LIMITED.has(d.kind) ? d.max : Infinity; }
 
   costOf(d: BuildingDef) {
     if (d.kind === 'plot') return Math.round(10 * Math.pow(1.1, Math.max(0, this.countType('plot') - 6)));
+    if (PRIZE_OF[d.id]) return 0;
     return d.cost;
   }
 
@@ -1393,12 +1406,14 @@ export class GameStore {
       if (!this.canStore(pi.animal.product, 1)) { this.fullToast(pi.animal.product); break; }
       this.add(pi.animal.product, 1);
       a.fedAt = null;
+      this.stat('collect');
       this.stat(`collect:${pi.animal.product}`);
       this.addXp(pi.animal.xp);
       n++;
       // the animal fair: now and then one more
       if (fest && Math.random() < FEST_EXTRA && this.canStore(pi.animal.product, 1)) {
         this.add(pi.animal.product, 1);
+        this.stat('collect');
         this.stat(`collect:${pi.animal.product}`);
         fair++;
       }
@@ -1438,6 +1453,8 @@ export class GameStore {
   startBuy(type: string) {
     const d = BUILDING[type];
     if (this.s.level < d.level) { this.toast(tr('Unlocks at level {n}.', { n: d.level }), 'bad'); return; }
+    const ev = PRIZE_OF[type];
+    if (ev && !hasPrize(this.s, type)) { this.toast(tr('A prize of {event}.', { event: tr(SEASONS[ev].name) }), 'bad'); return; }
     if (this.countType(type) >= this.maxOf(d)) { this.toast(tr(d.kind === 'plot' ? 'Field limit reached. Level up for more.' : 'You already own the maximum.'), 'bad'); return; }
     if (this.s.coins < this.costOf(d)) { this.toast(tr('Not enough coins.'), 'bad'); return; }
     const c = this.viewCenter();
@@ -1534,7 +1551,7 @@ export class GameStore {
   // what an object sells for: half its price, and half the price of the animals in a pen
   sellValue(o: FarmObject) {
     const d = BUILDING[o.type];
-    if (d.kind === 'plot') return 0;
+    if (d.kind === 'plot' || PRIZE_OF[d.id]) return 0;
     const an = d.animal ? ANIMAL[d.animal] : undefined;
     return Math.floor(d.cost / 2) + (an ? (o.pen?.animals.length ?? 0) * Math.floor(an.cost / 2) : 0);
   }
@@ -2096,6 +2113,50 @@ export class GameStore {
     this.emit();
   }
 
+  // ------------------------------------------------ season events (see season.ts)
+
+  // joins the event that is on, and closes the one that ended, giving what was reached
+  private seasonTick(now: number) {
+    const ev = seasonNow(now);
+    const e = this.s.season;
+    if (e && (!ev || ev.id !== e.id || ev.year !== e.year)) {
+      const n = seasonReady(this.s);
+      for (let i = 0; i < n; i++) this.giveStep(e);
+      const d = SEASONS[e.id];
+      this.toast(`${d.icon} ${tr(n ? '{event} is over. Its last prizes are yours!' : '{event} is over. See you next year!', { event: tr(d.name) })}`, 'good');
+      this.s.season = undefined;
+      this.scheduleSave();
+    }
+    if (ev && seasonOn(this.s) && !this.s.season) {
+      this.s.season = joinSeason(this.s, ev);
+      const d = SEASONS[ev.id];
+      this.toast(`${d.icon} ${tr('{event} has begun! Collect {token} for prizes.', { event: tr(d.name), token: `${d.token} ${tr(d.tokenName)}` })}`, 'good');
+      this.scheduleSave();
+    }
+  }
+
+  // the next step of the track: its coins, gems or decoration
+  private giveStep(e: SeasonSave) {
+    const st = SEASON_TRACK[e.got];
+    if (!st) return;
+    e.got++;
+    if (st.coins) this.earn(Math.round(st.coins * seasonPurse(this.s.level)));
+    if (st.gems) this.s.gems += st.gems;
+    if (st.deco !== undefined) {
+      const id = SEASONS[e.id].decos[st.deco];
+      if (!hasPrize(this.s, id)) this.s.prizes = [...(this.s.prizes ?? []), id];
+      this.toast(`🎁 ${tr('You won the {name}! Place it for free from the shop.', { name: tr(BUILDING[id].name) })}`, 'good');
+    }
+  }
+
+  claimSeason() {
+    const e = this.s.season;
+    if (!e || !seasonReady(this.s)) return;
+    this.giveStep(e);
+    this.sound('levelup');
+    this.emit();
+  }
+
   // ------------------------------------------------ the neighbors' stalls (see market.ts)
 
   marketOn() { return this.s.level >= MARKET.level && this.countType('stall') > 0; }
@@ -2201,6 +2262,7 @@ export class GameStore {
     this.festTick(now);
     this.marketTick(now);
     this.cupTick(now);
+    this.seasonTick(now);
     // rain and sprinklers water thirsty fields for free
     const thirsty = this.s.objects.filter((o) => o.type === 'plot' && needsWater(o, now));
     if (thirsty.length) {

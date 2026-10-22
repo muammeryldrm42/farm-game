@@ -1890,6 +1890,16 @@ export const BUILDINGS: BuildingDef[] = [
   b({ id: 'tool_shed', name: 'Tool Shed', icon: '🛖', kind: 'deco', w: 1, h: 1, cost: 3200, level: 44, max: 2, xp: 14, height: 100, sellable: true, desc: 'A little plank shed for the rakes and spades.' }),
   b({ id: 'sunflower_patch', name: 'Sunflower Patch', icon: '🌻', kind: 'deco', w: 1, h: 1, cost: 3840, level: 64, max: 4, xp: 19, height: 90, sellable: true, desc: 'Tall sunflowers turning their faces to the sun.' }),
   b({ id: 'flower_bicycle', name: 'Flower Bicycle', icon: '🚲', kind: 'deco', w: 1, h: 1, cost: 5160, level: 86, max: 2, xp: 24, height: 60, sellable: true, desc: 'An old town bike with a basket full of flowers.' }),
+  // season event prizes (see season.ts): never sold in the shop, won on the event's prize track;
+  // the cost only sets what they add to the farm's beauty
+  b({ id: 'jack_lantern', name: "Jack-o'-Lantern", icon: '🎃', kind: 'deco', w: 1, h: 1, cost: 1600, level: 1, max: 1, xp: 0, height: 40, sellable: true, desc: 'A grinning pumpkin that glows all night.' }),
+  b({ id: 'lantern_arch', name: 'Lantern Arch', icon: '🏮', kind: 'deco', w: 2, h: 1, cost: 4000, level: 1, max: 1, xp: 0, height: 80, sellable: true, desc: 'Autumn leaves, corn sheaves and paper lanterns.' }),
+  b({ id: 'festive_pine', name: 'Festive Pine', icon: '🎄', kind: 'deco', w: 1, h: 1, cost: 1600, level: 1, max: 1, xp: 0, height: 74, sellable: true, desc: 'Baubles, fairy lights and a star on top.' }),
+  b({ id: 'gift_sleigh', name: 'Gift Sleigh', icon: '🛷', kind: 'deco', w: 2, h: 1, cost: 4000, level: 1, max: 1, xp: 0, height: 50, sellable: true, desc: 'A red sleigh piled high with presents.' }),
+  b({ id: 'blossom_tree', name: 'Blossom Tree', icon: '🌸', kind: 'deco', w: 1, h: 1, cost: 1600, level: 1, max: 1, xp: 0, height: 74, sellable: true, desc: 'A cloud of pink blossom over a carpet of petals.' }),
+  b({ id: 'butterfly_dome', name: 'Butterfly Dome', icon: '🦋', kind: 'deco', w: 2, h: 2, cost: 4000, level: 1, max: 1, xp: 0, height: 72, sellable: true, desc: 'A garden under iron arches where butterflies play.' }),
+  b({ id: 'lawn_flamingos', name: 'Lawn Flamingos', icon: '🦩', kind: 'deco', w: 1, h: 1, cost: 1600, level: 1, max: 1, xp: 0, height: 50, sellable: true, desc: 'Two pink flamingos, one of them hungry.' }),
+  b({ id: 'paddling_pool', name: 'Paddling Pool', icon: '🏊', kind: 'deco', w: 2, h: 2, cost: 4000, level: 1, max: 1, xp: 0, height: 22, sellable: true, desc: 'A cool splash with a rubber duck afloat.' }),
   b({ id: 'friesian_stable', name: 'Friesian Stable', icon: '🐴', kind: 'pen', w: 3, h: 2, cost: 35460, level: 197, xp: 296, height: 26, wall: '#8fc45a', roof: '#8a4a2a', animal: 'friesian', capacity: 5, desc: 'Home for up to 5 friesian horses.' }),
 ];
 export const BUILDING: Record<string, BuildingDef> = Object.fromEntries(BUILDINGS.map((x) => [x.id, x]));
