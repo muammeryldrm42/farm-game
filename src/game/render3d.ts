@@ -5025,6 +5025,35 @@ function farmDrawn() {
 }
 // model materials with a baked emission mask (windows, lamps), lit up at night like WIN
 const MODEL_GLOW = new Set<THREE.MeshStandardMaterial>();
+// A model's geometry is kept smaller as it loads: Draco hands its normals and texture places over
+// as 32 bit floats and its corners as 32 bit numbers, where 16 bits hold them all as well (a
+// normal's or a place's error well under a texel; positions stay full floats, as taps, roofs and
+// sizes are worked out from them). About a third less memory, in the phone's RAM and on its GPU.
+const packed = new WeakSet<THREE.BufferGeometry>();
+function packGeometry(g: THREE.BufferGeometry) {
+  if (packed.has(g)) return;
+  packed.add(g);
+  const n = g.getAttribute('normal') as THREE.BufferAttribute | undefined;
+  if (n && n.array instanceof Float32Array && !n.normalized) {
+    const a = n.array, out = new Int16Array(a.length);
+    for (let i = 0; i < a.length; i++) out[i] = Math.round(Math.max(-1, Math.min(1, a[i])) * 32767);
+    g.setAttribute('normal', new THREE.BufferAttribute(out, n.itemSize, true));
+  }
+  const uv = g.getAttribute('uv') as THREE.BufferAttribute | undefined;
+  if (uv && uv.array instanceof Float32Array && !uv.normalized) {
+    const a = uv.array;
+    let inside = true;
+    for (let i = 0; i < a.length && inside; i++) inside = a[i] >= 0 && a[i] <= 1;
+    // (one reaching past the texture's edge keeps its floats)
+    if (inside) {
+      const out = new Uint16Array(a.length);
+      for (let i = 0; i < a.length; i++) out[i] = Math.round(a[i] * 65535);
+      g.setAttribute('uv', new THREE.BufferAttribute(out, uv.itemSize, true));
+    }
+  }
+  const ix = g.index;
+  if (ix && ix.array instanceof Uint32Array && g.getAttribute('position').count <= 65536) g.setIndex(new THREE.BufferAttribute(Uint16Array.from(ix.array), 1));
+}
 // A model's baked texture is scaled down as it loads to what the model can show: its size on the
 // screen at the closest zoom (a texture is the unwrapped map of the whole model, so two and a half
 // texels to each pixel across it), and in low quality (phones) to 512 px at most. A crab or a
@@ -5055,9 +5084,11 @@ function shrinkTextures(root: THREE.Object3D, far = false, home = false) {
     for (const m of (Array.isArray(mats) ? mats : mats ? [mats] : []) as THREE.MeshStandardMaterial[]) {
       for (const t of [m.map, m.emissiveMap, m.normalMap, m.roughnessMap, m.aoMap]) {
         const img = t?.image as { width?: number; height?: number } | undefined;
-        if (!t || seen.has(t) || !img?.width || !img.height || Math.max(img.width, img.height) <= cap) continue;
+        // (a glow mask is a few soft spots of window light: half the size shows the same)
+        const c = t === m.emissiveMap ? Math.max(64, cap / 2) : cap;
+        if (!t || seen.has(t) || !img?.width || !img.height || Math.max(img.width, img.height) <= c) continue;
         seen.add(t);
-        const k = cap / Math.max(img.width, img.height);
+        const k = c / Math.max(img.width, img.height);
         jobs.push(createImageBitmap(img as ImageBitmapSource, { resizeWidth: Math.round(img.width * k), resizeHeight: Math.round(img.height * k), resizeQuality: 'high' })
           .then((bm) => {
             const old = t.image as ImageBitmap;
@@ -5084,6 +5115,7 @@ function loadModel(name: string) {
       gl.scene.traverse((o) => {
         const m = o as THREE.Mesh;
         if (!m.isMesh) return;
+        packGeometry(m.geometry);
         m.castShadow = true;
         m.receiveShadow = true;
         const mat = m.material as THREE.MeshStandardMaterial;
