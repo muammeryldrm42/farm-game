@@ -1706,7 +1706,9 @@ function PetModal() {
   return (
     <Modal title={shown} icon={def.icon} onClose={() => store.openPanel(null)}>
       <div className="flex flex-col items-center gap-2 py-1 text-center">
-        <span className="emoji text-6xl"><Ico i={def.icon} id={`animal_${id}`} /></span>
+        {/* Pat and Feed right under the hearts: on a phone on its side the window's height is
+            short, and they are what it is for */}
+        <span className="emoji text-6xl [@media(max-height:450px)]:text-5xl"><Ico i={def.icon} id={`animal_${id}`} /></span>
         <div className="flex items-center gap-1.5">
           <input
             className="w-36 rounded-xl border-2 border-[#d8c49e] bg-white px-2 py-1 text-center font-bold"
@@ -1721,10 +1723,6 @@ function PetModal() {
         </div>
         <div className="emoji text-xl" aria-label={t('{n} of 5 hearts', { n: hearts })}>{'❤️'.repeat(hearts)}{'🤍'.repeat(5 - hearts)}</div>
         <div className="w-40"><Bar p={hearts >= 5 ? 1 : (p.love % 20) / 20} color="#f06292" /></div>
-        <p className="text-sm">
-          {shown} {t(def.job)}.{' '}
-          <b>{petFed(p) ? t('Fed today: {n}% chance.', { n: help }) : t('Hungry: feed {name} for {n}% today.', { name: shown, n: help })}</b>
-        </p>
         <div className="flex flex-wrap justify-center gap-2">
           <button className="btn btn-wood" onClick={() => store.patPet(id)}>
             <span className="emoji">💕</span> {t(patted ? 'Pat again' : 'Pat')}
@@ -1749,6 +1747,10 @@ function PetModal() {
             <span>{t('Feed {name} and it goes looking for something for your album.', { name: shown })}</span>
           )}
         </div>
+        <p className="text-sm">
+          {shown} {t(def.job)}.{' '}
+          <b>{petFed(p) ? t('Fed today: {n}% chance.', { n: help }) : t('Hungry: feed {name} for {n}% today.', { name: shown, n: help })}</b>
+        </p>
       </div>
     </Modal>
   );
@@ -2384,6 +2386,18 @@ function StoryPage() {
   }
   const ready = store.chapterReady();
   const r = storyReward(ch.n);
+  // the reward and Finish chapter: under the tasks, or once they are all done right under the
+  // teller (on a phone on its side the bottom of this tab is below the fold)
+  const finish = (
+    <div className="flex items-center gap-3 text-sm font-bold">
+      <Coins n={r.coins} />
+      {r.gems > 0 && <Gems n={r.gems} />}
+      <span className="text-[#2f8fd0]">+{fmtNum(r.xp)} XP</span>
+      <button className={`btn btn-green ml-auto ${ready ? 'animate-bob' : ''}`} disabled={!ready} onClick={() => store.finishChapter()}>
+        {t('Finish chapter')}
+      </button>
+    </div>
+  );
   return (
     <div className="flex flex-col gap-3">
       <div className="flex items-center gap-3">
@@ -2397,20 +2411,14 @@ function StoryPage() {
           💬 {t('Replay')}
         </button>
       </div>
+      {ready && finish}
       <div className="relative rounded-2xl border-2 border-[#e2cc9c] bg-white px-3 py-2 text-sm italic text-[#5a3a1a]">
         “{ch.intro[ch.intro.length - 1]}”
       </div>
       <div className="flex flex-col gap-1.5">
         {ch.tasks.map((_, i) => <TaskRow key={i} ch={ch} i={i} />)}
       </div>
-      <div className="flex items-center gap-3 text-sm font-bold">
-        <Coins n={r.coins} />
-        {r.gems > 0 && <Gems n={r.gems} />}
-        <span className="text-[#2f8fd0]">+{fmtNum(r.xp)} XP</span>
-        <button className={`btn btn-green ml-auto ${ready ? 'animate-bob' : ''}`} disabled={!ready} onClick={() => store.finishChapter()}>
-          {t('Finish chapter')}
-        </button>
-      </div>
+      {!ready && finish}
       <p className="text-center text-xs text-[#8a6a44]">{t('Chapters finished: {n} / {total}', { n: st.ch - 1, total: LAST_CHAPTER })}</p>
     </div>
   );
