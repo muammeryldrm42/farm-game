@@ -952,6 +952,20 @@ export function iconUrl(icon: string) {
   return u;
 }
 
+// the painted icons made ready ahead, a few at a time while the page is idle, so a window full
+// of them (a late farm's barn holds a few hundred) does not wait on them all at once
+export function warmIcons(icons: string[]) {
+  if (typeof window === 'undefined') return;
+  const todo = [...new Set(icons.filter(isDrawn))].filter((i) => !urls.has(i));
+  const idle = (f: (d: { timeRemaining: () => number }) => void) =>
+    (typeof window.requestIdleCallback === 'function' ? window.requestIdleCallback(f, { timeout: 2000 }) : setTimeout(() => f({ timeRemaining: () => 8 }), 60));
+  const run = (d: { timeRemaining: () => number }) => {
+    while (todo.length && d.timeRemaining() > 3) iconUrl(todo.pop()!);
+    if (todo.length) idle(run);
+  };
+  if (todo.length) idle(run);
+}
+
 // draw a line of text that may contain drawn icons (tokens like "@peach_jam")
 export function fillRich(c: CanvasRenderingContext2D, text: string, cx: number, cy: number, size: number, stroke: boolean) {
   const parts = text.split(/(@[a-z_]+)/g).filter(Boolean);

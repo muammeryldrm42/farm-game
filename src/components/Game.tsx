@@ -1,7 +1,8 @@
 'use client';
 import { useEffect, useRef, useState } from 'react';
 import { GameStore, TUTORIAL_DONE, fmtTime, loadGame, plotProgress, type FarmObject } from '@/game/state';
-import { BUILDING } from '@/game/data';
+import { BUILDING, ITEM_LIST } from '@/game/data';
+import { warmIcons } from '@/game/icons';
 import { Renderer, nightFactor, redrawCanvasTextures } from '@/game/render3d';
 import { loadEmojiFont } from '@/game/emojiFont';
 import { sfx, sleepAudio, startAmbience, startMusic, stopAmbience, stopMusic, voice } from '@/game/audio';
@@ -59,7 +60,7 @@ export default function Game() {
   return (
     <Guard fallback={<Broken onReload={() => { store.saveNow(); void kvFlush().finally(() => location.reload()); }} />}>
       <StoreCtx.Provider value={store}>
-        <FarmCanvas onDrawn={() => { setDrawn(true); drawnOnce = true; store.welcomeBack(); }} onFail={() => setNoGl(true)} />
+        <FarmCanvas onDrawn={() => { setDrawn(true); drawnOnce = true; store.welcomeBack(); setTimeout(() => warmIcons(ITEM_LIST.map((i) => i.icon)), 4000); }} onFail={() => setNoGl(true)} />
         <Guard><Hud /></Guard>
         <Guard><Flyers /></Guard>
         <Guard onError={closeFailed}><Panels /></Guard>

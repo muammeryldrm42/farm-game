@@ -124,11 +124,15 @@ function useGuide(id: string) {
   const store = useStore();
   const ref = useRef<HTMLElement | null>(null);
   const g = store.ui.guide;
-  const on = !!g && g.id === id && Date.now() - g.at < 60e3;
+  const any = !!g && Date.now() - g.at < 60e3;
+  const on = any && g.id === id;
   useEffect(() => {
     if (on) ref.current?.scrollIntoView({ block: 'center', behavior: 'smooth' });
   }, [on]);
-  return { on, ref };
+  // `lazy`: the card may leave its drawing to when it comes into view (the `cv` class), but not
+  // while a story task points into the list: the cards above would change size as they appear and
+  // push the pointed one off screen
+  return { on, ref, lazy: any ? '' : 'cv' };
 }
 function RecipeGuide({ id, children }: { id: string; children: (g: ReturnType<typeof useGuide>) => ReactNode }) {
   return <>{children(useGuide(id))}</>;
@@ -1022,7 +1026,7 @@ function ShopCard({ d }: { d: BuildingDef }) {
       ref={(el) => { guide.ref.current = el; }}
       disabled={locked || full}
       onClick={() => store.startBuy(d.id)}
-      className={`card relative flex flex-col items-center gap-1 p-3 text-center transition active:scale-95 disabled:opacity-60 ${guide.on ? GUIDE_RING : ''}`}
+      className={`card relative flex flex-col items-center gap-1 p-3 text-center transition active:scale-95 disabled:opacity-60 ${guide.on ? GUIDE_RING : guide.lazy}`}
     >
       {guide.on && <GuideMark />}
       <span className={`emoji text-4xl ${locked ? 'grayscale' : ''}`}><Ico i={d.icon} id={d.id} /></span>
@@ -1056,7 +1060,7 @@ function CropCard({ id }: { id: string }) {
   const have = store.s.inv[id] ?? 0;
   const guide = useGuide(id);
   return (
-    <div ref={(el) => { guide.ref.current = el; }} className={`card relative flex flex-col items-center gap-1 p-3 text-center ${locked ? 'opacity-60' : ''} ${guide.on ? GUIDE_RING : ''}`}>
+    <div ref={(el) => { guide.ref.current = el; }} className={`card relative flex flex-col items-center gap-1 p-3 text-center ${locked ? 'opacity-60' : ''} ${guide.on ? GUIDE_RING : guide.lazy}`}>
       {guide.on && <GuideMark />}
       <span className={`emoji text-4xl ${locked ? 'grayscale' : ''}`}><Ico i={it.icon} /></span>
       <span className="font-bold leading-tight">{t(it.name)}</span>
@@ -1093,28 +1097,32 @@ function ShopModal() {
   const seeds = CROPS.map((c) => s.inv[c.id] ?? 0).join(',');
   const pointing = !!g && Date.now() - g.at < 60e3;
   const cardsKey = `${tab}|${s.level}|${s.coins}|${store.objVersion}|${s.objects.length}|${seeds}|${(s.prizes ?? []).join()}|${pointing ? `${g!.id}@${g!.at}` : ''}|${getLang()}`;
+  // the cards of the tab, drawn in parts (a tab holds up to a hundred and more)
+  const count = BUILDINGS.reduce((n, d) => n + (d.buyable && st.filter(d) ? 1 : 0), 0) + (tab === 'crops' ? CROPS.length : 0);
+  const shown = useProgressive(count, tab, 24, 80);
   const cards = useMemo(() => {
     // the season prizes won come first, the ones still to win last
     const rank = (d: BuildingDef) => (PRIZE_OF[d.id] ? (hasPrize(s, d.id) ? -1 : 1) : 0);
     const list = BUILDINGS.filter((d) => d.buyable && st.filter(d)).sort((a, b) => rank(a) - rank(b) || a.level - b.level || a.cost - b.cost);
     const crops = [...CROPS].sort((a, b) => a.level - b.level || a.seedCost - b.seedCost);
+    const more = Math.max(0, shown - list.length);
     return (
       <>
         <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 md:grid-cols-4">
-          {list.map((d) => <ShopCard key={d.id} d={d} />)}
+          {list.slice(0, shown).map((d) => <ShopCard key={d.id} d={d} />)}
         </div>
-        {tab === 'crops' && (
+        {tab === 'crops' && more > 0 && (
           <>
             <h3 className="mb-2 mt-4 text-center font-bold text-[#6b4226]">{t('Crops you can grow')}</h3>
             <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 md:grid-cols-4">
-              {crops.map((c) => <CropCard key={c.id} id={c.id} />)}
+              {crops.slice(0, more).map((c) => <CropCard key={c.id} id={c.id} />)}
             </div>
           </>
         )}
       </>
     );
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [cardsKey]);
+  }, [cardsKey, shown]);
   // the chosen tab is kept in view along the row (the last ones sit past its end on a phone)
   const tabRow = useRef<HTMLDivElement>(null);
   useEffect(() => { tabRow.current?.querySelector('[data-on]')?.scrollIntoView({ block: 'nearest', inline: 'nearest' }); }, [tab]);
@@ -1421,6 +1429,20 @@ function OrdersModal() {
 
 // ------------------------------------------------------------------ storage
 
+// A long list drawn in parts: the first few screenfuls at once, the rest a frame later, a hundred
+// or so at a time, so a window opens without waiting for hundreds of cards nobody sees yet. `key`
+// starts it over (another tab of the same window).
+function useProgressive(total: number, key: string, first = 36, step = 120) {
+  const [at, setAt] = useState({ key, n: first });
+  const n = at.key === key ? at.n : first;
+  useEffect(() => {
+    if (n >= total) return;
+    const id = requestAnimationFrame(() => setAt({ key, n: n + step }));
+    return () => cancelAnimationFrame(id);
+  }, [n, total, key, step]);
+  return Math.min(n, total);
+}
+
 function StorageModal() {
   const store = useStore();
   const s = store.s;
@@ -1431,6 +1453,7 @@ function StorageModal() {
   const cost = upgradeCost(lvl);
   const items = ITEM_LIST.filter((i) => i.storage === k && (s.inv[i.id] ?? 0) > 0);
   const [sure, setSure] = useState<{ id: string; all: boolean } | null>(null);
+  const shown = useProgressive(items.length, k);
 
   return (
     <Modal title={t(k === 'silo' ? 'Silo' : 'Barn')} icon={k === 'silo' ? '🌾' : '🏚️'} onClose={() => store.openPanel(null)} wide>
@@ -1468,7 +1491,7 @@ function StorageModal() {
         </p>
       ) : (
         <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 md:grid-cols-4">
-          {items.map((i) => {
+          {items.slice(0, shown).map((i) => {
             const n = s.inv[i.id];
             // a sale waits for a second tap on the same button to confirm it
             const armed = sure?.id === i.id ? sure.all : null;
@@ -1477,7 +1500,7 @@ function StorageModal() {
               else setSure({ id: i.id, all });
             };
             return (
-              <div key={i.id} className="card flex flex-col items-center gap-1 p-2">
+              <div key={i.id} className="card cv flex flex-col items-center gap-1 p-2">
                 <span className="emoji text-3xl"><Ico i={i.icon} /></span>
                 <span className="text-sm font-bold">{t(i.name)}</span>
                 <span className="text-xs text-[#8a6a44]">

@@ -26,6 +26,14 @@ canvas {
   .card {
     @apply rounded-2xl border-2 border-[#e2cc9c] bg-[#fffaf0] shadow-[0_3px_0_#e2cc9c];
   }
+  /* a card in a long list (a late farm's barn holds hundreds of goods, the shop hundreds of
+     things): the browser lays out and paints only the ones on screen or near it, keeping the
+     size each had, so a long list opens about as fast as a short one. (It clips what reaches out
+     of the card, so a card with a pointing finger above it goes without.) */
+  .cv {
+    content-visibility: auto;
+    contain-intrinsic-size: auto 136px;
+  }
   .btn {
     @apply inline-flex select-none items-center justify-center gap-1 rounded-2xl px-3 py-2 font-bold text-white transition active:translate-y-[3px] disabled:cursor-not-allowed disabled:opacity-50;
     text-shadow: 0 1px 0 rgba(0, 0, 0, 0.35);
