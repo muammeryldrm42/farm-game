@@ -6186,12 +6186,15 @@ function buildPen(e: Entry, d: BuildingDef) {
       for (let i = 0; i < count; i++) herd.add(an?.id === 'bee' ? buildHive() : buildAnimal(an?.id ?? ''));
       if (grew) { hop.set(list[count - 1].id, t); bump(e); }
       herdMeshes = [];
+      // (the bees and their skeps too: a bee garden's dozens of little bees and wings, drawn one
+      // by one, made some fifty draws; they have no far twins)
+      const bee = an?.id === 'bee';
       for (const m of herd.children) {
-        if (!m.userData.model) continue;
+        if (!m.userData.model && !bee) continue;
         m.traverse((c) => {
           if (!(c as THREE.Mesh).isMesh) return;
           c.layers.set(BATCH_LAYER);
-          c.userData.lod = `animal_${an!.id}`;
+          if (!bee) c.userData.lod = `animal_${an!.id}`;
           herdMeshes.push(c as THREE.Mesh);
         });
       }
