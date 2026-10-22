@@ -5237,13 +5237,13 @@ function keep<T extends THREE.Object3D>(o: T) {
   return o;
 }
 // the leafy decorations and wild clutter that have far detail models (tools/blender/lod.py LEAFY)
-const PLANT_LOD = new Set(['flowers', 'oak', 'pumpkin_pile', 'topiary', 'hay_bale', 'tree_obs0', 'tree_obs1', 'bush_obs0', 'bush_obs1']);
+const PLANT_LOD = new Set(['flowers', 'oak', 'pumpkin_pile', 'topiary', 'hay_bale', 'tree_obs0', 'tree_obs1', 'bush_obs0', 'bush_obs1', 'blossom_tree']);
 // the buildings that have far detail models (tools/blender/lod.py --buildings): the workshops,
 // pens, barn, silo and stall, and the heavy decorations (the houses keep their full model)
 const BUILDING_LOD = new Set(['production', 'pen', 'barn', 'silo', 'stall']);
 const DECO_LOD = new Set(['well', 'flower_arch', 'windmill', 'pond', 'gazebo', 'fountain', 'pergola', 'treehouse', 'greenhouse',
   'golden_farmer', 'flower_cart', 'sand_turtle', 'sand_octopus', 'sand_starfish', 'sand_car', 'sand_whale', 'rock_garden',
-  'apple_crates', 'flower_bicycle']);
+  'apple_crates', 'flower_bicycle', 'lantern_arch', 'butterfly_dome']);
 function useModel(e: Entry, o: FarmObject, d: BuildingDef) {
   const spec = MODELS[d.id];
   if (!spec || e.id < 0 || artStyle() !== 'toon') return;

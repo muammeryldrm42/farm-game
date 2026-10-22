@@ -71,7 +71,7 @@ def thin(name, building=False, far2=False):
 
 # leafy decorations a farm may have by the dozen, and the wild trees and bushes on new land
 # (keep in step with PLANT_LOD in src/game/render3d.ts)
-LEAFY = ['flowers', 'oak', 'pumpkin_pile', 'topiary', 'hay_bale', 'tree_obs0', 'tree_obs1', 'bush_obs0', 'bush_obs1']
+LEAFY = ['flowers', 'oak', 'pumpkin_pile', 'topiary', 'hay_bale', 'tree_obs0', 'tree_obs1', 'bush_obs0', 'bush_obs1', 'blossom_tree']
 
 
 def plants():
