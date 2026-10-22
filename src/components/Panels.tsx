@@ -659,6 +659,12 @@ function StallModal() {
   };
   const reset = () => { setPick(null); setItem(null); };
   const owned = ITEM_LIST.filter((i) => (s.inv[i.id] ?? 0) > 0);
+  // A late farm holds hundreds of goods: the list is drawn in parts (as the storage), and the
+  // chosen one's card sits above it, brought into view, so Put on stall is never far below
+  const [opened, setOpened] = useState(0);
+  const shown = useProgressive(pick !== null ? owned.length : 0, `pick-${opened}`, 48, 120);
+  const cardRef = useRef<HTMLDivElement | null>(null);
+  useEffect(() => { if (item) cardRef.current?.scrollIntoView({ block: 'nearest' }); }, [item]);
 
   if (pick !== null) {
     const base = item ? stallValue(item, qty) : 0;
@@ -672,20 +678,8 @@ function StallModal() {
     const wait = t(ratio <= 1.05 ? 'Sells fast' : ratio <= 1.5 ? 'Sells in a few minutes' : 'Takes a while to sell');
     return (
       <Modal title={t('List an item')} icon="🏪" onClose={() => store.openPanel(null)} wide>
-        {owned.length === 0 ? (
-          <p className="py-8 text-center text-sm text-[#8a6a44]">{t('Your storage is empty. Harvest or make something to sell first.')}</p>
-        ) : (
-          <div className="grid grid-cols-4 gap-2 sm:grid-cols-6 md:grid-cols-8">
-            {owned.map((i) => (
-              <button key={i.id} onClick={() => choose(i.id)} className={`card flex flex-col items-center p-1.5 ${item === i.id ? 'ring-2 ring-[#f5b92b]' : ''}`}>
-                <span className="emoji text-2xl"><Ico i={i.icon} /></span>
-                <span className="text-[11px] font-bold">x{s.inv[i.id]}</span>
-              </button>
-            ))}
-          </div>
-        )}
         {item && (
-          <div className="card mt-3 flex flex-col gap-3 p-3">
+          <div ref={cardRef} className="card mb-3 flex scroll-mt-2 flex-col gap-3 p-3">
             <div className="flex items-center gap-2 font-bold">
               <span className="emoji text-2xl"><Ico i={ITEMS[item].icon} /></span> {t(ITEMS[item].name)}
             </div>
@@ -720,8 +714,20 @@ function StallModal() {
           </div>
         )}
         {!item && (
-          <div className="mt-3 flex justify-center">
+          <div className="mb-3 flex justify-center">
             <button className="btn btn-ghost" onClick={reset}>{t('Back')}</button>
+          </div>
+        )}
+        {owned.length === 0 ? (
+          <p className="py-8 text-center text-sm text-[#8a6a44]">{t('Your storage is empty. Harvest or make something to sell first.')}</p>
+        ) : (
+          <div className="grid grid-cols-4 gap-2 sm:grid-cols-6 md:grid-cols-8">
+            {owned.slice(0, shown).map((i) => (
+              <button key={i.id} onClick={() => choose(i.id)} className={`card flex flex-col items-center p-1.5 ${item === i.id ? 'ring-2 ring-[#f5b92b]' : ''}`}>
+                <span className="emoji text-2xl"><Ico i={i.icon} /></span>
+                <span className="text-[11px] font-bold">x{s.inv[i.id]}</span>
+              </button>
+            ))}
           </div>
         )}
       </Modal>
@@ -736,7 +742,7 @@ function StallModal() {
         {s.stall.map((sl, i) => {
           if (!sl.item) {
             return (
-              <button key={i} className="card flex min-h-[9rem] flex-col items-center justify-center gap-1 border-dashed p-3 text-[#8a6a44]" onClick={() => { setPick(i); setItem(null); }}>
+              <button key={i} className="card flex min-h-[9rem] flex-col items-center justify-center gap-1 border-dashed p-3 text-[#8a6a44]" onClick={() => { setPick(i); setItem(null); setOpened((n) => n + 1); }}>
                 <span className="text-3xl leading-none">+</span>
                 <span className="text-sm font-bold">{t('Sell something')}</span>
               </button>
