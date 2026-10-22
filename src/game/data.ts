@@ -279,7 +279,7 @@ item('peach_juice', 'Peach Juice', '@peach_juice', 'barn', 120, 10);
 item('watermelon_juice', 'Melon Cooler', '🧉', 'barn', 150, 16);
 item('garden_salad', 'Garden Salad', '@garden_salad', 'barn', 120, 10);
 item('fruit_salad', 'Fruit Salad', '🍱', 'barn', 190, 13);
-item('pizza', 'Pizza', '🍕', 'barn', 260, 12);
+item('pizza', 'Pizza', '@pizza', 'barn', 260, 12);
 item('spicy_pizza', 'Spicy Pizza', '@spicy_pizza', 'barn', 300, 15);
 item('lemonade', 'Lemonade', '@lemonade', 'barn', 193, 13);
 item('espresso', 'Espresso', '☕', 'barn', 130, 17);
@@ -321,7 +321,7 @@ item('crab_cake', 'Crab Cakes', '@crab_cake', 'barn', 260, 14);
 item('rye', 'Rye', '🌾', 'silo', 73, 25);
 item('tangerine', 'Tangerine', '🍊', 'silo', 62, 29);
 item('cherry_tomato', 'Cherry Tomatoes', '🍅', 'silo', 89, 32);
-item('cherry_tomato_pizza', 'Cherry Tomato Pizza', '🍕', 'barn', 432, 35);
+item('cherry_tomato_pizza', 'Cherry Tomato Pizza', '@cherry_tomato_pizza', 'barn', 432, 35);
 item('kale', 'Kale', '🥬', 'silo', 100, 37);
 item('nectarine', 'Nectarine', '🍑', 'silo', 76, 42);
 item('nectarine_sorbet', 'Nectarine Sorbet', '🍨', 'barn', 293, 44);
@@ -345,7 +345,7 @@ item('bronze_feather', 'Bronze Feather', '🪶', 'barn', 218, 79);
 item('jalapeno', 'Jalapeno', '🌶️', 'silo', 197, 81);
 item('pistachio', 'Pistachio', '🥜', 'silo', 121, 83);
 item('green_bean', 'Green Beans', '🫛', 'silo', 210, 87);
-item('green_bean_pizza', 'Green Bean Pizza', '🍕', 'barn', 783, 88);
+item('green_bean_pizza', 'Green Bean Pizza', '@green_bean_pizza', 'barn', 783, 88);
 item('mint', 'Mint', '🌿', 'silo', 214, 89);
 item('elderberry', 'Elderberry', '🫐', 'silo', 130, 91);
 item('elderberry_sorbet', 'Elderberry Sorbet', '🍨', 'barn', 450, 93);
@@ -409,7 +409,7 @@ item('silver_pear', 'Silver Pear', '🍐', 'silo', 224, 176);
 item('silver_pear_juice', 'Silver Pear Juice', '🧃', 'barn', 693, 177);
 item('hops', 'Hops', '🌿', 'silo', 410, 178);
 item('artichoke', 'Artichoke', '🥦', 'silo', 412, 179);
-item('artichoke_pizza', 'Artichoke Pizza', '🍕', 'barn', 1369, 180);
+item('artichoke_pizza', 'Artichoke Pizza', '@artichoke_pizza', 'barn', 1369, 180);
 item('goji', 'Goji Berries', '🍒', 'silo', 417, 181);
 item('goji_sorbet', 'Goji Sorbet', '🍨', 'barn', 1282, 183);
 item('dahlia', 'Dahlia', '🌺', 'silo', 423, 184);
@@ -426,7 +426,7 @@ item('lotus_bouquet', 'Lotus Bouquet', '💐', 'barn', 1314, 194);
 item('black_bean_oil', 'Black Bean Oil', '🫙', 'barn', 1247, 196);
 item('black_bean_brittle', 'Black Bean Brittle', '🍬', 'barn', 1334, 197);
 item('grilled_wasabi', 'Grilled Wasabi', '🍢', 'barn', 1334, 198);
-item('wasabi_pizza', 'Wasabi Pizza', '🍕', 'barn', 1406, 199);
+item('wasabi_pizza', 'Wasabi Pizza', '@wasabi_pizza', 'barn', 1406, 199);
 
 // ---- second wave: one more new thing on every level (fish, crops, fruit, animal goods, dishes)
 item('celery', 'Celery', '🥬', 'silo', 7, 1);
@@ -450,7 +450,7 @@ item('nashi', 'Nashi Pear', '🍐', 'silo', 53, 21);
 item('nashi_pear_jam', 'Nashi Pear Jam', '🫙', 'barn', 197, 22);
 item('arugula', 'Arugula', '🥬', 'silo', 69, 23);
 item('lop_fluff', 'Lop Fluff', '🧶', 'barn', 73, 24);
-item('arugula_pizza', 'Arugula Pizza', '🍕', 'barn', 374, 25);
+item('arugula_pizza', 'Arugula Pizza', '@arugula_pizza', 'barn', 374, 25);
 item('mackerel', 'Mackerel', '@mackerel', 'barn', 96, 26);
 item('medlar', 'Medlar', '🟤', 'silo', 60, 27);
 item('buckwheat', 'Buckwheat', '🌾', 'silo', 82, 29);
@@ -496,7 +496,7 @@ item('haddock', 'Haddock', '@haddock', 'barn', 220, 74);
 item('feijoa', 'Feijoa', '🟢', 'silo', 112, 75);
 item('crest_feather', 'Crest Feather', '🪶', 'barn', 187, 76);
 item('rutabaga', 'Rutabaga', '🟡', 'silo', 188, 77);
-item('rutabaga_pizza', 'Rutabaga Pizza', '🍕', 'barn', 719, 78);
+item('rutabaga_pizza', 'Rutabaga Pizza', '@rutabaga_pizza', 'barn', 719, 78);
 item('flounder', 'Flounder', '@flounder', 'barn', 233, 79);
 item('acerola', 'Acerola', '🍒', 'silo', 118, 80);
 item('acerola_tart', 'Acerola Tart', '🥧', 'barn', 365, 82);
@@ -511,7 +511,7 @@ item('arctic_char', 'Arctic Char', '@arctic_char', 'barn', 265, 91);
 item('hickory', 'Hickory Nut', '🌰', 'silo', 131, 92);
 item('brussels_sprout', 'Brussels Sprouts', '🥬', 'silo', 223, 93);
 item('runner_egg', 'Runner Egg', '🥚', 'barn', 227, 94);
-item('sprout_pizza', 'Sprout Pizza', '🍕', 'barn', 821, 95);
+item('sprout_pizza', 'Sprout Pizza', '@sprout_pizza', 'barn', 821, 95);
 item('grayling', 'Grayling', '@grayling', 'barn', 280, 97);
 item('kiwifruit', 'Kiwi Fruit', '🥝', 'silo', 138, 98);
 item('mung_bean', 'Mung Beans', '🫘', 'silo', 236, 99);
@@ -541,7 +541,7 @@ item('rosemary_dressing', 'Rosemary Dressing', '🫙', 'barn', 838, 125);
 item('halibut', 'Halibut', '@halibut', 'barn', 356, 126);
 item('longan', 'Longan', '🟤', 'silo', 170, 127);
 item('tomatillo', 'Tomatillo', '🟢', 'silo', 302, 129);
-item('tomatillo_pizza', 'Tomatillo Pizza', '🍕', 'barn', 1050, 130);
+item('tomatillo_pizza', 'Tomatillo Pizza', '@tomatillo_pizza', 'barn', 1050, 130);
 item('turbot', 'Turbot', '@turbot', 'barn', 369, 131);
 item('rambutan', 'Rambutan', '🔴', 'silo', 175, 132);
 item('amaranth', 'Amaranth', '🌾', 'silo', 311, 133);
@@ -602,7 +602,7 @@ item('cornflower_bouquet', 'Cornflower Bouquet', '💐', 'barn', 1340, 195);
 item('anglerfish', 'Anglerfish', '@anglerfish', 'barn', 540, 197);
 item('nutmeg', 'Nutmeg', '🟤', 'silo', 248, 198);
 item('cassava', 'Cassava', '🥔', 'silo', 456, 199);
-item('cassava_pizza', 'Cassava Pizza', '🍕', 'barn', 1496, 200);
+item('cassava_pizza', 'Cassava Pizza', '@cassava_pizza', 'barn', 1496, 200);
 
 // ---- third wave: every level gets at least four new things (workshops, dishes, animals, fish...)
 item('herring', 'Herring', '@herring', 'barn', 88, 23);
@@ -1658,7 +1658,7 @@ export const BUILDINGS: BuildingDef[] = [
   b({ id: 'camel_corral', name: 'Camel Corral', icon: '🐪', kind: 'pen', w: 3, h: 2, cost: 3800, level: 20, xp: 80, height: 26, wall: '#e2cf98', roof: '#c0602a', animal: 'camel', capacity: 4, desc: 'Camels give creamy milk for a rare cheese. They eat wheat.' }),
   b({ id: 'stable', name: 'Stable', icon: '🐎', kind: 'pen', w: 3, h: 2, cost: 2500, level: 15, xp: 60, height: 26, wall: '#c2a36b', roof: '#8e2c20', animal: 'horse', capacity: 5, desc: 'Up to 5 horses. Each horse adds 5% to order coins.' }),
   b({ id: 'salad_bar', name: 'Salad Bar', icon: '🥙', kind: 'production', w: 2, h: 2, cost: 1300, level: 10, xp: 45, height: 52, wall: '#e9f7dc', roof: '#5aa83a', desc: 'Tosses fresh garden and fruit salads.' }),
-  b({ id: 'pizzeria', name: 'Pizzeria', icon: '🍕', kind: 'production', w: 2, h: 2, cost: 2400, level: 12, xp: 60, height: 58, wall: '#f7e1c4', roof: '#c0392b', desc: 'A wood fired oven for pizzas.' }),
+  b({ id: 'pizzeria', name: 'Pizzeria', icon: '@pizza', kind: 'production', w: 2, h: 2, cost: 2400, level: 12, xp: 60, height: 58, wall: '#f7e1c4', roof: '#c0392b', desc: 'A wood fired oven for pizzas.' }),
   b({ id: 'coffee_kiosk', name: 'Coffee Kiosk', icon: '☕', kind: 'production', w: 2, h: 2, cost: 2800, level: 13, xp: 65, height: 54, wall: '#efe0cf', roof: '#6b4226', desc: 'Brews lemonade, espresso and lattes.' }),
   b({ id: 'oil_press', name: 'Olive Press', icon: '@olive_oil', kind: 'production', w: 2, h: 2, cost: 3400, level: 17, xp: 70, height: 56, wall: '#efe4cc', roof: '#6a7a3a', desc: 'Presses olives into oil and blends pesto.' }),
   b({ id: 'florist', name: 'Flower Shop', icon: '💐', kind: 'production', w: 2, h: 2, cost: 1600, level: 11, xp: 50, height: 54, wall: '#fbe8ef', roof: '#d8568a', desc: 'Ties bouquets, sachets and flower crowns.' }),

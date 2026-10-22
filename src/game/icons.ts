@@ -112,6 +112,35 @@ function pie(fill: [string, string], dots: string): Painter {
   };
 }
 
+// a slice of veggie pizza with a golden crust, tomato sauce, melted cheese and the pizza's own
+// toppings (no pepperoni: the farm has no meat, and the pizza emoji shows some)
+function pizza(bits: string[], leaves = true): Painter {
+  return (c) => {
+    // the slice, the sauce showing at its edges
+    c.beginPath(); c.moveTo(64, 122); c.lineTo(12, 36); c.quadraticCurveTo(64, 18, 116, 36); c.closePath();
+    c.fillStyle = '#d8442a'; c.fill(); outline(c);
+    // melted cheese, a little in from the edges, with a drip
+    c.beginPath(); c.moveTo(64, 110); c.lineTo(23, 43); c.quadraticCurveTo(64, 30, 105, 43); c.closePath();
+    c.fillStyle = lin(c, 0, 32, 0, 112, [[0, '#ffe68a'], [1, '#f4c040']]); c.fill();
+    c.beginPath(); c.ellipse(46, 74, 5, 9, 0.3, 0, Math.PI * 2); c.fillStyle = '#f8d058'; c.fill();
+    // the crust along the top
+    c.beginPath(); c.moveTo(14, 36); c.quadraticCurveTo(64, 16, 114, 36);
+    c.lineCap = 'round'; c.lineWidth = 16; c.strokeStyle = lin(c, 0, 22, 0, 44, [[0, '#e8a85a'], [1, '#b8742e']]); c.stroke();
+    c.lineWidth = 3; c.strokeStyle = 'rgba(60,35,15,0.45)'; c.stroke();
+    // the toppings
+    const spots: [number, number][] = [[50, 52], [78, 50], [64, 64], [44, 62], [84, 62], [58, 80], [72, 78], [64, 96], [66, 46]];
+    spots.forEach(([x, y], i) => {
+      c.beginPath(); c.ellipse(x, y, 6.5, 5, i * 0.9, 0, Math.PI * 2); c.fillStyle = bits[i % bits.length]; c.fill(); outline(c, 1.5);
+    });
+    // basil leaves
+    if (leaves) for (const [x, y, a] of [[56, 70, 0.6], [76, 88, -0.5]] as [number, number, number][]) {
+      c.beginPath(); c.ellipse(x, y, 7, 3.5, a, 0, Math.PI * 2); c.fillStyle = '#3a9a2e'; c.fill();
+      c.beginPath(); c.moveTo(x - Math.cos(a) * 6, y - Math.sin(a) * 6); c.lineTo(x + Math.cos(a) * 6, y + Math.sin(a) * 6); c.lineWidth = 1; c.strokeStyle = '#1f6a1a'; c.stroke();
+    }
+    shine(c, 82, 44, 8, 3);
+  };
+}
+
 // a ball of yarn or a folded woolly blanket
 function yarn(col: [string, string]): Painter {
   return (c) => {
@@ -792,6 +821,16 @@ const PAINTERS: Record<string, Painter> = {
   peach_jam: jar(['#ffb06a', '#e8793a'], '#ff9a5c'),
   peach_juice: drink(['#ffc48a', '#ff8f4a'], '#ffa274', '#ffd8b0'),
   lemonade: drink(['#fff6b0', '#ffe066'], '#ffd23a', '#fff4a8'),
+  pizza: pizza(['#e8402a', '#e8402a', '#f4e8c8']),
+  cherry_tomato_pizza: pizza(['#e8302a', '#ff6a4a']),
+  green_bean_pizza: pizza(['#4aa83a', '#6cc04a']),
+  artichoke_pizza: pizza(['#7a9a3a', '#a8c060']),
+  wasabi_pizza: pizza(['#9ccf5a', '#c8e88a'], false),
+  arugula_pizza: pizza(['#2f7a26', '#4a9a34'], false),
+  rutabaga_pizza: pizza(['#e8a23a', '#f4c060']),
+  sprout_pizza: pizza(['#b8e07a', '#d8f0a0']),
+  tomatillo_pizza: pizza(['#8ac24a', '#b8d870']),
+  cassava_pizza: pizza(['#f2e6c8', '#e0cfa0']),
   garden_salad: (c) => {
     c.beginPath(); c.ellipse(64, 78, 50, 16, 0, 0, Math.PI * 2); c.fillStyle = '#e9f4ff'; c.fill();
     const leaf = (x: number, y: number, r: number, col: string) => { c.beginPath(); c.ellipse(x, y, r, r * 0.7, (x - 64) / 40, 0, Math.PI * 2); c.fillStyle = col; c.fill(); outline(c, 2); };
