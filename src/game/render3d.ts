@@ -23,7 +23,7 @@ import { leafShell, leafTexture, meterBox, meterHip, meterRoof, surface, surface
 import { ANIMAL, BUILDING, CROP, ITEMS, type BuildingDef, type CropDef } from './data';
 import { getLang, t as tr } from './i18n';
 import {
-  CHUNK, FARM_OFF, footprint, PET_IDS, petGift, type PetId, SEA_FISH_SPOT, fishSpotAt, type FishSpot, GRAZE, GRID, LAKE, MAP_OFF2, MAP_OFF3, NCH, isBeachTile, lakeE, animalReady, fishingInfo, boatState, canFulfill, chunkState, grazePhase, penInfo, plotProgress, prodInfo, treeInfo,
+  CHUNK, FARM_OFF, footprint, PET_IDS, petGift, type PetId, SEA_FISH_SPOT, fishSpotAt, type FishSpot, GRAZE, GRID, LAKE, MAP_OFF2, MAP_OFF3, NCH, isBeachTile, lakeE, animalReady, fishingInfo, canFulfill, chunkState, grazePhase, penInfo, plotProgress, prodInfo, treeInfo,
   type Animal, type FarmObject, type GameStore,
 } from './state';
 import { now as clockNow } from './clock';
@@ -90,21 +90,6 @@ function cylGeo(rt: number, rb: number, seg: number) {
   let g = cylCache.get(k);
   if (!g) { g = new THREE.CylinderGeometry(rt, rb, 1, seg); cylCache.set(k, g); }
   return g;
-}
-
-let prism: THREE.BufferGeometry | null = null;
-function prismGeo() {
-  if (prism) return prism;
-  const v = [
-    -0.5, 0, 0.5, 0.5, 0, 0.5, 0.5, 1, 0, -0.5, 0, 0.5, 0.5, 1, 0, -0.5, 1, 0,
-    0.5, 0, -0.5, -0.5, 0, -0.5, -0.5, 1, 0, 0.5, 0, -0.5, -0.5, 1, 0, 0.5, 1, 0,
-    0.5, 0, 0.5, 0.5, 0, -0.5, 0.5, 1, 0,
-    -0.5, 0, -0.5, -0.5, 0, 0.5, -0.5, 1, 0,
-  ];
-  prism = new THREE.BufferGeometry();
-  prism.setAttribute('position', new THREE.Float32BufferAttribute(v, 3));
-  prism.computeVertexNormals();
-  return prism;
 }
 
 let tri: THREE.BufferGeometry | null = null;
@@ -414,11 +399,6 @@ function mk(p: P, geo: THREE.BufferGeometry, mat: THREE.Material, sx: number, sy
 const bx = (p: P, w: number, h: number, d: number, color: string, x: number, y: number, z: number, shadow = true) => mk(p, G.box, M(color), w, h, d, x, y + h / 2, z, shadow);
 const ball = (p: P, r: number, color: string, x: number, y: number, z: number, sx = 1, sy = 1, sz = 1, shadow = true) => mk(p, G.ball, M(color), r * sx, r * sy, r * sz, x, y, z, shadow);
 const cyl = (p: P, rt: number, rb: number, h: number, color: string, x: number, y: number, z: number, seg = 8, shadow = true) => mk(p, cylGeo(rt, rb, seg), M(color), 1, h, 1, x, y + h / 2, z, shadow);
-const roof = (p: P, w: number, h: number, d: number, color: string, x: number, y: number, z: number, rotY = 0) => {
-  const m = mk(p, prismGeo(), M(color), w, h, d, x, y, z);
-  m.rotation.y = rotY;
-  return m;
-};
 // textured box with UVs in meters; `sc` is texture repeats per meter
 function bxT(p: P, w: number, h: number, d: number, kind: SurfaceKind, color: string, x: number, y: number, z: number, sc = 1, shadow = true) {
   const m = new THREE.Mesh(meterBox(w, h, d), surfaceMat(kind, color, sc));
@@ -1862,11 +1842,11 @@ export class Renderer {
       const out = !!o.pen && o.pen.animals.some((a) => a.graze);
       if (seen || (out && (e.herdSeen !== false || (this.frameNo + o.id) % 4 === 0)) || (this.frameNo + o.id) % 24 === 0) e.update?.(o, now, t, dt);
       if (e.bounce || e.root.scale.x !== 1) this.applyBounce(e, o, dt);
-      // Out of view (a sphere round its whole height), with none of its animals out or in view and
-      // no boat of its own out at sea: hidden for this frame's draw (three.js then does not look
-      // through its parts one by one) and its matrices wait (see updateMatrixWorld) until it is in
-      // view again, when they are brought up to date before it is drawn. Shown again after the draw.
-      if (hideOff && e.root.visible && !out && e.herdSeen !== true && BUILDING[o.type]?.kind !== 'dock') {
+      // Out of view (a sphere round its whole height), with none of its animals out or in view:
+      // hidden for this frame's draw (three.js then does not look through its parts one by one)
+      // and its matrices wait (see updateMatrixWorld) until it is in view again, when they are
+      // brought up to date before it is drawn. Shown again after the draw.
+      if (hideOff && e.root.visible && !out && e.herdSeen !== true) {
         const top = Math.max(0.6, e.top);
         this.drawSphere.center.set(o.x + d.w / 2, top / 2, o.y + d.h / 2);
         // (wide of the footprint: a lamp's pool of light or a pen's yard spill a tile or two past it)
@@ -2113,13 +2093,6 @@ export class Renderer {
       case 'stall': {
         const sold = s.stall.filter((x) => x.item && x.soldAt <= now).length;
         return sold ? { icon: '💰', mode: 'ready', p: 0, count: sold } : null;
-      }
-      case 'dock': {
-        if (boatState(s, now) !== 'docked' || !s.boat) return null;
-        const b = s.boat;
-        if (b.crates.every((c) => c.filled)) return { icon: '⛵', mode: 'ready', p: 0, count: 0 };
-        if (b.crates.some((c) => !c.filled && (s.inv[c.item] ?? 0) >= c.qty)) return { icon: '📦', mode: 'ready', p: 0, count: 0 };
-        return null;
       }
       default:
         return null;
@@ -4883,7 +4856,6 @@ function buildStandIn(e: Entry, o: FarmObject, d: BuildingDef, store: GameStore)
     case 'pen': return buildPen(e, d);
     case 'tree': return buildFruitTree(e, d);
     case 'stall': return buildStall(e, d, store);
-    case 'dock': return buildDock(e, store);
     case 'obstacle': return buildObstacle(e, o);
     case 'deco': return buildDeco(e, d);
   }
@@ -5206,10 +5178,10 @@ function swapInModel(e: Entry, name: string, x: number, z: number, scale: number
 // +z. Named nodes drive the game side: `smoke*` empties puff (always, or only while producing),
 // `glow*` empties get a pool of lamp light at night, `badge` carries the product icon, and
 // `spin<Axis>*` / `sway<Axis>*` meshes turn about their origin. Stand in parts flagged
-// `userData.keep` (water, goods on display, the boat) stay when the model swaps in.
+// `userData.keep` (water, goods on display) stay when the model swaps in.
 interface ModelSpec { smoke?: 'always' | 'busy'; badge?: number; variants?: number }
 const MODELS: Record<string, ModelSpec> = {
-  barn: {}, silo: {}, board: {}, stall: {}, dock: {}, fishing_pier: { badge: 0.22 }, manor: { smoke: 'always' },
+  barn: {}, silo: {}, board: {}, stall: {}, fishing_pier: { badge: 0.22 }, manor: { smoke: 'always' },
 };
 for (const id of ['hay_bale', 'picket_fence', 'bird_house', 'pumpkin_pile', 'birdbath', 'topiary', 'well', 'flower_arch',
   'hay_wagon', 'tractor', 'bench', 'lamp', 'scarecrow', 'windmill', 'pond', 'mailbox', 'gazebo', 'fountain',
@@ -6700,54 +6672,6 @@ function buildPier(e: Entry, d: BuildingDef) {
   e.update = (o, now, t) => {
     const busy = !!prodInfo(o, now).current;
     bob.position.y = 0.08 + (busy ? Math.sin(t / 300) * 0.02 : 0);
-  };
-}
-
-function buildDock(e: Entry, store: GameStore) {
-  const g = e.root;
-  waterBasin(g, 2, 2);
-  planks(g, 0.4, 1, 0.5, 1.8);
-  const boat = keep(group(g, 1.35, 0.06, 1));
-  bx(boat, 0.5, 0.2, 1.1, '#8e4a2b', 0, 0, 0);
-  roof(boat, 0.5, 0.2, 0.3, '#8e4a2b', 0, 0, 0.6, Math.PI / 2).rotation.set(Math.PI / 2, 0, 0);
-  bx(boat, 0.46, 0.03, 1.05, '#c98a45', 0, 0.2, 0);
-  bx(boat, 0.51, 0.04, 1.11, '#ffffff', 0, 0.12, 0, false);
-  cyl(boat, 0.025, 0.03, 1.3, '#6b4226', 0, 0.2, 0.05, 6);
-  const sail = new THREE.Mesh(sailGeo(), keepEnv(new THREE.MeshLambertMaterial({ color: '#fffaf0', side: THREE.DoubleSide })));
-  sail.scale.set(1, 1.0, 0.55);
-  sail.position.set(0, 0.35, 0.08);
-  sail.castShadow = true;
-  boat.add(sail);
-  bx(boat, 0.01, 0.1, 0.16, '#e74c3c', 0, 1.42, 0.13);
-  const crates = group(boat);
-  if (artStyle() === 'toon') {
-    // the Blender cargo boat (tools/blender/world.py) takes over the hull, mast and sail
-    const hull = boat.children.filter((c) => c !== crates);
-    loadModel('cargo_boat').then((m) => {
-      for (const c of hull) boat.remove(c);
-      boat.add(m.clone());
-    }).catch(() => {});
-  }
-  const buoy = keep(ball(g, 0.07, '#e74c3c', 1.4, 0.1, 1.1));
-  let key = '';
-  e.top = 1.5;
-  e.update = (_o, now, t) => {
-    const s = store.s;
-    const docked = boatState(s, now) === 'docked' && !!s.boat;
-    boat.visible = docked;
-    buoy.visible = !docked;
-    boat.position.y = 0.06 + Math.sin(t / 700) * 0.015;
-    boat.rotation.z = Math.sin(t / 900) * 0.03;
-    buoy.position.y = 0.1 + Math.sin(t / 500) * 0.02;
-    if (!docked || !s.boat) return;
-    const k = s.boat.crates.map((c) => (c.filled ? 1 : 0)).join('');
-    if (k === key) return;
-    key = k;
-    crates.clear();
-    s.boat.crates.slice(0, 6).forEach((c, i) => {
-      const m = mk(crates, G.box, c.filled ? M('#c98a45') : MT('#c98a45', 0.3), 0.14, 0.12, 0.14, (i % 2 ? 0.1 : -0.1), 0.28, -0.35 + Math.floor(i / 2) * 0.22);
-      m.castShadow = c.filled;
-    });
   };
 }
 

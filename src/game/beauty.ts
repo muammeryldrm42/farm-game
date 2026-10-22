@@ -2,8 +2,8 @@
 // prettier, and fruit trees a little too. Grander things count for more. The first of a kind counts
 // fully and more of the same count less and less, and every different kind adds a few points of
 // its own: a farm with many kinds of things is prettier than one with a hundred of the same.
-// The prettier the farm, the more its customers pay: a small bonus on orders, the boat and the
-// stall. Each beauty level also brings a gift of gems the first time it is reached.
+// The prettier the farm, the more its customers pay: a small bonus on orders and the stall. Each
+// beauty level also brings a gift of gems the first time it is reached.
 import { BUILDING } from './data';
 import type { GameState } from './state';
 

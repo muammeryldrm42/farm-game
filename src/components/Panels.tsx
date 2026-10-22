@@ -7,7 +7,6 @@ import {
   BADGE_GEMS,
   MAX_SLOTS,
   activeQuests,
-  boatState,
   FISHING,
   fishingInfo,
   claimableBadges,
@@ -193,7 +192,6 @@ export default function Panels() {
       {ui.panel === 'quests' && <QuestsModal />}
       {ui.panel === 'settings' && <SettingsModal />}
       {ui.panel === 'stall' && <StallModal />}
-      {ui.panel === 'boat' && <BoatModal />}
       {ui.panel === 'fishing' && <FishingModal />}
       {ui.panel === 'home' && <HomeModal />}
       {ui.panel === 'pet' && <PetModal key={ui.pet} />}
@@ -807,8 +805,6 @@ function NeighborStalls() {
   );
 }
 
-// ------------------------------------------------------------------ boat
-
 // The farmer's home: the farmhouse, or the manor once it is built. Rest here, or check goals.
 function HomeModal() {
   const store = useStore();
@@ -915,67 +911,6 @@ function FishingModal() {
   );
 }
 
-function BoatModal() {
-  const store = useStore();
-  const s = store.s;
-  const now = clockNow();
-  const state = boatState(s, now);
-  const b = s.boat;
-  const close = () => store.openPanel(null);
-
-  if (state !== 'docked' || !b) {
-    return (
-      <Modal title={t('Boat Dock')} icon="⛵" onClose={close}>
-        <div className="flex flex-col items-center gap-2 py-4 text-center">
-          <span className="emoji animate-bob text-5xl">🌊</span>
-          <p className="font-bold">{t('The boat is out at sea.')}</p>
-          {b && <p className="text-sm text-[#8a6a44]">{t('It comes back in {time}.', { time: fmtTime(b.returnAt - now) })}</p>}
-        </div>
-      </Modal>
-    );
-  }
-  const all = b.crates.every((c) => c.filled);
-  return (
-    <Modal title={t('Cargo Boat')} icon="⛵" onClose={close} wide>
-      <div className="mb-3 flex flex-wrap items-center justify-between gap-2 text-sm">
-        <span className="text-[#8a6a44]">{t('Leaves in')} <b>{fmtTime(b.leavesAt - now)}</b></span>
-        <span className="flex items-center gap-2 font-bold">
-          {t('Full boat bonus:')} <Coins n={b.bonusCoins} /> <Gems n={b.bonusGems} />
-        </span>
-      </div>
-      <BeautyNote />
-      <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
-        {b.crates.map((c, i) => {
-          const have = s.inv[c.item] ?? 0;
-          const ok = have >= c.qty;
-          return (
-            <div key={i} className={`card flex flex-col items-center gap-1 p-3 ${c.filled ? 'bg-[#e6f8d8]' : ok ? 'ring-2 ring-[#5cb82e]' : ''}`}>
-              <span className="emoji text-3xl">{c.filled ? '📦' : <Ico i={ITEMS[c.item].icon} />}</span>
-              <span className="text-sm font-bold">{t(ITEMS[c.item].name)}</span>
-              {c.filled ? (
-                <span className="text-sm font-bold text-[#2d5e14]">{t('Packed')}</span>
-              ) : (
-                <>
-                  <span className={`text-xs font-bold ${ok ? 'text-[#2d5e14]' : 'text-[#c0392b]'}`}>{have}/{c.qty}</span>
-                  <span className="flex items-center gap-2 text-xs font-bold">
-                    <Coins n={Math.round(c.coins * (1 + store.beautyBonus()))} /> <span className="text-[#2f8fd0]">+{c.xp} XP</span>
-                  </span>
-                  <button className="btn btn-green mt-1 w-full py-1.5" disabled={!ok} onClick={() => store.fillCrate(i)}>{t('Fill')}</button>
-                </>
-              )}
-            </div>
-          );
-        })}
-      </div>
-      <div className="mt-4 flex justify-center">
-        <button className="btn btn-yellow px-8 py-3 text-lg" disabled={!all} onClick={() => store.sendBoat()}>
-          {t('Send boat')}
-        </button>
-      </div>
-    </Modal>
-  );
-}
-
 // watering: a pour from the bucket makes the crop grow 30% faster; the bucket fills at a well
 function WaterRow({ o }: { o: FarmObject }) {
   const store = useStore();
@@ -1004,7 +939,7 @@ const SHOP_TABS: { id: ShopTab; label: string; icon: string; filter: (d: Buildin
   { id: 'trees', label: 'Fruit Trees', icon: '🌳', filter: (d) => d.kind === 'tree', hint: 'Trees fruit again and again. Tap a ripe tree to pick it.' },
   { id: 'animals', label: 'Animals', icon: '🐔', filter: (d) => d.kind === 'pen', hint: 'Each pen comes with room for its animals. Feed them to collect their goods.' },
   { id: 'production', label: 'Production', icon: '🏭', filter: (d) => d.kind === 'production' || d.kind === 'silo' || d.kind === 'barn', hint: 'Workshops turn crops and animal goods into products for orders. Extra silos and barns add storage room.' },
-  { id: 'services', label: 'Home & Trade', icon: '🏰', filter: (d) => d.kind === 'stall' || d.kind === 'dock' || (d.kind === 'house' && d.buyable) },
+  { id: 'services', label: 'Home & Trade', icon: '🏰', filter: (d) => d.kind === 'stall' || (d.kind === 'house' && d.buyable) },
   { id: 'decor', label: 'Decor', icon: '🌷', filter: (d) => d.kind === 'deco' },
 ];
 
@@ -1143,7 +1078,7 @@ function ShopModal() {
 
 // ------------------------------------------------------------------ beauty
 
-// what customers pay more on a pretty farm, over the orders, the boat and the stall
+// what customers pay more on a pretty farm, over the orders and the stall
 function BeautyNote() {
   const store = useStore();
   const n = Math.round(store.beautyBonus() * 100);
@@ -1297,7 +1232,7 @@ function BeautyModal() {
         <div className="text-3xl font-bold text-[#b8327a]">{fmtNum(b.score)}</div>
         <div className="text-sm font-bold">{t('{n} beauty points', { n: fmtNum(b.score) })} · {t(lv.name)}</div>
         <div className="text-xs text-[#2d5e14]">
-          {lv.bonus ? t('Customers pay {n}% more for orders, boat crates and stall sales.', { n: Math.round(lv.bonus * 100) }) : t('Make your farm prettier and customers pay more.')}
+          {lv.bonus ? t('Customers pay {n}% more for orders and stall sales.', { n: Math.round(lv.bonus * 100) }) : t('Make your farm prettier and customers pay more.')}
         </div>
         {next ? (
           <>

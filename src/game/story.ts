@@ -163,8 +163,6 @@ function drafts(level: number): Draft[] {
   const sys = (kind: BuildingDef['kind']) => BUILDINGS.find((b) => b.kind === kind && b.level === level);
   const stall = sys('stall');
   if (stall) add({ who: 'bramble', task: { icon: stall.icon, text: tr('Build the {name}', { name: tr(stall.name) }), target: 1, kind: 'count', key: stall.id }, line: tr('Villagers would love to buy straight from your farm. A roadside stall is just the thing!'), title: tr('Open for Business') });
-  const dock = sys('dock');
-  if (dock) add({ who: 'finn', task: { icon: dock.icon, text: tr('Build the {name}', { name: tr(dock.name) }), target: 1, kind: 'count', key: dock.id }, line: tr('Ahoy! My cargo boat could stop at your farm, if only you had a dock.'), title: tr('A Boat on the Horizon') });
   if (level === 5) add({ who: 'finn', task: { icon: '🎣', text: tr('Open the fishing spot'), target: 1, kind: 'fishing', key: '' }, line: tr('Carp and trout in the lake, sea fish off the south shore. Open a fishing spot!'), title: tr('Gone Fishing') });
   return out;
 }
