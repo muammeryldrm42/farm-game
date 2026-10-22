@@ -821,6 +821,35 @@ const PAINTERS: Record<string, Painter> = {
   peach_jam: jar(['#ffb06a', '#e8793a'], '#ff9a5c'),
   peach_juice: drink(['#ffc48a', '#ff8f4a'], '#ffa274', '#ffd8b0'),
   lemonade: drink(['#fff6b0', '#ffe066'], '#ffd23a', '#fff4a8'),
+  // a split golden bun with lettuce and chunks of lobster (the sandwich emoji shows ham)
+  lobster_roll: (c) => {
+    rrect(c, 14, 40, 100, 34, 17); c.fillStyle = '#c98a45'; c.fill(); outline(c);
+    c.beginPath();
+    for (let i = 0; i <= 10; i++) { const x = 18 + i * 9.2, y = 64 + (i % 2 ? 5 : 0); if (i) c.lineTo(x, y); else c.moveTo(x, y); }
+    c.lineTo(110, 76); c.lineTo(18, 76); c.closePath(); c.fillStyle = '#6cc04a'; c.fill(); outline(c, 2);
+    for (const [x, y, r] of [[34, 56, 12], [54, 50, 13], [76, 52, 13], [96, 57, 11], [64, 62, 10]] as [number, number, number][]) {
+      c.beginPath(); c.ellipse(x, y, r, r * 0.78, 0.3, 0, Math.PI * 2); c.fillStyle = rad(c, x, y, r, [[0, '#ffb08a'], [0.6, '#f06a42'], [1, '#d8462a']]); c.fill(); outline(c, 2);
+      c.beginPath(); c.arc(x - 2, y + 1, r * 0.45, 3.6, 5.4); c.lineWidth = 2.5; c.strokeStyle = '#fff2ea'; c.stroke();
+    }
+    c.fillStyle = '#2f8a26'; for (const [x, y] of [[44, 46], [70, 44], [88, 50], [60, 56]]) { c.beginPath(); c.arc(x, y, 2.2, 0, Math.PI * 2); c.fill(); }
+    rrect(c, 10, 72, 108, 30, 15); c.fillStyle = lin(c, 0, 72, 0, 102, [[0, '#f4c878'], [1, '#c88a3a']]); c.fill(); outline(c);
+    shine(c, 36, 82, 14, 4);
+  },
+  // a wok of stir fried vegetables, still steaming (the pan emoji shows sausage)
+  stir_fry: (c) => {
+    c.beginPath(); c.moveTo(96, 62); c.lineTo(124, 52); c.lineTo(126, 60); c.lineTo(100, 72); c.closePath(); c.fillStyle = '#6a4424'; c.fill(); outline(c, 3);
+    c.beginPath(); c.moveTo(10, 62); c.quadraticCurveTo(60, 126, 110, 62); c.closePath();
+    c.fillStyle = lin(c, 0, 62, 0, 108, [[0, '#5a5a62'], [1, '#2a2a30']]); c.fill(); outline(c);
+    c.beginPath(); c.ellipse(60, 62, 50, 13, 0, 0, Math.PI * 2); c.fillStyle = '#3a3a42'; c.fill(); outline(c, 3);
+    c.beginPath(); c.ellipse(60, 61, 43, 9, 0, 0, Math.PI * 2); c.fillStyle = '#c8862a'; c.fill();
+    const veg: [number, number, string, number, number, number][] = [
+      [36, 56, '#3a9a2e', 11, 3.5, 0.4], [70, 54, '#3a9a2e', 12, 3.5, -0.3], [52, 62, '#e8402a', 10, 4, 0.2], [84, 60, '#e8402a', 9, 4, -0.5],
+      [46, 52, '#f08a2a', 5, 5, 0], [62, 50, '#f08a2a', 5, 5, 0], [92, 54, '#f4d040', 8, 4, 0.6], [28, 62, '#e8dcc0', 6, 4.5, 0],
+      [76, 64, '#4aa83a', 6, 6, 0], [58, 58, '#4aa83a', 6, 6, 0]];
+    for (const [x, y, col, rx, ry, a] of veg) { c.beginPath(); c.ellipse(x, y, rx, ry, a, 0, Math.PI * 2); c.fillStyle = col; c.fill(); outline(c, 1.5); }
+    c.lineWidth = 3; c.strokeStyle = 'rgba(255,255,255,0.8)'; c.lineCap = 'round';
+    for (const x of [44, 70]) { c.beginPath(); c.moveTo(x, 40); c.bezierCurveTo(x - 8, 32, x + 8, 24, x, 14); c.stroke(); }
+  },
   pizza: pizza(['#e8402a', '#e8402a', '#f4e8c8']),
   cherry_tomato_pizza: pizza(['#e8302a', '#ff6a4a']),
   green_bean_pizza: pizza(['#4aa83a', '#6cc04a']),

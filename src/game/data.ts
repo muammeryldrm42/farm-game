@@ -267,7 +267,7 @@ item('marmalade', 'Marmalade', '🏺', 'barn', 140, 12);
 item('vanilla_ice', 'Vanilla Ice Cream', '🍨', 'barn', 110, 11);
 item('berry_ice', 'Berry Ice Cream', '🍧', 'barn', 150, 13);
 item('sushi', 'Sushi', '🍣', 'barn', 230, 13);
-item('lobster_roll', 'Lobster Roll', '🥪', 'barn', 260, 14);
+item('lobster_roll', 'Lobster Roll', '@lobster_roll', 'barn', 260, 14);
 item('cotton_shirt', 'Cotton Shirt', '👕', 'barn', 150, 14);
 item('hot_chili', 'Hot Chili', '🍲', 'barn', 240, 15);
 item('angora_hat', 'Angora Hat', '👒', 'barn', 170, 10);
@@ -294,7 +294,7 @@ item('grape_juice', 'Grape Juice', '@grape_juice', 'barn', 150, 16);
 item('pineapple_juice', 'Pineapple Juice', '@pineapple_juice', 'barn', 170, 18);
 item('plum_jam', 'Plum Jam', '@plum_jam', 'barn', 130, 12);
 item('pickles', 'Pickles', '@pickles', 'barn', 90, 8);
-item('stir_fry', 'Veggie Stir Fry', '🥘', 'barn', 170, 12);
+item('stir_fry', 'Veggie Stir Fry', '@stir_fry', 'barn', 170, 12);
 item('banana_bread', 'Banana Bread', '@banana_bread', 'barn', 200, 15);
 item('guacamole', 'Guacamole', '@guacamole', 'barn', 230, 18);
 item('olive_oil', 'Olive Oil', '@olive_oil', 'barn', 190, 17);
@@ -1657,7 +1657,7 @@ export const BUILDINGS: BuildingDef[] = [
   b({ id: 'yak_pasture', name: 'Yak Pasture', icon: '🐂', kind: 'pen', w: 3, h: 2, cost: 3200, level: 18, xp: 70, height: 26, wall: '#9ccc5a', roof: '#5a3a2a', animal: 'yak', capacity: 4, desc: 'Shaggy yaks grow thick wool for warm blankets.' }),
   b({ id: 'camel_corral', name: 'Camel Corral', icon: '🐪', kind: 'pen', w: 3, h: 2, cost: 3800, level: 20, xp: 80, height: 26, wall: '#e2cf98', roof: '#c0602a', animal: 'camel', capacity: 4, desc: 'Camels give creamy milk for a rare cheese. They eat wheat.' }),
   b({ id: 'stable', name: 'Stable', icon: '🐎', kind: 'pen', w: 3, h: 2, cost: 2500, level: 15, xp: 60, height: 26, wall: '#c2a36b', roof: '#8e2c20', animal: 'horse', capacity: 5, desc: 'Up to 5 horses. Each horse adds 5% to order coins.' }),
-  b({ id: 'salad_bar', name: 'Salad Bar', icon: '🥙', kind: 'production', w: 2, h: 2, cost: 1300, level: 10, xp: 45, height: 52, wall: '#e9f7dc', roof: '#5aa83a', desc: 'Tosses fresh garden and fruit salads.' }),
+  b({ id: 'salad_bar', name: 'Salad Bar', icon: '🥗', kind: 'production', w: 2, h: 2, cost: 1300, level: 10, xp: 45, height: 52, wall: '#e9f7dc', roof: '#5aa83a', desc: 'Tosses fresh garden and fruit salads.' }),
   b({ id: 'pizzeria', name: 'Pizzeria', icon: '@pizza', kind: 'production', w: 2, h: 2, cost: 2400, level: 12, xp: 60, height: 58, wall: '#f7e1c4', roof: '#c0392b', desc: 'A wood fired oven for pizzas.' }),
   b({ id: 'coffee_kiosk', name: 'Coffee Kiosk', icon: '☕', kind: 'production', w: 2, h: 2, cost: 2800, level: 13, xp: 65, height: 54, wall: '#efe0cf', roof: '#6b4226', desc: 'Brews lemonade, espresso and lattes.' }),
   b({ id: 'oil_press', name: 'Olive Press', icon: '@olive_oil', kind: 'production', w: 2, h: 2, cost: 3400, level: 17, xp: 70, height: 56, wall: '#efe4cc', roof: '#6a7a3a', desc: 'Presses olives into oil and blends pesto.' }),
