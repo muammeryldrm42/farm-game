@@ -2,7 +2,8 @@
 import { useEffect, useRef, useState } from 'react';
 import { GameStore, TUTORIAL_DONE, fmtTime, loadGame, plotProgress, type FarmObject } from '@/game/state';
 import { BUILDING } from '@/game/data';
-import { Renderer, nightFactor } from '@/game/render3d';
+import { Renderer, nightFactor, redrawCanvasTextures } from '@/game/render3d';
+import { loadEmojiFont } from '@/game/emojiFont';
 import { sfx, sleepAudio, startAmbience, startMusic, stopAmbience, stopMusic, voice } from '@/game/audio';
 import { weatherAt } from '@/game/weather';
 import { buzz } from '@/game/haptics';
@@ -240,6 +241,8 @@ function FarmCanvas({ onDrawn, onFail }: { onDrawn: () => void; onFail: () => vo
       return;
     }
     r.onFirstDraw = onDrawn;
+    // the game's own emoji on Android: what was painted before they came is painted again
+    loadEmojiFont().then((ok) => { if (ok) redrawCanvasTextures(); });
     (window as unknown as { __farm?: unknown }).__farm = { store, renderer: r };
     store.viewCenter = () => r.gridAt(r.W / 2, r.H / 2);
     store.toScreen = (gx, gy, z) => r.toScreen(gx, gy, z);

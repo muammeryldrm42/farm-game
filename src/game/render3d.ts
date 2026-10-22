@@ -237,7 +237,8 @@ const texCache = new Map<string, THREE.Texture>();
 // GPU and as much again in memory. One still on show when freed is simply sent to the GPU again.
 const recentCache = new Map<string, THREE.Texture>();
 const RECENT_MAX = 160;
-const EF = '"Apple Color Emoji","Segoe UI Emoji","Noto Color Emoji",sans-serif';
+// the emoji fonts: the game's own on Android first (see emojiFont.ts; skipped where not loaded)
+const EF = '"Farm Emoji","Apple Color Emoji","Segoe UI Emoji","Noto Color Emoji",sans-serif';
 function canvasTex(key: string, w: number, h: number, draw: (c: CanvasRenderingContext2D) => void, recent = false) {
   const cache = recent ? recentCache : texCache;
   let t = cache.get(key);
@@ -252,6 +253,10 @@ function canvasTex(key: string, w: number, h: number, draw: (c: CanvasRenderingC
   t = new THREE.CanvasTexture(cv);
   t.colorSpace = THREE.SRGBColorSpace;
   t.anisotropy = 4;
+  // drawn again once the game's emoji font arrives (see redrawCanvasTextures)
+  const tt = t;
+  // (setting the width clears the canvas and every setting of its context, as for a new one)
+  t.userData.redraw = () => { cv.width = w; draw(c); tt.needsUpdate = true; };
   cache.set(key, t);
   if (recent) {
     inRecent.add(t);
@@ -263,6 +268,12 @@ function canvasTex(key: string, w: number, h: number, draw: (c: CanvasRenderingC
     }
   }
   return t;
+}
+
+// every painted texture drawn again: called once when the emoji font loads on Android, so icons
+// painted before it came show the font's pictures rather than the phone's (or an empty box)
+export function redrawCanvasTextures() {
+  for (const t of [...texCache.values(), ...recentCache.values()]) (t.userData.redraw as (() => void) | undefined)?.();
 }
 const inRecent = new WeakSet<THREE.Texture>();
 // a recent texture a sprite has stopped showing: freed if it has left the cache meanwhile (it was
@@ -346,7 +357,7 @@ const SPARKS = 22;
 function speechTex(text: string) {
   const cv = document.createElement('canvas');
   const c = cv.getContext('2d') as CanvasRenderingContext2D;
-  const font = '800 40px ui-rounded, "Trebuchet MS", system-ui, sans-serif';
+  const font = '800 40px ui-rounded, "Trebuchet MS", "Farm Emoji", system-ui, sans-serif';
   c.font = font;
   const words = text.split(/\s+/);
   const lines: string[] = [];
@@ -380,7 +391,7 @@ function speechTex(text: string) {
 // `recent`: a floating text, one of many (see recentCache)
 function textTex(text: string, color: string, recent = false) {
   return canvasTex(`t|${text}|${color}`, 512, 96, (c) => {
-    c.font = '900 54px ui-rounded, "Trebuchet MS", system-ui, sans-serif';
+    c.font = '900 54px ui-rounded, "Trebuchet MS", "Farm Emoji", system-ui, sans-serif';
     c.textAlign = 'center'; c.textBaseline = 'middle';
     c.lineWidth = 12; c.strokeStyle = 'rgba(60,35,10,0.9)'; c.lineJoin = 'round';
     c.fillStyle = color;
@@ -1687,7 +1698,7 @@ export class Renderer {
     const tex = canvasTex(`forsale-${getLang()}`, 256, 128, (c) => {
       c.fillStyle = '#c98a45'; c.fillRect(0, 0, 256, 128);
       c.strokeStyle = '#6b4226'; c.lineWidth = 12; c.strokeRect(6, 6, 244, 116);
-      c.fillStyle = '#fff8e6'; c.font = '900 48px ui-rounded, "Trebuchet MS", system-ui, sans-serif';
+      c.fillStyle = '#fff8e6'; c.font = '900 48px ui-rounded, "Trebuchet MS", "Farm Emoji", system-ui, sans-serif';
       c.textAlign = 'center'; c.textBaseline = 'middle'; c.fillText(tr('FOR SALE'), 128, 66);
     });
     const board = new THREE.Mesh(G.box, [M('#a8733f'), M('#a8733f'), M('#a8733f'), M('#a8733f'), new THREE.MeshLambertMaterial({ map: tex }), new THREE.MeshLambertMaterial({ map: tex })]);
@@ -2709,7 +2720,7 @@ export class Renderer {
         c.fillStyle = ready ? '#5cb82e' : '#ffd23a'; c.fillRect(46, 96, 36, 14);
         c.textAlign = 'center'; c.textBaseline = 'middle';
         if (ready) { c.font = `64px ${EF}`; c.fillText('🎁', 64, 64); }
-        else { c.fillStyle = '#5d3a1f'; c.font = '900 84px ui-rounded, "Trebuchet MS", system-ui, sans-serif'; c.fillText('!', 64, 64); }
+        else { c.fillStyle = '#5d3a1f'; c.font = '900 84px ui-rounded, "Trebuchet MS", "Farm Emoji", system-ui, sans-serif'; c.fillText('!', 64, 64); }
       });
       v.mark.material.needsUpdate = true;
     }
