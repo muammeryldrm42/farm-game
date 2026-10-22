@@ -6,6 +6,7 @@ By Talons Protocol.
 
 ## Features
 
+- In all today: 133 crops, 99 animals each with its own home, 98 fruit trees, 29 workshops with 369 recipes, 85 kinds of fish, 97 decorations in the shop (and 8 season event prizes), 40 goals, 13 badges, 6 album and 6 museum collections, a 200 chapter story and 21 languages. The lines below grew with the game, so their own counts are what each step added
 - Real time 3D farm with sun shadows, drifting cloud shadows, day and night cycle with glowing windows, sea shimmer, chimney smoke and turning windmills
 - Canvas generated textures with normal maps (roof tiles, boards, siding, stone, grass, soil, bark, sand, metal, straw), rounded animals, farmer and trees
 - Wind blown instanced grass and wild flowers, animated water with shallows and surf, gradient sky with stars
