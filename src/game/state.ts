@@ -1920,6 +1920,16 @@ export class GameStore {
     if (kind === 'harvest' || kind === 'plant') {
       const crop = key || null;
       const plot = s.objects.find((o) => o.type === 'plot' && (crop ? o.plot?.crop === crop : false)) ?? s.objects.find((o) => o.type === 'plot' && !o.plot?.crop);
+      // every field busy but one is ripe (a new farm's wheat): that one, to harvest and free it
+      const ripe = plot ? null : s.objects.find((o) => o.type === 'plot' && plotProgress(o, now).ready);
+      if (ripe) {
+        this.ui.panel = null;
+        const f = footprint(ripe);
+        this.focusOn(ripe.x + f.w / 2, ripe.y + f.h / 2);
+        this.select(ripe.id);
+        this.emit(false);
+        return;
+      }
       // no field free for it: the crop in the shop, with the fields to buy beside it
       if (!plot) { shopFor(crop ?? 'plot'); if (crop) this.toast(tr('Plant {item} in a free field. Buy another field if all are busy.', { item: tr(ITEMS[crop]?.name ?? 'it') })); return; }
       this.ui.panel = null;
