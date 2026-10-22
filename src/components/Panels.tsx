@@ -79,8 +79,17 @@ const safePad = (m: string, sides: ('top' | 'right' | 'bottom' | 'left')[] = ['t
   Object.fromEntries(sides.map((k) => [`padding${k[0].toUpperCase()}${k.slice(1)}`, `max(${extra[k] ?? m}, env(safe-area-inset-${k}))`]));
 
 function Modal({ title, icon, onClose, children, wide = false }: { title: string; icon?: string; onClose: () => void; children: ReactNode; wide?: boolean }) {
+  // A tap on the dim backdrop closes the window: on the click, not as the finger touches down
+  // (the window gone at once, the rest of the same tap would press whatever was under it, as the
+  // shop button), and only a tap that began on the backdrop (not a scroll that ends there)
+  const downOnBack = useRef(false);
   return (
-    <div className="pointer-events-auto fixed inset-0 z-30 flex items-center justify-center bg-black/40 p-3" style={safePad('0.75rem')} onPointerDown={(e) => e.target === e.currentTarget && onClose()}>
+    <div
+      className="pointer-events-auto fixed inset-0 z-30 flex items-center justify-center bg-black/40 p-3"
+      style={safePad('0.75rem')}
+      onPointerDown={(e) => { downOnBack.current = e.target === e.currentTarget; }}
+      onClick={(e) => { if (downOnBack.current && e.target === e.currentTarget) onClose(); downOnBack.current = false; }}
+    >
       <div className={`panel flex max-h-[88vh] w-full animate-pop flex-col ${wide ? 'max-w-3xl' : 'max-w-md'}`}>
         <div className="relative flex items-center justify-center rounded-t-[1.2rem] bg-[#a8733f] px-12 py-2.5 text-white">
           {icon && <span className="emoji mr-2 text-2xl"><Ico i={icon} /></span>}
@@ -419,9 +428,9 @@ function ProductionSheet({ o }: { o: FarmObject }) {
           </button>
         )}
       </div>
-      <ObjectActions o={o} />
 
-      {/* recipes */}
+      {/* recipes (right under the queue: on a phone on its side, what to make comes first and
+          Move, Rotate and Sell below it, as for the fields) */}
       <div className="mt-3 grid grid-cols-1 gap-2 sm:grid-cols-2">
         {recipes.map((r) => {
           const it = ITEMS[r.id];
@@ -465,6 +474,7 @@ function ProductionSheet({ o }: { o: FarmObject }) {
           );
         })}
       </div>
+      <ObjectActions o={o} />
     </Sheet>
   );
 }
@@ -2252,8 +2262,7 @@ function TaskRow({ ch, i }: { ch: Chapter; i: number }) {
     <button
       className={`card flex w-full items-center gap-2 p-2 text-left transition active:scale-[0.98] ${done ? 'ring-2 ring-[#5cb82e]' : 'hover:ring-2 hover:ring-[#ff8a1f]'}`}
       disabled={done}
-      onPointerDown={(e) => e.stopPropagation()}
-      onClick={() => store.guideTask(task)}
+      onClick={(e) => { e.stopPropagation(); store.guideTask(task); }}
       title={t(done ? 'Done' : 'Show me where')}
     >
       <span className="emoji text-2xl"><Ico i={task.icon} id={task.kind === 'count' ? task.key : undefined} /></span>
@@ -2270,7 +2279,8 @@ function TaskRow({ ch, i }: { ch: Chapter; i: number }) {
 }
 
 // A chapter told in speech bubbles: the teller's portrait, their words typed out, and the tasks
-// on the last bubble. Tap anywhere to go on.
+// on the last bubble. Tap anywhere to go on (on the click: as the finger touches down, the last
+// bubble would close and the rest of the tap press whatever was under it).
 function StoryDialog() {
   const store = useStore();
   const d = store.ui.story!;
@@ -2303,7 +2313,7 @@ function StoryDialog() {
   };
   const r = storyReward(ch.n);
   return (
-    <div className="pointer-events-auto fixed inset-0 z-40 flex flex-col justify-end bg-black/35 p-3 pb-6 font-game sm:items-center" style={safePad('0.75rem', ['top', 'right', 'bottom', 'left'], { bottom: '1.5rem' })} onPointerDown={next}>
+    <div className="pointer-events-auto fixed inset-0 z-40 flex flex-col justify-end bg-black/35 p-3 pb-6 font-game sm:items-center" style={safePad('0.75rem', ['top', 'right', 'bottom', 'left'], { bottom: '1.5rem' })} onClick={next}>
       <div className="w-full max-w-xl animate-pop">
         {d.i === 0 && (
           <div className="mb-2 flex justify-center">
