@@ -5054,19 +5054,24 @@ const MODEL_GLOW = new Set<THREE.MeshStandardMaterial>();
 // texels to each pixel across it), and in low quality (phones) to 512 px at most. A crab or a
 // parrot is a few dozen pixels across even then; a busy farm keeping every texture whole takes
 // hundreds of MB of GPU memory, more than a phone can spare (the app then stalls or is closed).
+// A phone with little memory (2 GB or less, as its browser tells) keeps them at 256 px whatever
+// the quality: a quarter of the memory, where a busy farm would otherwise not fit. The farmhouse
+// and the manor, one of each and always in view, keep the usual size.
 const LOW_TEX = 512;
+const LOW_RAM_TEX = 256;
+const LOW_RAM = typeof navigator !== 'undefined' && ((navigator as { deviceMemory?: number }).deviceMemory ?? 8) <= 2;
 // how many screen pixels a unit of the farm covers at most (the closest zoom, near the bottom of
 // the screen): set by Renderer.resize
 let PX_PER_UNIT = 120;
 const texBox = new THREE.Box3();
 const texSize = new THREE.Vector3();
-function shrinkTextures(root: THREE.Object3D, far = false) {
+function shrinkTextures(root: THREE.Object3D, far = false, home = false) {
   if (typeof createImageBitmap === 'undefined') return Promise.resolve();
   texBox.setFromObject(root).getSize(texSize);
   // (the far twin of a model is only drawn from afar: half that is plenty)
   const need = Math.max(texSize.x, texSize.y, texSize.z) * PX_PER_UNIT * (far ? 1.25 : 2.5);
   const fit = 2 ** Math.ceil(Math.log2(Math.max(64, need)));
-  const cap = getQuality() === 'high' ? fit : Math.min(fit, LOW_TEX);
+  const cap = LOW_RAM && !home ? Math.min(fit, LOW_RAM_TEX) : getQuality() === 'high' ? fit : Math.min(fit, LOW_TEX);
   const seen = new Set<THREE.Texture>();
   const jobs: Promise<void>[] = [];
   root.traverse((o) => {
@@ -5113,7 +5118,7 @@ function loadModel(name: string) {
         }
       });
       gl.scene.userData.top = new THREE.Box3().setFromObject(gl.scene).max.y;
-      return shrinkTextures(gl.scene, name.startsWith('lod/')).then(() => {
+      return shrinkTextures(gl.scene, name.startsWith('lod/'), name === 'farmhouse' || name === 'manor').then(() => {
         // its shaders compile in the background before it is used, so a model arriving mid
         // game never freezes the picture while the GPU compiles (crops, animals, decorations
         // and trees are drawn in batches: their instanced shaders too)
