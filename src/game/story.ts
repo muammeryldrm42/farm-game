@@ -191,15 +191,16 @@ const MILESTONES: Record<number, Milestone> = {
   200: { title: 'The Golden Nest', who: 'grandpa', lines: ['It is here. The golden bird has come back to Talon Valley, to your farm.', 'You did what no farmer has done in a hundred years. I am so proud of you.'], outro: 'The legend is true, and it is yours. Thank you, from all of Talon Valley.' },
 };
 
+// (the player is called farmer, in every language)
 const GREET: Record<CastId, string[]> = {
-  grandpa: ['Good morning, kiddo!', 'Ah, there you are!'],
+  grandpa: ['Good morning, farmer!', 'Ah, there you are!'],
   bramble: ['Good day, farmer!', 'Ahem! Mayor Bramble here.'],
-  ivy: ['Hi neighbor!', 'Hello there, green thumb!'],
+  ivy: ['Hi, farmer!', 'Hello there, farmer!'],
   maya: ['Hello, farmer!', 'Doc Maya here!'],
   rosie: ['Yoo hoo, farmer!', 'Hi hi! Rosie here.'],
-  marco: ['Buongiorno, my friend!', 'Ciao, farmer!'],
+  marco: ['Buongiorno, farmer!', 'Ciao, farmer!'],
   finn: ['Ahoy, farmer!', 'Ahoy there!'],
-  hazel: ['Ah, just the farmer I wanted to see.', 'Greetings, my friend!'],
+  hazel: ['Ah, just the farmer I wanted to see.', 'Greetings, farmer!'],
 };
 
 const OUTRO: Record<CastId, string[]> = {
