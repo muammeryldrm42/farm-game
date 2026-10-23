@@ -18,7 +18,7 @@ import Hud from './Hud';
 import Panels from './Panels';
 import Flyers from './Flyers';
 import { Guard } from './Guard';
-import { kvFlush, kvInit, kvSet } from '@/game/kv';
+import { kvFlush, kvGet, kvInit, kvSet } from '@/game/kv';
 import { inYouTube, onYtAudio, onYtPause, ytAudioOn, ytFirstFrame, ytPaused, ytReady, ytWire } from '@/game/yt';
 
 // the farm was drawn once (the card of what is ready on coming back waits for it)
@@ -125,7 +125,8 @@ function startFarm(show: (st: GameStore) => void) {
   const save = () => { st.saveNow(); void kvFlush(); };
   // The farm open in a second tab of the same browser (on the web): the newest tab plays. Each
   // tab says so as it opens; an older one hearing it stops (no more saves over the newer farm, no
-  // clock, no sound) and offers to play there instead, which loads the farm afresh.
+  // clock, no sound) and offers to play there instead, which loads the farm afresh. (Not inside
+  // YouTube, which has no tabs of its own and would only be sent the mark with the save.)
   // On the web the browser is asked to keep the farm's storage for good: not cleared when the
   // device runs short of space, nor (where Safari grants it) after its seven days without a visit.
   // Chrome and Safari decide by themselves; Firefox would ask the player, so not there.
@@ -134,7 +135,8 @@ function startFarm(show: (st: GameStore) => void) {
   }
   const TAB_KEY = 'talons-farm-tab';
   const tabId = `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
-  kvSet(TAB_KEY, tabId);
+  const tabs = !inYouTube();
+  if (tabs) kvSet(TAB_KEY, tabId);
   const onStorage = (e: StorageEvent) => {
     if (e.key !== TAB_KEY || !e.newValue || e.newValue === tabId || st.elsewhere) return;
     st.elsewhere = true;
@@ -142,9 +144,11 @@ function startFarm(show: (st: GameStore) => void) {
     syncMusic();
   };
   window.addEventListener('storage', onStorage);
-  // (and where the player left off, for the card of what is ready when they are back)
+  // (and where the player left off, for the card of what is ready when they are back). Saved
+  // as the page is left too: pagehide, which unlike beforeunload lets the browser keep the page
+  // for its Back button (see onShow).
   const vis = () => { if (document.visibilityState === 'hidden') { save(); st.awayFrom ??= clockNow(); } };
-  window.addEventListener('beforeunload', save);
+  window.addEventListener('pagehide', save);
   document.addEventListener('visibilitychange', vis);
   // while YouTube has the game paused nothing runs: no ticks, no frames (see FarmCanvas), no sound.
   // Nor in the background (the Android app keeps its page running there): the farm's timers are
@@ -190,6 +194,16 @@ function startFarm(show: (st: GameStore) => void) {
   const reclock = () => syncClock().then(() => { ahead(); owed(); st.tick(); st.emit(false); if (document.visibilityState === 'visible' && drawnOnce) st.welcomeBack(); });
   const visClock = () => { if (document.visibilityState === 'visible') reclock(); };
   document.addEventListener('visibilitychange', visClock);
+  // Back to the farm with the browser's Back button, the page as it was left (kept by the
+  // browser): when the farm was played in another tab meanwhile, the farm here is old, so it loads
+  // afresh (the newest save; this tab plays); else the clock is set again
+  const onShow = (e: PageTransitionEvent) => {
+    if (!e.persisted) return;
+    if (tabs && kvGet(TAB_KEY) !== tabId) { location.reload(); return; }
+    reclock();
+    syncMusic();
+  };
+  window.addEventListener('pageshow', onShow);
   const drift = setInterval(() => { if (!busy()) return; if (clockDrifted()) reclock(); else ahead(); }, 5000);
   const owedT = setTimeout(owed, 8000);
   // YouTube pauses the game: the farm is saved and the sound stops; back, the clock is set again
@@ -231,7 +245,8 @@ function startFarm(show: (st: GameStore) => void) {
     for (const h of native) h.then((x) => x.remove());
     stopMusic();
     document.removeEventListener('visibilitychange', syncMusic);
-    window.removeEventListener('beforeunload', save);
+    window.removeEventListener('pagehide', save);
+    window.removeEventListener('pageshow', onShow);
     window.removeEventListener('storage', onStorage);
     document.removeEventListener('visibilitychange', vis);
     clearInterval(tick);
