@@ -2068,6 +2068,7 @@ function SettingsModal() {
   const [code, setCode] = useState('');
   const [mode, setMode] = useState<'none' | 'export' | 'import' | 'reset'>('none');
   const [copied, setCopied] = useState(false);
+  const codeBox = useRef<HTMLTextAreaElement>(null);
   const set = (k: keyof typeof st, v: boolean) => {
     store.s.settings = { ...st, [k]: v };
     store.emit();
@@ -2119,16 +2120,25 @@ function SettingsModal() {
 
       {mode === 'export' && (
         <div className="mt-3">
-          <textarea readOnly value={code} className="h-24 w-full select-text rounded-xl border-2 border-[#e2cc9c] bg-white p-2 font-mono text-[10px]" onFocus={(e) => e.currentTarget.select()} />
+          <textarea ref={codeBox} readOnly value={code} className="h-24 w-full select-text rounded-xl border-2 border-[#e2cc9c] bg-white p-2 font-mono text-[10px]" onFocus={(e) => e.currentTarget.select()} />
           <button
             className="btn btn-green mt-1"
             onClick={async () => {
               try {
                 await navigator.clipboard.writeText(code);
                 setCopied(true);
-              } catch {
-                setCopied(false);
+                return;
+              } catch { /* no clipboard to write to: the old way below */ }
+              // (an older Android WebView has no clipboard to write to: the code is selected in its
+              // box and copied the old way, which it knows)
+              const box = codeBox.current;
+              let ok = false;
+              if (box) {
+                box.focus();
+                box.select();
+                try { ok = document.execCommand('copy'); } catch { ok = false; }
               }
+              setCopied(ok);
             }}
           >
             {t(copied ? 'Copied' : 'Copy')}
