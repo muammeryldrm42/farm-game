@@ -33,8 +33,9 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
       <head>
         {/* The game needs a browser engine from Chrome 94 on (Android System WebView too): an older
             one cannot even load its code, and would keep the start up screen for good. It is sent
-            to a page saying what to update (webview.html, see tools/old_engine_page.mjs). */}
-        <script dangerouslySetInnerHTML={{ __html: "try{new Function('class A{static{}}')}catch(e){location.replace('webview.html')}" }} />
+            to a page saying what to update (webview.html, see tools/old_engine_page.mjs). The privacy
+            page, plain text that any engine shows, stays. */}
+        <script dangerouslySetInnerHTML={{ __html: "try{new Function('class A{static{}}')}catch(e){if(!/privacy/.test(location.pathname))location.replace('webview.html')}" }} />
       </head>
       <body className="font-game">{children}</body>
     </html>
