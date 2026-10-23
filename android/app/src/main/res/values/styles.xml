@@ -16,7 +16,10 @@
     </style>
 
 
+    <!-- Android 12 and later show their own start screen, the app's icon on this colour: the game's
+         sky, as the page that follows it (no white or black flash before it, in dark mode too) -->
     <style name="AppTheme.NoActionBarLaunch" parent="Theme.SplashScreen">
         <item name="android:background">@drawable/splash</item>
+        <item name="windowSplashScreenBackground">@color/ic_launcher_background</item>
     </style>
 </resources>
