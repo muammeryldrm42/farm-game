@@ -3,12 +3,16 @@
 	"appName": "Talons Farm",
 	"webDir": "out",
 	"android": {
-		"backgroundColor": "#3f9fd8"
+		"backgroundColor": "#3f9fd8",
+		"minWebViewVersion": 94
 	},
 	"plugins": {
 		"LocalNotifications": {
 			"smallIcon": "ic_stat_farm",
 			"iconColor": "#5cb82e"
 		}
+	},
+	"server": {
+		"errorPath": "webview.html"
 	}
 }
