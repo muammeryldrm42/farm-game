@@ -1012,7 +1012,8 @@ function ShopCard({ d }: { d: BuildingDef }) {
     >
       {guide.on && <GuideMark />}
       <span className={`emoji text-4xl ${locked ? 'grayscale' : ''}`}><Ico i={d.icon} id={d.id} /></span>
-      <span className="font-bold leading-tight">{t(d.name)}</span>
+      {/* (a name longer than the card, one German word, breaks inside it rather than sticking out) */}
+      <span className="font-bold leading-tight [overflow-wrap:anywhere]">{t(d.name)}</span>
       <span className="line-clamp-2 min-h-[2rem] text-[11px] leading-4 text-[#8a6a44]">{t(d.desc)}</span>
       {prizeOf && !won ? (
         <span className="rounded-full px-2 py-0.5 text-[11px] font-bold text-white" style={{ background: SEASONS[prizeOf].color }}>
@@ -1311,7 +1312,8 @@ function BeautyModal() {
           {b.kinds.slice(0, 8).map((k) => (
             <div key={k.type} className="card flex items-center gap-2 px-2 py-1.5">
               <span className="emoji text-xl"><Ico i={BUILDING[k.type].icon} id={k.type} /></span>
-              <span className="min-w-0 flex-1 truncate text-xs font-bold">{t(BUILDING[k.type].name)}{k.n > 1 ? ` ×${k.n}` : ''}</span>
+              {/* (a long name on two lines rather than cut short) */}
+              <span className="line-clamp-2 min-w-0 flex-1 text-xs font-bold leading-tight">{t(BUILDING[k.type].name)}{k.n > 1 ? ` ×${k.n}` : ''}</span>
               <span className="text-xs font-bold text-[#b8327a]">{fmtNum(k.points)}</span>
             </div>
           ))}
@@ -1866,7 +1868,8 @@ function DailyTasks() {
             <span className="emoji w-8 shrink-0 text-center text-2xl"><Ico i={dailyIcon(tk)} id={tk.item} /></span>
             <div className="min-w-0 flex-1">
               <div className="flex items-center justify-between gap-2 text-sm font-bold">
-                <span className="min-w-0 truncate">{dailyText(tk)}</span>
+                {/* (the whole task, on two lines if it must: cut short it would not say what to do) */}
+                <span className="min-w-0 leading-tight">{dailyText(tk)}</span>
                 <span className="shrink-0 text-xs">{p}/{tk.target}</span>
               </div>
               <Bar p={p / tk.target} color={tk.claimed ? '#f5b92b' : '#5cb82e'} />

@@ -22,6 +22,11 @@ canvas {
 @layer components {
   .panel {
     @apply rounded-3xl border-4 border-[#8a5a2b] bg-[#fff6df] text-[#5a3a1a] shadow-[0_8px_0_#5d3a1f,0_16px_30px_rgba(0,0,0,0.35)];
+    /* a word longer than its card (German makes them: Holländerkaninchenstall) breaks onto the
+       next line, hyphenated where the browser knows the language, instead of sticking out or
+       being cut off */
+    overflow-wrap: break-word;
+    hyphens: auto;
   }
   .card {
     @apply rounded-2xl border-2 border-[#e2cc9c] bg-[#fffaf0] shadow-[0_3px_0_#e2cc9c];
