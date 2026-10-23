@@ -1074,12 +1074,13 @@ function ShopModal() {
     );
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [cardsKey, shown]);
-  // the chosen tab is kept in view along the row (the last ones sit past its end on a phone)
+  // the chosen tab is kept in view along the row (the last ones sit past its end on a phone; with
+  // a mouse, whose wheel does not scroll sideways, the tabs wrap onto a second row instead)
   const tabRow = useRef<HTMLDivElement>(null);
   useEffect(() => { tabRow.current?.querySelector('[data-on]')?.scrollIntoView({ block: 'nearest', inline: 'nearest' }); }, [tab]);
   return (
     <Modal title={t('Shop')} icon="🛒" onClose={() => store.openPanel(null)} wide>
-      <div ref={tabRow} className="mb-3 flex gap-1.5 overflow-x-auto pb-1">
+      <div ref={tabRow} className="mb-3 flex gap-1.5 overflow-x-auto pb-1 [@media(pointer:fine)]:flex-wrap">
         {SHOP_TABS.map((x) => (
           <button key={x.id} data-on={tab === x.id ? '' : undefined} className={`btn shrink-0 ${tab === x.id ? 'btn-yellow' : 'btn-ghost'}`} onClick={() => setTab(x.id)}>
             <span className="emoji"><Ico i={x.icon} /></span> {t(x.label)}
@@ -1496,8 +1497,9 @@ function QuestsModal() {
   const icon = { story: '📖', goals: '🏆', cup: '🥇', badges: '🎖️', album: '📔', museum: '🏛️' }[tab];
   return (
     <Modal title={t(title)} icon={icon} onClose={() => store.openPanel(null)}>
-      {/* six tabs on one row: a little smaller, and the row scrolls sideways if a language's words are long */}
-      <div className="-mt-1 mb-2 flex gap-1 overflow-x-auto pr-1 pt-1.5">
+      {/* six tabs on one row: a little smaller, and the row scrolls sideways if a language's words are
+          long (with a mouse, whose wheel does not scroll sideways, they wrap onto a second row) */}
+      <div className="-mt-1 mb-2 flex gap-1 overflow-x-auto pr-1 pt-1.5 [@media(pointer:fine)]:flex-wrap">
         <button className={`btn shrink-0 px-2.5 text-sm relative ${tab === 'story' ? 'btn-yellow' : 'btn-ghost'}`} onClick={() => setTab('story')}>
           {t('Story')}
           {store.chapterReady() && <span className="badge">1</span>}
