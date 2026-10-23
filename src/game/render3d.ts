@@ -5115,13 +5115,17 @@ function packGeometry(g: THREE.BufferGeometry) {
 const LOW_TEX = 512;
 const LOW_RAM_TEX = 256;
 const DEVICE_MEM = typeof navigator !== 'undefined' ? ((navigator as { deviceMemory?: number }).deviceMemory ?? 8) : 8;
-const LOW_RAM = DEVICE_MEM <= 2;
+// The Android app also says how many times in the last three days Android closed the game's page
+// for want of memory (see MainActivity): the farm is then kept as on such a phone, so a farm too
+// big for the phone fits instead of being closed again and again as it loads. (Told before the
+// game starts: it waits for the app's word on the time, which comes with it.)
+const lowRam = () => DEVICE_MEM <= 2 || ((globalThis as { __gone?: number }).__gone ?? 0) > 0;
 // The models' textures are counted as they load (with their smaller mip levels). A very big farm
 // (a hundred kinds of building and more) past what the phone can hold (192 MB on a 4 GB phone,
 // 320 MB above, twice that in high quality) has the models still to come loaded a step smaller,
 // so its page is not closed for want of memory; a usual farm stays well under it.
 let texBytes = 0;
-const texBudget = () => (DEVICE_MEM <= 4 ? 192e6 : 320e6) * (getQuality() === 'high' ? 2 : 1);
+const texBudget = () => (DEVICE_MEM <= 4 || lowRam() ? 192e6 : 320e6) * (getQuality() === 'high' ? 2 : 1);
 // how many screen pixels a unit of the farm covers at most (the closest zoom, near the bottom of
 // the screen): set by Renderer.resize
 let PX_PER_UNIT = 120;
@@ -5133,7 +5137,7 @@ function shrinkTextures(root: THREE.Object3D, far = false, home = false) {
   // (the far twin of a model is only drawn from afar: half that is plenty)
   const need = Math.max(texSize.x, texSize.y, texSize.z) * PX_PER_UNIT * (far ? 1.25 : 2.5);
   const fit = 2 ** Math.ceil(Math.log2(Math.max(64, need)));
-  let cap = LOW_RAM && !home ? Math.min(fit, LOW_RAM_TEX) : getQuality() === 'high' ? fit : Math.min(fit, LOW_TEX);
+  let cap = lowRam() && !home ? Math.min(fit, LOW_RAM_TEX) : getQuality() === 'high' ? fit : Math.min(fit, LOW_TEX);
   if (!home && texBytes > texBudget()) cap = Math.min(cap, getQuality() === 'high' ? LOW_TEX : LOW_RAM_TEX);
   const seen = new Set<THREE.Texture>();
   const jobs: Promise<void>[] = [];
