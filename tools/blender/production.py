@@ -415,10 +415,20 @@ def pizzeria():
     # a giant pizza on the ridge and a stack of firewood
     cyl(uid('pz'), 0.2, 0.04, (0, -0.02, top + 0.2), pm('pz_crust', '#e0a050'), verts=24, rot=(math.radians(70), 0, 0))
     cyl(uid('pzs'), 0.17, 0.045, (0, -0.023, top + 0.2), pm('pz_cheese', '#f6c83a'), verts=24, rot=(math.radians(70), 0, 0), bev=0)
-    pep = pm('pepperoni', '#b8281a')
-    for a, r in ((0.3, 0.09), (2.0, 0.1), (3.9, 0.08), (5.2, 0.1), (1.1, 0.02)):
+    # a veggie pizza (the farm has no meat): basil leaves, black olives and mushrooms
+    basil, olive, mush = pm('pz_basil', '#2f8a26'), pm('pz_olive', '#2a2622'), pm('pz_mush', '#e8dcc0')
+    tilt = math.radians(70)
+
+    def on_pizza(a, r, lift=0.0):
         x, z = math.cos(a) * r, math.sin(a) * r
-        cyl(uid('pp'), 0.03, 0.05, (x, -0.03 - z * 0.34, top + 0.2 + z * 0.94), pep, verts=12, rot=(math.radians(70), 0, 0), bev=0)
+        return (x, -0.035 - z * 0.34 - lift * 0.94, top + 0.2 + z * 0.94 + lift * 0.34)
+
+    for a, r in ((0.3, 0.1), (2.3, 0.11), (4.2, 0.09)):
+        ball(uid('basil'), 0.035, on_pizza(a, r), basil, scale=(1, 0.5, 0.25), segs=8).rotation_euler = (tilt, 0, a)
+    for a, r in ((1.2, 0.12), (3.2, 0.12), (5.3, 0.11), (0.0, 0.0)):
+        torus(uid('olive'), 0.016, 0.007, on_pizza(a, r), olive, rot=(tilt, 0, 0), segs=12, rsegs=5)
+    for a, r in ((1.9, 0.06), (4.9, 0.06)):
+        ball(uid('mush'), 0.022, on_pizza(a, r), mush, scale=(1, 1, 0.35), segs=8).rotation_euler = (tilt, 0, 0)
     for x, z in ((-0.62, 0.03), (-0.5, 0.03), (-0.56, 0.085)):
         cyl(uid('wd'), 0.03, 0.22, (x, front_y(0.12), z), pm('pz_wood', '#8a5a30'), verts=8, rot=(math.radians(90), 0, 0))
     done('pizzeria', glow=('glass', 'glass_hi', 'lamp', 'fire'))

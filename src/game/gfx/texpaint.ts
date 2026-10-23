@@ -236,3 +236,14 @@ export function paintSurface(kind: SurfaceKind): SurfacePixels {
   }
   return { size, albedo: new Uint8Array(albedo.buffer), normal: new Uint8Array(normal.buffer) };
 }
+
+// A fingerprint of the painting, every painter and helper as written: the pixels kept on a device
+// (see textures.ts) are painted again whenever it changes
+export function paintPrint() {
+  let s = '';
+  for (const k of SURFACE_KINDS) s += `${k}${PAINT[k].size}${PAINT[k].bump}${PAINT[k].paint}`;
+  s += `${h2}${wrap}${smooth}${clamp01}${vnoise}${fbm}${cells}${grey}${paintSurface}`;
+  let h = 2166136261;
+  for (let i = 0; i < s.length; i++) h = Math.imul(h ^ s.charCodeAt(i), 16777619);
+  return (h >>> 0).toString(36);
+}

@@ -16,10 +16,11 @@ export function useVersion() {
   return useSyncExternalStore(s.subscribe, s.getVersion, s.getVersion);
 }
 
+// the farm's time, for a countdown on screen (not redrawn while the game is in the background)
 export function useNow(ms = 500) {
   const [n, setN] = useState(() => clockNow());
   useEffect(() => {
-    const i = setInterval(() => setN(clockNow()), ms);
+    const i = setInterval(() => { if (!document.hidden) setN(clockNow()); }, ms);
     return () => clearInterval(i);
   }, [ms]);
   return n;

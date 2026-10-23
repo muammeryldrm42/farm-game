@@ -21,9 +21,9 @@ import { toonCrown, toonPersonParts } from './gfx/toon';
 import { SCULPT_MAT, TOON_MAT, TOON_WOOL, WOOL_MAT } from './gfx/sdf';
 import { leafShell, leafTexture, meterBox, meterHip, meterRoof, surface, surfaceMat, surfacesReady, type SurfaceKind } from './gfx/textures';
 import { ANIMAL, BUILDING, CROP, ITEMS, type BuildingDef, type CropDef } from './data';
-import { t as tr } from './i18n';
+import { RTL, getLang, t as tr } from './i18n';
 import {
-  CHUNK, FARM_OFF, FISH_SPOT, footprint, PET_IDS, petGift, type PetId, SEA_FISH_SPOT, fishSpotAt, type FishSpot, GRAZE, GRID, LAKE, MAP_OFF2, MAP_OFF3, NCH, isBeachTile, lakeE, animalReady, fishingInfo, boatState, canFulfill, chunkState, grazePhase, penInfo, plotProgress, prodInfo, treeInfo,
+  CHUNK, FARM_OFF, footprint, PET_IDS, petGift, type PetId, SEA_FISH_SPOT, fishSpotAt, type FishSpot, GRAZE, GRID, LAKE, MAP_OFF2, MAP_OFF3, NCH, isBeachTile, lakeE, animalReady, fishingInfo, canFulfill, chunkState, grazePhase, penInfo, plotProgress, prodInfo, treeInfo,
   type Animal, type FarmObject, type GameStore,
 } from './state';
 import { now as clockNow } from './clock';
@@ -92,21 +92,6 @@ function cylGeo(rt: number, rb: number, seg: number) {
   return g;
 }
 
-let prism: THREE.BufferGeometry | null = null;
-function prismGeo() {
-  if (prism) return prism;
-  const v = [
-    -0.5, 0, 0.5, 0.5, 0, 0.5, 0.5, 1, 0, -0.5, 0, 0.5, 0.5, 1, 0, -0.5, 1, 0,
-    0.5, 0, -0.5, -0.5, 0, -0.5, -0.5, 1, 0, 0.5, 0, -0.5, -0.5, 1, 0, 0.5, 1, 0,
-    0.5, 0, 0.5, 0.5, 0, -0.5, 0.5, 1, 0,
-    -0.5, 0, -0.5, -0.5, 0, 0.5, -0.5, 1, 0,
-  ];
-  prism = new THREE.BufferGeometry();
-  prism.setAttribute('position', new THREE.Float32BufferAttribute(v, 3));
-  prism.computeVertexNormals();
-  return prism;
-}
-
 let tri: THREE.BufferGeometry | null = null;
 function sailGeo() {
   if (tri) return tri;
@@ -159,6 +144,34 @@ function blobGeo(seed: number, lo = false) {
   return g;
 }
 
+// The sky's light in low quality. A full sky map (image based light) is sampled at every pixel of
+// every lit surface: on a phone's GPU that is about a quarter of the drawing. Low quality lights
+// with the same sky as nine numbers instead (a light probe: the soft light from all round, at
+// almost no cost), and only the materials that mirror the sky keep the map: water, and the few
+// plain (Lambert) materials whose look was set with it. Set by Renderer.useEnvironment.
+let ENV_LOW: THREE.Texture | null = null;
+// The sky of Renderer.buildEnvironment as nine numbers (spherical harmonics), for the probe: worked
+// out from that sky once, with three's LightProbeGenerator (to be worked out again if the sky
+// there changes). Worked out as the game starts instead, the farm would draw dark until the GPU
+// hands the sky back.
+const SKY_SH = [[1.0915, 1.7931, 1.9518], [0.1356, 0.2492, 1.1683], [0.0494, 0.0435, 0.0312], [0.0826, 0.0727, 0.0521], [0.1256, 0.1105, 0.0792],
+  [0.0751, 0.0661, 0.0474], [0.1026, 0.1019, 0.1013], [0.0501, 0.0441, 0.0316], [0.2315, 0.2238, 0.2094]];
+let ENV_I = 0.75;
+const ENV_KEEP = new Set<THREE.MeshStandardMaterial | THREE.MeshLambertMaterial>();
+function keepEnv<T extends THREE.MeshStandardMaterial | THREE.MeshLambertMaterial>(m: T): T {
+  ENV_KEEP.add(m);
+  m.envMap = ENV_LOW;
+  m.envMapIntensity = ENV_I;
+  // the map already lights these: the probe would light them twice
+  const prev = m.onBeforeCompile, key = m.customProgramCacheKey();
+  m.onBeforeCompile = (sh, r) => {
+    prev.call(m, sh, r);
+    sh.fragmentShader = `#undef USE_LIGHT_PROBES\n${sh.fragmentShader}`;
+  };
+  m.customProgramCacheKey = () => `${key}|noprobe`;
+  return m;
+}
+
 const matCache = new Map<string, THREE.Material>();
 function M(color: string): THREE.MeshStandardMaterial {
   let m = matCache.get(color) as THREE.MeshStandardMaterial | undefined;
@@ -182,7 +195,7 @@ function MT(color: string, opacity: number): THREE.MeshStandardMaterial {
 // glowing materials, their emissive strength follows the night
 const WIN = new THREE.MeshStandardMaterial({ color: '#a9dcf5', roughness: 0.15, metalness: 0.1, emissive: '#ffc766', emissiveIntensity: 0 });
 const LAMP = new THREE.MeshStandardMaterial({ color: '#fff3c4', emissive: '#ffcf6b', emissiveIntensity: 0.2 });
-const WATER = makeWater({ shallow: '#6fd6cf', deep: '#2f8fcf', scale: 1.6 });
+const WATER = keepEnv(makeWater({ shallow: '#6fd6cf', deep: '#2f8fcf', scale: 1.6 }));
 // additive pool of light under lamps, only visible at night; drawn a hair toward the camera, so
 // where a building's base or a step sits at its height the light does not flicker on and off
 let glowTex: THREE.Texture | null = null;
@@ -209,7 +222,8 @@ const texCache = new Map<string, THREE.Texture>();
 // GPU and as much again in memory. One still on show when freed is simply sent to the GPU again.
 const recentCache = new Map<string, THREE.Texture>();
 const RECENT_MAX = 160;
-const EF = '"Apple Color Emoji","Segoe UI Emoji","Noto Color Emoji",sans-serif';
+// the emoji fonts: the game's own first (see emojiFont.ts; skipped where not loaded)
+const EF = '"Farm Emoji","Apple Color Emoji","Segoe UI Emoji","Noto Color Emoji",sans-serif';
 function canvasTex(key: string, w: number, h: number, draw: (c: CanvasRenderingContext2D) => void, recent = false) {
   const cache = recent ? recentCache : texCache;
   let t = cache.get(key);
@@ -224,6 +238,10 @@ function canvasTex(key: string, w: number, h: number, draw: (c: CanvasRenderingC
   t = new THREE.CanvasTexture(cv);
   t.colorSpace = THREE.SRGBColorSpace;
   t.anisotropy = 4;
+  // drawn again once the game's emoji font arrives (see redrawCanvasTextures)
+  const tt = t;
+  // (setting the width clears the canvas and every setting of its context, as for a new one)
+  t.userData.redraw = () => { cv.width = w; draw(c); tt.needsUpdate = true; };
   cache.set(key, t);
   if (recent) {
     inRecent.add(t);
@@ -235,6 +253,12 @@ function canvasTex(key: string, w: number, h: number, draw: (c: CanvasRenderingC
     }
   }
   return t;
+}
+
+// every painted texture drawn again: called once when the emoji font loads on Android, so icons
+// painted before it came show the font's pictures rather than the phone's (or an empty box)
+export function redrawCanvasTextures() {
+  for (const t of [...texCache.values(), ...recentCache.values()]) (t.userData.redraw as (() => void) | undefined)?.();
 }
 const inRecent = new WeakSet<THREE.Texture>();
 // a recent texture a sprite has stopped showing: freed if it has left the cache meanwhile (it was
@@ -318,7 +342,7 @@ const SPARKS = 22;
 function speechTex(text: string) {
   const cv = document.createElement('canvas');
   const c = cv.getContext('2d') as CanvasRenderingContext2D;
-  const font = '800 40px ui-rounded, "Trebuchet MS", system-ui, sans-serif';
+  const font = '800 40px ui-rounded, "Trebuchet MS", "Farm Emoji", system-ui, sans-serif';
   c.font = font;
   const words = text.split(/\s+/);
   const lines: string[] = [];
@@ -333,6 +357,8 @@ function speechTex(text: string) {
   const W = Math.ceil(Math.min(540, tw + 60)), LH = 48, H = lines.length * LH + 44 + 26;
   cv.width = W; cv.height = H;
   c.font = font;
+  // Arabic and Urdu read right to left: the full stop at the sentence's end, icons in their place
+  c.direction = RTL.has(getLang()) ? 'rtl' : 'ltr';
   const r = 30, bh = H - 26;
   c.lineWidth = 7; c.strokeStyle = '#5d3a1f'; c.fillStyle = '#ffffff'; c.lineJoin = 'round';
   c.beginPath();
@@ -352,7 +378,7 @@ function speechTex(text: string) {
 // `recent`: a floating text, one of many (see recentCache)
 function textTex(text: string, color: string, recent = false) {
   return canvasTex(`t|${text}|${color}`, 512, 96, (c) => {
-    c.font = '900 54px ui-rounded, "Trebuchet MS", system-ui, sans-serif';
+    c.font = '900 54px ui-rounded, "Trebuchet MS", "Farm Emoji", system-ui, sans-serif';
     c.textAlign = 'center'; c.textBaseline = 'middle';
     c.lineWidth = 12; c.strokeStyle = 'rgba(60,35,10,0.9)'; c.lineJoin = 'round';
     c.fillStyle = color;
@@ -375,11 +401,6 @@ function mk(p: P, geo: THREE.BufferGeometry, mat: THREE.Material, sx: number, sy
 const bx = (p: P, w: number, h: number, d: number, color: string, x: number, y: number, z: number, shadow = true) => mk(p, G.box, M(color), w, h, d, x, y + h / 2, z, shadow);
 const ball = (p: P, r: number, color: string, x: number, y: number, z: number, sx = 1, sy = 1, sz = 1, shadow = true) => mk(p, G.ball, M(color), r * sx, r * sy, r * sz, x, y, z, shadow);
 const cyl = (p: P, rt: number, rb: number, h: number, color: string, x: number, y: number, z: number, seg = 8, shadow = true) => mk(p, cylGeo(rt, rb, seg), M(color), 1, h, 1, x, y + h / 2, z, shadow);
-const roof = (p: P, w: number, h: number, d: number, color: string, x: number, y: number, z: number, rotY = 0) => {
-  const m = mk(p, prismGeo(), M(color), w, h, d, x, y, z);
-  m.rotation.y = rotY;
-  return m;
-};
 // textured box with UVs in meters; `sc` is texture repeats per meter
 function bxT(p: P, w: number, h: number, d: number, kind: SurfaceKind, color: string, x: number, y: number, z: number, sc = 1, shadow = true) {
   const m = new THREE.Mesh(meterBox(w, h, d), surfaceMat(kind, color, sc));
@@ -555,7 +576,6 @@ function tickAnims(dt: number) {
   }
 }
 const easeOutBack = (k: number) => { const c = 1.9; return 1 + (c + 1) * Math.pow(k - 1, 3) + c * Math.pow(k - 1, 2); };
-const tmpV = new THREE.Vector3();
 
 // A copy for a passing effect, without the userData: three.js copies that through JSON, and
 // a crop keeps its ripe and unripe materials there, so each copy turned their textures into
@@ -730,6 +750,12 @@ export class Renderer {
   private ground = new THREE.Plane(new THREE.Vector3(0, 1, 0), 0);
   private sun = new THREE.DirectionalLight('#fff4e0', 3.2);
   private hemi = new THREE.HemisphereLight('#d6efff', '#5a7a3a', 0.55);
+  // the sky's light without its map, for low quality (see ENV_LOW and SKY_SH)
+  private probe = new THREE.LightProbe(new THREE.SphericalHarmonics3().fromArray(SKY_SH.flat()), 0);
+  private envTex: THREE.Texture | null = null;
+  // how strong the probe is against the sky map it stands in for (matched by eye and by the
+  // picture's average colour: the farm looks the same, and draws about a quarter faster)
+  probeK = 1;
   private world = new THREE.Group();
   private land = new THREE.Group();
   private fxLayer = new THREE.Group();
@@ -774,6 +800,8 @@ export class Renderer {
   // the time of its last step
   private panV = { x: 0, z: 0, t: 0 };
   private glide = { x: 0, z: 0 };
+  // the keys held to move the view (the arrows or WASD): x to the right, y up the screen
+  keyPan = { x: 0, y: 0 };
   private bg = new THREE.Color();
 
   constructor(public canvas: HTMLCanvasElement, public store: GameStore) {
@@ -883,7 +911,7 @@ export class Renderer {
   }
 
   private onRestored = () => {
-    this.scene.environment?.dispose();
+    this.envTex?.dispose();
     this.buildEnvironment();
   };
 
@@ -903,14 +931,26 @@ export class Renderer {
     const envScene = new THREE.Scene();
     envScene.add(envSky.mesh);
     const pm = new THREE.PMREMGenerator(this.gl);
-    this.scene.environment = pm.fromScene(envScene, 0.04).texture;
-    this.scene.environmentIntensity = 0.7;
+    this.envTex = pm.fromScene(envScene, 0.04).texture;
     pm.dispose();
+    envSky.mesh.geometry.dispose();
+    this.useEnvironment();
+  }
+
+  // high quality lights with the sky map everywhere; low quality with the probe (see ENV_LOW)
+  private useEnvironment() {
+    const low = this.quality !== 'high';
+    ENV_LOW = low ? this.envTex : null;
+    this.scene.environment = low ? null : this.envTex;
+    for (const m of ENV_KEEP) m.envMap = ENV_LOW;
+    if (low) this.scene.add(this.probe);
+    else this.scene.remove(this.probe);
   }
 
   private applyQuality(q: Quality) {
     this.quality = q;
     const high = q === 'high';
+    this.useEnvironment();
     // the soft fur sheen is a costly extra lobe; low quality keeps plain matte fur
     SCULPT_MAT.sheen = high ? 0.55 : 0;
     WOOL_MAT.sheen = high ? 1 : 0;
@@ -941,6 +981,9 @@ export class Renderer {
     // is always drawn at full sharpness: no resolution drop, even on slower devices.
     const px = this.quality === 'high' ? Math.min(dpr, 2) : Math.min(dpr, 1.5);
     this.gl.setPixelRatio(px);
+    // the closest zoom shows 2 * (34 / 2.6) * tan(16 deg) = 7.5 units top to bottom; things near the
+    // bottom of the screen a third bigger
+    PX_PER_UNIT = (h * px / 7.5) * 1.33;
     this.gl.setSize(w, h, false);
     this.post?.setSize(w, h, px);
     this.camera.aspect = w / Math.max(1, h);
@@ -1054,12 +1097,6 @@ export class Renderer {
     this.azGoal += (dir * Math.PI) / 2;
   }
 
-  rotateBy(rad: number) {
-    this.az += rad;
-    this.azGoal = this.az;
-    this.updateCamera();
-  }
-
   resetView(zoom: number) {
     this.centerOn(FARM_C.x, FARM_C.y);
     this.cam.zoom = zoom;
@@ -1115,7 +1152,7 @@ export class Renderer {
 
   private buildSea() {
     // island rectangle including the beach, used for shallow water and surf
-    const seaMat = makeWater({ sea: true, rect: [-BEACH, -BEACH, GRID + BEACH, GRID + BEACH], shallow: '#62d9d2', deep: '#1f78c2', cove: [COVE.x, COVE.z, COVE.rx, COVE.rz] });
+    const seaMat = keepEnv(makeWater({ sea: true, rect: [-BEACH, -BEACH, GRID + BEACH, GRID + BEACH], shallow: '#62d9d2', deep: '#1f78c2', cove: [COVE.x, COVE.z, COVE.rx, COVE.rz] }));
     // finely divided near the island so the swell can move the surface, flat far away
     this.sea = new THREE.Mesh(seaGeo(this.quality), seaMat);
     this.sea.rotation.x = -Math.PI / 2;
@@ -1371,7 +1408,7 @@ export class Renderer {
     this.bigRocks = [];
     // a few low, broad ledges a little way out to sea: haul outs with room for two seals each
     if (artStyle() === 'toon') {
-      loadModel('sea_rock').then((mdl) => {
+      loadLater('sea_rock').then((mdl) => {
         SEA_ROCKS.forEach(([side, along, sc], k) => {
           const out = BEACH + 1.9 + hash(k, 1, 91) * 0.4;
           const x = side === 0 || side === 1 ? along : side === 3 ? GRID + out : -out;
@@ -1392,7 +1429,7 @@ export class Renderer {
     if (artStyle() === 'toon') {
       // the Blender boulder (tools/blender/world.py) takes over the shoreline rocks once loaded;
       // its stone is painted already, so the tints only nudge each copy lighter or darker
-      loadModel('shore_rock').then((mdl) => {
+      loadLater('shore_rock').then((mdl) => {
         const src = firstMesh(mdl);
         if (!src) return;
         im.geometry = src.geometry;
@@ -1499,7 +1536,8 @@ export class Renderer {
 
   private rebuildLand() {
     const s = this.store.s;
-    const key = s.chunks.join(';');
+    // (the language too: the signs on land for sale are lettered in it)
+    const key = `${s.chunks.join(';')}|${getLang()}`;
     if (key === this.landKey) return;
     this.landKey = key;
     const col = new THREE.Color();
@@ -1630,15 +1668,20 @@ export class Renderer {
     const g = group(p, cx * CHUNK + CHUNK / 2, 0, cy * CHUNK + CHUNK / 2);
     if (artStyle() === 'toon' && WORLD_MODELS.forsale_sign) {
       g.add(WORLD_MODELS.forsale_sign.clone());
+      // the model's board is blank: its words go on both faces
+      const words = new THREE.Mesh(saleWordsGeo(), saleWordsMat());
+      words.position.y = 0.95;
+      g.add(words);
       g.userData.sign = true;
+      g.userData.model = true;
       this.signs.push(g);
       return;
     }
     cyl(g, 0.05, 0.05, 0.9, '#6b4226', 0, 0, 0, 6);
-    const tex = canvasTex('forsale', 256, 128, (c) => {
+    const tex = canvasTex(`forsale-${getLang()}`, 256, 128, (c) => {
       c.fillStyle = '#c98a45'; c.fillRect(0, 0, 256, 128);
       c.strokeStyle = '#6b4226'; c.lineWidth = 12; c.strokeRect(6, 6, 244, 116);
-      c.fillStyle = '#fff8e6'; c.font = '900 48px ui-rounded, "Trebuchet MS", system-ui, sans-serif';
+      c.fillStyle = '#fff8e6'; c.font = '900 48px ui-rounded, "Trebuchet MS", "Farm Emoji", system-ui, sans-serif';
       c.textAlign = 'center'; c.textBaseline = 'middle'; c.fillText(tr('FOR SALE'), 128, 66);
     });
     const board = new THREE.Mesh(G.box, [M('#a8733f'), M('#a8733f'), M('#a8733f'), M('#a8733f'), new THREE.MeshLambertMaterial({ map: tex }), new THREE.MeshLambertMaterial({ map: tex })]);
@@ -1660,7 +1703,12 @@ export class Renderer {
     const first = !this.synced;
     this.synced = true;
     const seen = new Set<number>();
-    for (const o of s.objects) {
+    // the farm's first build goes from the middle of the view outward: the models are asked for
+    // (and decoded) in that order, so a big farm fills in where the player is looking first
+    const tx = this.target.x, tz = this.target.z;
+    const near = (o: FarmObject) => (o.x - tx) ** 2 + (o.y - tz) ** 2;
+    const list = first ? [...s.objects].sort((a, b) => near(a) - near(b)) : s.objects;
+    for (const o of list) {
       seen.add(o.id);
       let e = this.entries.get(o.id);
       if (e && e.type !== o.type) { this.removeEntry(e); e = undefined; }
@@ -1681,7 +1729,6 @@ export class Renderer {
 
   // squash and stretch around the footprint center
   private applyBounce(e: Entry, o: FarmObject, dt: number) {
-    const d = BUILDING[o.type];
     const b = e.bounce;
     let sx = 1, sy = 1;
     if (b) {
@@ -1763,6 +1810,14 @@ export class Renderer {
 
     // smooth camera rotation
     if (Math.abs(this.azGoal - this.az) > 0.0005) this.az += (this.azGoal - this.az) * Math.min(1, dt * 8);
+    // a key held moves the view that way on the screen, whichever way the farm is turned (faster
+    // the further out it is); let go, it glides to a stop as after a flick
+    const kp = this.keyPan;
+    if (kp.x || kp.y) {
+      const sp = 16 / this.cam.zoom / Math.hypot(kp.x, kp.y), s = Math.sin(this.az), c = Math.cos(this.az);
+      this.glide.x = (kp.x * c - kp.y * s) * sp;
+      this.glide.z = (-kp.x * s - kp.y * c) * sp;
+    }
     if (this.glide.x || this.glide.z) {
       this.target.x += this.glide.x * dt;
       this.target.z += this.glide.z * dt;
@@ -1804,11 +1859,11 @@ export class Renderer {
       const out = !!o.pen && o.pen.animals.some((a) => a.graze);
       if (seen || (out && (e.herdSeen !== false || (this.frameNo + o.id) % 4 === 0)) || (this.frameNo + o.id) % 24 === 0) e.update?.(o, now, t, dt);
       if (e.bounce || e.root.scale.x !== 1) this.applyBounce(e, o, dt);
-      // Out of view (a sphere round its whole height), with none of its animals out or in view and
-      // no boat of its own out at sea: hidden for this frame's draw (three.js then does not look
-      // through its parts one by one) and its matrices wait (see updateMatrixWorld) until it is in
-      // view again, when they are brought up to date before it is drawn. Shown again after the draw.
-      if (hideOff && e.root.visible && !out && e.herdSeen !== true && BUILDING[o.type]?.kind !== 'dock') {
+      // Out of view (a sphere round its whole height), with none of its animals out or in view:
+      // hidden for this frame's draw (three.js then does not look through its parts one by one)
+      // and its matrices wait (see updateMatrixWorld) until it is in view again, when they are
+      // brought up to date before it is drawn. Shown again after the draw.
+      if (hideOff && e.root.visible && !out && e.herdSeen !== true) {
         const top = Math.max(0.6, e.top);
         this.drawSphere.center.set(o.x + d.w / 2, top / 2, o.y + d.h / 2);
         // (wide of the footprint: a lamp's pool of light or a pen's yard spill a tile or two past it)
@@ -1820,7 +1875,7 @@ export class Renderer {
     for (const g of this.signs) {
       // the procedural board bobs on its post; the Blender sign is one piece and just turns
       const board = g.children[1];
-      if (board) board.position.y = 0.95 + Math.sin(t / 500 + g.position.x) * 0.03;
+      if (board && !g.userData.model) board.position.y = 0.95 + Math.sin(t / 500 + g.position.x) * 0.03;
       g.rotation.y = this.az;
     }
 
@@ -1875,6 +1930,7 @@ export class Renderer {
     if (this.post) this.post.render();
     else this.gl.render(this.scene, this.camera);
     showOffView();
+    if (!drawnOnce) farmDrawn();
     if (this.onFirstDraw) { const f = this.onFirstDraw; this.onFirstDraw = null; f(); }
   }
   private warm: 'cold' | 'warming' | 'compiled' | 'done' = 'cold';
@@ -1912,7 +1968,10 @@ export class Renderer {
     this.sun.color.set('#fff2dc').lerp(c.set('#ff9a5a'), dk * 0.7).lerp(c.set('#8fa3ff'), n);
     this.hemi.intensity = lerp(0.55, 0.35, n) * (1 - 0.15 * rainK);
     this.hemi.color.set('#d6efff').lerp(c.set('#6b7cc4'), n);
-    this.scene.environmentIntensity = lerp(0.75, 0.16, n) * (1 - 0.2 * rainK);
+    ENV_I = lerp(0.75, 0.16, n) * (1 - 0.2 * rainK);
+    this.scene.environmentIntensity = ENV_I;
+    for (const m of ENV_KEEP) m.envMapIntensity = ENV_I;
+    this.probe.intensity = ENV_I * this.probeK;
 
     // gradient sky: blue by day, warm at dusk, deep navy with stars at night, grey when raining
     const grey = rainK * 0.55 * (1 - n);
@@ -2051,13 +2110,6 @@ export class Renderer {
       case 'stall': {
         const sold = s.stall.filter((x) => x.item && x.soldAt <= now).length;
         return sold ? { icon: '💰', mode: 'ready', p: 0, count: sold } : null;
-      }
-      case 'dock': {
-        if (boatState(s, now) !== 'docked' || !s.boat) return null;
-        const b = s.boat;
-        if (b.crates.every((c) => c.filled)) return { icon: '⛵', mode: 'ready', p: 0, count: 0 };
-        if (b.crates.some((c) => !c.filled && (s.inv[c.item] ?? 0) >= c.qty)) return { icon: '📦', mode: 'ready', p: 0, count: 0 };
-        return null;
       }
       default:
         return null;
@@ -2656,7 +2708,7 @@ export class Renderer {
         c.fillStyle = ready ? '#5cb82e' : '#ffd23a'; c.fillRect(46, 96, 36, 14);
         c.textAlign = 'center'; c.textBaseline = 'middle';
         if (ready) { c.font = `64px ${EF}`; c.fillText('🎁', 64, 64); }
-        else { c.fillStyle = '#5d3a1f'; c.font = '900 84px ui-rounded, "Trebuchet MS", system-ui, sans-serif'; c.fillText('!', 64, 64); }
+        else { c.fillStyle = '#5d3a1f'; c.font = '900 84px ui-rounded, "Trebuchet MS", "Farm Emoji", system-ui, sans-serif'; c.fillText('!', 64, 64); }
       });
       v.mark.material.needsUpdate = true;
     }
@@ -3538,13 +3590,6 @@ export function buildDog() {
 
 // ------------------------------------------------------------------ animals
 
-function fourLegs(g: THREE.Group, w: number, d: number, len: number, th: number, color: string, foot?: string) {
-  const legs: THREE.Object3D[] = [];
-  for (const [x, z] of [[-w / 2, d / 2], [w / 2, d / 2], [-w / 2, -d / 2], [w / 2, -d / 2]]) legPivot(g, x, len, z, len, th, color, legs, foot);
-  g.userData.legs = legs;
-  g.userData.signs = [1, -1, -1, 1];
-}
-
 // Birds that can fly flutter about their pen and fly (rather than walk) out through the open
 // gate to feed. The water birds find their food at sea: they fly to the shallows and fish there.
 const FLIERS = new Set(['chicken', 'duck', 'goose', 'gobbler', 'peacock', 'quail', 'guinea_fowl', 'pheasant', 'swan', 'flamingo', 'silkie_chicken',
@@ -3990,9 +4035,10 @@ function lodMesh(m: THREE.Mesh, kind: string, part: LodPart) {
 // the full model shows. `name` is the model's file name (animal_cow, crop_wheat, apple_tree).
 const modelLodSrc = new Map<string, Map<string, THREE.BufferGeometry> | null>();
 function modelLodGeos(name: string) {
-  // the far models are only a saving: they never queue ahead of the farm's own models, and come
-  // in a few at a time (the full model stays until its twin arrives)
-  if (!modelLodSrc.has(name) && modelsLoading < 3) {
+  // the far models are only a saving: they never queue ahead of the farm's own models (nor hold up
+  // its first picture: they start once it is drawn), and come in a few at a time (the full model
+  // stays until its twin arrives)
+  if (!modelLodSrc.has(name) && drawnOnce && modelsLoading < 3) {
     modelLodSrc.set(name, null);
     loadModel(`lod/${name}`).then((m) => {
       const map = new Map<string, THREE.BufferGeometry>();
@@ -4001,6 +4047,22 @@ function modelLodGeos(name: string) {
     }).catch(() => { /* no far model: the full one stays */ });
   }
   return modelLodSrc.get(name) ?? null;
+}
+// The animals' very far level (tools/blender/lod.py --far2, about a tenth of the full model's
+// triangles), for a camera zoomed far out where an animal is a few dozen pixels tall. Loaded like
+// the far level, once the farm is drawn and a few at a time.
+const LOD2_NEAR = 40, LOD2_FAR = 44;
+const modelLod2Src = new Map<string, Map<string, THREE.BufferGeometry> | null>();
+function modelLod2Geos(name: string) {
+  if (!modelLod2Src.has(name) && drawnOnce && modelsLoading < 3) {
+    modelLod2Src.set(name, null);
+    loadModel(`lod2/${name}`).then((m) => {
+      const map = new Map<string, THREE.BufferGeometry>();
+      m.traverse((o) => { if ((o as THREE.Mesh).isMesh) map.set(o.name, (o as THREE.Mesh).geometry); });
+      modelLod2Src.set(name, map);
+    }).catch(() => { /* no very far model: the far one stays */ });
+  }
+  return modelLod2Src.get(name) ?? null;
 }
 // Crops in the fields and the animals in the pens. Each field shows four plants of one or two
 // parts (plant, fruit) and each Blender animal is some eight parts (body, head, legs, tail, eyes);
@@ -4118,8 +4180,16 @@ class Batches {
           // far away a crop or an animal is drawn from its thinned twin, as the trees are
           const d = cam.position.distanceTo(lodPos.setFromMatrixPosition(m.matrixWorld));
           const far = m.userData.far ? d > LOD_NEAR * lodScale : d > LOD_FAR * lodScale;
-          const twin = far ? modelLodGeos(lod)?.get(m.name) : undefined;
+          let twin = far ? modelLodGeos(lod)?.get(m.name) : undefined;
           m.userData.far = !!twin;
+          // farther still, an animal from its very far level
+          let twin2: THREE.BufferGeometry | undefined;
+          if (twin && lod.startsWith('animal_')) {
+            const far2 = m.userData.far2 ? d > LOD2_NEAR * lodScale : d > LOD2_FAR * lodScale;
+            twin2 = far2 ? modelLod2Geos(lod)?.get(m.name) : undefined;
+            if (twin2) twin = twin2;
+          }
+          m.userData.far2 = !!twin2;
           if (twin) geo = twin;
         }
         this.add(geo, m.material as THREE.Material, m);
@@ -4803,7 +4873,6 @@ function buildStandIn(e: Entry, o: FarmObject, d: BuildingDef, store: GameStore)
     case 'pen': return buildPen(e, d);
     case 'tree': return buildFruitTree(e, d);
     case 'stall': return buildStall(e, d, store);
-    case 'dock': return buildDock(e, store);
     case 'obstacle': return buildObstacle(e, o);
     case 'deco': return buildDeco(e, d);
   }
@@ -4935,7 +5004,11 @@ function smoke(g: THREE.Group, x: number, y: number, z: number) {
       m.position.set(x + ph * 0.3 + Math.sin(t / 500 + k) * 0.04, y + ph * 1.1, z - ph * 0.1);
       const s = 0.08 + ph * 0.16;
       m.scale.set(s, s, s);
-      (m.material as THREE.MeshLambertMaterial).opacity = 0.6 * (1 - ph);
+      const mat = m.material as THREE.MeshLambertMaterial;
+      mat.opacity = 0.6 * (1 - ph);
+      // (made and dropped with their buildings: kept up with the sky light here, not listed)
+      mat.envMap = ENV_LOW;
+      mat.envMapIntensity = ENV_I;
     });
   };
 }
@@ -4943,16 +5016,124 @@ function smoke(g: THREE.Group, x: number, y: number, z: number) {
 // ------------------------------------------------------------------ Blender models
 // Hand built models made in Blender (see tools/blender), loaded from public/models. They are Draco
 // compressed (the decoder lives in public/draco); each file is fetched once and cloned per copy.
-const gltfLoader = new GLTFLoader().setDRACOLoader(new DRACOLoader().setDecoderPath('/draco/'));
+const gltfLoader = new GLTFLoader().setDRACOLoader(new DRACOLoader().setDecoderPath('draco/'));
+// A model's pictures are decoded straight at the size low quality keeps (512 px at most), where
+// the browser decodes them off the page's thread: not first at full size (1024 or 2048 px) and
+// then scaled down on the page's thread, a long stall for a phone opening a big farm. What a
+// small model needs is then scaled from there (see shrinkTextures).
+function jpegSize(b: Uint8Array): { w: number; h: number } | null {
+  if (b[0] !== 0xff || b[1] !== 0xd8) return null;
+  for (let i = 2; i + 9 < b.length;) {
+    if (b[i] !== 0xff) { i++; continue; }
+    const m = b[i + 1];
+    if (m === 0xff) { i++; continue; }
+    // the frame header (SOF0 to SOF15, not DHT, JPG or DAC) holds the height and width
+    if (m >= 0xc0 && m <= 0xcf && m !== 0xc4 && m !== 0xc8 && m !== 0xcc) return { h: (b[i + 5] << 8) | b[i + 6], w: (b[i + 7] << 8) | b[i + 8] };
+    if (m === 0xd8 || m === 0x01 || (m >= 0xd0 && m <= 0xd7)) { i += 2; continue; }
+    i += 2 + ((b[i + 2] << 8) | b[i + 3]);
+  }
+  return null;
+}
+gltfLoader.register((parser) => {
+  const ld = parser.textureLoader as THREE.ImageBitmapLoader;
+  if (ld.isImageBitmapLoader) {
+    ld.load = (url: string, onLoad?: (b: ImageBitmap) => void, _p?: unknown, onError?: (e: unknown) => void) => {
+      fetch(url).then((r) => r.blob()).then(async (blob) => {
+        const opts = { ...(ld.options as ImageBitmapOptions), colorSpaceConversion: 'none' as const };
+        const size = getQuality() === 'high' ? null : jpegSize(new Uint8Array(await blob.slice(0, 65536).arrayBuffer()));
+        const big = size ? Math.max(size.w, size.h) : 0;
+        if (!size || big <= LOW_TEX) return createImageBitmap(blob, opts);
+        const k = LOW_TEX / big;
+        return createImageBitmap(blob, { ...opts, resizeWidth: Math.round(size.w * k), resizeHeight: Math.round(size.h * k), resizeQuality: 'high' });
+      }).then((bm) => onLoad?.(bm), (e) => onError?.(e));
+      return undefined as unknown as ImageBitmap;
+    };
+  }
+  return { name: 'farm_texture_size' };
+});
 const modelCache = new Map<string, Promise<THREE.Object3D>>();
+// Models of what is not on the farm when it opens (the sea's and the shore's animals, the night's
+// creatures, the rocks along the coast, the sea jetty): fetched only once the farm is first drawn,
+// two at a time, so the first picture does not wait for them (about half the models at start up)
+// and the first seconds of play do not stutter while they come in.
+let drawnOnce = false, laterBusy = 0;
+const laterQ: (() => void)[] = [];
+function pumpLater() {
+  while (drawnOnce && laterBusy < 2 && laterQ.length) { laterBusy++; laterQ.shift()!(); }
+}
+function loadLater(name: string): Promise<THREE.Object3D> {
+  if (drawnOnce && modelCache.has(name)) return loadModel(name);
+  return new Promise((ok, no) => {
+    laterQ.push(() => { loadModel(name).then(ok, no).finally(() => { laterBusy--; setTimeout(pumpLater, 40); }); });
+    pumpLater();
+  });
+}
+function farmDrawn() {
+  drawnOnce = true;
+  pumpLater();
+}
 // model materials with a baked emission mask (windows, lamps), lit up at night like WIN
 const MODEL_GLOW = new Set<THREE.MeshStandardMaterial>();
-// Low quality (phones): a model's baked textures are scaled down to 512 px as it loads. A model
-// is a hundred or two pixels tall on a phone, and a busy farm of 1024 px textures takes some
-// 800 MB of GPU memory, far past what a phone can spare (the app then stalls or is closed).
+// A model's geometry is kept smaller as it loads: Draco hands its normals and texture places over
+// as 32 bit floats and its corners as 32 bit numbers, where 16 bits hold them all as well (a
+// normal's or a place's error well under a texel; positions stay full floats, as taps, roofs and
+// sizes are worked out from them). About a third less memory, in the phone's RAM and on its GPU.
+const packed = new WeakSet<THREE.BufferGeometry>();
+function packGeometry(g: THREE.BufferGeometry) {
+  if (packed.has(g)) return;
+  packed.add(g);
+  const n = g.getAttribute('normal') as THREE.BufferAttribute | undefined;
+  if (n && n.array instanceof Float32Array && !n.normalized) {
+    const a = n.array, out = new Int16Array(a.length);
+    for (let i = 0; i < a.length; i++) out[i] = Math.round(Math.max(-1, Math.min(1, a[i])) * 32767);
+    g.setAttribute('normal', new THREE.BufferAttribute(out, n.itemSize, true));
+  }
+  const uv = g.getAttribute('uv') as THREE.BufferAttribute | undefined;
+  if (uv && uv.array instanceof Float32Array && !uv.normalized) {
+    const a = uv.array;
+    let inside = true;
+    for (let i = 0; i < a.length && inside; i++) inside = a[i] >= 0 && a[i] <= 1;
+    // (one reaching past the texture's edge keeps its floats)
+    if (inside) {
+      const out = new Uint16Array(a.length);
+      for (let i = 0; i < a.length; i++) out[i] = Math.round(a[i] * 65535);
+      g.setAttribute('uv', new THREE.BufferAttribute(out, uv.itemSize, true));
+    }
+  }
+  const ix = g.index;
+  if (ix && ix.array instanceof Uint32Array && g.getAttribute('position').count <= 65536) g.setIndex(new THREE.BufferAttribute(Uint16Array.from(ix.array), 1));
+}
+// A model's baked texture is scaled down as it loads to what the model can show: its size on the
+// screen at the closest zoom (a texture is the unwrapped map of the whole model, so two and a half
+// texels to each pixel across it), and in low quality (phones) to 512 px at most. A crab or a
+// parrot is a few dozen pixels across even then; a busy farm keeping every texture whole takes
+// hundreds of MB of GPU memory, more than a phone can spare (the app then stalls or is closed).
+// A phone with little memory (2 GB or less, as its browser tells) keeps them at 256 px whatever
+// the quality: a quarter of the memory, where a busy farm would otherwise not fit. The farmhouse
+// and the manor, one of each and always in view, keep the usual size.
 const LOW_TEX = 512;
-function shrinkTextures(root: THREE.Object3D) {
-  if (getQuality() === 'high' || typeof createImageBitmap === 'undefined') return Promise.resolve();
+const LOW_RAM_TEX = 256;
+const DEVICE_MEM = typeof navigator !== 'undefined' ? ((navigator as { deviceMemory?: number }).deviceMemory ?? 8) : 8;
+const LOW_RAM = DEVICE_MEM <= 2;
+// The models' textures are counted as they load (with their smaller mip levels). A very big farm
+// (a hundred kinds of building and more) past what the phone can hold (192 MB on a 4 GB phone,
+// 320 MB above, twice that in high quality) has the models still to come loaded a step smaller,
+// so its page is not closed for want of memory; a usual farm stays well under it.
+let texBytes = 0;
+const texBudget = () => (DEVICE_MEM <= 4 ? 192e6 : 320e6) * (getQuality() === 'high' ? 2 : 1);
+// how many screen pixels a unit of the farm covers at most (the closest zoom, near the bottom of
+// the screen): set by Renderer.resize
+let PX_PER_UNIT = 120;
+const texBox = new THREE.Box3();
+const texSize = new THREE.Vector3();
+function shrinkTextures(root: THREE.Object3D, far = false, home = false) {
+  if (typeof createImageBitmap === 'undefined') return Promise.resolve();
+  texBox.setFromObject(root).getSize(texSize);
+  // (the far twin of a model is only drawn from afar: half that is plenty)
+  const need = Math.max(texSize.x, texSize.y, texSize.z) * PX_PER_UNIT * (far ? 1.25 : 2.5);
+  const fit = 2 ** Math.ceil(Math.log2(Math.max(64, need)));
+  let cap = LOW_RAM && !home ? Math.min(fit, LOW_RAM_TEX) : getQuality() === 'high' ? fit : Math.min(fit, LOW_TEX);
+  if (!home && texBytes > texBudget()) cap = Math.min(cap, getQuality() === 'high' ? LOW_TEX : LOW_RAM_TEX);
   const seen = new Set<THREE.Texture>();
   const jobs: Promise<void>[] = [];
   root.traverse((o) => {
@@ -4960,9 +5141,14 @@ function shrinkTextures(root: THREE.Object3D) {
     for (const m of (Array.isArray(mats) ? mats : mats ? [mats] : []) as THREE.MeshStandardMaterial[]) {
       for (const t of [m.map, m.emissiveMap, m.normalMap, m.roughnessMap, m.aoMap]) {
         const img = t?.image as { width?: number; height?: number } | undefined;
-        if (!t || seen.has(t) || !img?.width || !img.height || Math.max(img.width, img.height) <= LOW_TEX) continue;
+        // (a glow mask is a few soft spots of window light: half the size shows the same)
+        const c = t === m.emissiveMap ? Math.max(64, cap / 2) : cap;
+        if (!t || seen.has(t) || !img?.width || !img.height) continue;
         seen.add(t);
-        const k = LOW_TEX / Math.max(img.width, img.height);
+        const big = Math.max(img.width, img.height);
+        texBytes += img.width * img.height * 4 * 1.34 * Math.min(1, (c / big) ** 2);
+        if (big <= c) continue;
+        const k = c / big;
         jobs.push(createImageBitmap(img as ImageBitmapSource, { resizeWidth: Math.round(img.width * k), resizeHeight: Math.round(img.height * k), resizeQuality: 'high' })
           .then((bm) => {
             const old = t.image as ImageBitmap;
@@ -4976,6 +5162,8 @@ function shrinkTextures(root: THREE.Object3D) {
   return Promise.all(jobs).then(() => undefined);
 }
 
+// a few letters of each model's content, for its address on the website (see next.config.mjs)
+const MODEL_V: Record<string, string> = JSON.parse(process.env.MODEL_V || '{}');
 // set by the renderer: compiles a loaded model's shaders without blocking
 let precompile: ((o: THREE.Object3D) => Promise<unknown>) | null = null;
 // models being fetched right now: the optional far detail models wait for a quiet moment
@@ -4985,10 +5173,11 @@ function loadModel(name: string) {
   if (!p) {
     modelsLoading++;
     const done = () => { modelsLoading--; };
-    p = gltfLoader.loadAsync(`/models/${name}.glb`).finally(done).then((gl) => {
+    p = gltfLoader.loadAsync(`models/${name}.glb${MODEL_V[name] ? `?v=${MODEL_V[name]}` : ''}`).finally(done).then((gl) => {
       gl.scene.traverse((o) => {
         const m = o as THREE.Mesh;
         if (!m.isMesh) return;
+        packGeometry(m.geometry);
         m.castShadow = true;
         m.receiveShadow = true;
         const mat = m.material as THREE.MeshStandardMaterial;
@@ -4999,7 +5188,7 @@ function loadModel(name: string) {
         }
       });
       gl.scene.userData.top = new THREE.Box3().setFromObject(gl.scene).max.y;
-      return shrinkTextures(gl.scene).then(() => {
+      return shrinkTextures(gl.scene, name.startsWith('lod/'), name === 'farmhouse' || name === 'manor').then(() => {
         // its shaders compile in the background before it is used, so a model arriving mid
         // game never freezes the picture while the GPU compiles (crops, animals, decorations
         // and trees are drawn in batches: their instanced shaders too)
@@ -5017,6 +5206,46 @@ function loadModel(name: string) {
 
 // scenery models the land builder uses once loaded (forest trees, FOR SALE sign)
 const WORLD_MODELS: Record<string, THREE.Object3D> = {};
+
+// The FOR SALE sign's words in the player's language: cream letters with a soft dark edge, in the
+// game's font, made smaller for a language whose words are long. Both faces of the board share
+// one mesh: a quad just off each face (inside the frame's edge), the back one turned round.
+let saleGeo: THREE.BufferGeometry | null = null;
+function saleWordsGeo() {
+  if (saleGeo) return saleGeo;
+  const front = new THREE.PlaneGeometry(0.8, 0.325).translate(0, 0, 0.0275);
+  const back = new THREE.PlaneGeometry(0.8, 0.325).rotateY(Math.PI).translate(0, 0, -0.0275);
+  saleGeo = mergeGeometries([front, back])!;
+  front.dispose();
+  back.dispose();
+  return saleGeo;
+}
+const saleMats = new Map<string, THREE.MeshStandardMaterial>();
+function saleWordsMat() {
+  const lang = getLang();
+  let m = saleMats.get(lang);
+  if (m) return m;
+  const map = canvasTex(`forsale-words-${lang}`, 512, 208, (c) => {
+    const text = tr('FOR SALE');
+    const font = getComputedStyle(document.body).fontFamily || 'system-ui, sans-serif';
+    let size = 124;
+    c.font = `700 ${size}px ${font}`;
+    const w = c.measureText(text).width;
+    if (w > 476) size = Math.floor((size * 476) / w);
+    c.font = `700 ${size}px ${font}`;
+    c.textAlign = 'center';
+    c.textBaseline = 'middle';
+    c.lineJoin = 'round';
+    c.lineWidth = Math.max(4, size * 0.14);
+    c.strokeStyle = 'rgba(92, 52, 22, 0.6)';
+    c.strokeText(text, 256, 108);
+    c.fillStyle = '#fff6e2';
+    c.fillText(text, 256, 108);
+  });
+  m = new THREE.MeshStandardMaterial({ map, transparent: true, depthWrite: false, roughness: 0.8, metalness: 0, polygonOffset: true, polygonOffsetFactor: -2, polygonOffsetUnits: -2 });
+  saleMats.set(lang, m);
+  return m;
+}
 // a forest model could not load: the land makes its own trees after all
 let forestFailed = false;
 function firstMesh(o?: THREE.Object3D) {
@@ -5045,10 +5274,10 @@ function swapInModel(e: Entry, name: string, x: number, z: number, scale: number
 // +z. Named nodes drive the game side: `smoke*` empties puff (always, or only while producing),
 // `glow*` empties get a pool of lamp light at night, `badge` carries the product icon, and
 // `spin<Axis>*` / `sway<Axis>*` meshes turn about their origin. Stand in parts flagged
-// `userData.keep` (water, goods on display, the boat) stay when the model swaps in.
+// `userData.keep` (water, goods on display) stay when the model swaps in.
 interface ModelSpec { smoke?: 'always' | 'busy'; badge?: number; variants?: number }
 const MODELS: Record<string, ModelSpec> = {
-  barn: {}, silo: {}, board: {}, stall: {}, dock: {}, fishing_pier: { badge: 0.22 }, manor: { smoke: 'always' },
+  barn: {}, silo: {}, board: {}, stall: {}, fishing_pier: { badge: 0.22 }, manor: { smoke: 'always' },
 };
 for (const id of ['hay_bale', 'picket_fence', 'bird_house', 'pumpkin_pile', 'birdbath', 'topiary', 'well', 'flower_arch',
   'hay_wagon', 'tractor', 'bench', 'lamp', 'scarecrow', 'windmill', 'pond', 'mailbox', 'gazebo', 'fountain',
@@ -5056,6 +5285,7 @@ for (const id of ['hay_bale', 'picket_fence', 'bird_house', 'pumpkin_pile', 'bir
   'garden_gnome', 'wheelbarrow', 'rain_barrel', 'flower_cart', 'compost_bin', 'mushroom_ring', 'stone_lantern', 'bamboo_grove', 'fairy_house', 'snowman', 'sandcastle', 'seesaw', 'outdoor_oven', 'telescope', 'obelisk', 'hammock', 'water_wheel', 'koi_pond', 'camping_tent', 'beach_hut', 'log_cabin', 'playground_slide', 'observatory', 'ferris_wheel', 'sun_lounger', 'beach_umbrella', 'lifeguard_tower', 'surfboard_rack',
   'hay_stack', 'picnic_table', 'lemonade_stand', 'insect_hotel', 'weathervane', 'rock_garden', 'veggie_stand', 'windchime', 'dovecote', 'flag_pole', 'ice_cream_cart', 'pumpkin_carriage',
   'firewood_pile', 'milk_churns', 'apple_crates', 'tool_shed', 'sunflower_patch', 'flower_bicycle',
+  'jack_lantern', 'lantern_arch', 'festive_pine', 'gift_sleigh', 'blossom_tree', 'butterfly_dome', 'lawn_flamingos', 'paddling_pool',
   'sand_turtle', 'sand_dolphin', 'sand_crab', 'sand_octopus', 'sand_starfish', 'sand_pyramid', 'sand_tower', 'sand_car', 'sand_serpent', 'sand_whale']) MODELS[id] = {};
 for (const d of Object.values(BUILDING)) if (d.kind === 'pen') MODELS[d.id] = {};
 for (const d of Object.values(BUILDING)) if (d.kind === 'tree') MODELS[d.id] = {};
@@ -5075,13 +5305,13 @@ function keep<T extends THREE.Object3D>(o: T) {
   return o;
 }
 // the leafy decorations and wild clutter that have far detail models (tools/blender/lod.py LEAFY)
-const PLANT_LOD = new Set(['flowers', 'oak', 'pumpkin_pile', 'topiary', 'hay_bale', 'tree_obs0', 'tree_obs1', 'bush_obs0', 'bush_obs1']);
+const PLANT_LOD = new Set(['flowers', 'oak', 'pumpkin_pile', 'topiary', 'hay_bale', 'tree_obs0', 'tree_obs1', 'bush_obs0', 'bush_obs1', 'blossom_tree']);
 // the buildings that have far detail models (tools/blender/lod.py --buildings): the workshops,
 // pens, barn, silo and stall, and the heavy decorations (the houses keep their full model)
 const BUILDING_LOD = new Set(['production', 'pen', 'barn', 'silo', 'stall']);
 const DECO_LOD = new Set(['well', 'flower_arch', 'windmill', 'pond', 'gazebo', 'fountain', 'pergola', 'treehouse', 'greenhouse',
   'golden_farmer', 'flower_cart', 'sand_turtle', 'sand_octopus', 'sand_starfish', 'sand_car', 'sand_whale', 'rock_garden',
-  'apple_crates', 'flower_bicycle']);
+  'apple_crates', 'flower_bicycle', 'lantern_arch', 'butterfly_dome']);
 function useModel(e: Entry, o: FarmObject, d: BuildingDef) {
   const spec = MODELS[d.id];
   if (!spec || e.id < 0 || artStyle() !== 'toon') return;
@@ -6018,12 +6248,15 @@ function buildPen(e: Entry, d: BuildingDef) {
       for (let i = 0; i < count; i++) herd.add(an?.id === 'bee' ? buildHive() : buildAnimal(an?.id ?? ''));
       if (grew) { hop.set(list[count - 1].id, t); bump(e); }
       herdMeshes = [];
+      // (the bees and their skeps too: a bee garden's dozens of little bees and wings, drawn one
+      // by one, made some fifty draws; they have no far twins)
+      const bee = an?.id === 'bee';
       for (const m of herd.children) {
-        if (!m.userData.model) continue;
+        if (!m.userData.model && !bee) continue;
         m.traverse((c) => {
           if (!(c as THREE.Mesh).isMesh) return;
           c.layers.set(BATCH_LAYER);
-          c.userData.lod = `animal_${an!.id}`;
+          if (!bee) c.userData.lod = `animal_${an!.id}`;
           herdMeshes.push(c as THREE.Mesh);
         });
       }
@@ -6541,54 +6774,6 @@ function buildPier(e: Entry, d: BuildingDef) {
   };
 }
 
-function buildDock(e: Entry, store: GameStore) {
-  const g = e.root;
-  waterBasin(g, 2, 2);
-  planks(g, 0.4, 1, 0.5, 1.8);
-  const boat = keep(group(g, 1.35, 0.06, 1));
-  bx(boat, 0.5, 0.2, 1.1, '#8e4a2b', 0, 0, 0);
-  roof(boat, 0.5, 0.2, 0.3, '#8e4a2b', 0, 0, 0.6, Math.PI / 2).rotation.set(Math.PI / 2, 0, 0);
-  bx(boat, 0.46, 0.03, 1.05, '#c98a45', 0, 0.2, 0);
-  bx(boat, 0.51, 0.04, 1.11, '#ffffff', 0, 0.12, 0, false);
-  cyl(boat, 0.025, 0.03, 1.3, '#6b4226', 0, 0.2, 0.05, 6);
-  const sail = new THREE.Mesh(sailGeo(), new THREE.MeshLambertMaterial({ color: '#fffaf0', side: THREE.DoubleSide }));
-  sail.scale.set(1, 1.0, 0.55);
-  sail.position.set(0, 0.35, 0.08);
-  sail.castShadow = true;
-  boat.add(sail);
-  bx(boat, 0.01, 0.1, 0.16, '#e74c3c', 0, 1.42, 0.13);
-  const crates = group(boat);
-  if (artStyle() === 'toon') {
-    // the Blender cargo boat (tools/blender/world.py) takes over the hull, mast and sail
-    const hull = boat.children.filter((c) => c !== crates);
-    loadModel('cargo_boat').then((m) => {
-      for (const c of hull) boat.remove(c);
-      boat.add(m.clone());
-    }).catch(() => {});
-  }
-  const buoy = keep(ball(g, 0.07, '#e74c3c', 1.4, 0.1, 1.1));
-  let key = '';
-  e.top = 1.5;
-  e.update = (_o, now, t) => {
-    const s = store.s;
-    const docked = boatState(s, now) === 'docked' && !!s.boat;
-    boat.visible = docked;
-    buoy.visible = !docked;
-    boat.position.y = 0.06 + Math.sin(t / 700) * 0.015;
-    boat.rotation.z = Math.sin(t / 900) * 0.03;
-    buoy.position.y = 0.1 + Math.sin(t / 500) * 0.02;
-    if (!docked || !s.boat) return;
-    const k = s.boat.crates.map((c) => (c.filled ? 1 : 0)).join('');
-    if (k === key) return;
-    key = k;
-    crates.clear();
-    s.boat.crates.slice(0, 6).forEach((c, i) => {
-      const m = mk(crates, G.box, c.filled ? M('#c98a45') : MT('#c98a45', 0.3), 0.14, 0.12, 0.14, (i % 2 ? 0.1 : -0.1), 0.28, -0.35 + Math.floor(i / 2) * 0.22);
-      m.castShadow = c.filled;
-    });
-  };
-}
-
 function buildObstacle(e: Entry, o: FarmObject) {
   const g = e.root;
   if (o.type === 'tree_obs') {
@@ -7026,7 +7211,7 @@ function buildFishingSpot(spot: FishSpot) {
   const end = sea ? { x: P.x + 0.15, z: Z0 + L - 0.2 } : { x: jx + 8 * 0.16, z: P.y + 0.14 };
   const yaw = sea ? 0 : Math.PI / 2;
   if (sea && artStyle() === 'toon') {
-    loadModel('fishing_jetty').then((m) => { const j = m.clone(); j.position.set(P.x, 0, Z0); root.add(j); }).catch(() => {});
+    loadLater('fishing_jetty').then((m) => { const j = m.clone(); j.position.set(P.x, 0, Z0); root.add(j); }).catch(() => {});
   }
   const lock = badge(root, '🔒', 0.3, shore.x, deckY + 0.35, shore.z);
   lock.rotation.x = -0.3;
@@ -7237,7 +7422,7 @@ function turtleRig(kind: 'sea_turtle' | 'turtle_hatchling', scale: number): Turt
   }
   body.scale.setScalar(scale);
   if (artStyle() === 'toon') {
-    loadModel(kind).then((m) => {
+    loadLater(kind).then((m) => {
       const c = m.clone();
       body.clear();
       body.add(c);
@@ -7483,7 +7668,7 @@ class ShoreLife {
         skipOffView(g, 2, true);
         this.crabs.push(c);
         if (artStyle() === 'toon') {
-          loadModel(kind).then((m) => {
+          loadLater(kind).then((m) => {
             const mc = m.clone();
             mc.traverse((o) => { o.castShadow = false; });
             body.add(mc);
@@ -7511,7 +7696,7 @@ class ShoreLife {
       skipOffView(g, 3);
       this.seals.push(s);
       if (artStyle() === 'toon') {
-        loadModel('harbor_seal').then((m) => {
+        loadLater('harbor_seal').then((m) => {
           const c = m.clone();
           // each seal its own shade, from warm brown to nearly black, and a wet sheen on the coat
           const tint = SEAL_TINTS[k % SEAL_TINTS.length];
@@ -7639,7 +7824,7 @@ class ShoreLife {
         skipOffView(g, 2, true);
         fl.birds.push(b);
         if (artStyle() === 'toon') {
-          loadModel('sandpiper').then((m) => {
+          loadLater('sandpiper').then((m) => {
             const c = m.clone();
             c.traverse((o) => { o.castShadow = false; });
             g.add(c);
@@ -7976,7 +8161,7 @@ class NightLife {
     }
     if (toon) {
       for (const o of this.owls) {
-        loadModel(o.kind).then((m) => {
+        loadLater(o.kind).then((m) => {
           const c = m.clone();
           c.traverse((x) => { x.castShadow = true; });
           c.scale.setScalar(1.25);
@@ -8000,7 +8185,7 @@ class NightLife {
         const c: Critter = { kind, g, body, legs: [], wings: [], seed: k * 5.3 + kind.length, ready: false, x: 0, z: 0, tx: 0, tz: 0, wait: 0, curl: 0, heading: 0, hop: -1, a: 0, a1: 0 };
         list.push(c);
         if (toon) {
-          loadModel(kind).then((m) => {
+          loadLater(kind).then((m) => {
             const mc = m.clone();
             mc.traverse((o) => { o.castShadow = kind !== 'bat'; });
             body.add(mc);
@@ -8455,7 +8640,7 @@ class Life {
     }
     if (artStyle() !== 'toon') return;
     // the Blender gulls, yacht, trawler and sea animals (tools/blender/sea.py)
-    loadModel('seagull').then((src) => {
+    loadLater('seagull').then((src) => {
       for (const gl of this.gulls) {
         gl.g.clear();
         const m = src.clone();
@@ -8466,11 +8651,11 @@ class Life {
         gl.meshes = null;
       }
     }).catch(() => {});
-    loadModel('sailboat').then((src) => {
+    loadLater('sailboat').then((src) => {
       this.sail.clear();
       for (const g of [this.sail, this.sail2]) { const m = src.clone(); m.position.y = -0.08; g.add(m); }
     }).catch(() => {});
-    loadModel('dolphin').then((src) => {
+    loadLater('dolphin').then((src) => {
       for (let i = 0; i < 3; i++) {
         const m = src.clone();
         m.scale.setScalar(0.9 - i * 0.08);
@@ -8482,8 +8667,8 @@ class Life {
         this.dolphinRings.push(ring);
       }
     }).catch(() => {});
-    loadModel('whale').then((src) => { this.whale = src.clone(); this.whale.visible = false; scene.add(this.whale); skipOffView(this.whale, 8); }).catch(() => {});
-    loadModel('shark').then((src) => { this.shark = src.clone(); this.shark.visible = false; scene.add(this.shark); skipOffView(this.shark, 4); }).catch(() => {});
+    loadLater('whale').then((src) => { this.whale = src.clone(); this.whale.visible = false; scene.add(this.whale); skipOffView(this.whale, 8); }).catch(() => {});
+    loadLater('shark').then((src) => { this.shark = src.clone(); this.shark.visible = false; scene.add(this.shark); skipOffView(this.shark, 4); }).catch(() => {});
   }
 
   // off the shore nearest the view, a few tiles out to sea, heading along the coast

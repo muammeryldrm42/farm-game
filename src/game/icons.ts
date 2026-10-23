@@ -112,6 +112,35 @@ function pie(fill: [string, string], dots: string): Painter {
   };
 }
 
+// a slice of veggie pizza with a golden crust, tomato sauce, melted cheese and the pizza's own
+// toppings (no pepperoni: the farm has no meat, and the pizza emoji shows some)
+function pizza(bits: string[], leaves = true): Painter {
+  return (c) => {
+    // the slice, the sauce showing at its edges
+    c.beginPath(); c.moveTo(64, 122); c.lineTo(12, 36); c.quadraticCurveTo(64, 18, 116, 36); c.closePath();
+    c.fillStyle = '#d8442a'; c.fill(); outline(c);
+    // melted cheese, a little in from the edges, with a drip
+    c.beginPath(); c.moveTo(64, 110); c.lineTo(23, 43); c.quadraticCurveTo(64, 30, 105, 43); c.closePath();
+    c.fillStyle = lin(c, 0, 32, 0, 112, [[0, '#ffe68a'], [1, '#f4c040']]); c.fill();
+    c.beginPath(); c.ellipse(46, 74, 5, 9, 0.3, 0, Math.PI * 2); c.fillStyle = '#f8d058'; c.fill();
+    // the crust along the top
+    c.beginPath(); c.moveTo(14, 36); c.quadraticCurveTo(64, 16, 114, 36);
+    c.lineCap = 'round'; c.lineWidth = 16; c.strokeStyle = lin(c, 0, 22, 0, 44, [[0, '#e8a85a'], [1, '#b8742e']]); c.stroke();
+    c.lineWidth = 3; c.strokeStyle = 'rgba(60,35,15,0.45)'; c.stroke();
+    // the toppings
+    const spots: [number, number][] = [[50, 52], [78, 50], [64, 64], [44, 62], [84, 62], [58, 80], [72, 78], [64, 96], [66, 46]];
+    spots.forEach(([x, y], i) => {
+      c.beginPath(); c.ellipse(x, y, 6.5, 5, i * 0.9, 0, Math.PI * 2); c.fillStyle = bits[i % bits.length]; c.fill(); outline(c, 1.5);
+    });
+    // basil leaves
+    if (leaves) for (const [x, y, a] of [[56, 70, 0.6], [76, 88, -0.5]] as [number, number, number][]) {
+      c.beginPath(); c.ellipse(x, y, 7, 3.5, a, 0, Math.PI * 2); c.fillStyle = '#3a9a2e'; c.fill();
+      c.beginPath(); c.moveTo(x - Math.cos(a) * 6, y - Math.sin(a) * 6); c.lineTo(x + Math.cos(a) * 6, y + Math.sin(a) * 6); c.lineWidth = 1; c.strokeStyle = '#1f6a1a'; c.stroke();
+    }
+    shine(c, 82, 44, 8, 3);
+  };
+}
+
 // a ball of yarn or a folded woolly blanket
 function yarn(col: [string, string]): Painter {
   return (c) => {
@@ -792,6 +821,45 @@ const PAINTERS: Record<string, Painter> = {
   peach_jam: jar(['#ffb06a', '#e8793a'], '#ff9a5c'),
   peach_juice: drink(['#ffc48a', '#ff8f4a'], '#ffa274', '#ffd8b0'),
   lemonade: drink(['#fff6b0', '#ffe066'], '#ffd23a', '#fff4a8'),
+  // a split golden bun with lettuce and chunks of lobster (the sandwich emoji shows ham)
+  lobster_roll: (c) => {
+    rrect(c, 14, 40, 100, 34, 17); c.fillStyle = '#c98a45'; c.fill(); outline(c);
+    c.beginPath();
+    for (let i = 0; i <= 10; i++) { const x = 18 + i * 9.2, y = 64 + (i % 2 ? 5 : 0); if (i) c.lineTo(x, y); else c.moveTo(x, y); }
+    c.lineTo(110, 76); c.lineTo(18, 76); c.closePath(); c.fillStyle = '#6cc04a'; c.fill(); outline(c, 2);
+    for (const [x, y, r] of [[34, 56, 12], [54, 50, 13], [76, 52, 13], [96, 57, 11], [64, 62, 10]] as [number, number, number][]) {
+      c.beginPath(); c.ellipse(x, y, r, r * 0.78, 0.3, 0, Math.PI * 2); c.fillStyle = rad(c, x, y, r, [[0, '#ffb08a'], [0.6, '#f06a42'], [1, '#d8462a']]); c.fill(); outline(c, 2);
+      c.beginPath(); c.arc(x - 2, y + 1, r * 0.45, 3.6, 5.4); c.lineWidth = 2.5; c.strokeStyle = '#fff2ea'; c.stroke();
+    }
+    c.fillStyle = '#2f8a26'; for (const [x, y] of [[44, 46], [70, 44], [88, 50], [60, 56]]) { c.beginPath(); c.arc(x, y, 2.2, 0, Math.PI * 2); c.fill(); }
+    rrect(c, 10, 72, 108, 30, 15); c.fillStyle = lin(c, 0, 72, 0, 102, [[0, '#f4c878'], [1, '#c88a3a']]); c.fill(); outline(c);
+    shine(c, 36, 82, 14, 4);
+  },
+  // a wok of stir fried vegetables, still steaming (the pan emoji shows sausage)
+  stir_fry: (c) => {
+    c.beginPath(); c.moveTo(96, 62); c.lineTo(124, 52); c.lineTo(126, 60); c.lineTo(100, 72); c.closePath(); c.fillStyle = '#6a4424'; c.fill(); outline(c, 3);
+    c.beginPath(); c.moveTo(10, 62); c.quadraticCurveTo(60, 126, 110, 62); c.closePath();
+    c.fillStyle = lin(c, 0, 62, 0, 108, [[0, '#5a5a62'], [1, '#2a2a30']]); c.fill(); outline(c);
+    c.beginPath(); c.ellipse(60, 62, 50, 13, 0, 0, Math.PI * 2); c.fillStyle = '#3a3a42'; c.fill(); outline(c, 3);
+    c.beginPath(); c.ellipse(60, 61, 43, 9, 0, 0, Math.PI * 2); c.fillStyle = '#c8862a'; c.fill();
+    const veg: [number, number, string, number, number, number][] = [
+      [36, 56, '#3a9a2e', 11, 3.5, 0.4], [70, 54, '#3a9a2e', 12, 3.5, -0.3], [52, 62, '#e8402a', 10, 4, 0.2], [84, 60, '#e8402a', 9, 4, -0.5],
+      [46, 52, '#f08a2a', 5, 5, 0], [62, 50, '#f08a2a', 5, 5, 0], [92, 54, '#f4d040', 8, 4, 0.6], [28, 62, '#e8dcc0', 6, 4.5, 0],
+      [76, 64, '#4aa83a', 6, 6, 0], [58, 58, '#4aa83a', 6, 6, 0]];
+    for (const [x, y, col, rx, ry, a] of veg) { c.beginPath(); c.ellipse(x, y, rx, ry, a, 0, Math.PI * 2); c.fillStyle = col; c.fill(); outline(c, 1.5); }
+    c.lineWidth = 3; c.strokeStyle = 'rgba(255,255,255,0.8)'; c.lineCap = 'round';
+    for (const x of [44, 70]) { c.beginPath(); c.moveTo(x, 40); c.bezierCurveTo(x - 8, 32, x + 8, 24, x, 14); c.stroke(); }
+  },
+  pizza: pizza(['#e8402a', '#e8402a', '#f4e8c8']),
+  cherry_tomato_pizza: pizza(['#e8302a', '#ff6a4a']),
+  green_bean_pizza: pizza(['#4aa83a', '#6cc04a']),
+  artichoke_pizza: pizza(['#7a9a3a', '#a8c060']),
+  wasabi_pizza: pizza(['#9ccf5a', '#c8e88a'], false),
+  arugula_pizza: pizza(['#2f7a26', '#4a9a34'], false),
+  rutabaga_pizza: pizza(['#e8a23a', '#f4c060']),
+  sprout_pizza: pizza(['#b8e07a', '#d8f0a0']),
+  tomatillo_pizza: pizza(['#8ac24a', '#b8d870']),
+  cassava_pizza: pizza(['#f2e6c8', '#e0cfa0']),
   garden_salad: (c) => {
     c.beginPath(); c.ellipse(64, 78, 50, 16, 0, 0, Math.PI * 2); c.fillStyle = '#e9f4ff'; c.fill();
     const leaf = (x: number, y: number, r: number, col: string) => { c.beginPath(); c.ellipse(x, y, r, r * 0.7, (x - 64) / 40, 0, Math.PI * 2); c.fillStyle = col; c.fill(); outline(c, 2); };
@@ -884,6 +952,20 @@ export function iconUrl(icon: string) {
   return u;
 }
 
+// the painted icons made ready ahead, a few at a time while the page is idle, so a window full
+// of them (a late farm's barn holds a few hundred) does not wait on them all at once
+export function warmIcons(icons: string[]) {
+  if (typeof window === 'undefined') return;
+  const todo = [...new Set(icons.filter(isDrawn))].filter((i) => !urls.has(i));
+  const idle = (f: (d: { timeRemaining: () => number }) => void) =>
+    (typeof window.requestIdleCallback === 'function' ? window.requestIdleCallback(f, { timeout: 2000 }) : setTimeout(() => f({ timeRemaining: () => 8 }), 60));
+  const run = (d: { timeRemaining: () => number }) => {
+    while (todo.length && d.timeRemaining() > 3) iconUrl(todo.pop()!);
+    if (todo.length) idle(run);
+  };
+  if (todo.length) idle(run);
+}
+
 // draw a line of text that may contain drawn icons (tokens like "@peach_jam")
 export function fillRich(c: CanvasRenderingContext2D, text: string, cx: number, cy: number, size: number, stroke: boolean) {
   const parts = text.split(/(@[a-z_]+)/g).filter(Boolean);
@@ -891,7 +973,8 @@ export function fillRich(c: CanvasRenderingContext2D, text: string, cx: number, 
   let x = cx - w / 2;
   const align = c.textAlign;
   c.textAlign = 'left';
-  for (const p of parts) {
+  // (right to left, as the canvas is set for Arabic: the first part on the right)
+  for (const p of c.direction === 'rtl' ? [...parts].reverse() : parts) {
     if (isDrawn(p)) { paintIcon(c, p, x + size / 2, cy, size); x += size; continue; }
     if (stroke) c.strokeText(p, x, cy);
     c.fillText(p, x, cy);

@@ -26,6 +26,14 @@ canvas {
   .card {
     @apply rounded-2xl border-2 border-[#e2cc9c] bg-[#fffaf0] shadow-[0_3px_0_#e2cc9c];
   }
+  /* a card in a long list (a late farm's barn holds hundreds of goods, the shop hundreds of
+     things): the browser lays out and paints only the ones on screen or near it, keeping the
+     size each had, so a long list opens about as fast as a short one. (It clips what reaches out
+     of the card, so a card with a pointing finger above it goes without.) */
+  .cv {
+    content-visibility: auto;
+    contain-intrinsic-size: auto 136px;
+  }
   .btn {
     @apply inline-flex select-none items-center justify-center gap-1 rounded-2xl px-3 py-2 font-bold text-white transition active:translate-y-[3px] disabled:cursor-not-allowed disabled:opacity-50;
     text-shadow: 0 1px 0 rgba(0, 0, 0, 0.35);
@@ -66,6 +74,15 @@ canvas {
     font-family: 'Apple Color Emoji', 'Segoe UI Emoji', 'Noto Color Emoji', sans-serif;
     line-height: 1;
   }
+  /* the game's own emoji ahead of the device's (on Android, and where the device lacks the newest
+     ones: src/game/emojiFont.ts), in icons and in text alike; the font holds emoji only, so the
+     letters keep the game's font */
+  .farm-emoji .emoji {
+    font-family: 'Farm Emoji', 'Apple Color Emoji', 'Segoe UI Emoji', 'Noto Color Emoji', sans-serif;
+  }
+  .farm-emoji .font-game {
+    font-family: var(--font-game), 'Farm Emoji', system-ui, sans-serif;
+  }
   .coin {
     display: inline-block;
     width: 1.1em;
@@ -95,7 +112,9 @@ canvas {
   }
 }
 
-/* Arabic: the panels, cards and messages read right to left; the farm and the HUD layout stay */
+/* Arabic and Urdu: the panels, cards and messages (the tutorial card, the toasts, the story's
+   words) read right to left, so a sentence's full stop lands at its end; the farm and the HUD
+   layout stay */
 html[data-rtl='1'] .panel,
 html[data-rtl='1'] .card,
 html[data-rtl='1'] .rtl-text {

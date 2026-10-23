@@ -1,9 +1,13 @@
 'use client';
 import { useEffect, useRef, useState } from 'react';
 import { GameStore, TUTORIAL_DONE, fmtTime, loadGame, plotProgress, type FarmObject } from '@/game/state';
-import { BUILDING } from '@/game/data';
-import { Renderer } from '@/game/render3d';
-import { sfx, sleepAudio, startMusic, stopMusic } from '@/game/audio';
+import { BUILDING, ITEM_LIST } from '@/game/data';
+import { warmIcons } from '@/game/icons';
+import { Renderer, nightFactor, redrawCanvasTextures } from '@/game/render3d';
+import { loadEmojiFont } from '@/game/emojiFont';
+import { sfx, sleepAudio, startAmbience, startMusic, stopAmbience, stopMusic, voice } from '@/game/audio';
+import { weatherAt } from '@/game/weather';
+import { buzz } from '@/game/haptics';
 import { Capacitor } from '@capacitor/core';
 import { App } from '@capacitor/app';
 import { notifyAsked, notifyAway, notifyBack, setNotifyAsked } from '@/game/notify';
@@ -14,6 +18,11 @@ import Hud from './Hud';
 import Panels from './Panels';
 import Flyers from './Flyers';
 import { Guard } from './Guard';
+import { kvFlush, kvGet, kvInit, kvSet, kvWorks } from '@/game/kv';
+import { inYouTube, onYtAudio, onYtPause, ytAudioOn, ytFirstFrame, ytPaused, ytReady, ytWire } from '@/game/yt';
+
+// the farm was drawn once (the card of what is ready on coming back waits for it)
+let drawnOnce = false;
 
 export default function Game() {
   const [store, setStore] = useState<GameStore | null>(null);
@@ -28,12 +37,16 @@ export default function Game() {
   }, [store]);
 
   // the farm's clock is set from the real time (see clock.ts) and the chosen language loaded, a
-  // moment each: then the farm is loaded and shown
+  // moment each (inside YouTube, the saves fetched first): then the farm is loaded and shown
   useEffect(() => {
     let alive = true, stop = () => {};
-    Promise.all([syncClock(), initLang()]).finally(() => { if (alive) stop = startFarm(setStore); });
+    ytWire();
+    requestAnimationFrame(() => ytFirstFrame());
+    kvInit().then(() => Promise.all([syncClock(), initLang()])).finally(() => { if (alive) stop = startFarm(setStore); });
     return () => { alive = false; stop(); };
   }, []);
+  // YouTube is told once the farm can be played
+  useEffect(() => { if (drawn || noGl) ytReady(); }, [drawn, noGl]);
 
   if (!store) return <Splash />;
 
@@ -45,9 +58,9 @@ export default function Game() {
     store.toast(t('Something went wrong with that window. Your farm is safe.'), 'bad');
   };
   return (
-    <Guard fallback={<Broken onReload={() => { store.saveNow(); location.reload(); }} />}>
+    <Guard fallback={<Broken onReload={() => { store.saveNow(); void kvFlush().finally(() => location.reload()); }} />}>
       <StoreCtx.Provider value={store}>
-        <FarmCanvas onDrawn={() => setDrawn(true)} onFail={() => setNoGl(true)} />
+        <FarmCanvas onDrawn={() => { setDrawn(true); drawnOnce = true; store.welcomeBack(); setTimeout(() => warmIcons(ITEM_LIST.map((i) => i.icon)), 4000); }} onFail={() => setNoGl(true)} />
         <Guard><Hud /></Guard>
         <Guard><Flyers /></Guard>
         <Guard onError={closeFailed}><Panels /></Guard>
@@ -85,30 +98,101 @@ function NoGl() {
   );
 }
 
+// The topmost thing open is closed (the notifications question, the story, the level up, the
+// daily gift, a nap, then a window, a selection or a placing): the Android back button and, on the
+// web, the Escape key. False when nothing was open.
+function closeTop(st: GameStore) {
+  const ui = st.ui;
+  if (ui.notifyAsk) { ui.notifyAsk = false; setNotifyAsked(); st.s.settings = { ...st.s.settings, notify: false }; st.emit(); }
+  else if (ui.story) { ui.story = null; st.emit(false); }
+  else if (ui.levelUp !== null) { ui.levelUp = null; st.emit(false); }
+  else if (ui.daily) { ui.daily = false; st.emit(false); }
+  else if (ui.napping) st.wake();
+  else if (ui.panel || ui.placing || ui.tool || ui.expand || ui.selectedId !== null) st.cancelAll();
+  else return false;
+  return true;
+}
+
 // The farm loaded and running: saves, the game's tick, music, the farm's clock, and in the Android
 // app the back button and the phone's notifications. Gives back what stops it all.
 function startFarm(show: (st: GameStore) => void) {
   const st = new GameStore(loadGame());
-  st.sound = (n) => { if (st.s.settings.sound) sfx(n); };
+  st.noSave = !kvWorks();
+  st.sound = (n) => { if (st.s.settings.sound) sfx(n); if (st.s.settings.vibrate !== false) buzz(n); };
+  st.voice = (a) => { if (st.s.settings.sound) voice(a); };
   // the farm redraws when the language changes
   const offLang = onLang(() => st.emit(false));
-  const save = () => st.saveNow();
-  const vis = () => { if (document.visibilityState === 'hidden') save(); };
-  window.addEventListener('beforeunload', save);
+  // (inside YouTube the save is sent to it at once)
+  const save = () => { st.saveNow(); void kvFlush(); };
+  // The farm open in a second tab of the same browser (on the web): the newest tab plays. Each
+  // tab says so as it opens; an older one hearing it stops (no more saves over the newer farm, no
+  // clock, no sound) and offers to play there instead, which loads the farm afresh. (Not inside
+  // YouTube, which has no tabs of its own and would only be sent the mark with the save.)
+  // On the web the browser is asked to keep the farm's storage for good: not cleared when the
+  // device runs short of space, nor (where Safari grants it) after its seven days without a visit.
+  // Chrome and Safari decide by themselves; Firefox would ask the player, so not there.
+  if (!Capacitor.isNativePlatform() && !inYouTube() && !/Firefox\//.test(navigator.userAgent)) {
+    navigator.storage?.persist?.().catch(() => { /* not granted: the farm saves as before */ });
+  }
+  const TAB_KEY = 'talons-farm-tab';
+  const tabId = `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
+  const tabs = !inYouTube();
+  if (tabs) kvSet(TAB_KEY, tabId);
+  const onStorage = (e: StorageEvent) => {
+    if (e.key !== TAB_KEY || !e.newValue || e.newValue === tabId || st.elsewhere) return;
+    st.elsewhere = true;
+    st.cancelAll();
+    syncMusic();
+  };
+  window.addEventListener('storage', onStorage);
+  // On the website, as in the Android app (see MainActivity), the screen stays on for a few
+  // minutes after the last touch, the crops growing while the player looks on, then goes off as
+  // the device's own screen timeout says
+  const wakeLock = !Capacitor.isNativePlatform() && !inYouTube() ? navigator.wakeLock : undefined;
+  const AWAKE_MS = 3 * 60e3;
+  let awakeUntil = 0, lock: WakeLockSentinel | null = null, asking = false;
+  const awake = () => {
+    if (!wakeLock) return;
+    awakeUntil = performance.now() + AWAKE_MS;
+    if (asking || (lock && !lock.released) || document.visibilityState !== 'visible' || st.elsewhere) return;
+    asking = true;
+    wakeLock.request('screen').then((l) => { lock = l; }, () => { /* not allowed here: the screen sleeps as usual */ }).finally(() => { asking = false; });
+  };
+  const letSleep = () => { void lock?.release().catch(() => {}); lock = null; };
+  const sleepCheck = setInterval(() => { if (lock && (performance.now() > awakeUntil || st.elsewhere)) letSleep(); }, 10e3);
+  for (const ev of ['pointerdown', 'keydown', 'wheel'] as const) window.addEventListener(ev, awake, { capture: true, passive: true });
+  // (and where the player left off, for the card of what is ready when they are back). Saved
+  // as the page is left too: pagehide, which unlike beforeunload lets the browser keep the page
+  // for its Back button (see onShow).
+  const vis = () => { if (document.visibilityState === 'hidden') { save(); st.awayFrom ??= clockNow(); } };
+  window.addEventListener('pagehide', save);
   document.addEventListener('visibilitychange', vis);
-  const tick = setInterval(() => st.tick(), 1000);
+  // while YouTube has the game paused nothing runs: no ticks, no frames (see FarmCanvas), no sound.
+  // Nor in the background (the Android app keeps its page running there): the farm's timers are
+  // all times, so nothing is missed, and the tick on coming back catches up at once (see visClock)
+  const busy = () => !ytPaused() && document.visibilityState !== 'hidden' && !st.elsewhere;
+  const tick = setInterval(() => { if (busy()) st.tick(); }, 1000);
   // music can only start after a user gesture
   let unlocked = false;
+  // the farm's own sounds follow the day and night and the showers (as the farm shows them)
+  const ambState = () => {
+    const now = clockNow(), w = weatherAt(now);
+    return { night: st.s.settings.dayNight ? nightFactor(now).night : 0, rain: st.s.settings.weather && w.kind === 'rain' ? w.k : 0 };
+  };
   const syncMusic = () => {
-    if (unlocked && st.s.settings.music && document.visibilityState === 'visible') startMusic();
+    const on = document.visibilityState === 'visible' && !ytPaused() && ytAudioOn() && !st.elsewhere;
+    if (unlocked && st.s.settings.music && on) startMusic();
     else stopMusic();
-    if (document.visibilityState === 'hidden') sleepAudio();
+    if (unlocked && st.s.settings.nature !== false && on) startAmbience(ambState);
+    else stopAmbience();
+    if (!on) sleepAudio(ytPaused());
   };
   const unlock = () => { unlocked = true; syncMusic(); };
   window.addEventListener('pointerdown', unlock, { once: true });
   window.addEventListener('keydown', unlock, { once: true });
   document.addEventListener('visibilitychange', syncMusic);
   const unsub = st.subscribe(syncMusic);
+  const offAudio = onYtAudio(syncMusic);
   // the farm's clock is set again from the real time when the game comes back, or when the
   // phone slept or had its clock changed; a farm whose clock ran ahead says it is waiting
   // (said once a minute while it waits)
@@ -124,11 +208,27 @@ function startFarm(show: (st: GameStore) => void) {
     const o = clockOwed();
     if (o > 10 * 60e3) st.toast(t('No internet: the time from before the phone was restarted is added once you are back online ({time}).', { time: fmtTime(o) }));
   };
-  const reclock = () => syncClock().then(() => { ahead(); owed(); st.tick(); st.emit(false); });
+  const reclock = () => syncClock().then(() => { ahead(); owed(); st.tick(); st.emit(false); if (document.visibilityState === 'visible' && drawnOnce) st.welcomeBack(); });
   const visClock = () => { if (document.visibilityState === 'visible') reclock(); };
   document.addEventListener('visibilitychange', visClock);
-  const drift = setInterval(() => { if (clockDrifted()) reclock(); else ahead(); }, 5000);
+  // Back to the farm with the browser's Back button, the page as it was left (kept by the
+  // browser): when the farm was played in another tab meanwhile, the farm here is old, so it loads
+  // afresh (the newest save; this tab plays); else the clock is set again
+  const onShow = (e: PageTransitionEvent) => {
+    if (!e.persisted) return;
+    const mark = tabs ? kvGet(TAB_KEY) : null;
+    if (mark && mark !== tabId) { location.reload(); return; }
+    reclock();
+    syncMusic();
+  };
+  window.addEventListener('pageshow', onShow);
+  const drift = setInterval(() => { if (!busy()) return; if (clockDrifted()) reclock(); else ahead(); }, 5000);
   const owedT = setTimeout(owed, 8000);
+  // YouTube pauses the game: the farm is saved and the sound stops; back, the clock is set again
+  const offPause = onYtPause((p) => {
+    if (p) save(); else reclock();
+    syncMusic();
+  });
   // the Android app: the back button closes whatever is open (and only then leaves the game),
   // and the farm is saved whenever the app goes to the background. Leaving, the phone is told
   // when things will be ready (if the player wants notifications); coming back takes them away.
@@ -136,14 +236,7 @@ function startFarm(show: (st: GameStore) => void) {
   let askT: ReturnType<typeof setInterval> | undefined;
   if (Capacitor.isNativePlatform()) {
     native.push(App.addListener('backButton', () => {
-      const ui = st.ui;
-      if (ui.notifyAsk) { ui.notifyAsk = false; setNotifyAsked(); st.s.settings = { ...st.s.settings, notify: false }; st.emit(); }
-      else if (ui.story) { ui.story = null; st.emit(false); }
-      else if (ui.levelUp !== null) { ui.levelUp = null; st.emit(false); }
-      else if (ui.daily) { ui.daily = false; st.emit(false); }
-      else if (ui.napping) st.wake();
-      else if (ui.panel || ui.placing || ui.tool || ui.expand || ui.selectedId !== null) st.cancelAll();
-      else { save(); App.minimizeApp(); }
+      if (!closeTop(st)) { save(); App.minimizeApp(); }
     }));
     native.push(App.addListener('pause', () => { save(); notifyAway(st.s); }));
     native.push(App.addListener('resume', () => { notifyBack(); reclock(); }));
@@ -165,10 +258,17 @@ function startFarm(show: (st: GameStore) => void) {
   return () => {
     offLang();
     unsub();
+    offAudio();
+    offPause();
     for (const h of native) h.then((x) => x.remove());
     stopMusic();
     document.removeEventListener('visibilitychange', syncMusic);
-    window.removeEventListener('beforeunload', save);
+    window.removeEventListener('pagehide', save);
+    window.removeEventListener('pageshow', onShow);
+    window.removeEventListener('storage', onStorage);
+    for (const ev of ['pointerdown', 'keydown', 'wheel'] as const) window.removeEventListener(ev, awake, { capture: true });
+    clearInterval(sleepCheck);
+    letSleep();
     document.removeEventListener('visibilitychange', vis);
     clearInterval(tick);
     clearInterval(askT);
@@ -183,7 +283,7 @@ function Splash() {
   return (
     <div className="fixed inset-0 z-[100] grid place-items-center bg-gradient-to-b from-[#8fd0f7] to-[#3f9fd8] font-game text-white">
       {/* eslint-disable-next-line @next/next/no-img-element */}
-      <img src="/logo.webp" alt="Talons Farm" draggable={false} className="animate-bob max-h-[55vh] w-[min(78vw,560px)] object-contain" />
+      <img src="logo.webp" alt="Talons Farm" draggable={false} className="animate-bob max-h-[55vh] w-[min(78vw,560px)] object-contain" />
     </div>
   );
 }
@@ -206,6 +306,8 @@ function FarmCanvas({ onDrawn, onFail }: { onDrawn: () => void; onFail: () => vo
       return;
     }
     r.onFirstDraw = onDrawn;
+    // the game's own emoji (see emojiFont.ts): what was painted before they came is painted again
+    loadEmojiFont().then((ok) => { if (ok) redrawCanvasTextures(); });
     (window as unknown as { __farm?: unknown }).__farm = { store, renderer: r };
     store.viewCenter = () => r.gridAt(r.W / 2, r.H / 2);
     store.toScreen = (gx, gy, z) => r.toScreen(gx, gy, z);
@@ -263,6 +365,8 @@ function FarmCanvas({ onDrawn, onFail }: { onDrawn: () => void; onFail: () => vo
     // instead of rushing to catch up.
     let last = 0, prev = 0, avg = 1000 / 60;
     const loop = (t: number) => {
+      // paused by YouTube: no frames until it says to go on
+      if (ytPaused()) { raf = 0; return; }
       raf = requestAnimationFrame(loop);
       // the screen's own frame time, smoothed
       if (prev) avg += (Math.min(100, t - prev) - avg) * 0.05;
@@ -275,11 +379,12 @@ function FarmCanvas({ onDrawn, onFail }: { onDrawn: () => void; onFail: () => vo
       r.frame(t);
     };
     raf = requestAnimationFrame(loop);
+    const offPause = onYtPause((p) => { if (!p && !raf) { prev = 0; raf = requestAnimationFrame(loop); } });
 
     // ---------------------------------------------- input
     const pts = new Map<number, { x: number; y: number }>();
     let mode: Mode = 'none';
-    let sx = 0, sy = 0, pinchD = 1, pinchZ = 1, pinchA = 0;
+    let sx = 0, sy = 0, pinchD = 1, pinchZ = 1;
     let hitObj: FarmObject | null = null;
     let hitSpot: 'fishing' | 'seaFishing' | 'visitor' | null = null;
     let hitPick: ReturnType<typeof r.pick> | null = null;
@@ -304,7 +409,6 @@ function FarmCanvas({ onDrawn, onFail }: { onDrawn: () => void; onFail: () => vo
         const [a, b] = [...pts.values()];
         pinchD = Math.max(1, dist(a, b));
         pinchZ = r.cam.zoom;
-        pinchA = Math.atan2(b.y - a.y, b.x - a.x);
         mode = 'pinch';
         return;
       }
@@ -350,7 +454,15 @@ function FarmCanvas({ onDrawn, onFail }: { onDrawn: () => void; onFail: () => vo
               longFired = true;
               mode = 'none';
               store.startMove(target.id);
-              navigator.vibrate?.(25);
+              if (store.s.settings.vibrate !== false) buzz(25);
+              // the finger still down carries it: a drag from here moves it, as from its ghost
+              const pl = store.ui.placing;
+              if (pl && pts.size === 1) {
+                const d = store.placingFootprint();
+                const g = r.gridAt(sx, sy);
+                ghostOff = { x: Math.min(d.w - 1, Math.max(0, g.x - pl.x)), y: Math.min(d.h - 1, Math.max(0, g.y - pl.y)) };
+                mode = 'ghost';
+              }
             }
           }, Math.max(0, due - performance.now()));
         };
@@ -363,15 +475,11 @@ function FarmCanvas({ onDrawn, onFail }: { onDrawn: () => void; onFail: () => vo
       const p = pos(e);
       pts.set(e.pointerId, p);
       if (mode === 'pinch') {
+        // two fingers only zoom: the camera keeps its heading however the fingers turn (it turns
+        // with the buttons, or Q and E)
         if (pts.size >= 2) {
           const [a, b] = [...pts.values()];
           r.zoomAt((a.x + b.x) / 2, (a.y + b.y) / 2, (pinchZ * dist(a, b)) / pinchD);
-          const ang = Math.atan2(b.y - a.y, b.x - a.x);
-          let da = ang - pinchA;
-          if (da > Math.PI) da -= Math.PI * 2;
-          if (da < -Math.PI) da += Math.PI * 2;
-          r.rotateBy(-da);
-          pinchA = ang;
         }
         return;
       }
@@ -469,13 +577,33 @@ function FarmCanvas({ onDrawn, onFail }: { onDrawn: () => void; onFail: () => vo
       // typing a pet's name, a price or a save code must not turn or zoom the farm
       const el = e.target as HTMLElement | null;
       if (el && (el.tagName === 'INPUT' || el.tagName === 'TEXTAREA' || el.tagName === 'SELECT' || el.isContentEditable)) return;
-      if (e.key === 'Escape') store.cancelAll();
+      if (e.key === 'Escape') closeTop(store);
       if (e.key === 'Enter' && store.ui.placing) store.confirmPlace();
       if (e.key === '+' || e.key === '=') r.zoomAt(r.W / 2, r.H / 2, r.cam.zoom * 1.15);
       if (e.key === '-') r.zoomAt(r.W / 2, r.H / 2, r.cam.zoom / 1.15);
       if (e.key === 'q' || e.key === 'Q') r.rotate(-1);
       if (e.key === 'e' || e.key === 'E') r.rotate(1);
+      if (PAN[e.code] && !e.ctrlKey && !e.metaKey && !e.altKey && !store.ui.panel) {
+        e.preventDefault();
+        held.add(e.code);
+        keyPan();
+      }
     };
+    // the arrows or WASD (where they sit on the keyboard, whatever its letters) move the view
+    // while held, with no window open
+    const PAN: Record<string, [number, number]> = {
+      ArrowUp: [0, 1], KeyW: [0, 1], ArrowDown: [0, -1], KeyS: [0, -1],
+      ArrowLeft: [-1, 0], KeyA: [-1, 0], ArrowRight: [1, 0], KeyD: [1, 0],
+    };
+    const held = new Set<string>();
+    const keyPan = () => {
+      let x = 0, y = 0;
+      for (const k of held) { x += PAN[k][0]; y += PAN[k][1]; }
+      r.keyPan = { x: Math.sign(x), y: Math.sign(y) };
+    };
+    const onKeyUp = (e: KeyboardEvent) => { if (held.delete(e.code)) keyPan(); };
+    // (a key let go while the page was not looking never says so)
+    const letGo = () => { held.clear(); keyPan(); };
 
     const onZoom = (ev: Event) => {
       const dir = (ev as CustomEvent<number>).detail;
@@ -490,6 +618,8 @@ function FarmCanvas({ onDrawn, onFail }: { onDrawn: () => void; onFail: () => vo
     canvas.addEventListener('wheel', onWheel, { passive: false });
     canvas.addEventListener('contextmenu', (e) => e.preventDefault());
     window.addEventListener('keydown', onKey);
+    window.addEventListener('keyup', onKeyUp);
+    window.addEventListener('blur', letGo);
     window.addEventListener('farm-zoom', onZoom);
     const onRotate = (ev: Event) => r.rotate((ev as CustomEvent<number>).detail);
     window.addEventListener('farm-rotate', onRotate);
@@ -500,11 +630,13 @@ function FarmCanvas({ onDrawn, onFail }: { onDrawn: () => void; onFail: () => vo
       pts.clear();
       clearLP();
       mode = 'none';
+      letGo();
     };
     document.addEventListener('visibilitychange', onHide);
 
     return () => {
       cancelAnimationFrame(raf);
+      offPause();
       clearLP();
       window.removeEventListener('resize', resize);
       canvas.removeEventListener('pointerdown', onDown);
@@ -513,6 +645,8 @@ function FarmCanvas({ onDrawn, onFail }: { onDrawn: () => void; onFail: () => vo
       canvas.removeEventListener('pointercancel', onCancel);
       canvas.removeEventListener('wheel', onWheel);
       window.removeEventListener('keydown', onKey);
+      window.removeEventListener('keyup', onKeyUp);
+      window.removeEventListener('blur', letGo);
       window.removeEventListener('farm-zoom', onZoom);
       window.removeEventListener('farm-rotate', onRotate);
       document.removeEventListener('visibilitychange', onHide);
@@ -524,5 +658,5 @@ function FarmCanvas({ onDrawn, onFail }: { onDrawn: () => void; onFail: () => vo
     };
   }, [store]);
 
-  return <canvas ref={ref} className="fixed inset-0 block h-full w-full touch-none select-none" aria-label="Farm map" />;
+  return <canvas ref={ref} className="fixed inset-0 block h-full w-full touch-none select-none" aria-label={t('Farm map')} />;
 }

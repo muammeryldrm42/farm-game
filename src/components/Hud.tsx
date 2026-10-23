@@ -1,9 +1,14 @@
 'use client';
+import { useEffect } from 'react';
 import Ico from './Ico';
 import { BUILDING, CROP, ITEMS } from '@/game/data';
-import { TUTORIAL, TUTORIAL_DONE, canFulfill, claimableAlbum, claimableBadges, claimableMuseum, claimableQuests, fmtNum, xpNeed } from '@/game/state';
+import { dailyClaimable } from '@/game/daily';
+import { cupClaimable } from '@/game/cup';
+import { SEASONS, seasonNext, seasonNow, seasonOn, seasonReady, seasonTokens } from '@/game/season';
+import { TUTORIAL, TUTORIAL_DONE, canFulfill, claimableAlbum, claimableBadges, claimableMuseum, claimableQuests, fmtNum, fmtTime, xpNeed } from '@/game/state';
 import { useStore, useVersion } from './ctx';
 import { CAST, LAST_CHAPTER, taskProgress } from '@/game/story';
+import { FESTS, festNow, festOn } from '@/game/fest';
 import { t } from '@/game/i18n';
 import { now as clockNow } from '@/game/clock';
 
@@ -27,7 +32,7 @@ export default function Hud() {
   const need = xpNeed(s.level);
   const sheetOpen = ui.selectedId !== null || ui.panel !== null || ui.placing !== null || ui.expand !== null || ui.daily || ui.levelUp !== null;
   const deliverable = s.orders.filter((o) => canFulfill(s, o, now)).length;
-  const claimable = claimableQuests(s).length + claimableBadges(s).length + claimableAlbum(s).length + claimableMuseum(s).length + (store.chapterReady() ? 1 : 0);
+  const claimable = claimableQuests(s).length + dailyClaimable(s) + cupClaimable(s) + claimableBadges(s).length + claimableAlbum(s).length + claimableMuseum(s).length + (store.chapterReady() ? 1 : 0);
   const tut = s.tutorial < TUTORIAL.length && s.tutorial !== TUTORIAL_DONE ? TUTORIAL[s.tutorial] : null;
 
   return (
@@ -41,11 +46,13 @@ export default function Hud() {
             </svg>
             <span className="relative text-lg font-bold text-[#5a3a1a]">{s.level}</span>
           </div>
-          <div data-fly="xp" className="-ml-4 w-24 rounded-r-full border-[3px] border-l-0 border-[#5d3a1f] bg-[#fff6df] py-0.5 pl-5 pr-2 shadow-[0_3px_0_#5d3a1f] sm:w-40">
+          {/* on the narrowest phones (320 wide, or a 360 one with large display size) the bar alone,
+              so the coins, gems and settings still fit beside it */}
+          <div data-fly="xp" className="-ml-4 w-24 rounded-r-full border-[3px] border-l-0 border-[#5d3a1f] bg-[#fff6df] py-0.5 pl-5 pr-2 shadow-[0_3px_0_#5d3a1f] sm:w-40 [@media(max-width:339px)]:w-14 [@media(max-width:339px)]:py-1.5">
             <div className="h-3 overflow-hidden rounded-full bg-[#e2cc9c]">
               <div className="h-full rounded-full bg-gradient-to-r from-[#57c3f0] to-[#2f8fd0] transition-all" style={{ width: `${Math.min(100, (s.xp / need) * 100)}%` }} />
             </div>
-            <div className="whitespace-nowrap text-center text-[10px] font-bold leading-4 text-[#5a3a1a] sm:text-[11px]">
+            <div className="whitespace-nowrap text-center text-[10px] font-bold leading-4 text-[#5a3a1a] sm:text-[11px] [@media(max-width:339px)]:hidden">
               {s.xp} / {need} XP
             </div>
           </div>
@@ -69,7 +76,7 @@ export default function Hud() {
       {/* tutorial coach */}
       {tut && !ui.placing && (
         <div className="absolute inset-x-0 top-16 flex justify-center px-3 sm:top-20">
-        <div className="pointer-events-auto flex w-full max-w-md animate-pop items-center gap-3 rounded-2xl border-[3px] border-[#5d3a1f] bg-[#fff6df] px-3 py-2 text-[#5a3a1a] shadow-[0_4px_0_#5d3a1f]">
+        <div className="rtl-text pointer-events-auto flex w-full max-w-md animate-pop items-center gap-3 rounded-2xl border-[3px] border-[#5d3a1f] bg-[#fff6df] px-3 py-2 text-[#5a3a1a] shadow-[0_4px_0_#5d3a1f]">
           <span className="emoji animate-bob text-3xl"><Ico i={tut.icon} /></span>
           <div className="min-w-0 flex-1">
             <div className="text-[10px] font-bold uppercase tracking-wide text-[#a8733f]">
@@ -87,15 +94,24 @@ export default function Hud() {
       {/* story tracker */}
       {!tut && !ui.placing && !ui.story && <StoryCard />}
 
-      {/* the farm's beauty, under the story button */}
-      {!sheetOpen && <BeautyChip />}
+      {/* the farm's beauty under the story button, and a season event beside it */}
+      {!sheetOpen && (
+        <div className="pointer-events-none absolute left-2 top-[8rem] flex items-center gap-1.5 sm:left-3 sm:top-[9.2rem]">
+          <BeautyChip />
+          <SeasonChip />
+        </div>
+      )}
 
-      {/* toasts */}
+      {/* the festival, under the beauty points */}
+      {!sheetOpen && <FestChip />}
+
+      {/* toasts, with the card of what is ready on coming back first */}
       <div className={`absolute left-1/2 flex w-[92%] max-w-sm -translate-x-1/2 flex-col items-center gap-2 ${tut ? "top-36" : "top-20"}`}>
+        {ui.welcome && !sheetOpen && !ui.story && <WelcomeCard />}
         {store.toasts.map((tt) => (
           <div
             key={tt.id}
-            className={`animate-pop rounded-2xl border-[3px] px-4 py-2 text-center text-sm font-bold shadow-lg ${
+            className={`rtl-text animate-pop rounded-2xl border-[3px] px-4 py-2 text-center text-sm font-bold shadow-lg ${
               tt.tone === 'bad' ? 'border-[#9c3020] bg-[#ffe3dc] text-[#8a2a18]' : tt.tone === 'good' ? 'border-[#3a7d1a] bg-[#e6f8d8] text-[#2d5e14]' : 'border-[#5d3a1f] bg-[#fff6df] text-[#5a3a1a]'
             }`}
           >
@@ -106,7 +122,7 @@ export default function Hud() {
 
       {/* planting tool banner */}
       {ui.tool && !ui.placing && (
-        <div className="pointer-events-auto absolute bottom-4 left-1/2 flex -translate-x-1/2 items-center gap-3 rounded-3xl border-4 border-[#8a5a2b] bg-[#fff6df] px-4 py-2 text-[#5a3a1a] shadow-[0_6px_0_#5d3a1f]">
+        <div className="rtl-text pointer-events-auto absolute bottom-4 left-1/2 flex -translate-x-1/2 items-center gap-3 rounded-3xl border-4 border-[#8a5a2b] bg-[#fff6df] px-4 py-2 text-[#5a3a1a] shadow-[0_6px_0_#5d3a1f]">
           <span className="emoji text-3xl"><Ico i={ITEMS[ui.tool.crop].icon} /></span>
           <div className="leading-tight">
             <div className="font-bold">{t('Planting {item}', { item: t(ITEMS[ui.tool.crop].name) })}</div>
@@ -262,7 +278,7 @@ function BeautyChip() {
   const b = store.beauty();
   return (
     <button
-      className="pointer-events-auto absolute left-2 top-[8rem] flex items-center gap-1 rounded-full border-[3px] border-[#d9468f] bg-[#fff6df] py-0.5 pl-1.5 pr-2.5 text-xs font-bold text-[#8a2a5e] shadow-[0_3px_0_#5d3a1f] sm:left-3 sm:top-[9.2rem] sm:text-sm"
+      className="pointer-events-auto relative flex items-center gap-1 rounded-full border-[3px] border-[#d9468f] bg-[#fff6df] py-0.5 pl-1.5 pr-2.5 text-xs font-bold text-[#8a2a5e] shadow-[0_3px_0_#5d3a1f] sm:text-sm"
       onClick={() => store.openPanel('beauty')}
       aria-label={t('{n} beauty points', { n: fmtNum(b.score) })}
     >
@@ -272,3 +288,84 @@ function BeautyChip() {
   );
 }
 
+// the festival on now (see fest.ts) and the time it has left, bobbing until its window is seen;
+// on the quiet day between two, the next one, faded, and when it starts. A tap opens them.
+function FestChip() {
+  const store = useStore();
+  const s = store.s;
+  if (!festOn(s)) return null;
+  const now = clockNow();
+  const f = festNow(s, now);
+  const on = !!f.kind;
+  const d = FESTS[f.kind ?? f.next];
+  const time = fmtTime((on ? f.end : f.nextAt) - now);
+  return (
+    <button
+      className={`pointer-events-auto absolute left-2 top-[10.2rem] flex items-center gap-1 rounded-full border-[3px] bg-[#fff6df] py-0.5 pl-1.5 pr-2.5 text-xs font-bold shadow-[0_3px_0_#5d3a1f] sm:left-3 sm:top-[11.6rem] sm:text-sm ${on && !s.fest?.seen ? 'animate-bob' : ''}`}
+      style={{ borderColor: on ? d.color : '#c9a878', color: on ? d.color : '#8a6a44' }}
+      onClick={() => store.openFestival()}
+      aria-label={on ? `${t(d.name)}, ${t('{time} left', { time })}` : `${t('Next festival')}: ${t(d.name)}, ${t('Starts in {time}', { time })}`}
+    >
+      <span className={`emoji text-base sm:text-lg ${on ? '' : 'opacity-60 grayscale'}`}>{d.icon}</span>
+      {time}
+    </button>
+  );
+}
+
+// a season event (see season.ts), beside the beauty points: its tokens so far, bobbing with a count when a prize is ready;
+// in the last three days before one, faded, and when it starts. A tap opens it.
+function SeasonChip() {
+  const store = useStore();
+  const s = store.s;
+  if (!seasonOn(s)) return null;
+  const now = clockNow();
+  const ev = seasonNow(now);
+  const e = s.season;
+  let icon: string, label: string, color: string, on = false;
+  if (ev && e && e.id === ev.id) {
+    const d = SEASONS[ev.id];
+    icon = d.token; label = fmtNum(seasonTokens(s, e)); color = d.color; on = true;
+  } else {
+    const nx = seasonNext(now);
+    if (ev || nx.at - now > 3 * 864e5) return null;
+    icon = SEASONS[nx.id].icon; label = fmtTime(nx.at - now); color = '#8a6a44';
+  }
+  const ready = on ? seasonReady(s) : 0;
+  return (
+    <button
+      className={`pointer-events-auto relative flex items-center gap-1 rounded-full border-[3px] bg-[#fff6df] py-0.5 pl-1.5 pr-2.5 text-xs font-bold shadow-[0_3px_0_#5d3a1f] sm:text-sm ${ready ? 'animate-bob' : ''}`}
+      style={{ borderColor: on ? color : '#c9a878', color }}
+      onClick={() => store.openPanel('season')}
+      aria-label={t(SEASONS[ev?.id ?? seasonNext(now).id].name)}
+    >
+      <span className={`emoji text-base sm:text-lg ${on ? '' : 'opacity-60 grayscale'}`}>{icon}</span>
+      {label}
+      {ready > 0 && <span className="absolute -right-1 -top-1 grid h-5 min-w-5 place-items-center rounded-full border-2 border-white bg-[#e0332b] px-1 text-[11px] font-bold leading-none text-white">{ready}</span>}
+    </button>
+  );
+}
+
+// Back after a while (see welcomeBack in state.ts): what is ready on the farm, for a few seconds or
+// until tapped
+function WelcomeCard() {
+  const store = useStore();
+  const w = store.ui.welcome!;
+  const close = () => { store.ui.welcome = null; store.emit(false); };
+  useEffect(() => {
+    const tm = setTimeout(() => { if (store.ui.welcome === w) { store.ui.welcome = null; store.emit(false); } }, 9000);
+    return () => clearTimeout(tm);
+  }, [store, w]);
+  const items: [string, number, string][] = [['🌾', w.fields, 'Fields'], ['🥚', w.animals, 'Animals'], ['🧺', w.goods, 'Goods made'], ['🍎', w.trees, 'Fruit trees'], ['🏪', w.sales, 'Stall sales']];
+  return (
+    <button className="rtl-text pointer-events-auto w-full animate-pop rounded-2xl border-[3px] border-[#5d3a1f] bg-[#fff6df] px-4 py-2 text-center text-[#5a3a1a] shadow-lg" onClick={close}>
+      <div className="font-bold"><span className="emoji">🏡</span> {t('Welcome back!')}</div>
+      <div className="text-xs text-[#8a6a44]">{t('Ready on your farm:')}</div>
+      <div className="mt-1 flex flex-wrap justify-center gap-x-3 gap-y-1 text-sm font-bold">
+        {items.filter(([, n]) => n > 0).map(([icon, n, label]) => (
+          <span key={label} className="whitespace-nowrap"><span className="emoji">{icon}</span> {t(label)} ×{n}</span>
+        ))}
+        {w.fish > 0 && <span className="whitespace-nowrap"><span className="emoji">🎣</span> {t('A bite on the line')}</span>}
+      </div>
+    </button>
+  );
+}

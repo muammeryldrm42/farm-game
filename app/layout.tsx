@@ -4,10 +4,16 @@ import './globals.css';
 
 const fredoka = Fredoka({ subsets: ['latin', 'latin-ext'], weight: ['400', '500', '600', '700'], variable: '--font-game' });
 
+const description = 'Grow crops, raise animals, craft goods and build your dream farm. By Talons Protocol.';
 export const metadata: Metadata = {
   title: 'Talons Farm',
-  description: 'Grow crops, raise animals, craft goods and build your dream farm. By Talons Protocol.',
+  description,
   applicationName: 'Talons Farm',
+  // what a shared link shows (in chats and on social sites)
+  openGraph: { title: 'Talons Farm', description, type: 'website', siteName: 'Talons Farm' },
+  twitter: { card: 'summary', title: 'Talons Farm', description },
+  // added to an iPhone's home screen: full screen, under the status bar
+  appleWebApp: { capable: true, title: 'Talons Farm', statusBarStyle: 'black-translucent' },
 };
 
 export const viewport: Viewport = {
@@ -22,7 +28,8 @@ export const viewport: Viewport = {
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
-    <html lang="en" className={fredoka.variable}>
+    // no page translation by the browser until the game says (see applyDocument in i18n.ts)
+    <html lang="en" translate="no" className={fredoka.variable}>
       <body className="font-game">{children}</body>
     </html>
   );

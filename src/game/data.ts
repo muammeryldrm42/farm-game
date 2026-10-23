@@ -47,7 +47,7 @@ export interface AnimalDef {
   level: number;
 }
 
-export type BuildingKind = 'plot' | 'production' | 'pen' | 'barn' | 'silo' | 'house' | 'board' | 'deco' | 'obstacle' | 'tree' | 'stall' | 'dock';
+export type BuildingKind = 'plot' | 'production' | 'pen' | 'barn' | 'silo' | 'house' | 'board' | 'deco' | 'obstacle' | 'tree' | 'stall';
 
 export interface BuildingDef {
   id: string;
@@ -267,7 +267,7 @@ item('marmalade', 'Marmalade', '🏺', 'barn', 140, 12);
 item('vanilla_ice', 'Vanilla Ice Cream', '🍨', 'barn', 110, 11);
 item('berry_ice', 'Berry Ice Cream', '🍧', 'barn', 150, 13);
 item('sushi', 'Sushi', '🍣', 'barn', 230, 13);
-item('lobster_roll', 'Lobster Roll', '🥪', 'barn', 260, 14);
+item('lobster_roll', 'Lobster Roll', '@lobster_roll', 'barn', 260, 14);
 item('cotton_shirt', 'Cotton Shirt', '👕', 'barn', 150, 14);
 item('hot_chili', 'Hot Chili', '🍲', 'barn', 240, 15);
 item('angora_hat', 'Angora Hat', '👒', 'barn', 170, 10);
@@ -279,9 +279,9 @@ item('peach_juice', 'Peach Juice', '@peach_juice', 'barn', 120, 10);
 item('watermelon_juice', 'Melon Cooler', '🧉', 'barn', 150, 16);
 item('garden_salad', 'Garden Salad', '@garden_salad', 'barn', 120, 10);
 item('fruit_salad', 'Fruit Salad', '🍱', 'barn', 190, 13);
-item('pizza', 'Pizza', '🍕', 'barn', 260, 12);
+item('pizza', 'Pizza', '@pizza', 'barn', 260, 12);
 item('spicy_pizza', 'Spicy Pizza', '@spicy_pizza', 'barn', 300, 15);
-item('lemonade', 'Lemonade', '@lemonade', 'barn', 120, 13);
+item('lemonade', 'Lemonade', '@lemonade', 'barn', 193, 13);
 item('espresso', 'Espresso', '☕', 'barn', 130, 17);
 item('latte', 'Latte', '@latte', 'barn', 190, 17);
 item('coconut_cake', 'Coconut Cake', '🎂', 'barn', 280, 16);
@@ -294,7 +294,7 @@ item('grape_juice', 'Grape Juice', '@grape_juice', 'barn', 150, 16);
 item('pineapple_juice', 'Pineapple Juice', '@pineapple_juice', 'barn', 170, 18);
 item('plum_jam', 'Plum Jam', '@plum_jam', 'barn', 130, 12);
 item('pickles', 'Pickles', '@pickles', 'barn', 90, 8);
-item('stir_fry', 'Veggie Stir Fry', '🥘', 'barn', 170, 12);
+item('stir_fry', 'Veggie Stir Fry', '@stir_fry', 'barn', 170, 12);
 item('banana_bread', 'Banana Bread', '@banana_bread', 'barn', 200, 15);
 item('guacamole', 'Guacamole', '@guacamole', 'barn', 230, 18);
 item('olive_oil', 'Olive Oil', '@olive_oil', 'barn', 190, 17);
@@ -308,7 +308,7 @@ item('roast_veggies', 'Roast Vegetables', '@roast_veggies', 'barn', 210, 15);
 item('quail_quiche', 'Quail Quiche', '@quail_quiche', 'barn', 180, 9);
 item('yak_blanket', 'Yak Blanket', '@yak_blanket', 'barn', 320, 18);
 item('camel_cheese', 'Camel Cheese', '@camel_cheese', 'barn', 330, 20);
-item('bouquet', 'Bouquet', '💐', 'barn', 160, 11);
+item('bouquet', 'Bouquet', '💐', 'barn', 232, 11);
 item('lavender_sachet', 'Lavender Sachet', '@lavender_sachet', 'barn', 150, 12);
 item('flower_crown', 'Flower Crown', '@flower_crown', 'barn', 210, 13);
 item('oat_cookie', 'Oat Cookies', '@oat_cookie', 'barn', 90, 4);
@@ -321,7 +321,7 @@ item('crab_cake', 'Crab Cakes', '@crab_cake', 'barn', 260, 14);
 item('rye', 'Rye', '🌾', 'silo', 73, 25);
 item('tangerine', 'Tangerine', '🍊', 'silo', 62, 29);
 item('cherry_tomato', 'Cherry Tomatoes', '🍅', 'silo', 89, 32);
-item('cherry_tomato_pizza', 'Cherry Tomato Pizza', '🍕', 'barn', 432, 35);
+item('cherry_tomato_pizza', 'Cherry Tomato Pizza', '@cherry_tomato_pizza', 'barn', 432, 35);
 item('kale', 'Kale', '🥬', 'silo', 100, 37);
 item('nectarine', 'Nectarine', '🍑', 'silo', 76, 42);
 item('nectarine_sorbet', 'Nectarine Sorbet', '🍨', 'barn', 293, 44);
@@ -345,7 +345,7 @@ item('bronze_feather', 'Bronze Feather', '🪶', 'barn', 218, 79);
 item('jalapeno', 'Jalapeno', '🌶️', 'silo', 197, 81);
 item('pistachio', 'Pistachio', '🥜', 'silo', 121, 83);
 item('green_bean', 'Green Beans', '🫛', 'silo', 210, 87);
-item('green_bean_pizza', 'Green Bean Pizza', '🍕', 'barn', 783, 88);
+item('green_bean_pizza', 'Green Bean Pizza', '@green_bean_pizza', 'barn', 783, 88);
 item('mint', 'Mint', '🌿', 'silo', 214, 89);
 item('elderberry', 'Elderberry', '🫐', 'silo', 130, 91);
 item('elderberry_sorbet', 'Elderberry Sorbet', '🍨', 'barn', 450, 93);
@@ -373,7 +373,6 @@ item('hibiscus_wreath', 'Hibiscus Wreath', '💐', 'barn', 919, 125);
 item('bok_choy', 'Bok Choy', '🥬', 'silo', 296, 126);
 item('yuzu', 'Yuzu', '🍋', 'silo', 172, 129);
 item('yuzu_sorbet', 'Yuzu Sorbet', '🍨', 'barn', 571, 130);
-item('butternut', 'Butternut Squash', '🎃', 'silo', 307, 131);
 item('passion_fruit', 'Passion Fruit', '🟣', 'silo', 176, 133);
 item('flax', 'Flax', '🌾', 'silo', 315, 135);
 item('flax_linen', 'Flax Linen', '🧵', 'barn', 914, 137);
@@ -410,7 +409,7 @@ item('silver_pear', 'Silver Pear', '🍐', 'silo', 224, 176);
 item('silver_pear_juice', 'Silver Pear Juice', '🧃', 'barn', 693, 177);
 item('hops', 'Hops', '🌿', 'silo', 410, 178);
 item('artichoke', 'Artichoke', '🥦', 'silo', 412, 179);
-item('artichoke_pizza', 'Artichoke Pizza', '🍕', 'barn', 1369, 180);
+item('artichoke_pizza', 'Artichoke Pizza', '@artichoke_pizza', 'barn', 1369, 180);
 item('goji', 'Goji Berries', '🍒', 'silo', 417, 181);
 item('goji_sorbet', 'Goji Sorbet', '🍨', 'barn', 1282, 183);
 item('dahlia', 'Dahlia', '🌺', 'silo', 423, 184);
@@ -427,7 +426,7 @@ item('lotus_bouquet', 'Lotus Bouquet', '💐', 'barn', 1314, 194);
 item('black_bean_oil', 'Black Bean Oil', '🫙', 'barn', 1247, 196);
 item('black_bean_brittle', 'Black Bean Brittle', '🍬', 'barn', 1334, 197);
 item('grilled_wasabi', 'Grilled Wasabi', '🍢', 'barn', 1334, 198);
-item('wasabi_pizza', 'Wasabi Pizza', '🍕', 'barn', 1406, 199);
+item('wasabi_pizza', 'Wasabi Pizza', '@wasabi_pizza', 'barn', 1406, 199);
 
 // ---- second wave: one more new thing on every level (fish, crops, fruit, animal goods, dishes)
 item('celery', 'Celery', '🥬', 'silo', 7, 1);
@@ -451,7 +450,7 @@ item('nashi', 'Nashi Pear', '🍐', 'silo', 53, 21);
 item('nashi_pear_jam', 'Nashi Pear Jam', '🫙', 'barn', 197, 22);
 item('arugula', 'Arugula', '🥬', 'silo', 69, 23);
 item('lop_fluff', 'Lop Fluff', '🧶', 'barn', 73, 24);
-item('arugula_pizza', 'Arugula Pizza', '🍕', 'barn', 374, 25);
+item('arugula_pizza', 'Arugula Pizza', '@arugula_pizza', 'barn', 374, 25);
 item('mackerel', 'Mackerel', '@mackerel', 'barn', 96, 26);
 item('medlar', 'Medlar', '🟤', 'silo', 60, 27);
 item('buckwheat', 'Buckwheat', '🌾', 'silo', 82, 29);
@@ -497,7 +496,7 @@ item('haddock', 'Haddock', '@haddock', 'barn', 220, 74);
 item('feijoa', 'Feijoa', '🟢', 'silo', 112, 75);
 item('crest_feather', 'Crest Feather', '🪶', 'barn', 187, 76);
 item('rutabaga', 'Rutabaga', '🟡', 'silo', 188, 77);
-item('rutabaga_pizza', 'Rutabaga Pizza', '🍕', 'barn', 719, 78);
+item('rutabaga_pizza', 'Rutabaga Pizza', '@rutabaga_pizza', 'barn', 719, 78);
 item('flounder', 'Flounder', '@flounder', 'barn', 233, 79);
 item('acerola', 'Acerola', '🍒', 'silo', 118, 80);
 item('acerola_tart', 'Acerola Tart', '🥧', 'barn', 365, 82);
@@ -512,7 +511,7 @@ item('arctic_char', 'Arctic Char', '@arctic_char', 'barn', 265, 91);
 item('hickory', 'Hickory Nut', '🌰', 'silo', 131, 92);
 item('brussels_sprout', 'Brussels Sprouts', '🥬', 'silo', 223, 93);
 item('runner_egg', 'Runner Egg', '🥚', 'barn', 227, 94);
-item('sprout_pizza', 'Sprout Pizza', '🍕', 'barn', 821, 95);
+item('sprout_pizza', 'Sprout Pizza', '@sprout_pizza', 'barn', 821, 95);
 item('grayling', 'Grayling', '@grayling', 'barn', 280, 97);
 item('kiwifruit', 'Kiwi Fruit', '🥝', 'silo', 138, 98);
 item('mung_bean', 'Mung Beans', '🫘', 'silo', 236, 99);
@@ -542,7 +541,7 @@ item('rosemary_dressing', 'Rosemary Dressing', '🫙', 'barn', 838, 125);
 item('halibut', 'Halibut', '@halibut', 'barn', 356, 126);
 item('longan', 'Longan', '🟤', 'silo', 170, 127);
 item('tomatillo', 'Tomatillo', '🟢', 'silo', 302, 129);
-item('tomatillo_pizza', 'Tomatillo Pizza', '🍕', 'barn', 1050, 130);
+item('tomatillo_pizza', 'Tomatillo Pizza', '@tomatillo_pizza', 'barn', 1050, 130);
 item('turbot', 'Turbot', '@turbot', 'barn', 369, 131);
 item('rambutan', 'Rambutan', '🔴', 'silo', 175, 132);
 item('amaranth', 'Amaranth', '🌾', 'silo', 311, 133);
@@ -603,7 +602,7 @@ item('cornflower_bouquet', 'Cornflower Bouquet', '💐', 'barn', 1340, 195);
 item('anglerfish', 'Anglerfish', '@anglerfish', 'barn', 540, 197);
 item('nutmeg', 'Nutmeg', '🟤', 'silo', 248, 198);
 item('cassava', 'Cassava', '🥔', 'silo', 456, 199);
-item('cassava_pizza', 'Cassava Pizza', '🍕', 'barn', 1496, 200);
+item('cassava_pizza', 'Cassava Pizza', '@cassava_pizza', 'barn', 1496, 200);
 
 // ---- third wave: every level gets at least four new things (workshops, dishes, animals, fish...)
 item('herring', 'Herring', '@herring', 'barn', 88, 23);
@@ -699,18 +698,18 @@ item('kale_slaw', 'Kale Slaw', '🥗', 'barn', 304, 42);
 item('clementine_nectar', 'Clementine Nectar', '🧃', 'barn', 304, 43);
 item('nubian_goat_cheese', 'Nubian Goat Cheese', '🧀', 'barn', 644, 44);
 item('dill_herb_cheese', 'Dill Herb Cheese', '🧀', 'barn', 234, 47);
-item('watercress_skewers', 'Watercress Skewers', '🍢', 'barn', 304, 48);
+item('watercress_skewers', 'Watercress Skewers', '🍢', 'barn', 433, 48);
 item('nectarine_marmalade', 'Nectarine Marmalade', '🫙', 'barn', 265, 49);
 item('clementine_yogurt', 'Clementine Yogurt', '🥛', 'barn', 262, 50);
 item('persimmon_pie', 'Persimmon Pie', '🥧', 'barn', 354, 50);
 item('sea_bass_noodles', 'Sea Bass Noodles', '🍜', 'barn', 536, 52);
 item('sea_bream_ramen', 'Sea Bream Ramen', '🍜', 'barn', 430, 54);
 item('cantaloupe_muffins', 'Cantaloupe Muffins', '🧁', 'barn', 416, 55);
-item('zander_ramen', 'Zander Ramen', '🍜', 'barn', 228, 56);
+item('zander_ramen', 'Zander Ramen', '🍜', 'barn', 417, 56);
 item('kohlrabi_noodles', 'Kohlrabi Noodles', '🍜', 'barn', 472, 57);
 item('basil_herb_cheese', 'Basil Herb Cheese', '🧀', 'barn', 296, 57);
-item('smoked_zander', 'Smoked Zander', '🐟', 'barn', 206, 59);
-item('smoked_zander_pate', 'Smoked Zander Pate', '🥫', 'barn', 206, 60);
+item('smoked_zander', 'Smoked Zander', '🐟', 'barn', 384, 59);
+item('smoked_zander_pate', 'Smoked Zander Pate', '🥫', 'barn', 297, 60);
 item('smoked_catfish_pate', 'Smoked Catfish Pate', '🥫', 'barn', 286, 61);
 item('smoked_cod', 'Smoked Cod', '🐟', 'barn', 534, 61);
 item('galloway_cheese', 'Galloway Cheese', '🧀', 'barn', 947, 62);
@@ -722,7 +721,7 @@ item('dill_spice_rub', 'Dill Spice Rub', '🧂', 'barn', 312, 69);
 item('ginger_powder', 'Ginger Powder', '🧂', 'barn', 732, 70);
 item('kumquat_candy', 'Kumquat Candy', '🍬', 'barn', 382, 70);
 item('ginger_pasta', 'Ginger Pasta', '🍝', 'barn', 518, 72);
-item('radicchio_lasagna', 'Radicchio Lasagna', '🍝', 'barn', 343, 72);
+item('radicchio_lasagna', 'Radicchio Lasagna', '🍝', 'barn', 591, 72);
 item('fennel_ravioli', 'Fennel Ravioli', '🥟', 'barn', 570, 73);
 item('ginger_body_mist', 'Ginger Body Mist', '🧴', 'barn', 534, 74);
 item('marigold_perfume', 'Marigold Perfume', '🧴', 'barn', 686, 75);
@@ -731,14 +730,14 @@ item('marigold_body_mist', 'Marigold Body Mist', '🧴', 'barn', 503, 77);
 item('feijoa_smoothie', 'Feijoa Smoothie', '🥤', 'barn', 352, 78);
 item('guava_shake', 'Guava Shake', '🥛', 'barn', 402, 80);
 item('ginger_tea', 'Ginger Tea', '🍵', 'barn', 576, 81);
-item('iced_sorrel_tea', 'Iced Sorrel Tea', '🧋', 'barn', 248, 82);
+item('iced_sorrel_tea', 'Iced Sorrel Tea', '🧋', 'barn', 554, 82);
 item('marigold_soap', 'Marigold Soap', '🧼', 'barn', 517, 83);
-item('golden_milk_soap', 'Golden Milk Soap', '🧼', 'barn', 290, 85);
+item('golden_milk_soap', 'Golden Milk Soap', '🧼', 'barn', 619, 85);
 item('daffodil_soap', 'Daffodil Soap', '🧼', 'barn', 629, 85);
 item('reindeer_milk_soap', 'Reindeer Milk Soap', '🧼', 'barn', 710, 87);
 item('ginger_chai', 'Ginger Chai', '☕', 'barn', 321, 87);
 item('hazelnut_latte', 'Hazelnut Latte', '☕', 'barn', 284, 88);
-item('pollock_nigiri', 'Pollock Nigiri', '🍣', 'barn', 192, 89);
+item('pollock_nigiri', 'Pollock Nigiri', '🍣', 'barn', 472, 89);
 item('green_bean_calzone', 'Green Bean Calzone', '🥟', 'barn', 718, 89);
 item('pistachio_gelato', 'Pistachio Gelato', '🍨', 'barn', 419, 90);
 item('green_bean_slaw', 'Green Bean Slaw', '🥗', 'barn', 612, 90);
@@ -746,7 +745,7 @@ item('elderberry_nectar', 'Elderberry Nectar', '🧃', 'barn', 556, 91);
 item('oregano_candle', 'Oregano Candle', '🕯️', 'barn', 772, 93);
 item('mint_candle', 'Mint Candle', '🕯️', 'barn', 777, 95);
 item('acerola_marmalade', 'Acerola Marmalade', '🫙', 'barn', 382, 96);
-item('pollock_skewers', 'Pollock Skewers', '🍢', 'barn', 304, 97);
+item('pollock_skewers', 'Pollock Skewers', '🍢', 'barn', 825, 97);
 item('elderberry_yogurt', 'Elderberry Yogurt', '🥛', 'barn', 430, 99);
 item('dragon_fruit_muffins', 'Dragon Fruit Muffins', '🧁', 'barn', 416, 99);
 item('kiwi_fruit_pie', 'Kiwi Fruit Pie', '🥧', 'barn', 503, 100);
@@ -760,7 +759,7 @@ item('jalapeno_spice_rub', 'Jalapeno Spice Rub', '🧂', 'barn', 584, 105);
 item('smoked_sole', 'Smoked Sole', '🐟', 'barn', 830, 105);
 item('smoked_sole_pate', 'Smoked Sole Pate', '🥫', 'barn', 518, 107);
 item('yellowtail_noodles', 'Yellowtail Noodles', '🍜', 'barn', 965, 109);
-item('whiting_ramen', 'Whiting Ramen', '🍜', 'barn', 228, 109);
+item('whiting_ramen', 'Whiting Ramen', '🍜', 'barn', 848, 109);
 item('saanen_cheese', 'Saanen Cheese', '🧀', 'barn', 1052, 110);
 item('chamomile_herb_cheese', 'Chamomile Herb Cheese', '🧀', 'barn', 427, 111);
 item('pecan_candy', 'Pecan Candy', '🍬', 'barn', 503, 111);
@@ -768,7 +767,7 @@ item('candied_honeydew', 'Candied Honeydew', '🍭', 'barn', 769, 113);
 item('kiwi_fruit_gummies', 'Kiwi Fruit Gummies', '🍬', 'barn', 522, 113);
 item('leek_ravioli', 'Leek Ravioli', '🥟', 'barn', 867, 114);
 item('leek_lasagna', 'Leek Lasagna', '🍝', 'barn', 884, 115);
-item('endive_pasta', 'Endive Pasta', '🍝', 'barn', 233, 115);
+item('endive_pasta', 'Endive Pasta', '🍝', 'barn', 743, 115);
 item('currant_smoothie', 'Currant Smoothie', '🥤', 'barn', 780, 117);
 item('jackfruit_shake', 'Jackfruit Shake', '🥛', 'barn', 522, 117);
 item('chamomile_tea', 'Chamomile Tea', '🍵', 'barn', 760, 118);
@@ -776,10 +775,10 @@ item('chamomile_chai', 'Chamomile Chai', '☕', 'barn', 413, 120);
 item('iced_kiwi_fruit_tea', 'Iced Kiwi Fruit Tea', '🧋', 'barn', 438, 121);
 item('macadamia_latte', 'Macadamia Latte', '☕', 'barn', 332, 122);
 item('red_snapper_nigiri', 'Red Snapper Nigiri', '🍣', 'barn', 548, 122);
-item('endive_calzone', 'Endive Calzone', '🥟', 'barn', 326, 123);
+item('endive_calzone', 'Endive Calzone', '🥟', 'barn', 868, 123);
 item('macadamia_gelato', 'Macadamia Gelato', '🍨', 'barn', 539, 124);
 item('celeriac_slaw', 'Celeriac Slaw', '🥗', 'barn', 802, 125);
-item('lucuma_nectar', 'Lucuma Nectar', '🧃', 'barn', 304, 126);
+item('lucuma_nectar', 'Lucuma Nectar', '🧃', 'barn', 710, 126);
 item('halibut_skewers', 'Halibut Skewers', '🍢', 'barn', 1105, 127);
 item('longan_marmalade', 'Longan Marmalade', '🫙', 'barn', 528, 127);
 item('pawpaw_yogurt', 'Pawpaw Yogurt', '🥛', 'barn', 522, 129);
@@ -793,21 +792,21 @@ item('hibiscus_body_mist', 'Hibiscus Body Mist', '🧴', 'barn', 867, 133);
 item('passion_fruit_bonbon', 'Passion Fruit Bonbon', '🍬', 'barn', 508, 134);
 item('yuzu_chocolate', 'Yuzu Chocolate', '🍫', 'barn', 744, 135);
 item('macadamia_truffle', 'Macadamia Truffle', '🍫', 'barn', 520, 137);
-item('lucuma_bonbon', 'Lucuma Bonbon', '🍬', 'barn', 360, 137);
+item('lucuma_bonbon', 'Lucuma Bonbon', '🍬', 'barn', 566, 137);
 item('kiwi_fruit_truffle', 'Kiwi Fruit Truffle', '🍫', 'barn', 483, 138);
 item('cranberry_chocolate', 'Cranberry Chocolate', '🍫', 'barn', 1164, 138);
 item('sea_buckthorn_chocolate', 'Sea Buckthorn Chocolate', '🍫', 'barn', 774, 139);
 item('sea_buckthorn_bonbon', 'Sea Buckthorn Bonbon', '🍬', 'barn', 518, 140);
 item('cashew_truffle', 'Cashew Truffle', '🍫', 'barn', 548, 140);
 item('pine_nut_truffle', 'Pine Nut Truffle', '🍫', 'barn', 501, 141);
-item('marula_bonbon', 'Marula Bonbon', '🍬', 'barn', 360, 142);
-item('marula_chocolate', 'Marula Chocolate', '🍫', 'barn', 458, 142);
+item('marula_bonbon', 'Marula Bonbon', '🍬', 'barn', 588, 142);
+item('marula_chocolate', 'Marula Chocolate', '🍫', 'barn', 847, 142);
 item('horseradish_spice_rub', 'Horseradish Spice Rub', '🧂', 'barn', 959, 143);
 item('horseradish_powder', 'Horseradish Powder', '🧂', 'barn', 1400, 144);
 item('smoked_mahi_mahi_pate', 'Smoked Mahi Mahi Pate', '🥫', 'barn', 650, 144);
-item('smoked_amberjack', 'Smoked Amberjack', '🐟', 'barn', 206, 146);
+item('smoked_amberjack', 'Smoked Amberjack', '🐟', 'barn', 1011, 146);
 item('turbot_noodles', 'Turbot Noodles', '🍜', 'barn', 1127, 147);
-item('snook_ramen', 'Snook Ramen', '🍜', 'barn', 228, 148);
+item('snook_ramen', 'Snook Ramen', '🍜', 'barn', 1182, 148);
 item('hibiscus_herb_cheese', 'Hibiscus Herb Cheese', '🧀', 'barn', 501, 148);
 item('watusi_cheese', 'Watusi Cheese', '🧀', 'barn', 1896, 149);
 item('loquat_gummies', 'Loquat Gummies', '🍬', 'barn', 682, 150);
@@ -817,7 +816,7 @@ item('tomatillo_ravioli', 'Tomatillo Ravioli', '🥟', 'barn', 976, 151);
 item('romanesco_pasta', 'Romanesco Pasta', '🍝', 'barn', 1025, 152);
 item('romanesco_lasagna', 'Romanesco Lasagna', '🍝', 'barn', 1136, 153);
 item('loquat_smoothie', 'Loquat Smoothie', '🥤', 'barn', 584, 153);
-item('marula_shake', 'Marula Shake', '🥛', 'barn', 276, 155);
+item('marula_shake', 'Marula Shake', '🥛', 'barn', 581, 155);
 item('iced_saffron_tea', 'Iced Saffron Tea', '🧋', 'barn', 1004, 156);
 item('green_tea', 'Green Tea', '🍵', 'barn', 1108, 157);
 item('green_chai', 'Green Chai', '☕', 'barn', 587, 157);
@@ -842,10 +841,10 @@ item('lily_body_mist', 'Lily Body Mist', '🧴', 'barn', 1108, 170);
 item('peony_perfume', 'Peony Perfume', '🧴', 'barn', 1585, 171);
 item('sage_powder', 'Sage Powder', '🧂', 'barn', 1669, 172);
 item('sesame_spice_rub', 'Sesame Spice Rub', '🧂', 'barn', 1057, 172);
-item('smoked_cobia_pate', 'Smoked Cobia Pate', '🥫', 'barn', 206, 173);
-item('smoked_cobia', 'Smoked Cobia', '🐟', 'barn', 206, 174);
-item('cobia_ramen', 'Cobia Ramen', '🍜', 'barn', 228, 174);
-item('salsify_noodles', 'Salsify Noodles', '🍜', 'barn', 290, 175);
+item('smoked_cobia_pate', 'Smoked Cobia Pate', '🥫', 'barn', 713, 173);
+item('smoked_cobia', 'Smoked Cobia', '🐟', 'barn', 1215, 174);
+item('cobia_ramen', 'Cobia Ramen', '🍜', 'barn', 1249, 174);
+item('salsify_noodles', 'Salsify Noodles', '🍜', 'barn', 1187, 175);
 item('creamy_cheese', 'Creamy Cheese', '🧀', 'barn', 1241, 176);
 item('sage_herb_cheese', 'Sage Herb Cheese', '🧀', 'barn', 647, 177);
 item('candied_cherimoya', 'Candied Cherimoya', '🍭', 'barn', 676, 177);
@@ -854,7 +853,7 @@ item('cherimoya_gummies', 'Cherimoya Gummies', '🍬', 'barn', 760, 179);
 item('okra_ravioli', 'Okra Ravioli', '🥟', 'barn', 1248, 179);
 item('bitter_melon_lasagna', 'Bitter Melon Lasagna', '🍝', 'barn', 1290, 180);
 item('sage_pasta', 'Sage Pasta', '🍝', 'barn', 1143, 181);
-item('black_sapote_shake', 'Black Sapote Shake', '🥛', 'barn', 276, 181);
+item('black_sapote_shake', 'Black Sapote Shake', '🥛', 'barn', 687, 181);
 item('cherimoya_smoothie', 'Cherimoya Smoothie', '🥤', 'barn', 662, 182);
 item('sesame_chai', 'Sesame Chai', '☕', 'barn', 592, 183);
 item('hops_tea', 'Hops Tea', '🍵', 'barn', 1242, 184);
@@ -862,13 +861,13 @@ item('iced_vanilla_tea', 'Iced Vanilla Tea', '🧋', 'barn', 1158, 185);
 item('sturgeon_nigiri', 'Sturgeon Nigiri', '🍣', 'barn', 807, 186);
 item('turmeric_latte', 'Turmeric Latte', '☕', 'barn', 633, 186);
 item('artichoke_calzone', 'Artichoke Calzone', '🥟', 'barn', 1284, 187);
-item('black_sapote_gelato', 'Black Sapote Gelato', '🍨', 'barn', 276, 188);
+item('black_sapote_gelato', 'Black Sapote Gelato', '🍨', 'barn', 708, 188);
 item('taro_slaw', 'Taro Slaw', '🥗', 'barn', 1234, 188);
 item('goji_nectar', 'Goji Nectar', '🧃', 'barn', 1761, 189);
 item('taro_skewers', 'Taro Skewers', '🍢', 'barn', 1318, 189);
-item('ugli_fruit_marmalade', 'Ugli Fruit Marmalade', '🫙', 'barn', 248, 190);
-item('ugli_fruit_yogurt', 'Ugli Fruit Yogurt', '🥛', 'barn', 262, 191);
-item('ugli_fruit_pie', 'Ugli Fruit Pie', '🥧', 'barn', 312, 191);
+item('ugli_fruit_marmalade', 'Ugli Fruit Marmalade', '🫙', 'barn', 711, 190);
+item('ugli_fruit_yogurt', 'Ugli Fruit Yogurt', '🥛', 'barn', 753, 191);
+item('ugli_fruit_pie', 'Ugli Fruit Pie', '🥧', 'barn', 783, 191);
 item('brazil_nut_muffins', 'Brazil Nut Muffins', '🧁', 'barn', 707, 192);
 item('goji_bonbon', 'Goji Bonbon', '🍬', 'barn', 846, 193);
 item('brazil_nut_truffle', 'Brazil Nut Truffle', '🍫', 'barn', 627, 193);
@@ -950,7 +949,6 @@ export const CROPS: CropDef[] = [
   { id: 'chickpea', time: 2522, xp: 79, seedCost: 154, level: 121, shape: 'bush', leaf: '#6aa84a', fruit: '#e0c890' },
   { id: 'hibiscus', time: 2564, xp: 81, seedCost: 157, level: 124, shape: 'flower', leaf: '#3f8a3a', fruit: '#e8304a' },
   { id: 'bok_choy', time: 2592, xp: 82, seedCost: 160, level: 126, shape: 'leafy', leaf: '#6ab84a', fruit: '#e8f4d8' },
-  { id: 'butternut', time: 2662, xp: 85, seedCost: 166, level: 131, shape: 'vine', leaf: '#4d9a3c', fruit: '#e8a850' },
   { id: 'flax', time: 2718, xp: 87, seedCost: 170, level: 135, shape: 'grain', leaf: '#6a9a5a', fruit: '#6a8ad8' },
   { id: 'cranberry', time: 2760, xp: 89, seedCost: 174, level: 138, shape: 'bush', leaf: '#3a7a3a', fruit: '#b0102a' },
   { id: 'shallot', time: 2816, xp: 91, seedCost: 179, level: 142, shape: 'bulb', leaf: '#6cb84a', fruit: '#b85a6a' },
@@ -1659,8 +1657,8 @@ export const BUILDINGS: BuildingDef[] = [
   b({ id: 'yak_pasture', name: 'Yak Pasture', icon: '🐂', kind: 'pen', w: 3, h: 2, cost: 3200, level: 18, xp: 70, height: 26, wall: '#9ccc5a', roof: '#5a3a2a', animal: 'yak', capacity: 4, desc: 'Shaggy yaks grow thick wool for warm blankets.' }),
   b({ id: 'camel_corral', name: 'Camel Corral', icon: '🐪', kind: 'pen', w: 3, h: 2, cost: 3800, level: 20, xp: 80, height: 26, wall: '#e2cf98', roof: '#c0602a', animal: 'camel', capacity: 4, desc: 'Camels give creamy milk for a rare cheese. They eat wheat.' }),
   b({ id: 'stable', name: 'Stable', icon: '🐎', kind: 'pen', w: 3, h: 2, cost: 2500, level: 15, xp: 60, height: 26, wall: '#c2a36b', roof: '#8e2c20', animal: 'horse', capacity: 5, desc: 'Up to 5 horses. Each horse adds 5% to order coins.' }),
-  b({ id: 'salad_bar', name: 'Salad Bar', icon: '🥙', kind: 'production', w: 2, h: 2, cost: 1300, level: 10, xp: 45, height: 52, wall: '#e9f7dc', roof: '#5aa83a', desc: 'Tosses fresh garden and fruit salads.' }),
-  b({ id: 'pizzeria', name: 'Pizzeria', icon: '🍕', kind: 'production', w: 2, h: 2, cost: 2400, level: 12, xp: 60, height: 58, wall: '#f7e1c4', roof: '#c0392b', desc: 'A wood fired oven for pizzas.' }),
+  b({ id: 'salad_bar', name: 'Salad Bar', icon: '🥗', kind: 'production', w: 2, h: 2, cost: 1300, level: 10, xp: 45, height: 52, wall: '#e9f7dc', roof: '#5aa83a', desc: 'Tosses fresh garden and fruit salads.' }),
+  b({ id: 'pizzeria', name: 'Pizzeria', icon: '@pizza', kind: 'production', w: 2, h: 2, cost: 2400, level: 12, xp: 60, height: 58, wall: '#f7e1c4', roof: '#c0392b', desc: 'A wood fired oven for pizzas.' }),
   b({ id: 'coffee_kiosk', name: 'Coffee Kiosk', icon: '☕', kind: 'production', w: 2, h: 2, cost: 2800, level: 13, xp: 65, height: 54, wall: '#efe0cf', roof: '#6b4226', desc: 'Brews lemonade, espresso and lattes.' }),
   b({ id: 'oil_press', name: 'Olive Press', icon: '@olive_oil', kind: 'production', w: 2, h: 2, cost: 3400, level: 17, xp: 70, height: 56, wall: '#efe4cc', roof: '#6a7a3a', desc: 'Presses olives into oil and blends pesto.' }),
   b({ id: 'florist', name: 'Flower Shop', icon: '💐', kind: 'production', w: 2, h: 2, cost: 1600, level: 11, xp: 50, height: 54, wall: '#fbe8ef', roof: '#d8568a', desc: 'Ties bouquets, sachets and flower crowns.' }),
@@ -1892,6 +1890,16 @@ export const BUILDINGS: BuildingDef[] = [
   b({ id: 'tool_shed', name: 'Tool Shed', icon: '🛖', kind: 'deco', w: 1, h: 1, cost: 3200, level: 44, max: 2, xp: 14, height: 100, sellable: true, desc: 'A little plank shed for the rakes and spades.' }),
   b({ id: 'sunflower_patch', name: 'Sunflower Patch', icon: '🌻', kind: 'deco', w: 1, h: 1, cost: 3840, level: 64, max: 4, xp: 19, height: 90, sellable: true, desc: 'Tall sunflowers turning their faces to the sun.' }),
   b({ id: 'flower_bicycle', name: 'Flower Bicycle', icon: '🚲', kind: 'deco', w: 1, h: 1, cost: 5160, level: 86, max: 2, xp: 24, height: 60, sellable: true, desc: 'An old town bike with a basket full of flowers.' }),
+  // season event prizes (see season.ts): never sold in the shop, won on the event's prize track;
+  // the cost only sets what they add to the farm's beauty
+  b({ id: 'jack_lantern', name: "Jack-o'-Lantern", icon: '🎃', kind: 'deco', w: 1, h: 1, cost: 1600, level: 1, max: 1, xp: 0, height: 40, sellable: true, desc: 'A grinning pumpkin that glows all night.' }),
+  b({ id: 'lantern_arch', name: 'Lantern Arch', icon: '🏮', kind: 'deco', w: 2, h: 1, cost: 4000, level: 1, max: 1, xp: 0, height: 80, sellable: true, desc: 'Autumn leaves, corn sheaves and paper lanterns.' }),
+  b({ id: 'festive_pine', name: 'Festive Pine', icon: '🎄', kind: 'deco', w: 1, h: 1, cost: 1600, level: 1, max: 1, xp: 0, height: 74, sellable: true, desc: 'Baubles, fairy lights and a star on top.' }),
+  b({ id: 'gift_sleigh', name: 'Gift Sleigh', icon: '🛷', kind: 'deco', w: 2, h: 1, cost: 4000, level: 1, max: 1, xp: 0, height: 50, sellable: true, desc: 'A red sleigh piled high with presents.' }),
+  b({ id: 'blossom_tree', name: 'Blossom Tree', icon: '🌸', kind: 'deco', w: 1, h: 1, cost: 1600, level: 1, max: 1, xp: 0, height: 74, sellable: true, desc: 'A cloud of pink blossom over a carpet of petals.' }),
+  b({ id: 'butterfly_dome', name: 'Butterfly Dome', icon: '🦋', kind: 'deco', w: 2, h: 2, cost: 4000, level: 1, max: 1, xp: 0, height: 72, sellable: true, desc: 'A garden under iron arches where butterflies play.' }),
+  b({ id: 'lawn_flamingos', name: 'Lawn Flamingos', icon: '🦩', kind: 'deco', w: 1, h: 1, cost: 1600, level: 1, max: 1, xp: 0, height: 50, sellable: true, desc: 'Two pink flamingos, one of them hungry.' }),
+  b({ id: 'paddling_pool', name: 'Paddling Pool', icon: '🏊', kind: 'deco', w: 2, h: 2, cost: 4000, level: 1, max: 1, xp: 0, height: 22, sellable: true, desc: 'A cool splash with a rubber duck afloat.' }),
   b({ id: 'friesian_stable', name: 'Friesian Stable', icon: '🐴', kind: 'pen', w: 3, h: 2, cost: 35460, level: 197, xp: 296, height: 26, wall: '#8fc45a', roof: '#8a4a2a', animal: 'friesian', capacity: 5, desc: 'Home for up to 5 friesian horses.' }),
 ];
 export const BUILDING: Record<string, BuildingDef> = Object.fromEntries(BUILDINGS.map((x) => [x.id, x]));
@@ -1902,8 +1910,8 @@ export const CATCHES: [string, number, number][] = [
   ['fish', 1, 40], ['salmon', 10, 20], ['lobster', 12, 14], ['crab', 14, 12], ['trout', 22, 12], ['tuna', 31, 10],
   ['shrimp', 40, 10], ['squid', 52, 8], ['octopus', 64, 7], ['swordfish', 78, 6], ['eel', 92, 6], ['pufferfish', 108, 5],
   ['stingray', 125, 4], ['marlin', 145, 3.5], ['pearl', 170, 3], ['golden_fish', 195, 1.5],
-  ['sardine', 2, 8.9], ['anchovy', 9, 8.7], ['carp', 14, 8.5], ['perch', 20, 8.3], ['mackerel', 26, 8.1], ['tilapia', 31, 7.9], ['catfish', 38, 7.7], ['sea_bream', 44, 7.5], ['sea_bass', 50, 7.2], ['red_mullet', 55, 7.1], ['cod', 61, 6.9], ['pike', 68, 6.6], ['haddock', 74, 6.4], ['flounder', 79, 6.2], ['koi', 85, 6.0], ['arctic_char', 91, 5.8], ['grayling', 97, 5.6], ['sole', 102, 5.4], ['yellowtail', 109, 5.2], ['red_snapper', 114, 5.0], ['bonito', 120, 4.8], ['halibut', 126, 4.6], ['turbot', 131, 4.4], ['mahi_mahi', 138, 4.2], ['barracuda', 144, 4.0], ['grouper', 150, 3.7], ['clownfish', 155, 3.6], ['angelfish', 161, 3.4], ['parrotfish', 168, 3.1], ['wahoo', 174, 2.9], ['lionfish', 179, 2.7], ['sturgeon', 185, 2.5], ['sunfish', 191, 2.3], ['anglerfish', 197, 2.1],
-  ['bluegill', 4, 8.8], ['largemouth_bass', 6, 8.6], ['crayfish', 12, 8.2], ['crappie', 17, 8.0], ['chub', 29, 7.4], ['whitefish', 47, 6.8], ['bream', 58, 6.4], ['walleye', 83, 5.6], ['muskie', 140, 3.8], ['paddlefish', 182, 2.6],
+  ['sardine', 5, 8.9], ['anchovy', 9, 8.7], ['carp', 14, 8.5], ['perch', 20, 8.3], ['mackerel', 26, 8.1], ['tilapia', 31, 7.9], ['catfish', 38, 7.7], ['sea_bream', 44, 7.5], ['sea_bass', 50, 7.2], ['red_mullet', 55, 7.1], ['cod', 61, 6.9], ['pike', 68, 6.6], ['haddock', 74, 6.4], ['flounder', 79, 6.2], ['koi', 85, 6.0], ['arctic_char', 91, 5.8], ['grayling', 97, 5.6], ['sole', 102, 5.4], ['yellowtail', 109, 5.2], ['red_snapper', 114, 5.0], ['bonito', 120, 4.8], ['halibut', 126, 4.6], ['turbot', 131, 4.4], ['mahi_mahi', 138, 4.2], ['barracuda', 144, 4.0], ['grouper', 150, 3.7], ['clownfish', 155, 3.6], ['angelfish', 161, 3.4], ['parrotfish', 168, 3.1], ['wahoo', 174, 2.9], ['lionfish', 179, 2.7], ['sturgeon', 185, 2.5], ['sunfish', 191, 2.3], ['anglerfish', 197, 2.1],
+  ['bluegill', 5, 8.8], ['largemouth_bass', 6, 8.6], ['crayfish', 12, 8.2], ['crappie', 17, 8.0], ['chub', 29, 7.4], ['whitefish', 47, 6.8], ['bream', 58, 6.4], ['walleye', 83, 5.6], ['muskie', 140, 3.8], ['paddlefish', 182, 2.6],
   ['plaice', 18, 8.0], ['bluefish', 47, 6.8], ['pompano', 64, 6.2], ['skate', 93, 5.2], ['moray_eel', 160, 3.4],
   ['herring', 23, 7.3], ['sprat', 38, 6.9], ['zander', 42, 6.7], ['tench', 55, 6.3], ['roach', 66, 6.0], ['rainbow_trout', 71, 5.9], ['hake', 81, 5.6], ['pollock', 88, 5.4], ['whiting', 101, 5.0], ['garfish', 114, 4.6], ['john_dory', 116, 4.5], ['amberjack', 128, 4.2], ['tarpon', 133, 4.0], ['snook', 147, 3.6], ['cobia', 156, 3.3], ['triggerfish', 161, 3.2], ['butterflyfish', 171, 2.9], ['blue_tang', 178, 2.7], ['boxfish', 187, 2.4], ['sailfish', 199, 2.0],
 ];

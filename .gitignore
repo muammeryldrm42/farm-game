@@ -9,3 +9,5 @@ tools/blender/__pycache__/
 tools/blender/*.png
 tools/blender/previews/
 tools/blender/sculpts/
+dist
+.out-keep

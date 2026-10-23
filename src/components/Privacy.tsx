@@ -1,26 +1,45 @@
 'use client';
 // The privacy policy: shown in the game (Settings) and as its own page (/privacy) for the store
-// listing. Written in English here, in the player's language from the locale files.
+// listing. Written in English here, in the player's language from the locale files. The YouTube
+// build has its own: there the farm is kept by YouTube and the game makes no requests of its own.
 import { getLang, t } from '@/game/i18n';
+import { YT_BUILD } from '@/game/yt';
 
 // who to write to about it (none yet: then the store page's contact details)
 export const PRIVACY_CONTACT = '';
 // the day this version took effect
-const UPDATED = new Date(2026, 9, 11);
+const UPDATED = new Date(2026, 9, 21);
 
-const SECTIONS: { title: string; lines: string[] }[] = [
-  {
-    title: 'In short',
-    lines: [
-      'Talons Farm does not collect, store or share any personal information. There are no accounts, no ads, no in-app purchases and no analytics or tracking.',
-    ],
-  },
+type Section = { title: string; lines: string[] };
+const SHORT: Section = {
+  title: 'In short',
+  lines: [
+    'Talons Farm does not collect, store or share any personal information. There are no accounts, no ads, no in-app purchases and no analytics or tracking.',
+  ],
+};
+const SAVE_CODE = 'If you export a save code to move your farm to another device, the code holds only your game progress and goes only where you paste it. We do not receive it.';
+const CHILDREN: Section = {
+  title: 'Children',
+  lines: [
+    'Talons Farm is made for players of all ages. As it collects no personal information from anyone, it collects none from children either.',
+  ],
+};
+const CHANGES: Section = {
+  title: 'Changes to this policy',
+  lines: [
+    'If this policy changes, the new version is published on this page with a new date.',
+  ],
+};
+
+const PLAY_SECTIONS: Section[] = [
+  SHORT,
   {
     title: 'What stays on your device',
     lines: [
       'Your farm (your progress, buildings, animals and items) and your settings (such as language, sound, graphics and notifications) are saved only on your device, in the game\'s own storage. We never receive them.',
       'Uninstalling the game or clearing its data deletes them. You can also delete your farm at any time with Settings, Start over.',
-      'If you export a save code to move your farm to another device, the code holds only your game progress and goes only where you paste it. We do not receive it.',
+      SAVE_CODE,
+      'To start faster, the game also keeps on your device the pictures it paints for the farm\'s ground and buildings. They hold no personal information.',
       'If backup is turned on on your phone, Android may include the game\'s data in your own Google backup, so your farm can come back on a new phone. This is handled by Google under its privacy policy; we do not receive it.',
     ],
   },
@@ -36,7 +55,7 @@ const SECTIONS: { title: string; lines: string[] }[] = [
   {
     title: 'Notifications',
     lines: [
-      'If you allow notifications, the game reminds you when things on your farm are ready: crops, animals, goods and the daily gift. The game schedules these reminders on your phone itself; no server is involved.',
+      'If you allow notifications, the game reminds you when things on your farm are ready: crops, animals, goods and the daily gift, and when a festival begins. The game schedules these reminders on your phone itself; no server is involved.',
       'You can turn them off at any time in the game\'s settings or in your phone\'s settings.',
     ],
   },
@@ -45,28 +64,45 @@ const SECTIONS: { title: string; lines: string[] }[] = [
     lines: [
       'Internet: for the time check above.',
       'Notifications, starting with the phone and keeping it awake briefly: to show the reminders above, also after the phone restarts.',
-      'Vibration: a short buzz when you pick something up to move it.',
+      'Vibration: a short buzz when you harvest, collect, level up or pick something up to move it. You can turn it off in the game\'s settings.',
     ],
   },
-  {
-    title: 'Children',
-    lines: [
-      'Talons Farm is made for players of all ages. As it collects no personal information from anyone, it collects none from children either.',
-    ],
-  },
+  CHILDREN,
   {
     title: 'Other services',
     lines: [
       'The game contains no advertising, analytics or social media components. Downloading and updating the game through Google Play is covered by Google\'s privacy policy.',
     ],
   },
+  CHANGES,
+];
+
+const YT_SECTIONS: Section[] = [
+  SHORT,
   {
-    title: 'Changes to this policy',
+    title: 'Where your farm is saved',
     lines: [
-      'If this policy changes, the new version is published on this page with a new date.',
+      'On YouTube, your farm (your progress, buildings, animals and items) and your settings are saved with your YouTube account through YouTube Playables. This is handled by Google under its privacy policy; we never receive them.',
+      SAVE_CODE,
     ],
   },
+  {
+    title: 'Connections',
+    lines: [
+      'On YouTube the game makes no internet connections of its own: farm timers run on your device\'s clock.',
+    ],
+  },
+  CHILDREN,
+  {
+    title: 'Other services',
+    lines: [
+      'The game itself contains no advertising, analytics or social media components. Playing on YouTube is covered by Google\'s privacy policy.',
+    ],
+  },
+  CHANGES,
 ];
+
+const SECTIONS = YT_BUILD ? YT_SECTIONS : PLAY_SECTIONS;
 
 export function PrivacyText() {
   let updated: string;
@@ -82,7 +118,9 @@ export function PrivacyText() {
       ))}
       <section className="mt-4">
         <h3 className="mb-1 font-bold">{t('Contact')}</h3>
-        <p>{PRIVACY_CONTACT ? t('Questions about this policy: {email}', { email: PRIVACY_CONTACT }) : t('Questions about this policy: write to the developer through the contact details on the game\'s Google Play page.')}</p>
+        <p>{PRIVACY_CONTACT ? t('Questions about this policy: {email}', { email: PRIVACY_CONTACT })
+          : YT_BUILD ? t('Questions about this policy: write to the developer through the contact details shown with the game on YouTube.')
+          : t('Questions about this policy: write to the developer through the contact details on the game\'s Google Play page.')}</p>
       </section>
     </div>
   );

@@ -3,10 +3,16 @@ import { ANIMAL, BUILDING, CATCHES, CROP, ITEMS, ITEM_LIST, LAKE_CATCHES, RECIPE
 import { isRaining } from './weather';
 import { t as tr } from './i18n';
 import { clockFloor, keepClock, now as clockNow } from './clock';
+import { kvGet, kvSet } from './kv';
+import { DAILY_LEVEL, dailyAllDone, dailyDone, dailyText, genDaily, type DailyState } from './daily';
 import { BEAUTY_LEVELS, beautyOf, type Beauty } from './beauty';
 import { LAST_CHAPTER, chapterAt, taskProgress, type StoryState, type StoryTask } from './story';
 import { ALBUM, ALBUM_IDS, CAT_FINDS, DOG_FINDS, albumEntry, type AlbumEntry } from './album';
 import { MUSEUM, findChance, museumSet, newMuseum, type FindSource, type MuseumState } from './museum';
+import { MARKET, genMarket, validMarket, type MarketState } from './market';
+import { CUP_PRIZES, cupOn, keepCup, type CupState } from './cup';
+import { PRIZE_OF, SEASONS, SEASON_TRACK, hasPrize, joinSeason, seasonNow, seasonOn, seasonPurse, seasonReady, type SeasonSave } from './season';
+import { FESTS, FEST_BITE, FEST_COINS, FEST_EXTRA, FEST_FAST, festActive, festNow, festOn, keepFest, type FestKind, type FestSave } from './fest';
 
 export const GRID = 68;
 // the map grew three times, from 28 to 44 tiles, then to 60, then to 68 with a sandy beach all
@@ -40,8 +46,9 @@ export const FISH_SPOT = { x: LAKE.x - LAKE.rx * 1.12 + 1.85, y: LAKE.z };
 export const SEA_FISH_SPOT = { x: GRID / 2, y: GRID + 2.3 };
 export const fishSpotAt = (spot: FishSpot) => (spot === 'sea' ? SEA_FISH_SPOT : FISH_SPOT);
 export const FISHING = { level: 5, cost: 800, time: 45 };
-// `watered`: the current crop got its drink (by hand, rain or a sprinkler) and grows faster
-export interface PlotData { crop: string | null; plantedAt: number; watered?: boolean }
+// `watered`: the current crop got its drink (by hand, rain or a sprinkler) and grows faster;
+// `dur`: how long it grows in all when that is not the crop's own time (sown at a harvest festival)
+export interface PlotData { crop: string | null; plantedAt: number; watered?: boolean; dur?: number }
 export interface QueueEntry { recipe: string; startAt: number; endsAt: number }
 export interface ProdData { queue: QueueEntry[]; slots: number }
 // `graze`: the animal left through the open gate at `at` to eat grass (bees: nectar); `back`
@@ -50,8 +57,6 @@ export interface Animal { id: number; fedAt: number | null; graze?: { at: number
 export interface PenData { animals: Animal[] }
 export interface TreeData { startAt: number }
 export interface StallSlot { item: string | null; qty: number; price: number; listedAt: number; soldAt: number }
-export interface Crate { item: string; qty: number; coins: number; xp: number; filled: boolean }
-export interface Boat { crates: Crate[]; leavesAt: number; returnAt: number; bonusCoins: number; bonusGems: number }
 
 export interface FarmObject {
   id: number;
@@ -75,8 +80,10 @@ export function footprint(o: { type: string; rot?: number }) {
 export interface OrderItem { id: string; qty: number }
 export interface Order { id: number; items: OrderItem[]; coins: number; xp: number; gems: number; readyAt: number }
 
-// `saver`: battery saver, the farm drawn at 30 frames a second (phones)
-export interface Settings { sound: boolean; dayNight: boolean; clouds: boolean; music: boolean; weather: boolean; shadows: boolean; saver?: boolean; notify?: boolean }
+// `saver`: battery saver, the farm drawn at 30 frames a second (phones); `vibrate`: a light buzz with
+// harvests, collecting and the like (on unless turned off); `nature`: the farm's own sounds, birds,
+// crickets, rain, wind and the sea (on unless turned off)
+export interface Settings { sound: boolean; dayNight: boolean; clouds: boolean; music: boolean; weather: boolean; shadows: boolean; saver?: boolean; notify?: boolean; vibrate?: boolean; nature?: boolean }
 
 export interface GameState {
   v: 1;
@@ -98,7 +105,6 @@ export interface GameState {
   settings: Settings;
   createdAt: number;
   stall: StallSlot[];
-  boat: Boat | null;
   achievements: Record<string, number>;
   tutorial: number;
   mapV?: number;
@@ -115,6 +121,12 @@ export interface GameState {
   museum?: MuseumState; // the rare finds on show in the farm museum (see museum.ts)
   clock?: { t: number }; // the farm's clock at the last save: it does not go back past it (see clock.ts)
   beautyBest?: number; // the highest beauty level whose gift of gems was given (see beauty.ts)
+  daily?: DailyState; // today's three tasks and the bonus chest (see daily.ts)
+  fest?: FestSave; // the festival on now and the next one (see fest.ts)
+  market?: MarketState; // what the neighbors' stalls sell now (see market.ts)
+  cup?: CupState; // the Valley Cup: the week on now, and how the last one ended (see cup.ts)
+  season?: SeasonSave; // the season event joined and the prizes claimed (see season.ts)
+  prizes?: string[]; // the decorations won in season events, the farm's for good
 }
 
 // ---------------------------------------------------------------- pets
@@ -192,7 +204,10 @@ export function fmtTime(ms: number) {
   if (t < 60) return tr('{n}s', { n: t });
   const m = Math.floor(t / 60);
   if (m < 60) return tr('{m}m {s}s', { m, s: t % 60 });
-  return tr('{h}h {m}m', { h: Math.floor(m / 60), m: m % 60 });
+  const h = Math.floor(m / 60);
+  // two days and more: in days and hours (a season event, the cup's week)
+  if (h >= 48) return tr('{d}d {h}h', { d: Math.floor(h / 24), h: h % 24 });
+  return tr('{h}h {m}m', { h, m: m % 60 });
 }
 
 export function fmtNum(n: number) {
@@ -221,8 +236,7 @@ export const needsWater = (o: FarmObject, now: number) => {
 export function plotProgress(o: FarmObject, now: number) {
   const p = o.plot;
   if (!p || !p.crop) return { crop: null as string | null, p: 0, ready: false, remaining: 0 };
-  const c = CROP[p.crop];
-  const total = c.time * 1000;
+  const total = p.dur ?? CROP[p.crop].time * 1000;
   const el = now - p.plantedAt;
   return { crop: p.crop, p: Math.min(1, el / total), ready: el >= total, remaining: Math.max(0, total - el) };
 }
@@ -291,17 +305,11 @@ export const STALL_SLOTS = 4;
 export const emptySlot = (): StallSlot => ({ item: null, qty: 0, price: 0, listedAt: 0, soldAt: 0 });
 export const stallValue = (item: string, qty: number) => ITEMS[item].sell * qty;
 
-const LIMITED = new Set<BuildingDef['kind']>(['stall', 'house', 'dock', 'board', 'obstacle']);
-
-export function boatState(s: GameState, now: number): 'none' | 'docked' | 'away' {
-  if (!s.boat) return 'none';
-  if (s.boat.crates.length && now < s.boat.leavesAt) return 'docked';
-  return 'away';
-}
+const LIMITED = new Set<BuildingDef['kind']>(['stall', 'house', 'board', 'obstacle']);
 
 // What the farm can come by now: its crops, the fruit of its trees, what its animals give, the
 // fish its open fishing spots bring in often enough, and what its workshops make out of these.
-// Orders and the boat ask only for these: one asking for a fish before the fishing spot is open
+// Orders ask only for these: one asking for a fish before the fishing spot is open
 // (or for eggs with no hens) could never be filled, and would sit on the board for good.
 const FISH_SHARE = 0.08;
 export function makeable(s: GameState) {
@@ -332,20 +340,6 @@ function askable(s: GameState) {
   const can = makeable(s);
   const pool = ITEM_LIST.filter((i) => i.level <= s.level && !i.id.endsWith('_feed') && can.has(i.id));
   return pool.length ? pool : ITEM_LIST.filter((i) => CROP[i.id] && i.level <= s.level);
-}
-
-export function genBoat(s: GameState, now: number): Boat {
-  const pool = askable(s);
-  const n = s.level < 10 ? 3 : s.level < 14 ? 4 : 6;
-  const crates: Crate[] = [];
-  for (let i = 0; i < n; i++) {
-    const it = pool[Math.floor(Math.random() * pool.length)];
-    const qty = Math.max(2, Math.min(it.storage === 'silo' ? 10 : 6, Math.round(60 / it.sell + Math.random() * 2)));
-    const value = it.sell * qty;
-    crates.push({ item: it.id, qty, coins: Math.round(value * 1.5), xp: Math.max(3, Math.round(value / 5)), filled: false });
-  }
-  const total = crates.reduce((a, c) => a + c.coins, 0);
-  return { crates, leavesAt: now + 2 * 3600e3, returnAt: 0, bonusCoins: Math.round(total * 0.5), bonusGems: 1 + (Math.random() < 0.3 ? 1 : 0) };
 }
 
 export function feedHint(feed: string) {
@@ -475,6 +469,9 @@ export const ACHIEVEMENTS: Achievement[] = [
   { id: 'tycoon', name: 'Tycoon', icon: '💰', unit: 'coins earned', tiers: [10000, 100000, 1000000], progress: (s) => st(s, 'earned') },
   { id: 'baron', name: 'Land Baron', icon: '🪧', unit: 'land expansions', tiers: [3, 10, 30], progress: (s) => st(s, 'expand') },
   { id: 'lumberjack', name: 'Lumberjack', icon: '🪓', unit: 'obstacles cleared', tiers: [10, 50, 150], progress: (s) => st(s, 'clear') },
+  { id: 'tasker', name: 'Task Master', icon: '✅', unit: 'daily tasks done', tiers: [15, 100, 400], progress: (s) => st(s, 'dailyTask') },
+  { id: 'festive', name: 'Festival Goer', icon: '🎪', unit: 'festivals joined', tiers: [3, 15, 50], progress: (s) => st(s, 'festivals') },
+  { id: 'neighborly', name: 'Good Neighbor', icon: '🏘️', unit: 'purchases from neighbors', tiers: [5, 50, 200], progress: (s) => st(s, 'neighbor') },
 ];
 export const claimableBadges = (s: GameState) => ACHIEVEMENTS.filter((a) => {
   const k = s.achievements[a.id] ?? 0;
@@ -535,7 +532,6 @@ export function newGame(): GameState {
     settings: { sound: true, dayNight: true, clouds: true, music: true, weather: true, shadows: false, saver: false },
     createdAt: now,
     stall: Array.from({ length: STALL_SLOTS }, emptySlot),
-    boat: null,
     achievements: {},
     album: {}, albumDone: [], pets: { dog: newPet('dog'), cat: newPet('cat') }, museum: newMuseum(),
     tutorial: 0,
@@ -573,8 +569,9 @@ export function newGame(): GameState {
 }
 
 // Pigs and unicorns, and their goods, were taken out of the game. Saves that still hold them are paid back in
-// coins, and orders, stall slots, boat crates and queues that mention them are cleaned up.
-const REMOVED_VALUE: Record<string, number> = { bacon: 50, pig_feed: 14, rainbow_mane: 520, owl_feather: 504 };
+// coins, and orders, stall slots and queues that mention them are cleaned up.
+// (the butternut squash went too: it looked and was called much like the pumpkin)
+const REMOVED_VALUE: Record<string, number> = { bacon: 50, pig_feed: 14, rainbow_mane: 520, owl_feather: 504, butternut: 307 };
 const REMOVED_BUILDING: Record<string, { cost: number; animal: number }> = {
   pigpen: { cost: 1000, animal: 160 }, unicorn_meadow: { cost: 32000, animal: 4000 },
   // decorations taken out later: paid back in full
@@ -599,12 +596,18 @@ function dropRemoved(s: GameState) {
     s.coins += (REMOVED_VALUE[x.item] ?? 0) * x.qty;
     return emptySlot();
   });
-  // no dock, no cargo boat
-  if (!s.objects.some((o) => BUILDING[o.type]?.kind === 'dock')) s.boat = null;
   const now = clockNow();
   s.orders = s.orders.map((o) => (o.items.every((it) => ITEMS[it.id]) ? o : genOrder(s, now)));
   for (const o of s.objects) if (o.prod) o.prod.queue = o.prod.queue.filter((e) => RECIPE[e.recipe]);
-  for (const o of s.objects) if (o.plot?.crop && !CROP[o.plot.crop]) o.plot.crop = null;
+  // a field of a crop taken out: emptied, and its worth paid back
+  for (const o of s.objects) {
+    if (!o.plot?.crop || CROP[o.plot.crop]) continue;
+    s.coins += REMOVED_VALUE[o.plot.crop] ?? 0;
+    o.plot.crop = null;
+    delete o.plot.dur;
+  }
+  // daily tasks asking for something taken out: the day's tasks are made again
+  if (s.daily?.tasks.some((t) => t.item && !ITEMS[t.item])) delete s.daily;
 }
 
 // Moves a farm laid out on the old 28 tile map to the middle of the current map.
@@ -622,7 +625,7 @@ export function loadGame(): GameState {
   let s: GameState | null = null;
   let raw: string | null = null;
   try {
-    raw = localStorage.getItem(SAVE_KEY);
+    raw = kvGet(SAVE_KEY);
     if (raw) {
       const d = JSON.parse(raw);
       clockFloor(d?.clock?.t);
@@ -631,7 +634,7 @@ export function loadGame(): GameState {
   } catch {
     // a save that cannot be read: the game starts fresh, but the old save is put aside first,
     // or the first save of the new farm would write over it and nothing could bring it back
-    try { if (raw) localStorage.setItem(`${SAVE_KEY}-unreadable`, raw); } catch { /* storage full */ }
+    if (raw) kvSet(`${SAVE_KEY}-unreadable`, raw);
   }
   return testBoost(s ?? newGame());
 }
@@ -653,16 +656,30 @@ function topUp(s: GameState) {
   if (s.gems < TEST_FUNDS) s.gems = TEST_FUNDS;
 }
 
+// (a hand edited or damaged save, a save code from somewhere: each part is checked, and what does
+// not fit is put right or started afresh, so the farm opens whatever it holds)
+const plain = (v: unknown): v is Record<string, unknown> => !!v && typeof v === 'object' && !Array.isArray(v);
+function counts(v: unknown): Record<string, number> {
+  const out: Record<string, number> = {};
+  if (plain(v)) for (const [k, x] of Object.entries(v)) if (typeof x === 'number' && Number.isFinite(x)) out[k] = x;
+  return out;
+}
+
 function migrate(d: Partial<GameState>): GameState {
   const base = newGame();
   const s = { ...base, ...d } as GameState;
-  s.settings = { ...base.settings, ...(d.settings ?? {}) };
-  s.stats = d.stats ?? {};
-  s.inv = d.inv ?? {};
-  s.quests = d.quests ?? [];
-  s.achievements = d.achievements ?? {};
+  for (const k of ['coins', 'gems', 'xp', 'level', 'siloLevel', 'barnLevel', 'nextId', 'streak', 'createdAt'] as const) {
+    if (typeof s[k] !== 'number' || !Number.isFinite(s[k])) s[k] = base[k];
+  }
+  if (typeof s.lastDaily !== 'string') s.lastDaily = base.lastDaily;
+  s.settings = { ...base.settings, ...(plain(d.settings) ? d.settings : {}) };
+  s.stats = counts(d.stats);
+  s.inv = counts(d.inv);
+  s.quests = Array.isArray(d.quests) ? d.quests.filter((q) => typeof q === 'string') : [];
+  s.achievements = counts(d.achievements);
   s.stall = Array.isArray(d.stall) && d.stall.length === STALL_SLOTS ? d.stall : Array.from({ length: STALL_SLOTS }, emptySlot);
-  s.boat = d.boat ?? null;
+  // (the cargo boat an old save may still carry went with the dock)
+  delete (s as { boat?: unknown }).boat;
   s.starterWell = d.starterWell;
   // the album and the pets came later: fish already in the barn count as found
   s.album = { ...(d.album ?? {}) };
@@ -672,10 +689,35 @@ function migrate(d: Partial<GameState>): GameState {
   s.museum = { found: { ...(d.museum?.found ?? {}) }, done: [...(d.museum?.done ?? [])], misses: { ...(d.museum?.misses ?? {}) } };
   s.pets = { dog: { ...newPet('dog'), ...(d.pets?.dog ?? {}) }, cat: { ...newPet('cat'), ...(d.pets?.cat ?? {}) } };
   // farms from before the story pick it up at the chapter of their level
-  s.story = d.story ?? { ch: Math.min(LAST_CHAPTER + 1, Math.max(1, s.level ?? 1)), started: 0, base: {}, seen: 0 };
+  const so = d.story;
+  s.story = so && typeof so.ch === 'number' && Number.isFinite(so.ch)
+    ? { ch: so.ch, started: typeof so.started === 'number' ? so.started : 0, base: counts(so.base), seen: typeof so.seen === 'number' ? so.seen : 0 }
+    : { ch: Math.min(LAST_CHAPTER + 1, Math.max(1, s.level ?? 1)), started: 0, base: {}, seen: 0 };
+  // today's tasks: kept when whole, else made again
+  const dl = d.daily;
+  s.daily = dl && typeof dl.day === 'string' && Array.isArray(dl.tasks) && plain(dl.base) && plain(dl.bonus)
+    && dl.tasks.every((t) => plain(t) && typeof t.key === 'string' && typeof t.kind === 'string' && typeof t.target === 'number' && typeof t.coins === 'number' && typeof t.xp === 'number')
+    && typeof dl.bonus.coins === 'number' && typeof dl.bonus.gems === 'number' && typeof dl.bonus.xp === 'number'
+    ? { ...dl, base: counts(dl.base) } : undefined;
+  // the festivals came later; a damaged entry is dropped and made again
+  const f = d.fest;
+  s.fest = f && typeof f.slot === 'number' && Array.isArray(f.kinds) && f.kinds.length === 2 && f.kinds.every((k) => typeof k === 'string' && Object.prototype.hasOwnProperty.call(FESTS, k)) ? f : undefined;
+  s.market = validMarket(d.market);
+  const cu = d.cup;
+  s.cup = cu && typeof cu.week === 'number' && plain(cu.base)
+    ? { week: cu.week, base: counts(cu.base), ...(typeof cu.lv === 'number' && cu.lv >= 1 ? { lv: cu.lv } : {}), ...(typeof cu.from === 'number' ? { from: cu.from } : {}), ...(plain(cu.last) && typeof cu.last.place === 'number' && typeof cu.last.points === 'number' && typeof cu.last.week === 'number' ? { last: cu.last } : {}) }
+    : undefined;
+  const se = d.season;
+  s.season = se && typeof se.id === 'string' && Object.prototype.hasOwnProperty.call(SEASONS, se.id) && typeof se.year === 'number' && plain(se.base) && Number.isInteger(se.got) && se.got >= 0 && se.got <= SEASON_TRACK.length
+    ? { id: se.id, year: se.year, base: counts(se.base), got: se.got }
+    : undefined;
+  s.prizes = Array.isArray(d.prizes) ? [...new Set(d.prizes.filter((x): x is string => typeof x === 'string' && x in PRIZE_OF))] : undefined;
   // saves from before the tutorial existed skip it
   s.tutorial = typeof d.tutorial === 'number' ? d.tutorial : TUTORIAL_DONE;
+  if (s.tutorial !== TUTORIAL_DONE && !(Number.isInteger(s.tutorial) && s.tutorial >= 0 && s.tutorial <= TUTORIAL.length)) s.tutorial = TUTORIAL_DONE;
   if (!Array.isArray(s.objects) || !Array.isArray(s.chunks)) return base;
+  // the land bought: "x,y" each
+  s.chunks = s.chunks.filter((k) => typeof k === 'string' && /^\d+,\d+$/.test(k));
   if ((d.mapV ?? 1) < 2) shiftMap(s, MAP_OFF, 2);
   if ((s.mapV ?? 1) < 3) shiftMap(s, MAP_OFF2, 3);
   if ((s.mapV ?? 1) < 4) shiftMap(s, MAP_OFF3, 4);
@@ -697,7 +739,7 @@ export type Sfx = 'harvest' | 'plant' | 'coin' | 'build' | 'error' | 'levelup' |
 export interface Fx { kind: 'float' | 'burst'; gx: number; gy: number; text?: string; color?: string; z?: number }
 export interface Placing { type: string; x: number; y: number; moveId?: number }
 export interface Tool { kind: 'plant'; crop: string }
-export type Panel = 'shop' | 'orders' | 'storage' | 'settings' | 'quests' | 'stall' | 'boat' | 'fishing' | 'home' | 'pet' | 'beauty' | 'privacy' | null;
+export type Panel = 'shop' | 'orders' | 'storage' | 'settings' | 'quests' | 'stall' | 'fishing' | 'home' | 'pet' | 'beauty' | 'festival' | 'season' | 'privacy' | null;
 export interface Flyer { icon: string; gx: number; gy: number; z: number; target: 'storage' | 'coins' | 'xp' }
 export interface Toast { id: number; text: string; tone: 'info' | 'bad' | 'good'; at: number }
 
@@ -722,6 +764,8 @@ export interface UIState {
   guideAt?: { x: number; y: number; at: number }; // a place on the farm a task pointed to: an orange arrow bobs over it
   notifyAsk?: boolean; // the question whether to send phone notifications is up (see notify.ts)
   shopTab?: string; // the shop opens on this tab (once)
+  // back after a while: what is ready on the farm, shown for a moment (see welcomeBack)
+  welcome?: { fields: number; animals: number; goods: number; trees: number; sales: number; fish: number } | null;
 }
 
 export class GameStore {
@@ -734,6 +778,8 @@ export class GameStore {
   toScreen: (gx: number, gy: number, z: number) => { x: number; y: number } | null = () => null;
   toasts: Toast[] = [];
   sound: (n: Sfx) => void = () => {};
+  // a pen's animals answer (see voice in audio.ts)
+  voice: (animal: string) => void = () => {};
   viewCenter: () => { x: number; y: number } = () => ({ x: GRID / 2, y: GRID / 2 });
   focusOn: (x: number, y: number) => void = () => {};
   private listeners = new Set<() => void>();
@@ -741,6 +787,7 @@ export class GameStore {
   private toastId = 0;
 
   constructor(s: GameState) {
+    this.awayFrom = typeof s.clock?.t === 'number' ? s.clock.t : null;
     this.s = s;
     this.ui = { selectedId: null, placing: null, tool: null, panel: null, storageTab: 'silo', expand: null, levelUp: null, daily: false, napping: false, napAt: 0, story: null, say: null };
     this.ensureOrders();
@@ -766,7 +813,7 @@ export class GameStore {
     for (const o of [...s.objects]) {
       if (!on(o)) continue;
       const sp = this.findSpot(o.type, LAKE.x - 12, LAKE.z, o.id);
-      if (sp.ok) { o.x = sp.x; o.y = sp.y; } else { s.objects = s.objects.filter((x) => x !== o); s.coins += BUILDING[o.type].cost; }
+      if (sp.ok) { o.x = sp.x; o.y = sp.y; } else { s.objects = s.objects.filter((x) => x !== o); s.coins += PRIZE_OF[o.type] ? 0 : BUILDING[o.type].cost; }
     }
     this.objVersion++;
   }
@@ -802,11 +849,17 @@ export class GameStore {
   }
 
   private saveDue = 0;
+  // the farm is open in a newer tab of this browser: this one writes nothing more (it would put
+  // its older farm over the newer one's; see Game.tsx)
+  elsewhere = false;
+  // the browser keeps no data for this site: nothing is saved (see kvWorks), which the game says
+  noSave = false;
   saveNow = () => {
     if (this.saveT) { clearTimeout(this.saveT); this.saveT = null; }
     this.saveDue = 0;
+    if (this.elsewhere) return;
     this.s.clock = { t: clockNow() };
-    try { localStorage.setItem(SAVE_KEY, JSON.stringify(this.s)); } catch { /* storage full or blocked */ }
+    kvSet(SAVE_KEY, JSON.stringify(this.s));
     keepClock();
   };
 
@@ -849,7 +902,7 @@ export class GameStore {
     if (!this.beautyMemo || this.beautyMemo.v !== this.objVersion) this.beautyMemo = { v: this.objVersion, b: beautyOf(this.s) };
     return this.beautyMemo.b;
   }
-  // what customers pay more on a farm this pretty (orders, boat crates, stall sales)
+  // what customers pay more on a farm this pretty (orders, stall sales)
   beautyBonus() { return BEAUTY_LEVELS[this.beauty().level].bonus; }
   private startedAt = Date.now();
   // a beauty level reached for the first time brings its gift of gems
@@ -896,10 +949,12 @@ export class GameStore {
 
   // no buying limit in the shop, but for the Home & Trade things (the stall, the homes) and
   // the farm's own fixed buildings
-  maxOf(d: BuildingDef) { return LIMITED.has(d.kind) ? d.max : Infinity; }
+  // a season prize: one, once won
+  maxOf(d: BuildingDef) { return PRIZE_OF[d.id] ? (hasPrize(this.s, d.id) ? 1 : 0) : LIMITED.has(d.kind) ? d.max : Infinity; }
 
   costOf(d: BuildingDef) {
     if (d.kind === 'plot') return Math.round(10 * Math.pow(1.1, Math.max(0, this.countType('plot') - 6)));
+    if (PRIZE_OF[d.id]) return 0;
     return d.cost;
   }
 
@@ -1001,6 +1056,7 @@ export class GameStore {
         return;
       case 'pen': {
         const pi = penInfo(o, now);
+        if (pi.total) this.voice(pi.animal.id);
         // collect when ready; feeding is the player's choice (the Feed button), so animals that
         // came home hungry from grazing are not fed behind their back
         if (pi.ready) this.collectPen(o);
@@ -1016,7 +1072,6 @@ export class GameStore {
         this.select(o.id);
         return;
       case 'stall': this.openPanel('stall', o.id); return;
-      case 'dock': this.openPanel('boat'); return;
       default:
         if (o.type === 'well') this.fillBucket(o);
         this.select(o.id);
@@ -1064,7 +1119,7 @@ export class GameStore {
     if (!f?.open || f.castAt !== null) return;
     const now = clockNow();
     f.castAt = now;
-    f.catchAt = now + FISHING.time * 1000;
+    f.catchAt = now + FISHING.time * 1000 * (this.fest('fish') ? FEST_BITE : 1);
     this.sound('plant');
     this.emit();
   }
@@ -1118,6 +1173,8 @@ export class GameStore {
     o.plot.crop = cropId;
     o.plot.plantedAt = clockNow();
     o.plot.watered = false;
+    if (this.fest('harvest')) o.plot.dur = Math.round(c.time * 1000 * FEST_FAST);
+    else delete o.plot.dur;
     this.stat('plant');
     this.sound('plant');
     this.burst(o, '#8a5a34');
@@ -1138,6 +1195,7 @@ export class GameStore {
     if (extra) this.float(o, `🐈 +1 ${ITEMS[pp.crop].icon}`, '#ffe3f0', 55);
     o.plot.crop = null;
     o.plot.watered = false;
+    delete o.plot.dur;
     this.addXp(c.xp);
     this.float(o, `+2 ${ITEMS[c.id].icon}`, '#fff6c8', 30);
     this.fly(o, ITEMS[c.id].icon, 'storage');
@@ -1180,7 +1238,7 @@ export class GameStore {
     const cost = gemCost(pp.remaining);
     if (this.s.gems < cost) { this.toast(tr('Not enough gems.'), 'bad'); return; }
     this.s.gems -= cost;
-    o.plot.plantedAt = clockNow() - CROP[pp.crop].time * 1000;
+    o.plot.plantedAt = clockNow() - (o.plot.dur ?? CROP[pp.crop].time * 1000);
     this.sound('coin');
     this.emit();
   }
@@ -1197,7 +1255,7 @@ export class GameStore {
     for (const [id, n] of Object.entries(r.inputs)) this.take(id, n);
     const last = o.prod.queue[o.prod.queue.length - 1];
     const start = Math.max(now, last ? last.endsAt : now);
-    o.prod.queue.push({ recipe: recipeId, startAt: start, endsAt: start + r.time * 1000 });
+    o.prod.queue.push({ recipe: recipeId, startAt: start, endsAt: start + Math.round(r.time * 1000 * (this.fest('craft') ? FEST_FAST : 1)) });
     this.sound('click');
     this.emit();
   }
@@ -1319,16 +1377,26 @@ export class GameStore {
     const now = clockNow();
     const pi = penInfo(o, now);
     if (!o.pen) return;
-    let n = 0;
+    let n = 0, fair = 0;
+    const fest = this.fest('animals');
     for (const a of o.pen.animals) {
       if (!animalReady(a, pi.animal.time, now)) continue;
       if (!this.canStore(pi.animal.product, 1)) { this.fullToast(pi.animal.product); break; }
       this.add(pi.animal.product, 1);
       a.fedAt = null;
+      this.stat('collect');
       this.stat(`collect:${pi.animal.product}`);
       this.addXp(pi.animal.xp);
       n++;
+      // the animal fair: now and then one more
+      if (fest && Math.random() < FEST_EXTRA && this.canStore(pi.animal.product, 1)) {
+        this.add(pi.animal.product, 1);
+        this.stat('collect');
+        this.stat(`collect:${pi.animal.product}`);
+        fair++;
+      }
     }
+    if (fair) this.float(o, `${FESTS.animals.icon} +${fair} ${ITEMS[pi.animal.product].icon}`, '#ffe3f0', 80);
     // the dog kept the herd together: now and then one product more
     if (n && Math.random() < petHelp(this.pet('dog')) && this.canStore(pi.animal.product, 1)) {
       this.add(pi.animal.product, 1);
@@ -1363,6 +1431,8 @@ export class GameStore {
   startBuy(type: string) {
     const d = BUILDING[type];
     if (this.s.level < d.level) { this.toast(tr('Unlocks at level {n}.', { n: d.level }), 'bad'); return; }
+    const ev = PRIZE_OF[type];
+    if (ev && !hasPrize(this.s, type)) { this.toast(tr('A prize of {event}.', { event: tr(SEASONS[ev].name) }), 'bad'); return; }
     if (this.countType(type) >= this.maxOf(d)) { this.toast(tr(d.kind === 'plot' ? 'Field limit reached. Level up for more.' : 'You already own the maximum.'), 'bad'); return; }
     if (this.s.coins < this.costOf(d)) { this.toast(tr('Not enough coins.'), 'bad'); return; }
     const c = this.viewCenter();
@@ -1430,7 +1500,6 @@ export class GameStore {
     if (d.kind === 'production') o.prod = { queue: [], slots: 3 };
     if (d.kind === 'pen') o.pen = { animals: [] };
     if (d.kind === 'tree') o.tree = { startAt: clockNow() };
-    if (d.kind === 'dock' && !this.s.boat) this.s.boat = genBoat(this.s, clockNow());
     this.s.objects.push(o);
     this.stat(`build:${p.type}`);
     this.addXp(d.xp);
@@ -1459,7 +1528,7 @@ export class GameStore {
   // what an object sells for: half its price, and half the price of the animals in a pen
   sellValue(o: FarmObject) {
     const d = BUILDING[o.type];
-    if (d.kind === 'plot') return 0;
+    if (d.kind === 'plot' || PRIZE_OF[d.id]) return 0;
     const an = d.animal ? ANIMAL[d.animal] : undefined;
     return Math.floor(d.cost / 2) + (an ? (o.pen?.animals.length ?? 0) * Math.floor(an.cost / 2) : 0);
   }
@@ -1606,7 +1675,7 @@ export class GameStore {
     if (!o) return;
     if (!canFulfill(this.s, o, clockNow())) { this.toast(tr('You do not have everything for this order yet.'), 'bad'); return; }
     for (const it of o.items) this.take(it.id, it.qty);
-    const coins = Math.round(o.coins * (1 + horseBonus(this.s) + this.beautyBonus()));
+    const coins = Math.round(o.coins * (1 + this.orderBonus()));
     this.earn(coins);
     this.s.gems += o.gems;
     this.stat('orders');
@@ -1617,6 +1686,9 @@ export class GameStore {
     this.sound('coin');
     this.emit();
   }
+
+  // what every order pays over its coins: horses, the farm's beauty and a market festival
+  orderBonus() { return horseBonus(this.s) + this.beautyBonus() + (this.fest('market') ? FEST_COINS : 0); }
 
   discardOrder(id: number) {
     this.s.orders = this.s.orders.map((x) => (x.id === id ? genOrder(this.s, clockNow() + 45000) : x));
@@ -1854,6 +1926,16 @@ export class GameStore {
     if (kind === 'harvest' || kind === 'plant') {
       const crop = key || null;
       const plot = s.objects.find((o) => o.type === 'plot' && (crop ? o.plot?.crop === crop : false)) ?? s.objects.find((o) => o.type === 'plot' && !o.plot?.crop);
+      // every field busy but one is ripe (a new farm's wheat): that one, to harvest and free it
+      const ripe = plot ? null : s.objects.find((o) => o.type === 'plot' && plotProgress(o, now).ready);
+      if (ripe) {
+        this.ui.panel = null;
+        const f = footprint(ripe);
+        this.focusOn(ripe.x + f.w / 2, ripe.y + f.h / 2);
+        this.select(ripe.id);
+        this.emit(false);
+        return;
+      }
       // no field free for it: the crop in the shop, with the fields to buy beside it
       if (!plot) { shopFor(crop ?? 'plot'); if (crop) this.toast(tr('Plant {item} in a free field. Buy another field if all are busy.', { item: tr(ITEMS[crop]?.name ?? 'it') })); return; }
       this.ui.panel = null;
@@ -1969,6 +2051,7 @@ export class GameStore {
     const coins = Math.round(sl.price * (1 + this.beautyBonus()));
     this.earn(coins);
     this.stat('stall');
+    this.stat('stallCoins', coins);
     this.addXp(Math.max(1, Math.round(sl.price / 25)));
     const stall = this.s.objects.find((x) => x.type === 'stall');
     if (stall) { this.float(stall, `+${coins} coins`, '#ffe066', 50); this.fly(stall, '🪙', 'coins', 50); }
@@ -1987,36 +2070,115 @@ export class GameStore {
     this.emit();
   }
 
-  // ------------------------------------------------ boat
+  // ------------------------------------------------ the Valley Cup (see cup.ts)
 
-  fillCrate(i: number) {
-    const b = this.s.boat;
-    const now = clockNow();
-    if (!b || boatState(this.s, now) !== 'docked') return;
-    const c = b.crates[i];
-    if (!c || c.filled) return;
-    if ((this.s.inv[c.item] ?? 0) < c.qty) { this.toast(tr('You need {n} {item}.', { n: c.qty, item: tr(ITEMS[c.item].name) }), 'bad'); return; }
-    this.take(c.item, c.qty);
-    c.filled = true;
-    const coins = Math.round(c.coins * (1 + this.beautyBonus()));
-    this.earn(coins);
-    this.addXp(c.xp);
-    const dock = this.s.objects.find((x) => x.type === 'dock');
-    if (dock) { this.float(dock, `+${coins} coins`, '#ffe066', 50); this.fly(dock, '🪙', 'coins', 40); }
+  // the cup keeps up with the weeks; a week that ended is told once
+  private cupTick(now: number) {
+    if (!cupOn(this.s)) return;
+    const had = !!this.s.cup;
+    if (keepCup(this.s, now)) {
+      const l = this.s.cup!.last!;
+      this.toast(`🏆 ${tr('The Valley Cup is over: place {n}! Your prize is in Goals.', { n: l.place })}`, 'good');
+      this.scheduleSave();
+    } else if (!had && this.s.cup) this.scheduleSave();
+  }
+
+  // the prize of the week that ended: gems by the place, and coins with them
+  cupPrize(place: number) {
+    const gems = CUP_PRIZES[Math.max(0, Math.min(CUP_PRIZES.length - 1, place - 1))];
+    return { gems, coins: Math.round(gems * (20 + this.s.level * 2)) };
+  }
+
+  claimCup() {
+    const l = this.s.cup?.last;
+    if (!l || l.claimed) return;
+    const p = this.cupPrize(l.place);
+    l.claimed = true;
+    this.earn(p.coins);
+    this.s.gems += p.gems;
+    this.sound('levelup');
+    this.emit();
+  }
+
+  // ------------------------------------------------ season events (see season.ts)
+
+  // joins the event that is on, and closes the one that ended, giving what was reached
+  private seasonTick(now: number) {
+    const ev = seasonNow(now);
+    const e = this.s.season;
+    if (e && (!ev || ev.id !== e.id || ev.year !== e.year)) {
+      const n = seasonReady(this.s);
+      for (let i = 0; i < n; i++) this.giveStep(e);
+      const d = SEASONS[e.id];
+      this.toast(`${d.icon} ${tr(n ? '{event} is over. Its last prizes are yours!' : '{event} is over. See you next year!', { event: tr(d.name) })}`, 'good');
+      this.s.season = undefined;
+      this.scheduleSave();
+    }
+    if (ev && seasonOn(this.s) && !this.s.season) {
+      this.s.season = joinSeason(this.s, ev);
+      const d = SEASONS[ev.id];
+      this.toast(`${d.icon} ${tr('{event} has begun! Collect {token} for prizes.', { event: tr(d.name), token: `${d.token} ${tr(d.tokenName)}` })}`, 'good');
+      this.scheduleSave();
+    }
+  }
+
+  // the next step of the track: its coins, gems or decoration
+  private giveStep(e: SeasonSave) {
+    const st = SEASON_TRACK[e.got];
+    if (!st) return;
+    e.got++;
+    if (st.coins) this.earn(Math.round(st.coins * seasonPurse(this.s.level)));
+    if (st.gems) this.s.gems += st.gems;
+    if (st.deco !== undefined) {
+      const id = SEASONS[e.id].decos[st.deco];
+      if (!hasPrize(this.s, id)) this.s.prizes = [...(this.s.prizes ?? []), id];
+      this.toast(`🎁 ${tr('You won the {name}! Place it for free from the shop.', { name: tr(BUILDING[id].name) })}`, 'good');
+    }
+  }
+
+  claimSeason() {
+    const e = this.s.season;
+    if (!e || !seasonReady(this.s)) return;
+    this.giveStep(e);
+    this.sound('levelup');
+    this.emit();
+  }
+
+  // ------------------------------------------------ the neighbors' stalls (see market.ts)
+
+  marketOn() { return this.s.level >= MARKET.level && this.countType('stall') > 0; }
+
+  // new goods once the old ones have had their time
+  private marketTick(now: number) {
+    if (!this.marketOn()) return;
+    if (!this.s.market || now >= this.s.market.refreshAt) {
+      this.s.market = genMarket(this.s, now, makeable(this.s));
+      this.scheduleSave();
+    }
+  }
+
+  buyOffer(i: number) {
+    const o = this.s.market?.offers[i];
+    if (!o || o.sold || !this.marketOn()) return;
+    if (this.s.coins < o.price) { this.toast(tr('Not enough coins.'), 'bad'); return; }
+    if (!this.canStore(o.item, o.qty)) { this.fullToast(o.item); return; }
+    this.s.coins -= o.price;
+    this.add(o.item, o.qty);
+    o.sold = true;
+    this.stat('neighbor');
+    const stall = this.s.objects.find((x) => x.type === 'stall');
+    if (stall) { this.float(stall, `+${o.qty} ${ITEMS[o.item].icon}`, '#fff6c8', 50); this.fly(stall, ITEMS[o.item].icon, 'storage', 50); }
     this.sound('coin');
     this.emit();
   }
 
-  sendBoat() {
-    const b = this.s.boat;
-    if (!b || !b.crates.length || !b.crates.every((c) => c.filled)) return;
-    this.earn(b.bonusCoins);
-    this.s.gems += b.bonusGems;
-    this.stat('boat');
-    this.addXp(20);
-    this.toast(tr('Boat sent! Bonus {coins} coins and {gems} gems.', { coins: b.bonusCoins, gems: b.bonusGems }), 'good');
-    this.s.boat = { ...b, crates: [], returnAt: clockNow() + 8 * 60e3 };
-    this.sound('levelup');
+  // new goods at once, for a few gems
+  refreshMarket() {
+    if (!this.marketOn()) return;
+    if (this.s.gems < MARKET.gems) { this.toast(tr('Not enough gems.'), 'bad'); return; }
+    this.s.gems -= MARKET.gems;
+    this.s.market = genMarket(this.s, clockNow(), makeable(this.s));
+    this.sound('coin');
     this.emit();
   }
 
@@ -2050,6 +2212,11 @@ export class GameStore {
     // a new beauty level reached some other way (an older farm, a loaded save): a few seconds in, so it is seen
     if (Date.now() - this.startedAt > 8000) this.checkBeauty();
     this.storyTick(now);
+    this.dailyTick();
+    this.festTick(now);
+    this.marketTick(now);
+    this.cupTick(now);
+    this.seasonTick(now);
     // rain and sprinklers water thirsty fields for free
     const thirsty = this.s.objects.filter((o) => o.type === 'plot' && needsWater(o, now));
     if (thirsty.length) {
@@ -2066,16 +2233,6 @@ export class GameStore {
       if (rained && now - this.rainNoteAt > 5 * 60e3) {
         this.rainNoteAt = now;
         this.toast(tr('Rain is watering your fields! 🌧️'), 'good');
-      }
-    }
-    const b = this.s.boat;
-    if (b && this.countType('dock') > 0) {
-      if (b.crates.length && now >= b.leavesAt) {
-        this.s.boat = { ...b, crates: [], returnAt: now + 8 * 60e3 };
-        this.toast(tr('The boat left the dock. It will be back soon.'));
-      } else if (!b.crates.length && now >= b.returnAt) {
-        this.s.boat = genBoat(this.s, now);
-        this.toast(tr('A cargo boat arrived at your dock!'), 'good');
       }
     }
     this.emit(false);
@@ -2185,6 +2342,121 @@ export class GameStore {
     if (next) this.say(`${next.icon} ${tr(next.text)}  ${taskProgress(next, this.s)}/${next.target}`, 5000);
     else this.say(`📖 ${tr('Chapter {n} is done! Open Goals for your reward.', { n: ch.n })}`, 5000);
     this.hintAt = now + 90e3;
+  }
+
+  // ------------------------------------------------ daily tasks (see daily.ts)
+
+  dailyOn() { return this.s.level >= DAILY_LEVEL && this.s.tutorial >= TUTORIAL_DONE; }
+  private dailyTold: Set<number> | null = null;
+
+  // the day's tasks come with its first tick; a task done is told once
+  private dailyTick() {
+    if (!this.dailyOn()) return;
+    const day = todayKey();
+    const d = this.s.daily;
+    if (d?.day !== day) {
+      // finished yesterday but not taken: handed out now
+      let coins = 0, gems = 0, xp = 0;
+      if (d) {
+        for (const t of d.tasks) if (!t.claimed && dailyDone(t, d, this.s)) { coins += t.coins; xp += t.xp; this.stat('dailyTask'); }
+        if (!d.bonus.claimed && dailyAllDone(d, this.s)) { coins += d.bonus.coins; gems += d.bonus.gems; xp += d.bonus.xp; }
+      }
+      this.s.daily = genDaily(this.s, day, makeable(this.s), xpNeed(this.s.level));
+      this.dailyTold = new Set();
+      if (coins) {
+        this.earn(coins);
+        this.s.gems += gems;
+        this.addXp(xp);
+        this.toast(`${tr("Rewards from yesterday's tasks:")} +${fmtNum(coins)} 🪙${gems ? ` +${gems} 💎` : ''}`, 'good');
+      }
+      this.toast(tr('New daily tasks are waiting in Goals.'), 'good');
+      this.emit();
+      return;
+    }
+    const told = this.dailyTold;
+    // (on loading, the ones already done are not told again)
+    if (!told) { this.dailyTold = new Set(d.tasks.map((t, i) => (dailyDone(t, d, this.s) ? i : -1))); return; }
+    d.tasks.forEach((t, i) => {
+      if (told.has(i) || t.claimed || !dailyDone(t, d, this.s)) return;
+      told.add(i);
+      this.sound('collect');
+      this.toast(tr('Daily task done: {task}', { task: dailyText(t) }), 'good');
+    });
+  }
+
+  // ------------------------------------------------ festivals
+
+  // the festival of this kind is on now
+  fest(kind: FestKind) { return festActive(this.s, clockNow(), kind); }
+
+  // the save keeps up with the festivals, and one that has just begun is told once
+  private festTick(now: number) {
+    if (!festOn(this.s)) return;
+    if (keepFest(this.s, now)) this.scheduleSave();
+    const f = festNow(this.s, now), fs = this.s.fest!;
+    // played during this festival: it counts as joined (once)
+    if (f.kind && !fs.joined) { fs.joined = true; this.stat('festivals'); this.scheduleSave(); }
+    if (!f.kind || fs.seen || this.festTold === f.slot) return;
+    this.festTold = f.slot;
+    this.toast(`${FESTS[f.kind].icon} ${tr('{name} has begun!', { name: tr(FESTS[f.kind].name) })} ${tr(FESTS[f.kind].text)}`, 'good');
+  }
+  private festTold = -1;
+
+  // ------------------------------------------------ back after a while
+
+  // when the player last left (the farm's clock at the last save when the game opens, or when it
+  // went to the background); null once told
+  awayFrom: number | null = null;
+  // back after twenty minutes or more: what is ready on the farm now, in a card for a moment
+  welcomeBack() {
+    const from = this.awayFrom;
+    this.awayFrom = null;
+    const now = clockNow();
+    if (from === null || now - from < 20 * 60e3 || this.s.tutorial < TUTORIAL_DONE) return;
+    const w = { fields: 0, animals: 0, goods: 0, trees: 0, sales: 0, fish: 0 };
+    for (const o of this.s.objects) {
+      if (o.plot && plotProgress(o, now).ready) w.fields++;
+      else if (o.pen && BUILDING[o.type]?.animal) w.animals += penInfo(o, now).ready;
+      else if (o.prod) { for (const e of o.prod.queue) if (e.endsAt <= now) w.goods += RECIPE[e.recipe]?.qty ?? 1; }
+      else if (o.tree && treeInfo(o, now).ready) w.trees++;
+    }
+    w.sales = this.s.stall.filter((x) => x.item && x.soldAt <= now).length;
+    w.fish = (['lake', 'sea'] as FishSpot[]).filter((sp) => fishingInfo(this.s, now, sp).state === 'ready').length;
+    if (!Object.values(w).some((v) => v > 0)) return;
+    this.ui.welcome = w;
+    this.emit(false);
+  }
+
+  // the festival window: opened while a festival is on, the HUD stops calling for it
+  openFestival() {
+    const f = this.s.fest;
+    if (f && festNow(this.s, clockNow()).kind && !f.seen) { f.seen = true; this.scheduleSave(); }
+    this.openPanel('festival');
+  }
+
+  claimDailyTask(i: number) {
+    const d = this.s.daily;
+    const t = d?.tasks[i];
+    if (!d || !t || t.claimed || d.day !== todayKey() || !dailyDone(t, d, this.s)) return;
+    t.claimed = true;
+    this.stat('dailyTask');
+    this.earn(t.coins);
+    this.addXp(t.xp);
+    this.sound('coin');
+    this.emit();
+  }
+
+  claimDailyBonus() {
+    const d = this.s.daily;
+    if (!d || d.bonus.claimed || d.day !== todayKey() || !dailyAllDone(d, this.s)) return;
+    d.bonus.claimed = true;
+    this.stat('dailyChest');
+    this.earn(d.bonus.coins);
+    this.s.gems += d.bonus.gems;
+    this.addXp(d.bonus.xp);
+    this.sound('levelup');
+    this.toast(tr('{name} complete! +{coins} coins, +{gems} gems', { name: tr('Daily tasks'), coins: fmtNum(d.bonus.coins), gems: d.bonus.gems }), 'good');
+    this.emit();
   }
 
   // ------------------------------------------------ badges and tutorial

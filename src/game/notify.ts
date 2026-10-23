@@ -1,6 +1,6 @@
 // Phone notifications, in the Android app only. When the game goes to the background the phone is
 // told when things on the farm will be ready: fields, pens, workshops, fruit trees, a bite on the
-// line, a pet back from its search, and the next day's gift. Only a few: things ready close
+// line, a pet back from its search, the next day's gift and the next festival. Only a few: things ready close
 // together share one notification, two never come close together, none come at night (they wait
 // for the morning), and coming back to the game takes them all away again. Nothing comes from a
 // server: the phone keeps the times. They are only sent once the player said yes to them.
@@ -10,10 +10,13 @@ import { ANIMAL, BUILDING } from './data';
 import { GRAZE, PET_IDS, PET_SEARCH_MS, dailyReward, petFed, plotProgress, todayKey, treeInfo, type GameState } from './state';
 import { t } from './i18n';
 import { now as clockNow, toDevice } from './clock';
+import { FESTS, festNow, festOn, type FestKind } from './fest';
+import { kvGet, kvSet } from './kv';
 
-export type NotifyKind = 'crops' | 'animals' | 'goods' | 'trees' | 'fish' | 'pet' | 'daily';
-export interface FarmEvent { at: number; kind: NotifyKind; name?: string }
-export interface Planned { at: number; kinds: NotifyKind[]; names: string[] }
+export type NotifyKind = 'crops' | 'animals' | 'goods' | 'trees' | 'fish' | 'pet' | 'daily' | 'fest';
+// `fest`: the festival that begins
+export interface FarmEvent { at: number; kind: NotifyKind; name?: string; fest?: FestKind }
+export interface Planned { at: number; kinds: NotifyKind[]; names: string[]; fest?: FestKind }
 
 const MIN_LEAD = 5 * 60e3; // nothing sooner than this after leaving the game
 const WINDOW = 15 * 60e3; // things ready within this of the first share its notification
@@ -21,7 +24,7 @@ const GAP = 45 * 60e3; // two notifications are at least this far apart
 const MAX = 4; // and there are no more than this many
 // no notifications at night: they wait for the morning, and come with the next day's gift
 const QUIET_FROM = 22, QUIET_TO = 9;
-const ICON: Record<NotifyKind, string> = { crops: '🌾', animals: '🥚', goods: '🧺', trees: '🍎', fish: '🎣', pet: '🐾', daily: '🎁' };
+const ICON: Record<NotifyKind, string> = { crops: '🌾', animals: '🥚', goods: '🧺', trees: '🍎', fish: '🎣', pet: '🐾', daily: '🎁', fest: '🎉' };
 
 export const notifyNative = () => Capacitor.isNativePlatform();
 
@@ -61,6 +64,11 @@ export function farmEvents(s: GameState, now: number): FarmEvent[] {
   // tomorrow's gift
   const d = new Date(now); d.setDate(d.getDate() + 1); d.setHours(QUIET_TO, 0, 0, 0);
   ev.push({ at: d.getTime(), kind: 'daily' });
+  // the next festival, as it begins (at midnight: so in the morning)
+  if (festOn(s)) {
+    const f = festNow(s, now);
+    ev.push({ at: f.nextAt, kind: 'fest', fest: f.next });
+  }
   return ev;
 }
 
@@ -90,15 +98,28 @@ export function notifyPlan(s: GameState, now: number): Planned[] {
     g.at = Math.max(g.at, e.at);
     if (!g.kinds.includes(e.kind)) g.kinds.push(e.kind);
     if (e.name && !g.names.includes(e.name)) g.names.push(e.name);
+    if (e.fest) g.fest = e.fest;
   }
-  const daily = out.find((g) => g.kinds.includes('daily'));
+  // the gift and a festival are kept among the few, in place of the last of the others
+  const must = out.filter((g) => g.kinds.includes('daily') || g.kinds.includes('fest'));
   const keep = out.slice(0, MAX);
-  if (daily && !keep.includes(daily)) keep[MAX - 1] = daily;
-  return keep.map(({ at, kinds, names }) => ({ at, kinds, names }));
+  for (const g of must) {
+    if (keep.includes(g)) continue;
+    let i = keep.length - 1;
+    while (i >= 0 && must.includes(keep[i])) i--;
+    if (i >= 0) keep[i] = g;
+  }
+  keep.sort((a, b) => a.at - b.at);
+  return keep.map(({ at, kinds, names, fest }) => ({ at, kinds, names, ...(fest ? { fest } : {}) }));
 }
 
 // what a notification says, in the chosen language
 export function notifyText(g: Planned, s: GameState): { title: string; body: string } {
+  // a festival beginning is the news, whatever else is ready with it
+  if (g.fest) {
+    const f = FESTS[g.fest];
+    return { title: `${f.icon} ${t('{name} has begun!', { name: t(f.name) })}`, body: t(f.text) };
+  }
   if (g.kinds.length > 1) return { title: t('Lots of things are ready on your farm! 🚜'), body: `${g.kinds.map((k) => ICON[k]).join(' ')} ${t('Come and see what is waiting.')}` };
   switch (g.kinds[0]) {
     case 'crops': return { title: t('Your crops are ready! 🌾'), body: t('Come and harvest your fields.') };
@@ -174,5 +195,5 @@ export async function askNotify() {
 
 // whether the game asked on this phone yet (the question is asked once, a while into playing)
 const ASKED = 'talons-farm-notify-asked';
-export const notifyAsked = () => { try { return !!localStorage.getItem(ASKED); } catch { return true; } };
-export const setNotifyAsked = () => { try { localStorage.setItem(ASKED, '1'); } catch { /* storage blocked */ } };
+export const notifyAsked = () => !!kvGet(ASKED);
+export const setNotifyAsked = () => kvSet(ASKED, '1');

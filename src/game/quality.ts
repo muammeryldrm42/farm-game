@@ -1,6 +1,8 @@
 // Graphics quality preference. Stored under its own key so the game save format stays untouched,
 // and so every device keeps its own choice when a save code is moved between devices.
 
+import { kvGet, kvSet } from './kv';
+
 export type Quality = 'high' | 'low';
 
 const KEY = 'talons-farm-gfx';
@@ -16,8 +18,7 @@ const listeners = new Set<(q: Quality) => void>();
 
 export function getQuality(): Quality {
   if (current) return current;
-  let saved: string | null = null;
-  try { saved = localStorage.getItem(KEY); } catch { /* storage blocked */ }
+  const saved = kvGet(KEY);
   current = saved === 'high' || saved === 'low' ? saved : guess();
   return current;
 }
@@ -25,7 +26,7 @@ export function getQuality(): Quality {
 export function setQuality(q: Quality) {
   if (q === getQuality()) return;
   current = q;
-  try { localStorage.setItem(KEY, q); } catch { /* storage blocked */ }
+  kvSet(KEY, q);
   listeners.forEach((f) => f(q));
 }
 

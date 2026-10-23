@@ -8,13 +8,19 @@
 //   clock part ways (the phone slept, or its clock was changed), the clock is set again from the
 //   real time: the time on the internet when it can be had (a second or so of waiting); else, in
 //   the Android app, the time the phone has been on (which a clock change does not touch either)
-//   counted from the last time it was known on this phone. If the phone was restarted since, only
+//   counted from the last time it was known on this phone. (When the phone has not been
+//   restarted since, the Android app takes that at once and lets the internet check it after.) If the phone was restarted since, only
 //   the time since the restart is sure: the farm counts that, and the time from before the restart
 //   is added once the internet tells the real time. The phone's clock is believed only by a game
-//   that never knew the time on this phone (the first start with no internet, or on the web).
+//   that never knew the time on this phone (the first start with no internet, on the web, or inside
+//   YouTube, where the game makes no requests of its own).
 // - The farm's clock never goes back. If it ran ahead of the real time (the phone's clock was
 //   set forward with no internet), the farm waits until the real time catches up.
 import { Capacitor, CapacitorHttp } from '@capacitor/core';
+import { kvGet, kvSet } from './kv';
+
+// the YouTube build (written out here, so its requests are left out of that build entirely)
+const YT_BUILD = process.env.NEXT_PUBLIC_TARGET === 'youtube';
 
 const perf = () => performance.now();
 // the real time, as best known: `t` at the steady timer's `p`
@@ -74,7 +80,7 @@ const KEY = 'talons-farm-clock';
 interface Known { real: number; up: number; boot: number; owed?: boolean }
 function readKnown(): Known | null {
   try {
-    const k = JSON.parse(localStorage.getItem(KEY) ?? 'null');
+    const k = JSON.parse(kvGet(KEY) ?? 'null');
     return k && Number.isFinite(k.real) && Number.isFinite(k.up) ? k : null;
   } catch {
     return null;
@@ -85,7 +91,7 @@ export function keepClock() {
   const u = uptime();
   if (!u) return;
   // (`owed`: the time from before a restart is still to come)
-  try { localStorage.setItem(KEY, JSON.stringify({ real: Math.round(realNow()), up: Math.round(upNow(u)), boot: u.boot, owed: source === 'restart' })); } catch { /* storage full */ }
+  kvSet(KEY, JSON.stringify({ real: Math.round(realNow()), up: Math.round(upNow(u)), boot: u.boot, owed: source === 'restart' }));
 }
 
 // ---------------------------------------------------------------- the time on the internet
@@ -99,6 +105,8 @@ const header = (h: Record<string, string> | undefined, name: string) => {
 // The time from a web server, read in the middle of the round trip. A server's Date header
 // counts whole seconds, so half a second is added (the best guess within that second).
 async function netTime(): Promise<{ t: number; p: number } | null> {
+  // inside YouTube the game makes no requests of its own, so the device's clock is used
+  if (YT_BUILD) return null;
   const p0 = perf();
   const done = (t: number | undefined) => {
     if (!t || !Number.isFinite(t)) throw new Error('no time');
@@ -131,6 +139,27 @@ let syncing: Promise<void> | null = null;
 export function syncClock(): Promise<void> {
   if (syncing) return syncing;
   syncing = (async () => {
+    // In the Android app, when the phone has not been restarted since the time was last known on
+    // it, the time it has been on gives the real time straight away: the game need not wait for
+    // the internet to open (a second or so, longer on a poor connection). The internet still
+    // checks it, a moment later.
+    if (Capacitor.isNativePlatform()) {
+      await uptimeIn();
+      const u = uptime(), k = readKnown();
+      if (u && k && k.boot === u.boot && upNow(u) >= k.up) {
+        anchor = { t: k.real + (upNow(u) - k.up), p: perf() };
+        source = k.owed ? 'restart' : 'uptime';
+        keepClock();
+        watch = { d: Date.now(), p: perf() };
+        void netTime().then((net) => {
+          if (!net) return;
+          anchor = net;
+          source = 'net';
+          keepClock();
+        });
+        return;
+      }
+    }
     const net = await netTime();
     if (net) {
       anchor = net;

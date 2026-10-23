@@ -7,10 +7,10 @@ import {
   BADGE_GEMS,
   MAX_SLOTS,
   activeQuests,
-  boatState,
   FISHING,
   fishingInfo,
   claimableBadges,
+  claimableQuests,
   stallValue,
   treeInfo,
   feedHint,
@@ -53,15 +53,21 @@ import {
   museumSetDone,
 } from '@/game/state';
 import { CAST, LAST_CHAPTER, chapterAt, taskProgress, type Chapter } from '@/game/story';
+import { DAILY_LEVEL, dailyAllDone, dailyClaimable, dailyIcon, dailyProgress, dailyText } from '@/game/daily';
 import { ALBUM } from '@/game/album';
 import { MUSEUM } from '@/game/museum';
 import { BEAUTY_LEVELS, VARIETY, beautyGain } from '@/game/beauty';
+import { FESTS, FEST_FAST, FEST_LEVEL, festNow, type FestKind } from '@/game/fest';
+import { MARKET } from '@/game/market';
+import { CUP_LEVEL, CUP_POINTS, CUP_PRIZES, RIVALS, cupBoard, cupClaimable, cupOn, weekEnd, weekOf } from '@/game/cup';
+import { PRIZE_OF, SEASONS, SEASON_LEVEL, SEASON_TOKENS, SEASON_TRACK, hasPrize, seasonNext, seasonNow, seasonPurse, seasonTokens, type SeasonId } from '@/game/season';
+import { canBuzz } from '@/game/haptics';
 import { askNotify, notifyNative, setNotifyAsked } from '@/game/notify';
 import { now as clockNow } from '@/game/clock';
 import { getQuality, setQuality, type Quality } from '@/game/quality';
 import { Coin } from './Hud';
 import { PrivacyText } from './Privacy';
-import { useStore, useVersion } from './ctx';
+import { useNow, useStore, useVersion } from './ctx';
 import { LANG_IDS, getLang, setLang, t, type Lang } from '@/game/i18n';
 import LANG_NAMES from '@/locales/names.json';
 
@@ -73,8 +79,17 @@ const safePad = (m: string, sides: ('top' | 'right' | 'bottom' | 'left')[] = ['t
   Object.fromEntries(sides.map((k) => [`padding${k[0].toUpperCase()}${k.slice(1)}`, `max(${extra[k] ?? m}, env(safe-area-inset-${k}))`]));
 
 function Modal({ title, icon, onClose, children, wide = false }: { title: string; icon?: string; onClose: () => void; children: ReactNode; wide?: boolean }) {
+  // A tap on the dim backdrop closes the window: on the click, not as the finger touches down
+  // (the window gone at once, the rest of the same tap would press whatever was under it, as the
+  // shop button), and only a tap that began on the backdrop (not a scroll that ends there)
+  const downOnBack = useRef(false);
   return (
-    <div className="pointer-events-auto fixed inset-0 z-30 flex items-center justify-center bg-black/40 p-3" style={safePad('0.75rem')} onPointerDown={(e) => e.target === e.currentTarget && onClose()}>
+    <div
+      className="pointer-events-auto fixed inset-0 z-30 flex items-center justify-center bg-black/40 p-3"
+      style={safePad('0.75rem')}
+      onPointerDown={(e) => { downOnBack.current = e.target === e.currentTarget; }}
+      onClick={(e) => { if (downOnBack.current && e.target === e.currentTarget) onClose(); downOnBack.current = false; }}
+    >
       <div className={`panel flex max-h-[88vh] w-full animate-pop flex-col ${wide ? 'max-w-3xl' : 'max-w-md'}`}>
         <div className="relative flex items-center justify-center rounded-t-[1.2rem] bg-[#a8733f] px-12 py-2.5 text-white">
           {icon && <span className="emoji mr-2 text-2xl"><Ico i={icon} /></span>}
@@ -117,11 +132,15 @@ function useGuide(id: string) {
   const store = useStore();
   const ref = useRef<HTMLElement | null>(null);
   const g = store.ui.guide;
-  const on = !!g && g.id === id && Date.now() - g.at < 60e3;
+  const any = !!g && Date.now() - g.at < 60e3;
+  const on = any && g.id === id;
   useEffect(() => {
     if (on) ref.current?.scrollIntoView({ block: 'center', behavior: 'smooth' });
   }, [on]);
-  return { on, ref };
+  // `lazy`: the card may leave its drawing to when it comes into view (the `cv` class), but not
+  // while a story task points into the list: the cards above would change size as they appear and
+  // push the pointed one off screen
+  return { on, ref, lazy: any ? '' : 'cv' };
 }
 function RecipeGuide({ id, children }: { id: string; children: (g: ReturnType<typeof useGuide>) => ReactNode }) {
   return <>{children(useGuide(id))}</>;
@@ -167,6 +186,34 @@ function Lock({ level }: { level: number }) {
 
 // ------------------------------------------------------------------ root
 
+// The farm is being played in a newer tab of this browser (see Game.tsx): this one covers itself
+// and offers to play here instead (the page loads the farm afresh, the newest saved one)
+function ElsewhereCover() {
+  return (
+    <div className="pointer-events-auto fixed inset-0 z-[95] grid place-items-center bg-[#3f9fd8]/95 p-6 font-game text-white">
+      <div className="flex max-w-sm flex-col items-center gap-4 text-center">
+        <span className="emoji text-6xl">🚜</span>
+        <p className="rtl-text text-xl font-bold" style={{ textShadow: '0 2px 0 #1d5f8a' }}>{t('Talons Farm is open in another tab.')}</p>
+        <button className="btn btn-green px-8 py-3 text-lg" onClick={() => location.reload()}>{t('Play here')}</button>
+      </div>
+    </div>
+  );
+}
+
+// the browser keeps no data for this site (blocked in its settings): the farm is not being
+// saved, said over the farm until closed
+function NoSaveNote() {
+  const [shut, setShut] = useState(false);
+  if (shut) return null;
+  return (
+    <div className="pointer-events-auto fixed inset-x-3 top-16 z-30 mx-auto flex max-w-md items-center gap-3 rounded-2xl border-[3px] border-[#5d3a1f] bg-[#fff6df] p-3 font-game text-[#5a3a1a] shadow-[0_4px_0_#5d3a1f]">
+      <span className="emoji text-3xl">🔒</span>
+      <p className="rtl-text flex-1 text-sm font-bold">{t('This browser is blocking the site from saving: your farm will be lost when the page closes. Allow site data (cookies) for this site to keep it.')}</p>
+      <button className="btn btn-ghost h-9 w-9 shrink-0 rounded-full p-0" onClick={() => setShut(true)} aria-label={t('Close')}>✕</button>
+    </div>
+  );
+}
+
 export default function Panels() {
   const store = useStore();
   useVersion();
@@ -182,11 +229,12 @@ export default function Panels() {
       {ui.panel === 'quests' && <QuestsModal />}
       {ui.panel === 'settings' && <SettingsModal />}
       {ui.panel === 'stall' && <StallModal />}
-      {ui.panel === 'boat' && <BoatModal />}
       {ui.panel === 'fishing' && <FishingModal />}
       {ui.panel === 'home' && <HomeModal />}
       {ui.panel === 'pet' && <PetModal key={ui.pet} />}
       {ui.panel === 'beauty' && <BeautyModal />}
+      {ui.panel === 'festival' && <FestivalModal />}
+      {ui.panel === 'season' && <SeasonModal />}
       {ui.panel === 'privacy' && (
         <Modal title={t('Privacy policy')} icon="🔒" onClose={() => store.openPanel('settings')}>
           <PrivacyText />
@@ -198,6 +246,8 @@ export default function Panels() {
       {ui.levelUp !== null && <LevelUpModal level={ui.levelUp} />}
       {ui.story && ui.levelUp === null && !ui.daily && <StoryDialog />}
       {ui.notifyAsk && ui.levelUp === null && !ui.daily && !ui.story && <NotifyAskModal />}
+      {store.noSave && <NoSaveNote />}
+      {store.elsewhere && <ElsewhereCover />}
     </>
   );
 }
@@ -227,6 +277,7 @@ function PlotSheet({ o }: { o: FarmObject }) {
   const s = store.s;
   const pp = plotProgress(o, clockNow());
   const close = () => store.select(null);
+  const fast = store.fest('harvest') ? FEST_FAST : 1;
 
   if (pp.crop) {
     const it = ITEMS[pp.crop];
@@ -259,6 +310,7 @@ function PlotSheet({ o }: { o: FarmObject }) {
 
   return (
     <Sheet title={t('Empty Field')} icon="🟫" sub={t('Pick a seed, then tap or drag over empty fields')} onClose={close}>
+      <FestNote kind="harvest" />
       <div className="grid grid-cols-3 gap-2 sm:grid-cols-5">
         {CROPS.map((c) => {
           const it = ITEMS[c.id];
@@ -282,7 +334,7 @@ function PlotSheet({ o }: { o: FarmObject }) {
                 <Lock level={c.level} />
               ) : (
                 <span className="text-[11px] text-[#8a6a44]">
-                  {have > 0 ? t('Have {n}', { n: have }) : <span className="inline-flex items-center gap-1">{c.seedCost} <Coin /></span>} · {fmtTime(c.time * 1000)}
+                  {have > 0 ? t('Have {n}', { n: have }) : <span className="inline-flex items-center gap-1">{c.seedCost} <Coin /></span>} · {fmtTime(c.time * 1000 * fast)}
                 </span>
               )}
             </button>
@@ -354,6 +406,7 @@ function ProductionSheet({ o }: { o: FarmObject }) {
   const q = o.prod?.queue ?? [];
   const slots = o.prod?.slots ?? 3;
   const recipes = RECIPES.filter((r) => r.building === o.type);
+  const fast = store.fest('craft') ? FEST_FAST : 1;
 
   return (
     <Sheet
@@ -362,6 +415,7 @@ function ProductionSheet({ o }: { o: FarmObject }) {
       sub={info.current ? t('Making {item}, {time} left', { item: t(ITEMS[info.current.recipe].name), time: fmtTime(info.current.endsAt - now) }) : q.length ? t('Goods are ready') : t('Idle. Pick something to make.')}
       onClose={() => store.select(null)}
     >
+      <FestNote kind="craft" />
       {/* queue */}
       <div className="flex flex-wrap items-center gap-2">
         {Array.from({ length: slots }).map((_, i) => {
@@ -404,9 +458,9 @@ function ProductionSheet({ o }: { o: FarmObject }) {
           </button>
         )}
       </div>
-      <ObjectActions o={o} />
 
-      {/* recipes */}
+      {/* recipes (right under the queue: on a phone on its side, what to make comes first and
+          Move, Rotate and Sell below it, as for the fields) */}
       <div className="mt-3 grid grid-cols-1 gap-2 sm:grid-cols-2">
         {recipes.map((r) => {
           const it = ITEMS[r.id];
@@ -441,7 +495,7 @@ function ProductionSheet({ o }: { o: FarmObject }) {
                 </div>
               </div>
               <div className="shrink-0 text-right text-[11px] text-[#8a6a44]">
-                <div>{fmtTime(r.time * 1000)}</div>
+                <div>{fmtTime(r.time * 1000 * fast)}</div>
                 <div>+{r.xp} XP</div>
               </div>
             </button>
@@ -450,6 +504,7 @@ function ProductionSheet({ o }: { o: FarmObject }) {
           );
         })}
       </div>
+      <ObjectActions o={o} />
     </Sheet>
   );
 }
@@ -474,6 +529,7 @@ function PenSheet({ o }: { o: FarmObject }) {
       sub={t('{n}/{cap} {animal} · makes {item} every {time}', { n: pi.total, cap, animal: t(an.name), item: t(ITEMS[an.product].name), time: fmtTime(an.time * 1000) })}
       onClose={() => store.select(null)}
     >
+      <FestNote kind="animals" />
       {pi.total === 0 ? (
         <p className="py-2 text-center text-sm text-[#8a6a44]">{t('No animals yet. Buy your first {animal} below.', { animal: t(an.name) })}</p>
       ) : (
@@ -633,6 +689,12 @@ function StallModal() {
   };
   const reset = () => { setPick(null); setItem(null); };
   const owned = ITEM_LIST.filter((i) => (s.inv[i.id] ?? 0) > 0);
+  // A late farm holds hundreds of goods: the list is drawn in parts (as the storage), and the
+  // chosen one's card sits above it, brought into view, so Put on stall is never far below
+  const [opened, setOpened] = useState(0);
+  const shown = useProgressive(pick !== null ? owned.length : 0, `pick-${opened}`, 48, 120);
+  const cardRef = useRef<HTMLDivElement | null>(null);
+  useEffect(() => { if (item) cardRef.current?.scrollIntoView({ block: 'nearest' }); }, [item]);
 
   if (pick !== null) {
     const base = item ? stallValue(item, qty) : 0;
@@ -646,20 +708,8 @@ function StallModal() {
     const wait = t(ratio <= 1.05 ? 'Sells fast' : ratio <= 1.5 ? 'Sells in a few minutes' : 'Takes a while to sell');
     return (
       <Modal title={t('List an item')} icon="🏪" onClose={() => store.openPanel(null)} wide>
-        {owned.length === 0 ? (
-          <p className="py-8 text-center text-sm text-[#8a6a44]">{t('Your storage is empty. Harvest or make something to sell first.')}</p>
-        ) : (
-          <div className="grid grid-cols-4 gap-2 sm:grid-cols-6 md:grid-cols-8">
-            {owned.map((i) => (
-              <button key={i.id} onClick={() => choose(i.id)} className={`card flex flex-col items-center p-1.5 ${item === i.id ? 'ring-2 ring-[#f5b92b]' : ''}`}>
-                <span className="emoji text-2xl"><Ico i={i.icon} /></span>
-                <span className="text-[11px] font-bold">x{s.inv[i.id]}</span>
-              </button>
-            ))}
-          </div>
-        )}
         {item && (
-          <div className="card mt-3 flex flex-col gap-3 p-3">
+          <div ref={cardRef} className="card mb-3 flex scroll-mt-2 flex-col gap-3 p-3">
             <div className="flex items-center gap-2 font-bold">
               <span className="emoji text-2xl"><Ico i={ITEMS[item].icon} /></span> {t(ITEMS[item].name)}
             </div>
@@ -694,8 +744,20 @@ function StallModal() {
           </div>
         )}
         {!item && (
-          <div className="mt-3 flex justify-center">
+          <div className="mb-3 flex justify-center">
             <button className="btn btn-ghost" onClick={reset}>{t('Back')}</button>
+          </div>
+        )}
+        {owned.length === 0 ? (
+          <p className="py-8 text-center text-sm text-[#8a6a44]">{t('Your storage is empty. Harvest or make something to sell first.')}</p>
+        ) : (
+          <div className="grid grid-cols-4 gap-2 sm:grid-cols-6 md:grid-cols-8">
+            {owned.slice(0, shown).map((i) => (
+              <button key={i.id} onClick={() => choose(i.id)} className={`card flex flex-col items-center p-1.5 ${item === i.id ? 'ring-2 ring-[#f5b92b]' : ''}`}>
+                <span className="emoji text-2xl"><Ico i={i.icon} /></span>
+                <span className="text-[11px] font-bold">x{s.inv[i.id]}</span>
+              </button>
+            ))}
           </div>
         )}
       </Modal>
@@ -710,7 +772,7 @@ function StallModal() {
         {s.stall.map((sl, i) => {
           if (!sl.item) {
             return (
-              <button key={i} className="card flex min-h-[9rem] flex-col items-center justify-center gap-1 border-dashed p-3 text-[#8a6a44]" onClick={() => { setPick(i); setItem(null); }}>
+              <button key={i} className="card flex min-h-[9rem] flex-col items-center justify-center gap-1 border-dashed p-3 text-[#8a6a44]" onClick={() => { setPick(i); setItem(null); setOpened((n) => n + 1); }}>
                 <span className="text-3xl leading-none">+</span>
                 <span className="text-sm font-bold">{t('Sell something')}</span>
               </button>
@@ -734,12 +796,60 @@ function StallModal() {
           );
         })}
       </div>
+      <NeighborStalls />
       <PanelObjectActions />
     </Modal>
   );
 }
 
-// ------------------------------------------------------------------ boat
+// The neighbors' stalls (see market.ts): what they sell now and who sells it, and when new goods
+// come. A good an order on the board is short of carries the board's mark.
+function NeighborStalls() {
+  const store = useStore();
+  const s = store.s;
+  const now = useNow(1000);
+  const m = s.market;
+  if (!store.marketOn() || !m) return null;
+  const short = new Set(s.orders.filter((o) => o.readyAt <= now).flatMap((o) => o.items.filter((it) => (s.inv[it.id] ?? 0) < it.qty).map((it) => it.id)));
+  return (
+    <div className="mt-4">
+      <div className="mb-1 flex flex-wrap items-center justify-between gap-x-3 gap-y-1">
+        <h3 className="font-bold"><span className="emoji">🏘️</span> {t("Neighbors' stalls")}</h3>
+        <div className="flex items-center gap-2 text-xs font-bold text-[#8a6a44]">
+          {t('New goods in {time}', { time: fmtTime(m.refreshAt - now) })}
+          <button className="btn btn-blue px-2 py-1 text-xs" disabled={s.gems < MARKET.gems} onClick={() => store.refreshMarket()}>
+            {t('New goods now')} <Gems n={MARKET.gems} />
+          </button>
+        </div>
+      </div>
+      <p className="mb-2 text-xs text-[#8a6a44]">{t('Your neighbors sell what they have spare, dearer than storage pays.')}</p>
+      <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
+        {m.offers.map((o, i) => {
+          const it = ITEMS[o.item], who = CAST[o.seller];
+          return (
+            <div key={i} className={`card relative flex flex-col items-center gap-1 p-2 text-center ${o.sold ? 'opacity-60' : ''}`}>
+              {!o.sold && short.has(o.item) && <span className="emoji absolute right-1.5 top-1.5 text-sm" title={t('Order Board')}>📋</span>}
+              <div className="flex w-full items-center gap-1 pr-5 text-[10px] font-bold" style={{ color: who.color }}>
+                <span className="emoji text-sm">{who.icon}</span>
+                <span className="truncate">{t(who.name)}</span>
+              </div>
+              <span className="emoji text-3xl"><Ico i={it.icon} /></span>
+              <span className="text-xs font-bold leading-tight">x{o.qty} {t(it.name)}</span>
+              <span className="text-[10px] text-[#8a6a44]">{t('Have {n}', { n: s.inv[o.item] ?? 0 })}</span>
+              {o.sold ? (
+                <span className="mt-auto py-1 text-xs font-bold text-[#2d5e14]">{t('Bought')}</span>
+              ) : (
+                <button className="btn btn-green mt-auto w-full py-1 text-sm" disabled={s.coins < o.price} onClick={() => store.buyOffer(i)} aria-label={`${t('Buy')} ${t(it.name)}`}>
+                  <Coins n={o.price} />
+                </button>
+              )}
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
 
 // The farmer's home: the farmhouse, or the manor once it is built. Rest here, or check goals.
 function HomeModal() {
@@ -773,7 +883,7 @@ function SleepOverlay() {
   const store = useStore();
   const [, tick] = useState(0);
   useEffect(() => {
-    const id = setInterval(() => tick((n) => n + 1), 500);
+    const id = setInterval(() => { if (!document.hidden) tick((n) => n + 1); }, 500);
     return () => clearInterval(id);
   }, []);
   const home = store.ui.napAt > 0;
@@ -804,6 +914,7 @@ function FishingModal() {
   const close = () => store.openPanel(null);
   return (
     <Modal title={t(sea ? 'Sea Fishing' : 'Lake Fishing')} icon="🎣" onClose={close}>
+      {fi.state !== 'locked' && <FestNote kind="fish" />}
       <div className="flex flex-col items-center gap-3 py-2 text-center">
         <span className="emoji animate-bob text-5xl">{fi.state === 'ready' ? '🐟' : '🌊'}</span>
         {fi.state === 'locked' && (
@@ -846,67 +957,6 @@ function FishingModal() {
   );
 }
 
-function BoatModal() {
-  const store = useStore();
-  const s = store.s;
-  const now = clockNow();
-  const state = boatState(s, now);
-  const b = s.boat;
-  const close = () => store.openPanel(null);
-
-  if (state !== 'docked' || !b) {
-    return (
-      <Modal title={t('Boat Dock')} icon="⛵" onClose={close}>
-        <div className="flex flex-col items-center gap-2 py-4 text-center">
-          <span className="emoji animate-bob text-5xl">🌊</span>
-          <p className="font-bold">{t('The boat is out at sea.')}</p>
-          {b && <p className="text-sm text-[#8a6a44]">{t('It comes back in {time}.', { time: fmtTime(b.returnAt - now) })}</p>}
-        </div>
-      </Modal>
-    );
-  }
-  const all = b.crates.every((c) => c.filled);
-  return (
-    <Modal title={t('Cargo Boat')} icon="⛵" onClose={close} wide>
-      <div className="mb-3 flex flex-wrap items-center justify-between gap-2 text-sm">
-        <span className="text-[#8a6a44]">{t('Leaves in')} <b>{fmtTime(b.leavesAt - now)}</b></span>
-        <span className="flex items-center gap-2 font-bold">
-          {t('Full boat bonus:')} <Coins n={b.bonusCoins} /> <Gems n={b.bonusGems} />
-        </span>
-      </div>
-      <BeautyNote />
-      <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
-        {b.crates.map((c, i) => {
-          const have = s.inv[c.item] ?? 0;
-          const ok = have >= c.qty;
-          return (
-            <div key={i} className={`card flex flex-col items-center gap-1 p-3 ${c.filled ? 'bg-[#e6f8d8]' : ok ? 'ring-2 ring-[#5cb82e]' : ''}`}>
-              <span className="emoji text-3xl">{c.filled ? '📦' : <Ico i={ITEMS[c.item].icon} />}</span>
-              <span className="text-sm font-bold">{t(ITEMS[c.item].name)}</span>
-              {c.filled ? (
-                <span className="text-sm font-bold text-[#2d5e14]">{t('Packed')}</span>
-              ) : (
-                <>
-                  <span className={`text-xs font-bold ${ok ? 'text-[#2d5e14]' : 'text-[#c0392b]'}`}>{have}/{c.qty}</span>
-                  <span className="flex items-center gap-2 text-xs font-bold">
-                    <Coins n={Math.round(c.coins * (1 + store.beautyBonus()))} /> <span className="text-[#2f8fd0]">+{c.xp} XP</span>
-                  </span>
-                  <button className="btn btn-green mt-1 w-full py-1.5" disabled={!ok} onClick={() => store.fillCrate(i)}>{t('Fill')}</button>
-                </>
-              )}
-            </div>
-          );
-        })}
-      </div>
-      <div className="mt-4 flex justify-center">
-        <button className="btn btn-yellow px-8 py-3 text-lg" disabled={!all} onClick={() => store.sendBoat()}>
-          {t('Send boat')}
-        </button>
-      </div>
-    </Modal>
-  );
-}
-
 // watering: a pour from the bucket makes the crop grow 30% faster; the bucket fills at a well
 function WaterRow({ o }: { o: FarmObject }) {
   const store = useStore();
@@ -935,14 +985,16 @@ const SHOP_TABS: { id: ShopTab; label: string; icon: string; filter: (d: Buildin
   { id: 'trees', label: 'Fruit Trees', icon: '🌳', filter: (d) => d.kind === 'tree', hint: 'Trees fruit again and again. Tap a ripe tree to pick it.' },
   { id: 'animals', label: 'Animals', icon: '🐔', filter: (d) => d.kind === 'pen', hint: 'Each pen comes with room for its animals. Feed them to collect their goods.' },
   { id: 'production', label: 'Production', icon: '🏭', filter: (d) => d.kind === 'production' || d.kind === 'silo' || d.kind === 'barn', hint: 'Workshops turn crops and animal goods into products for orders. Extra silos and barns add storage room.' },
-  { id: 'services', label: 'Home & Trade', icon: '🏰', filter: (d) => d.kind === 'stall' || d.kind === 'dock' || (d.kind === 'house' && d.buyable) },
+  { id: 'services', label: 'Home & Trade', icon: '🏰', filter: (d) => d.kind === 'stall' || (d.kind === 'house' && d.buyable) },
   { id: 'decor', label: 'Decor', icon: '🌷', filter: (d) => d.kind === 'deco' },
 ];
 
 function ShopCard({ d }: { d: BuildingDef }) {
   const store = useStore();
   const s = store.s;
-  const locked = s.level < d.level;
+  const prizeOf = PRIZE_OF[d.id];
+  const won = prizeOf ? hasPrize(s, d.id) : false;
+  const locked = s.level < d.level || (!!prizeOf && !won);
   const owned = store.countType(d.id);
   const max = store.maxOf(d);
   const full = owned >= max;
@@ -955,18 +1007,22 @@ function ShopCard({ d }: { d: BuildingDef }) {
       ref={(el) => { guide.ref.current = el; }}
       disabled={locked || full}
       onClick={() => store.startBuy(d.id)}
-      className={`card relative flex flex-col items-center gap-1 p-3 text-center transition active:scale-95 disabled:opacity-60 ${guide.on ? GUIDE_RING : ''}`}
+      className={`card relative flex flex-col items-center gap-1 p-3 text-center transition active:scale-95 disabled:opacity-60 ${guide.on ? GUIDE_RING : guide.lazy}`}
     >
       {guide.on && <GuideMark />}
       <span className={`emoji text-4xl ${locked ? 'grayscale' : ''}`}><Ico i={d.icon} id={d.id} /></span>
       <span className="font-bold leading-tight">{t(d.name)}</span>
       <span className="line-clamp-2 min-h-[2rem] text-[11px] leading-4 text-[#8a6a44]">{t(d.desc)}</span>
-      {locked ? (
+      {prizeOf && !won ? (
+        <span className="rounded-full px-2 py-0.5 text-[11px] font-bold text-white" style={{ background: SEASONS[prizeOf].color }}>
+          <span className="emoji">{SEASONS[prizeOf].icon}</span> {t('Prize of {event}', { event: t(SEASONS[prizeOf].name) })}
+        </span>
+      ) : locked ? (
         <Lock level={d.level} />
       ) : (
         <>
           <span className={`text-sm font-bold ${poor ? 'text-[#c0392b]' : ''}`}>
-            <Coins n={cost} />
+            {prizeOf ? <span className="text-[#2d7a2a]"><span className="emoji">🎁</span> {t('Free')}</span> : <Coins n={cost} />}
           </span>
           <span className="text-[11px] text-[#8a6a44]">{full ? t('Max owned') : Number.isFinite(max) ? t('Owned {n}/{max}', { n: owned, max }) : t('Owned {n}', { n: owned })}</span>
           {pretty > 0 && <span className="text-[11px] font-bold text-[#b8327a]"><span className="emoji">🌸</span> {t('+{n} beauty', { n: pretty })}</span>}
@@ -985,7 +1041,7 @@ function CropCard({ id }: { id: string }) {
   const have = store.s.inv[id] ?? 0;
   const guide = useGuide(id);
   return (
-    <div ref={(el) => { guide.ref.current = el; }} className={`card relative flex flex-col items-center gap-1 p-3 text-center ${locked ? 'opacity-60' : ''} ${guide.on ? GUIDE_RING : ''}`}>
+    <div ref={(el) => { guide.ref.current = el; }} className={`card relative flex flex-col items-center gap-1 p-3 text-center ${locked ? 'opacity-60' : ''} ${guide.on ? GUIDE_RING : guide.lazy}`}>
       {guide.on && <GuideMark />}
       <span className={`emoji text-4xl ${locked ? 'grayscale' : ''}`}><Ico i={it.icon} /></span>
       <span className="font-bold leading-tight">{t(it.name)}</span>
@@ -1021,33 +1077,40 @@ function ShopModal() {
   const s = store.s, g = store.ui.guide;
   const seeds = CROPS.map((c) => s.inv[c.id] ?? 0).join(',');
   const pointing = !!g && Date.now() - g.at < 60e3;
-  const cardsKey = `${tab}|${s.level}|${s.coins}|${store.objVersion}|${s.objects.length}|${seeds}|${pointing ? `${g!.id}@${g!.at}` : ''}|${getLang()}`;
+  const cardsKey = `${tab}|${s.level}|${s.coins}|${store.objVersion}|${s.objects.length}|${seeds}|${(s.prizes ?? []).join()}|${pointing ? `${g!.id}@${g!.at}` : ''}|${getLang()}`;
+  // the cards of the tab, drawn in parts (a tab holds up to a hundred and more)
+  const count = BUILDINGS.reduce((n, d) => n + (d.buyable && st.filter(d) ? 1 : 0), 0) + (tab === 'crops' ? CROPS.length : 0);
+  const shown = useProgressive(count, tab, 24, 80);
   const cards = useMemo(() => {
-    const list = BUILDINGS.filter((d) => d.buyable && st.filter(d)).sort((a, b) => a.level - b.level || a.cost - b.cost);
+    // the season prizes won come first, the ones still to win last
+    const rank = (d: BuildingDef) => (PRIZE_OF[d.id] ? (hasPrize(s, d.id) ? -1 : 1) : 0);
+    const list = BUILDINGS.filter((d) => d.buyable && st.filter(d)).sort((a, b) => rank(a) - rank(b) || a.level - b.level || a.cost - b.cost);
     const crops = [...CROPS].sort((a, b) => a.level - b.level || a.seedCost - b.seedCost);
+    const more = Math.max(0, shown - list.length);
     return (
       <>
         <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 md:grid-cols-4">
-          {list.map((d) => <ShopCard key={d.id} d={d} />)}
+          {list.slice(0, shown).map((d) => <ShopCard key={d.id} d={d} />)}
         </div>
-        {tab === 'crops' && (
+        {tab === 'crops' && more > 0 && (
           <>
             <h3 className="mb-2 mt-4 text-center font-bold text-[#6b4226]">{t('Crops you can grow')}</h3>
             <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 md:grid-cols-4">
-              {crops.map((c) => <CropCard key={c.id} id={c.id} />)}
+              {crops.slice(0, more).map((c) => <CropCard key={c.id} id={c.id} />)}
             </div>
           </>
         )}
       </>
     );
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [cardsKey]);
-  // the chosen tab is kept in view along the row (the last ones sit past its end on a phone)
+  }, [cardsKey, shown]);
+  // the chosen tab is kept in view along the row (the last ones sit past its end on a phone; with
+  // a mouse, whose wheel does not scroll sideways, the tabs wrap onto a second row instead)
   const tabRow = useRef<HTMLDivElement>(null);
   useEffect(() => { tabRow.current?.querySelector('[data-on]')?.scrollIntoView({ block: 'nearest', inline: 'nearest' }); }, [tab]);
   return (
     <Modal title={t('Shop')} icon="🛒" onClose={() => store.openPanel(null)} wide>
-      <div ref={tabRow} className="mb-3 flex gap-1.5 overflow-x-auto pb-1">
+      <div ref={tabRow} className="mb-3 flex gap-1.5 overflow-x-auto pb-1 [@media(pointer:fine)]:flex-wrap">
         {SHOP_TABS.map((x) => (
           <button key={x.id} data-on={tab === x.id ? '' : undefined} className={`btn shrink-0 ${tab === x.id ? 'btn-yellow' : 'btn-ghost'}`} onClick={() => setTab(x.id)}>
             <span className="emoji"><Ico i={x.icon} /></span> {t(x.label)}
@@ -1062,7 +1125,7 @@ function ShopModal() {
 
 // ------------------------------------------------------------------ beauty
 
-// what customers pay more on a pretty farm, over the orders, the boat and the stall
+// what customers pay more on a pretty farm, over the orders and the stall
 function BeautyNote() {
   const store = useStore();
   const n = Math.round(store.beautyBonus() * 100);
@@ -1071,6 +1134,139 @@ function BeautyNote() {
     <button className="mx-auto mb-2 block text-center text-xs font-bold text-[#b8327a]" onClick={() => store.openPanel('beauty')}>
       <span className="emoji">🌸</span> {t('Beauty bonus: +{n}% coins', { n })}
     </button>
+  );
+}
+
+// A festival on now that changes what this window does: its bonus in a line; a tap opens it
+function FestNote({ kind }: { kind: FestKind }) {
+  const store = useStore();
+  if (!store.fest(kind)) return null;
+  const f = FESTS[kind];
+  return (
+    <button className="mx-auto mb-2 block text-center text-xs font-bold" style={{ color: f.color }} onClick={() => store.openFestival()}>
+      <span className="emoji">{f.icon}</span> {t(f.name)}: {t(f.text)}
+    </button>
+  );
+}
+
+// The festivals (see fest.ts): the one on now with its bonus and the time it has left, and the
+// next one with when it starts
+function FestivalModal() {
+  const store = useStore();
+  const now = useNow(1000);
+  const f = festNow(store.s, now);
+  const cur = f.kind ? FESTS[f.kind] : null;
+  const nx = FESTS[f.next];
+  return (
+    <Modal title={t('Festivals')} icon="🎪" onClose={() => store.openPanel(null)}>
+      {cur && (
+        // (tighter on a short screen, a phone on its side, so the next festival shows below it)
+        <div className="card mb-3 flex flex-col items-center gap-1 border-[3px] p-4 text-center [@media(max-height:480px)]:mb-2 [@media(max-height:480px)]:gap-0 [@media(max-height:480px)]:p-2" style={{ borderColor: cur.color }}>
+          <span className="emoji animate-bob text-5xl [@media(max-height:480px)]:text-3xl">{cur.icon}</span>
+          <div className="text-lg font-bold" style={{ color: cur.color }}>{t(cur.name)}</div>
+          <div className="text-sm font-bold">{t(cur.text)}</div>
+          <div className="text-xs font-bold text-[#8a6a44]">{t('{time} left', { time: fmtTime(f.end - now) })}</div>
+        </div>
+      )}
+      <div className="card flex items-center gap-3 p-3">
+        <span className={`emoji text-3xl ${cur ? 'opacity-70' : ''}`}>{nx.icon}</span>
+        <div className="min-w-0 flex-1">
+          <div className="text-[10px] font-bold uppercase tracking-wide text-[#a8733f]">{t('Next festival')}</div>
+          <div className="font-bold">{t(nx.name)}</div>
+          <div className="text-xs">{t(nx.text)}</div>
+          <div className="text-xs font-bold text-[#8a6a44]">{t('Starts in {time}', { time: fmtTime(f.nextAt - now) })}</div>
+        </div>
+      </div>
+      <p className="mt-3 text-center text-xs text-[#8a6a44]">{t('A festival comes every three days and lasts two.')}</p>
+    </Modal>
+  );
+}
+
+// A season event (see season.ts): its tokens, the prize track with a claim on the next step
+// reached, the two decorations to win and how the tokens are earned; between events, the next one
+// and its prizes.
+function SeasonModal() {
+  const store = useStore();
+  const s = store.s;
+  const now = useNow(1000);
+  const ev = seasonNow(now);
+  const e = s.season && ev && s.season.id === ev.id && s.season.year === ev.year ? s.season : null;
+  const id: SeasonId = ev?.id ?? seasonNext(now).id;
+  const d = SEASONS[id];
+  const tokens = e ? seasonTokens(s, e) : 0;
+  const got = e?.got ?? 0;
+  const prize = (i: 0 | 1) => {
+    const b = BUILDING[d.decos[i]];
+    return (
+      <div className="card flex min-w-0 flex-1 flex-col items-center gap-0.5 p-2 text-center">
+        <span className="emoji text-3xl"><Ico i={b.icon} id={b.id} /></span>
+        <span className="text-xs font-bold leading-tight">{t(b.name)}</span>
+        <span className="text-[10px] font-bold uppercase tracking-wide text-[#a8733f]">{hasPrize(s, b.id) ? `✅ ${t('Won')}` : t(i ? 'Grand prize' : 'Halfway prize')}</span>
+      </div>
+    );
+  };
+  return (
+    <Modal title={t(d.name)} icon={d.icon} onClose={() => store.openPanel(null)}>
+      <div className="card mb-3 flex items-center gap-3 border-[3px] p-3" style={{ borderColor: d.color }}>
+        <span className="emoji animate-bob text-4xl">{d.icon}</span>
+        <div className="min-w-0 flex-1">
+          <div className="text-sm font-bold">{t(d.text)}</div>
+          {ev ? (
+            <div className="text-xs font-bold text-[#8a6a44]">{t('{time} left', { time: fmtTime(ev.end - now) })}</div>
+          ) : (
+            <div className="text-xs font-bold text-[#8a6a44]">{t('Starts in {time}', { time: fmtTime(seasonNext(now).at - now) })}</div>
+          )}
+        </div>
+        {e && (
+          <div className="shrink-0 text-center">
+            <div className="text-2xl font-bold" style={{ color: d.color }}><span className="emoji">{d.token}</span> {fmtNum(tokens)}</div>
+            <div className="text-[10px] font-bold text-[#8a6a44]">{t(d.tokenName)}</div>
+            {/* a step reached: claimed from here too (the track's own button may be below the fold) */}
+            {got < SEASON_TRACK.length && tokens >= SEASON_TRACK[got].at && (
+              <button className="btn btn-green mt-1 animate-bob px-3 py-1 text-xs" onClick={() => store.claimSeason()}>{t('Claim')}</button>
+            )}
+          </div>
+        )}
+      </div>
+      {ev && !e && <p className="mb-3 text-center text-sm font-bold text-[#8a6a44]">{t('Season events open at level {n}.', { n: SEASON_LEVEL })}</p>}
+      <div className="mb-3 flex gap-2">{prize(0)}{prize(1)}</div>
+      <div className="mb-1 text-sm font-bold">{t('Prize track')}</div>
+      <div className="flex flex-col gap-1.5">
+        {SEASON_TRACK.map((st, i) => {
+          const done = i < got;
+          const ready = !!e && !done && i === got && tokens >= st.at;
+          const prev = i ? SEASON_TRACK[i - 1].at : 0;
+          const part = Math.max(0, Math.min(1, (tokens - prev) / (st.at - prev)));
+          const deco = st.deco !== undefined ? BUILDING[d.decos[st.deco]] : null;
+          return (
+            <div key={i} className={`card flex items-center gap-2 px-3 py-1.5 ${ready ? 'ring-2 ring-[#5cb82e]' : ''} ${done ? 'opacity-60' : ''}`}>
+              <span className="w-12 shrink-0 text-xs font-bold" style={{ color: d.color }}><span className="emoji">{d.token}</span> {st.at}</span>
+              <span className="flex min-w-0 flex-1 items-center gap-1 text-sm font-bold">
+                {st.coins ? <Coins n={Math.round(st.coins * seasonPurse(s.level))} /> : null}
+                {st.gems ? <Gems n={st.gems} /> : null}
+                {deco ? <><span className="emoji text-xl"><Ico i={deco.icon} id={deco.id} /></span><span className="truncate">{t(deco.name)}</span></> : null}
+              </span>
+              {done ? (
+                <span className="emoji text-lg">✅</span>
+              ) : ready ? (
+                <button className="btn btn-green shrink-0 px-3 py-1 text-xs" onClick={() => store.claimSeason()}>{t('Claim')}</button>
+              ) : e && i === got ? (
+                <span className="h-2 w-16 shrink-0 overflow-hidden rounded-full bg-[#e2cc9c]">
+                  <span className="block h-full rounded-full" style={{ width: `${part * 100}%`, background: d.color }} />
+                </span>
+              ) : null}
+            </div>
+          );
+        })}
+      </div>
+      <div className="mt-3 text-xs text-[#8a6a44]">
+        <div className="mb-1 font-bold text-[#5a3a1a]">{t('How to earn {token}', { token: t(d.tokenName) })}</div>
+        <div className="grid grid-cols-1 gap-x-4 sm:grid-cols-2">
+          {SEASON_TOKENS.map(([k, p, per, label]) => <div key={k}>{t(label, { n: per })} <b style={{ color: d.color }}>+{p} <span className="emoji">{d.token}</span></b></div>)}
+        </div>
+        <p className="mt-2">{t('Four events a year, two weeks each. Prizes not claimed by the end are given to you when it ends.')}</p>
+      </div>
+    </Modal>
   );
 }
 
@@ -1087,7 +1283,7 @@ function BeautyModal() {
         <div className="text-3xl font-bold text-[#b8327a]">{fmtNum(b.score)}</div>
         <div className="text-sm font-bold">{t('{n} beauty points', { n: fmtNum(b.score) })} · {t(lv.name)}</div>
         <div className="text-xs text-[#2d5e14]">
-          {lv.bonus ? t('Customers pay {n}% more for orders, boat crates and stall sales.', { n: Math.round(lv.bonus * 100) }) : t('Make your farm prettier and customers pay more.')}
+          {lv.bonus ? t('Customers pay {n}% more for orders and stall sales.', { n: Math.round(lv.bonus * 100) }) : t('Make your farm prettier and customers pay more.')}
         </div>
         {next ? (
           <>
@@ -1148,7 +1344,9 @@ function OrdersModal() {
   const store = useStore();
   const s = store.s;
   const now = clockNow();
-  const bonus = horseBonus(s), pretty = store.beautyBonus();
+  const bonus = horseBonus(s), all = store.orderBonus();
+  // what the neighbors' stalls sell now
+  const neighbors = new Set(store.marketOn() ? (s.market?.offers ?? []).filter((o) => !o.sold).map((o) => o.item) : []);
   return (
     <Modal title={t('Order Board')} icon="📋" onClose={() => store.openPanel(null)} wide>
       {bonus > 0 && (
@@ -1157,6 +1355,7 @@ function OrdersModal() {
         </p>
       )}
       <BeautyNote />
+      <FestNote kind="market" />
       <div className="grid grid-cols-1 gap-2 sm:grid-cols-2 md:grid-cols-3">
         {s.orders.map((o) => {
           if (o.readyAt > now) {
@@ -1174,18 +1373,26 @@ function OrdersModal() {
               <div className="flex flex-wrap gap-2">
                 {o.items.map((it) => {
                   const have = s.inv[it.id] ?? 0;
+                  // short of it, and a neighbor sells it: a tap goes to their stalls
+                  const sold = have < it.qty && neighbors.has(it.id);
                   return (
-                    <div key={it.id} className="flex flex-col items-center rounded-xl bg-[#f4e6c4] px-2 py-1">
+                    <div key={it.id} className="relative flex flex-col items-center rounded-xl bg-[#f4e6c4] px-2 py-1">
                       <span className="emoji text-2xl"><Ico i={ITEMS[it.id].icon} /></span>
                       <span className={`text-xs font-bold ${have >= it.qty ? 'text-[#2d5e14]' : 'text-[#c0392b]'}`}>
                         {have}/{it.qty}
                       </span>
+                      {sold && (
+                        // (a small mark, in a finger sized button)
+                        <button className="absolute -right-4 -top-4 grid h-8 w-8 place-items-center" onClick={() => store.openPanel('stall')} aria-label={t("Neighbors' stalls")} title={t("Neighbors' stalls")}>
+                          <span className="emoji grid h-6 w-6 place-items-center rounded-full border-2 border-[#5d3a1f] bg-[#fff6df] text-[11px] shadow">🏘️</span>
+                        </button>
+                      )}
                     </div>
                   );
                 })}
               </div>
               <div className="flex items-center gap-3 text-sm font-bold">
-                <Coins n={Math.round(o.coins * (1 + bonus + pretty))} />
+                <Coins n={Math.round(o.coins * (1 + all))} />
                 <span className="text-[#2f8fd0]">+{o.xp} XP</span>
                 {o.gems > 0 && <Gems n={o.gems} />}
               </div>
@@ -1208,6 +1415,20 @@ function OrdersModal() {
 
 // ------------------------------------------------------------------ storage
 
+// A long list drawn in parts: the first few screenfuls at once, the rest a frame later, a hundred
+// or so at a time, so a window opens without waiting for hundreds of cards nobody sees yet. `key`
+// starts it over (another tab of the same window).
+function useProgressive(total: number, key: string, first = 36, step = 120) {
+  const [at, setAt] = useState({ key, n: first });
+  const n = at.key === key ? at.n : first;
+  useEffect(() => {
+    if (n >= total) return;
+    const id = requestAnimationFrame(() => setAt({ key, n: n + step }));
+    return () => cancelAnimationFrame(id);
+  }, [n, total, key, step]);
+  return Math.min(n, total);
+}
+
 function StorageModal() {
   const store = useStore();
   const s = store.s;
@@ -1218,6 +1439,7 @@ function StorageModal() {
   const cost = upgradeCost(lvl);
   const items = ITEM_LIST.filter((i) => i.storage === k && (s.inv[i.id] ?? 0) > 0);
   const [sure, setSure] = useState<{ id: string; all: boolean } | null>(null);
+  const shown = useProgressive(items.length, k);
 
   return (
     <Modal title={t(k === 'silo' ? 'Silo' : 'Barn')} icon={k === 'silo' ? '🌾' : '🏚️'} onClose={() => store.openPanel(null)} wide>
@@ -1255,7 +1477,7 @@ function StorageModal() {
         </p>
       ) : (
         <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 md:grid-cols-4">
-          {items.map((i) => {
+          {items.slice(0, shown).map((i) => {
             const n = s.inv[i.id];
             // a sale waits for a second tap on the same button to confirm it
             const armed = sure?.id === i.id ? sure.all : null;
@@ -1264,7 +1486,7 @@ function StorageModal() {
               else setSure({ id: i.id, all });
             };
             return (
-              <div key={i.id} className="card flex flex-col items-center gap-1 p-2">
+              <div key={i.id} className="card cv flex flex-col items-center gap-1 p-2">
                 <span className="emoji text-3xl"><Ico i={i.icon} /></span>
                 <span className="text-sm font-bold">{t(i.name)}</span>
                 <span className="text-xs text-[#8a6a44]">
@@ -1293,22 +1515,32 @@ function StorageModal() {
 function QuestsModal() {
   const store = useStore();
   const s = store.s;
-  const [tab, setTab] = useState<'story' | 'goals' | 'badges' | 'album' | 'museum'>('story');
   const badgeCount = claimableBadges(s).length;
   const albumCount = claimableAlbum(s).length;
   const museumCount = claimableMuseum(s).length;
-  const title = { story: 'Farm Story', goals: 'Farm Goals', badges: 'Badges', album: 'Farm Album', museum: 'Farm Museum' }[tab];
-  const icon = { story: '📖', goals: '🏆', badges: '🎖️', album: '📔', museum: '🏛️' }[tab];
+  const goalCount = claimableQuests(s).length + dailyClaimable(s);
+  const cupCount = cupClaimable(s);
+  // opens where there is something to claim
+  const [tab, setTab] = useState<'story' | 'goals' | 'cup' | 'badges' | 'album' | 'museum'>(() =>
+    store.chapterReady() ? 'story' : goalCount ? 'goals' : cupCount ? 'cup' : badgeCount ? 'badges' : albumCount ? 'album' : museumCount ? 'museum' : 'story');
+  const title = { story: 'Farm Story', goals: 'Farm Goals', cup: 'Valley Cup', badges: 'Badges', album: 'Farm Album', museum: 'Farm Museum' }[tab];
+  const icon = { story: '📖', goals: '🏆', cup: '🥇', badges: '🎖️', album: '📔', museum: '🏛️' }[tab];
   return (
     <Modal title={t(title)} icon={icon} onClose={() => store.openPanel(null)}>
-      {/* five tabs on one row: a little smaller, and the row scrolls sideways if a language's words are long */}
-      <div className="-mt-1 mb-2 flex gap-1 overflow-x-auto pr-1 pt-1.5">
+      {/* six tabs on one row: a little smaller, and the row scrolls sideways if a language's words are
+          long (with a mouse, whose wheel does not scroll sideways, they wrap onto a second row) */}
+      <div className="-mt-1 mb-2 flex gap-1 overflow-x-auto pr-1 pt-1.5 [@media(pointer:fine)]:flex-wrap">
         <button className={`btn shrink-0 px-2.5 text-sm relative ${tab === 'story' ? 'btn-yellow' : 'btn-ghost'}`} onClick={() => setTab('story')}>
           {t('Story')}
           {store.chapterReady() && <span className="badge">1</span>}
         </button>
-        <button className={`btn shrink-0 px-2.5 text-sm ${tab === 'goals' ? 'btn-yellow' : 'btn-ghost'}`} onClick={() => setTab('goals')}>
+        <button className={`btn shrink-0 px-2.5 text-sm relative ${tab === 'goals' ? 'btn-yellow' : 'btn-ghost'}`} onClick={() => setTab('goals')}>
           {t('Goals')}
+          {goalCount > 0 && <span className="badge">{goalCount}</span>}
+        </button>
+        <button className={`btn shrink-0 px-2.5 text-sm relative ${tab === 'cup' ? 'btn-yellow' : 'btn-ghost'}`} onClick={() => setTab('cup')}>
+          {t('Cup')}
+          {cupCount > 0 && <span className="badge">{cupCount}</span>}
         </button>
         <button className={`btn shrink-0 px-2.5 text-sm relative ${tab === 'badges' ? 'btn-yellow' : 'btn-ghost'}`} onClick={() => setTab('badges')}>
           {t('Badges')}
@@ -1323,8 +1555,64 @@ function QuestsModal() {
           {museumCount > 0 && <span className="badge">{museumCount}</span>}
         </button>
       </div>
-      {tab === 'story' ? <StoryPage /> : tab === 'goals' ? <GoalsList /> : tab === 'badges' ? <BadgesList /> : tab === 'album' ? <AlbumList /> : <MuseumList />}
+      {tab === 'story' ? <StoryPage /> : tab === 'goals' ? <GoalsList /> : tab === 'cup' ? <CupPage /> : tab === 'badges' ? <BadgesList /> : tab === 'album' ? <AlbumList /> : <MuseumList />}
     </Modal>
+  );
+}
+
+// The Valley Cup (see cup.ts): how last week ended and its prize to take, this week's table with
+// the time left, what earns points and the prizes
+const MEDAL = ['🥇', '🥈', '🥉'];
+function CupPage() {
+  const store = useStore();
+  const s = store.s;
+  const now = useNow(1000);
+  if (!cupOn(s)) return <p className="py-6 text-center text-sm text-[#8a6a44]">{t('The Valley Cup opens at level {n}.', { n: CUP_LEVEL })}</p>;
+  const c = s.cup;
+  const last = c?.last;
+  const prize = last ? store.cupPrize(last.place) : null;
+  const rows = cupBoard(s, now);
+  const end = weekEnd(c?.week ?? weekOf(now));
+  return (
+    <div className="flex flex-col gap-3">
+      {last && !last.claimed && prize && (
+        <div className="card flex items-center gap-3 border-[3px] border-[#e0a21a] p-3">
+          <span className="emoji text-3xl">{MEDAL[last.place - 1] ?? '🎀'}</span>
+          <div className="min-w-0 flex-1">
+            <div className="font-bold">{t('Last week: place {n}', { n: last.place })}</div>
+            <div className="text-xs text-[#8a6a44]">{t('{n} points', { n: fmtNum(last.points) })}</div>
+          </div>
+          <button className="btn btn-green shrink-0 gap-2" onClick={() => store.claimCup()}>
+            <Gems n={prize.gems} /> <Coins n={prize.coins} />
+          </button>
+        </div>
+      )}
+      <div className="flex items-center justify-between gap-2 text-sm font-bold">
+        <span>{t('This week')}</span>
+        <span className="text-xs text-[#8a6a44]">{t('{time} left', { time: fmtTime(end - now) })}</span>
+      </div>
+      <div className="flex flex-col gap-1.5">
+        {rows.map((r, i) => {
+          const rv = RIVALS.find((x) => x.id === r.id);
+          return (
+            <div key={r.id} className={`card flex items-center gap-2 px-3 py-2 ${r.you ? 'ring-2 ring-[#5cb82e]' : ''}`}>
+              <span className="emoji w-7 text-center font-bold">{MEDAL[i] ?? i + 1}</span>
+              <span className="emoji text-xl">{rv ? CAST[rv.who].icon : '🏡'}</span>
+              <span className="min-w-0 flex-1 truncate font-bold">{rv ? t(rv.name) : t('Your farm')}</span>
+              <span className="font-bold text-[#2f8fd0]">{fmtNum(r.points)}</span>
+            </div>
+          );
+        })}
+      </div>
+      <div className="text-xs text-[#8a6a44]">
+        <div className="mb-1 font-bold text-[#5a3a1a]">{t('How to earn points')}</div>
+        <div className="grid grid-cols-1 gap-x-4 sm:grid-cols-2">
+          {CUP_POINTS.map(([k, p, per, label]) => <div key={k}>{t(label, { n: per })} <b className="text-[#2f8fd0]">+{p}</b></div>)}
+        </div>
+        <div className="mb-1 mt-2 font-bold text-[#5a3a1a]">{t('Prizes')}</div>
+        <div>{CUP_PRIZES.map((g, i) => `${MEDAL[i] ?? i + 1 + '.'} ${g} 💎`).join('  ·  ')}</div>
+      </div>
+    </div>
   );
 }
 
@@ -1334,9 +1622,12 @@ function AlbumList() {
   const store = useStore();
   const s = store.s;
   const [open, setOpen] = useState<string | null>(null);
+  // pages ready to claim first (the rest keep their order): on a phone the last is below the fold
+  const ready = new Set(claimableAlbum(s).map((a) => a.id));
+  const list = [...ALBUM].sort((a, b) => Number(ready.has(b.id)) - Number(ready.has(a.id)));
   return (
     <div className="flex flex-col gap-2">
-      {ALBUM.map((a) => {
+      {list.map((a) => {
         const got = a.entries.filter((e) => s.album?.[e.id]).length;
         const done = albumSetDone(s, a.id);
         const taken = !!s.albumDone?.includes(a.id);
@@ -1387,10 +1678,13 @@ function MuseumList() {
   const found = s.museum?.found ?? {};
   const all = MUSEUM.reduce((n, m) => n + m.items.length, 0);
   const got = MUSEUM.reduce((n, m) => n + m.items.filter((i) => found[i.id]).length, 0);
+  // halls ready to claim first (the rest keep their order)
+  const ready = new Set(claimableMuseum(s).map((m) => m.id));
+  const list = [...MUSEUM].sort((a, b) => Number(ready.has(b.id)) - Number(ready.has(a.id)));
   return (
     <div className="flex flex-col gap-2">
       <div className="text-center text-[11px] text-[#8a6a44]">{t('Rare things turn up now and then as you work the farm. Each one goes on show here.')} <b>{got}/{all}</b></div>
-      {MUSEUM.map((m) => {
+      {list.map((m) => {
         const n = m.items.filter((i) => found[i.id]).length;
         const done = museumSetDone(s, m.id);
         const taken = !!s.museum?.done.includes(m.id);
@@ -1437,7 +1731,7 @@ function PetModal() {
   const store = useStore();
   const [, tick] = useState(0);
   useEffect(() => {
-    const tm = setInterval(() => tick((n) => n + 1), 1000);
+    const tm = setInterval(() => { if (!document.hidden) tick((n) => n + 1); }, 1000);
     return () => clearInterval(tm);
   }, []);
   const id = store.ui.pet ?? 'dog';
@@ -1454,7 +1748,9 @@ function PetModal() {
   return (
     <Modal title={shown} icon={def.icon} onClose={() => store.openPanel(null)}>
       <div className="flex flex-col items-center gap-2 py-1 text-center">
-        <span className="emoji text-6xl"><Ico i={def.icon} id={`animal_${id}`} /></span>
+        {/* Pat and Feed right under the hearts: on a phone on its side the window's height is
+            short, and they are what it is for */}
+        <span className="emoji text-6xl [@media(max-height:450px)]:text-5xl"><Ico i={def.icon} id={`animal_${id}`} /></span>
         <div className="flex items-center gap-1.5">
           <input
             className="w-36 rounded-xl border-2 border-[#d8c49e] bg-white px-2 py-1 text-center font-bold"
@@ -1469,10 +1765,6 @@ function PetModal() {
         </div>
         <div className="emoji text-xl" aria-label={t('{n} of 5 hearts', { n: hearts })}>{'❤️'.repeat(hearts)}{'🤍'.repeat(5 - hearts)}</div>
         <div className="w-40"><Bar p={hearts >= 5 ? 1 : (p.love % 20) / 20} color="#f06292" /></div>
-        <p className="text-sm">
-          {shown} {t(def.job)}.{' '}
-          <b>{petFed(p) ? t('Fed today: {n}% chance.', { n: help }) : t('Hungry: feed {name} for {n}% today.', { name: shown, n: help })}</b>
-        </p>
         <div className="flex flex-wrap justify-center gap-2">
           <button className="btn btn-wood" onClick={() => store.patPet(id)}>
             <span className="emoji">💕</span> {t(patted ? 'Pat again' : 'Pat')}
@@ -1497,6 +1789,10 @@ function PetModal() {
             <span>{t('Feed {name} and it goes looking for something for your album.', { name: shown })}</span>
           )}
         </div>
+        <p className="text-sm">
+          {shown} {t(def.job)}.{' '}
+          <b>{petFed(p) ? t('Fed today: {n}% chance.', { n: help }) : t('Hungry: feed {name} for {n}% today.', { name: shown, n: help })}</b>
+        </p>
       </div>
     </Modal>
   );
@@ -1506,9 +1802,12 @@ function BadgesList() {
   const store = useStore();
   const s = store.s;
   const medal = ['🥉', '🥈', '🥇'];
+  // badges with a tier to claim first (the rest keep their order): there are dozens of them
+  const claim = new Set(claimableBadges(s).map((a) => a.id));
+  const list = [...ACHIEVEMENTS].sort((a, b) => Number(claim.has(b.id)) - Number(claim.has(a.id)));
   return (
     <div className="flex flex-col gap-2">
-      {ACHIEVEMENTS.map((a) => {
+      {list.map((a) => {
         const k = s.achievements[a.id] ?? 0;
         const done = k >= a.tiers.length;
         const target = done ? a.tiers[a.tiers.length - 1] : a.tiers[k];
@@ -1541,6 +1840,69 @@ function BadgesList() {
   );
 }
 
+// The day's three tasks and the bonus chest for all three (see daily.ts)
+function DailyTasks() {
+  const store = useStore();
+  const s = store.s;
+  const d = s.daily;
+  if (s.level < DAILY_LEVEL) return <p className="mb-3 rounded-xl bg-[#f4e6c4] px-3 py-2 text-center text-xs text-[#8a6a44]">📅 {t('Daily tasks unlock at level {n}.', { n: DAILY_LEVEL })}</p>;
+  if (!store.dailyOn() || !d || d.day !== todayKey()) return null;
+  const now = new Date(clockNow());
+  const left = new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1).getTime() - now.getTime();
+  const all = dailyAllDone(d, s);
+  const finished = d.bonus.claimed && d.tasks.every((tk) => tk.claimed);
+  return (
+    <div className="card mb-3 p-3">
+      <div className="mb-2 flex items-center justify-between gap-2">
+        <span className="font-bold">📅 {t('Daily tasks')}</span>
+        <span className="shrink-0 text-[11px] text-[#8a6a44]">{t('New tasks in {time}', { time: fmtTime(left) })}</span>
+      </div>
+      {d.tasks.map((tk, i) => {
+        const p = dailyProgress(tk, d, s);
+        const done = p >= tk.target;
+        return (
+          <div key={i} className="mb-2 flex items-center gap-2">
+            <span className="emoji w-8 shrink-0 text-center text-2xl"><Ico i={dailyIcon(tk)} id={tk.item} /></span>
+            <div className="min-w-0 flex-1">
+              <div className="flex items-center justify-between gap-2 text-sm font-bold">
+                <span className="min-w-0 truncate">{dailyText(tk)}</span>
+                <span className="shrink-0 text-xs">{p}/{tk.target}</span>
+              </div>
+              <Bar p={p / tk.target} color={tk.claimed ? '#f5b92b' : '#5cb82e'} />
+              <div className="mt-0.5 flex items-center gap-2 text-xs font-bold">
+                <Coins n={tk.coins} />
+                <span className="text-[#2f8fd0]">+{tk.xp} XP</span>
+              </div>
+            </div>
+            {tk.claimed ? (
+              <span className="emoji w-14 shrink-0 text-center text-xl" title={t('Reward taken')}>✅</span>
+            ) : (
+              <button className="btn btn-green w-14 shrink-0 px-1 py-1.5 text-xs" disabled={!done} onClick={() => store.claimDailyTask(i)}>{t('Claim')}</button>
+            )}
+          </div>
+        );
+      })}
+      <div className={`mt-1 flex items-center gap-2 rounded-xl px-2 py-1.5 ${all && !d.bonus.claimed ? 'bg-[#e6f5d8] ring-2 ring-[#5cb82e]' : 'bg-[#f4e6c4]'}`}>
+        <span className={`emoji w-8 shrink-0 text-center text-2xl ${all && !d.bonus.claimed ? 'animate-bob' : ''}`}>🎁</span>
+        <div className="min-w-0 flex-1">
+          <div className="text-sm font-bold">{t('Bonus chest')}</div>
+          <div className="text-[11px] text-[#8a6a44]">{finished ? t('All done for today! New tasks come tomorrow.') : t('Finish all three for the bonus chest.')}</div>
+          <div className="mt-0.5 flex items-center gap-2 text-xs font-bold">
+            <Coins n={d.bonus.coins} />
+            <Gems n={d.bonus.gems} />
+            <span className="text-[#2f8fd0]">+{d.bonus.xp} XP</span>
+          </div>
+        </div>
+        {d.bonus.claimed ? (
+          <span className="emoji w-14 shrink-0 text-center text-xl" title={t('Reward taken')}>✅</span>
+        ) : (
+          <button className="btn btn-yellow w-14 shrink-0 px-1 py-1.5 text-xs" disabled={!all} onClick={() => store.claimDailyBonus()}>{t('Claim')}</button>
+        )}
+      </div>
+    </div>
+  );
+}
+
 function GoalsList() {
   const store = useStore();
   const s = store.s;
@@ -1551,38 +1913,43 @@ function GoalsList() {
     ['Orders delivered', s.stats.orders ?? 0],
     ['Coins earned', s.stats.earned ?? 0],
   ];
+  const card = (q: (typeof list)[number]) => {
+    const p = Math.min(q.target, q.progress(s));
+    const done = p >= q.target;
+    return (
+      <div key={q.id} className={`card p-3 ${done ? 'ring-2 ring-[#5cb82e]' : ''}`}>
+        <div className="flex items-center justify-between gap-2">
+          <span className="font-bold">{t(q.text)}</span>
+          <span className="shrink-0 text-xs font-bold">
+            {fmtNum(p)}/{fmtNum(q.target)}
+          </span>
+        </div>
+        <div className="my-2">
+          <Bar p={p / q.target} />
+        </div>
+        <div className="flex items-center gap-3 text-sm font-bold">
+          <Coins n={q.coins} />
+          {q.gems > 0 && <Gems n={q.gems} />}
+          {q.xp > 0 && <span className="text-[#2f8fd0]">+{q.xp} XP</span>}
+          <button className="btn btn-green ml-auto py-1.5" disabled={!done} onClick={() => store.claimQuest(q.id)}>
+            {t('Claim')}
+          </button>
+        </div>
+      </div>
+    );
+  };
+  // goals done come above the day's tasks, the rest below them: on a phone on its side the
+  // day's tasks fill the first screen
+  const ready = list.filter((q) => q.progress(s) >= q.target);
+  const rest = list.filter((q) => q.progress(s) < q.target);
   return (
     <>
+      {ready.length > 0 && <div className="mb-3 flex flex-col gap-2">{ready.map(card)}</div>}
+      <DailyTasks />
       {list.length === 0 ? (
         <p className="py-6 text-center text-sm text-[#8a6a44]">{t('You finished every goal. Great farming!')}</p>
       ) : (
-        <div className="flex flex-col gap-2">
-          {list.map((q) => {
-            const p = Math.min(q.target, q.progress(s));
-            const done = p >= q.target;
-            return (
-              <div key={q.id} className={`card p-3 ${done ? 'ring-2 ring-[#5cb82e]' : ''}`}>
-                <div className="flex items-center justify-between gap-2">
-                  <span className="font-bold">{t(q.text)}</span>
-                  <span className="shrink-0 text-xs font-bold">
-                    {fmtNum(p)}/{fmtNum(q.target)}
-                  </span>
-                </div>
-                <div className="my-2">
-                  <Bar p={p / q.target} />
-                </div>
-                <div className="flex items-center gap-3 text-sm font-bold">
-                  <Coins n={q.coins} />
-                  {q.gems > 0 && <Gems n={q.gems} />}
-                  {q.xp > 0 && <span className="text-[#2f8fd0]">+{q.xp} XP</span>}
-                  <button className="btn btn-green ml-auto py-1.5" disabled={!done} onClick={() => store.claimQuest(q.id)}>
-                    {t('Claim')}
-                  </button>
-                </div>
-              </div>
-            );
-          })}
-        </div>
+        rest.length > 0 && <div className="flex flex-col gap-2">{rest.map(card)}</div>
       )}
       <div className="mt-4 grid grid-cols-2 gap-2">
         {stats.map(([l, v]) => (
@@ -1597,6 +1964,9 @@ function GoalsList() {
 }
 
 // ------------------------------------------------------------------ settings
+
+// a phone or tablet (a finger, not a mouse): where vibration means something
+const touchScreen = () => typeof window !== 'undefined' && !!window.matchMedia?.('(pointer: coarse)').matches;
 
 function Toggle({ label, on, onChange }: { label: string; on: boolean; onChange: (v: boolean) => void }) {
   return (
@@ -1710,9 +2080,11 @@ function SettingsModal() {
         <Toggle label="Day and night cycle" on={st.dayNight} onChange={(v) => set('dayNight', v)} />
         <Toggle label="Clouds" on={st.clouds} onChange={(v) => set('clouds', v)} />
         <Toggle label="Music" on={st.music} onChange={(v) => set('music', v)} />
+        <Toggle label="Nature sounds" on={st.nature !== false} onChange={(v) => set('nature', v)} />
         <Toggle label="Weather and seasons" on={st.weather} onChange={(v) => set('weather', v)} />
         <Toggle label="Soft shadows (turn off on slow phones)" on={st.shadows} onChange={(v) => set('shadows', v)} />
         <Toggle label="Battery saver (30 FPS, cooler phone)" on={!!st.saver} onChange={(v) => set('saver', v)} />
+        {canBuzz() && touchScreen() && <Toggle label="Vibration" on={st.vibrate !== false} onChange={(v) => set('vibrate', v)} />}
         {notifyNative() && <Toggle label="Phone notifications (ready crops, animals, daily gift)" on={!!st.notify} onChange={(v) => turnNotify(store, v)} />}
         <QualityPicker />
         <LanguagePicker />
@@ -1787,7 +2159,7 @@ function SettingsModal() {
 
       <h3 className="mb-1 mt-4 font-bold">{t('How to play')}</h3>
       <ul className="list-disc space-y-0.5 pl-5 text-xs text-[#8a6a44]">
-        {['Drag to move around, pinch or scroll to zoom. Twist with two fingers, the rotate button or Q and E to turn the camera.',
+        {['Drag to move around, pinch or scroll to zoom. Turn the camera with the rotate button or Q and E.',
           'Press and drag across ready fields to harvest them all.',
           'Hold anything for a moment to move it.',
           'Tap the order board for orders, the farmhouse for goals, the barn and silo for storage.',
@@ -1807,9 +2179,19 @@ function SettingsModal() {
 
 // ------------------------------------------------------------------ small modals
 
+// the parts of the game a level opens (beside the crops, animals, buildings and goods of unlocksAt)
+function featuresAt(level: number): { icon: string; name: string; id?: string }[] {
+  const out: { icon: string; name: string; id?: string }[] = [];
+  if (level === DAILY_LEVEL) out.push({ icon: '✅', name: 'Daily tasks' });
+  if (level === FEST_LEVEL) out.push({ icon: '🎪', name: 'Festivals' });
+  if (level === MARKET.level) out.push({ icon: '🏘️', name: "Neighbors' stalls" });
+  if (level === FISHING.level) out.push({ icon: '🎣', name: 'Lake Fishing' }, { icon: '🌊', name: 'Sea Fishing' });
+  return out;
+}
+
 function LevelUpModal({ level }: { level: number }) {
   const store = useStore();
-  const list = unlocksAt(level);
+  const list = [...featuresAt(level), ...unlocksAt(level)];
   const close = () => {
     store.ui.levelUp = null;
     store.emit(false);
@@ -1937,8 +2319,7 @@ function TaskRow({ ch, i }: { ch: Chapter; i: number }) {
     <button
       className={`card flex w-full items-center gap-2 p-2 text-left transition active:scale-[0.98] ${done ? 'ring-2 ring-[#5cb82e]' : 'hover:ring-2 hover:ring-[#ff8a1f]'}`}
       disabled={done}
-      onPointerDown={(e) => e.stopPropagation()}
-      onClick={() => store.guideTask(task)}
+      onClick={(e) => { e.stopPropagation(); store.guideTask(task); }}
       title={t(done ? 'Done' : 'Show me where')}
     >
       <span className="emoji text-2xl"><Ico i={task.icon} id={task.kind === 'count' ? task.key : undefined} /></span>
@@ -1955,7 +2336,8 @@ function TaskRow({ ch, i }: { ch: Chapter; i: number }) {
 }
 
 // A chapter told in speech bubbles: the teller's portrait, their words typed out, and the tasks
-// on the last bubble. Tap anywhere to go on.
+// on the last bubble. Tap anywhere to go on (on the click: as the finger touches down, the last
+// bubble would close and the rest of the tap press whatever was under it).
 function StoryDialog() {
   const store = useStore();
   const d = store.ui.story!;
@@ -1964,20 +2346,31 @@ function StoryDialog() {
   const text = lines[Math.min(d.i, lines.length - 1)] ?? '';
   const last = d.i >= lines.length - 1;
   const who = CAST[ch.who];
-  const [shown, setShown] = useState(0);
-  // typed out two letters at a time; the timer stops once the whole line is shown
+  // typed out two letters at a time; the timer stops itself at the end of the line. The count is
+  // kept with its line, so a new line (the next chapter opening in the same bubble, or a shorter
+  // line after a longer one) always types out from its first letter
+  const [typed, setTyped] = useState({ text, n: 0 });
+  const shown = typed.text === text ? typed.n : 0;
   const typer = useRef<ReturnType<typeof setInterval> | undefined>(undefined);
   useEffect(() => {
-    setShown(0);
-    typer.current = setInterval(() => setShown((n) => Math.min(text.length, n + 2)), 22);
-    return () => clearInterval(typer.current);
+    let n = 0;
+    const id = setInterval(() => {
+      n = Math.min(text.length, n + 2);
+      setTyped({ text, n });
+      if (n >= text.length) clearInterval(id);
+    }, 22);
+    typer.current = id;
+    return () => clearInterval(id);
   }, [text]);
-  useEffect(() => { if (shown >= text.length) clearInterval(typer.current); }, [shown, text]);
   const typing = shown < text.length;
-  const next = () => (typing ? setShown(text.length) : store.storyNext());
+  const next = () => {
+    if (!typing) { store.storyNext(); return; }
+    clearInterval(typer.current);
+    setTyped({ text, n: text.length });
+  };
   const r = storyReward(ch.n);
   return (
-    <div className="pointer-events-auto fixed inset-0 z-40 flex flex-col justify-end bg-black/35 p-3 pb-6 font-game sm:items-center" style={safePad('0.75rem', ['top', 'right', 'bottom', 'left'], { bottom: '1.5rem' })} onPointerDown={next}>
+    <div className="pointer-events-auto fixed inset-0 z-40 flex flex-col justify-end bg-black/35 p-3 pb-6 font-game sm:items-center" style={safePad('0.75rem', ['top', 'right', 'bottom', 'left'], { bottom: '1.5rem' })} onClick={next}>
       <div className="w-full max-w-xl animate-pop">
         {d.i === 0 && (
           <div className="mb-2 flex justify-center">
@@ -1994,7 +2387,7 @@ function StoryDialog() {
           <div className="relative mb-6 min-w-0 flex-1 rounded-3xl border-[3px] border-[#5d3a1f] bg-white px-4 py-3 text-[#4a2e14] shadow-[0_5px_0_#5d3a1f]">
             {/* the bubble's tail points at the speaker */}
             <span className="absolute -left-[13px] bottom-5 h-5 w-5 rotate-45 border-b-[3px] border-l-[3px] border-[#5d3a1f] bg-white" />
-            <p className="relative min-h-[3rem] text-base font-bold leading-snug sm:text-lg">
+            <p className="rtl-text relative min-h-[3rem] text-base font-bold leading-snug sm:text-lg">
               {text.slice(0, shown)}
               <span className="opacity-0">{text.slice(shown)}</span>
             </p>
@@ -2042,6 +2435,18 @@ function StoryPage() {
   }
   const ready = store.chapterReady();
   const r = storyReward(ch.n);
+  // the reward and Finish chapter: under the tasks, or once they are all done right under the
+  // teller (on a phone on its side the bottom of this tab is below the fold)
+  const finish = (
+    <div className="flex items-center gap-3 text-sm font-bold">
+      <Coins n={r.coins} />
+      {r.gems > 0 && <Gems n={r.gems} />}
+      <span className="text-[#2f8fd0]">+{fmtNum(r.xp)} XP</span>
+      <button className={`btn btn-green ml-auto ${ready ? 'animate-bob' : ''}`} disabled={!ready} onClick={() => store.finishChapter()}>
+        {t('Finish chapter')}
+      </button>
+    </div>
+  );
   return (
     <div className="flex flex-col gap-3">
       <div className="flex items-center gap-3">
@@ -2055,20 +2460,14 @@ function StoryPage() {
           💬 {t('Replay')}
         </button>
       </div>
+      {ready && finish}
       <div className="relative rounded-2xl border-2 border-[#e2cc9c] bg-white px-3 py-2 text-sm italic text-[#5a3a1a]">
         “{ch.intro[ch.intro.length - 1]}”
       </div>
       <div className="flex flex-col gap-1.5">
         {ch.tasks.map((_, i) => <TaskRow key={i} ch={ch} i={i} />)}
       </div>
-      <div className="flex items-center gap-3 text-sm font-bold">
-        <Coins n={r.coins} />
-        {r.gems > 0 && <Gems n={r.gems} />}
-        <span className="text-[#2f8fd0]">+{fmtNum(r.xp)} XP</span>
-        <button className={`btn btn-green ml-auto ${ready ? 'animate-bob' : ''}`} disabled={!ready} onClick={() => store.finishChapter()}>
-          {t('Finish chapter')}
-        </button>
-      </div>
+      {!ready && finish}
       <p className="text-center text-xs text-[#8a6a44]">{t('Chapters finished: {n} / {total}', { n: st.ch - 1, total: LAST_CHAPTER })}</p>
     </div>
   );

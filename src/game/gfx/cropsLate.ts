@@ -890,16 +890,6 @@ export function lateCrop(cd: CropDef, plant: Kit, fruit: Kit): boolean {
       fruit.add(P.sphereHi, W, [0.01, 0.075, 0], [0, 0.5, 0], [0.088, 0.075, 0.1]);
       stem(plant, '#6b8a2a', [0.01, 0.148, 0.02], 0, 0.3, 0.02, 0.005);
       return true;
-    case 'butternut': {
-      // a bell shaped squash lying on its side: round seed end and a long smooth neck
-      patch(plant, L);
-      const m = frame([0, 0.05, 0], 0.6, Math.PI / 2 - 0.1);
-      fruit.addMatrix(P.sphereHi, W, m.clone().multiply(T(0, -0.04, 0)).multiply(S(0.05, 0.052, 0.05)));
-      fruit.addMatrix(cylinder(0.03, 0.036, 14), W, m.clone().multiply(T(0, -0.03, 0)).multiply(S(1, 0.09, 1)));
-      fruit.addMatrix(P.sphereHi, W, m.clone().multiply(T(0, 0.06, 0)).multiply(S(0.03, 0.02, 0.03)));
-      stem(plant, '#8a8a4a', end([0, 0.05, 0], 0.6, Math.PI / 2 - 0.1, 0.075), 0.6, Math.PI / 2, 0.02, 0.006);
-      return true;
-    }
     // ------------------------------------------------------------ flowers
     case 'marigold': {
       // a ferny mound topped with ruffled pompom blooms
