@@ -145,6 +145,22 @@ function startFarm(show: (st: GameStore) => void) {
     syncMusic();
   };
   window.addEventListener('storage', onStorage);
+  // On the website, as in the Android app (see MainActivity), the screen stays on for a few
+  // minutes after the last touch, the crops growing while the player looks on, then goes off as
+  // the device's own screen timeout says
+  const wakeLock = !Capacitor.isNativePlatform() && !inYouTube() ? navigator.wakeLock : undefined;
+  const AWAKE_MS = 3 * 60e3;
+  let awakeUntil = 0, lock: WakeLockSentinel | null = null, asking = false;
+  const awake = () => {
+    if (!wakeLock) return;
+    awakeUntil = performance.now() + AWAKE_MS;
+    if (asking || (lock && !lock.released) || document.visibilityState !== 'visible' || st.elsewhere) return;
+    asking = true;
+    wakeLock.request('screen').then((l) => { lock = l; }, () => { /* not allowed here: the screen sleeps as usual */ }).finally(() => { asking = false; });
+  };
+  const letSleep = () => { void lock?.release().catch(() => {}); lock = null; };
+  const sleepCheck = setInterval(() => { if (lock && (performance.now() > awakeUntil || st.elsewhere)) letSleep(); }, 10e3);
+  for (const ev of ['pointerdown', 'keydown', 'wheel'] as const) window.addEventListener(ev, awake, { capture: true, passive: true });
   // (and where the player left off, for the card of what is ready when they are back). Saved
   // as the page is left too: pagehide, which unlike beforeunload lets the browser keep the page
   // for its Back button (see onShow).
@@ -250,6 +266,9 @@ function startFarm(show: (st: GameStore) => void) {
     window.removeEventListener('pagehide', save);
     window.removeEventListener('pageshow', onShow);
     window.removeEventListener('storage', onStorage);
+    for (const ev of ['pointerdown', 'keydown', 'wheel'] as const) window.removeEventListener(ev, awake, { capture: true });
+    clearInterval(sleepCheck);
+    letSleep();
     document.removeEventListener('visibilitychange', vis);
     clearInterval(tick);
     clearInterval(askT);
