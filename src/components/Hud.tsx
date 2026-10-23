@@ -116,8 +116,9 @@ export default function Hud() {
       {/* the festival, under the beauty points */}
       {!sheetOpen && <FestChip />}
 
-      {/* toasts, with the card of what is ready on coming back first */}
-      <div className={`absolute left-1/2 flex w-[92%] max-w-sm -translate-x-1/2 flex-col items-center gap-2 ${tut ? "top-36" : "top-20"}`}>
+      {/* toasts, with the card of what is ready on coming back first (on a small phone held
+          sideways, moved right of the buttons down the left side rather than over them) */}
+      <div className={`absolute left-1/2 flex w-[92%] max-w-sm -translate-x-1/2 flex-col items-center gap-2 [@media(orientation:landscape)]:left-[max(50%,calc(10.75rem_+_min(46%,12rem)))] ${tut ? "top-36" : "top-20"}`}>
         {ui.welcome && !sheetOpen && !ui.story && <WelcomeCard />}
         {store.toasts.map((tt) => (
           <div
