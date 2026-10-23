@@ -19,7 +19,7 @@ import Panels from './Panels';
 import Flyers from './Flyers';
 import { Guard } from './Guard';
 import { kvFlush, kvInit, kvSet } from '@/game/kv';
-import { onYtAudio, onYtPause, ytAudioOn, ytFirstFrame, ytPaused, ytReady, ytWire } from '@/game/yt';
+import { inYouTube, onYtAudio, onYtPause, ytAudioOn, ytFirstFrame, ytPaused, ytReady, ytWire } from '@/game/yt';
 
 // the farm was drawn once (the card of what is ready on coming back waits for it)
 let drawnOnce = false;
@@ -126,6 +126,12 @@ function startFarm(show: (st: GameStore) => void) {
   // The farm open in a second tab of the same browser (on the web): the newest tab plays. Each
   // tab says so as it opens; an older one hearing it stops (no more saves over the newer farm, no
   // clock, no sound) and offers to play there instead, which loads the farm afresh.
+  // On the web the browser is asked to keep the farm's storage for good: not cleared when the
+  // device runs short of space, nor (where Safari grants it) after its seven days without a visit.
+  // Chrome and Safari decide by themselves; Firefox would ask the player, so not there.
+  if (!Capacitor.isNativePlatform() && !inYouTube() && !/Firefox\//.test(navigator.userAgent)) {
+    navigator.storage?.persist?.().catch(() => { /* not granted: the farm saves as before */ });
+  }
   const TAB_KEY = 'talons-farm-tab';
   const tabId = `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
   kvSet(TAB_KEY, tabId);
