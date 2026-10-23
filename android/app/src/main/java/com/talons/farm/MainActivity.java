@@ -4,6 +4,7 @@ import android.content.BroadcastReceiver;
 import android.content.Context;
 import android.content.Intent;
 import android.content.IntentFilter;
+import android.content.SharedPreferences;
 import android.os.Build;
 import android.os.Bundle;
 import android.os.Handler;
@@ -27,7 +28,8 @@ import com.getcapacitor.WebViewListener;
 // again), and the screen stays on while the farm is being played. If Android closes the game's
 // page to free memory, the game opens again from its last save instead of the whole app closing.
 // The page is told when the phone runs hot or is saving battery, and draws less then, and how
-// long the phone has been on (for the farm's clock).
+// long the phone has been on (for the farm's clock), and whether Android closed the page lately
+// for want of memory (the page then keeps its pictures smaller, see render3d.ts).
 public class MainActivity extends BridgeActivity {
     // the screen stays on this long after the last touch, then goes off as the phone's own
     // screen timeout says: a farm left open on the table does not keep the screen lit for hours
@@ -37,6 +39,9 @@ public class MainActivity extends BridgeActivity {
     private BroadcastReceiver powerSaveReceiver;
     // a PowerManager.OnThermalStatusChangedListener (Android 10 and later only)
     private Object thermalListener;
+    // the times Android closed the page lately, and the last one: told to the page for three days
+    private static final String PREFS = "farm";
+    private static final long GONE_MS = 3L * 24 * 60 * 60 * 1000;
 
     @Override
     public void onCreate(Bundle savedInstanceState) {
@@ -51,6 +56,10 @@ public class MainActivity extends BridgeActivity {
             getBridge().addWebViewListener(new WebViewListener() {
                 @Override
                 public boolean onRenderProcessGone(WebView view, RenderProcessGoneDetail detail) {
+                    // counted, so the page comes back lighter instead of being closed again and
+                    // again as it loads (a big farm on a phone with little memory)
+                    SharedPreferences sp = getSharedPreferences(PREFS, MODE_PRIVATE);
+                    sp.edit().putInt("gone", recentGone(sp) + 1).putLong("goneAt", System.currentTimeMillis()).commit();
                     recreate();
                     return true;
                 }
@@ -143,13 +152,19 @@ public class MainActivity extends BridgeActivity {
     // tells the page how long the phone has been on (its sleep counted) and how many times it has
     // been switched on: with no internet the farm's clock counts on from it, and a change of the
     // phone's clock does not touch it (see clock.ts); the page listens for the 'farm-clock' event
+    // (and, before the game starts, how many times Android closed the page in the last three days)
     private void sendUptime() {
         if (getBridge() == null || getBridge().getWebView() == null) return;
         long up = SystemClock.elapsedRealtime();
         int boot = Settings.Global.getInt(getContentResolver(), Settings.Global.BOOT_COUNT, -1);
-        String js = "window.__uptime={up:" + up + ",boot:" + boot + ",p:performance.now()};window.dispatchEvent(new Event('farm-clock'));";
+        int gone = recentGone(getSharedPreferences(PREFS, MODE_PRIVATE));
+        String js = "window.__gone=" + gone + ";window.__uptime={up:" + up + ",boot:" + boot + ",p:performance.now()};window.dispatchEvent(new Event('farm-clock'));";
         WebView wv = getBridge().getWebView();
         wv.post(() -> wv.evaluateJavascript(js, null));
+    }
+
+    private static int recentGone(SharedPreferences sp) {
+        return System.currentTimeMillis() - sp.getLong("goneAt", 0) < GONE_MS ? sp.getInt("gone", 0) : 0;
     }
 
     @Override
