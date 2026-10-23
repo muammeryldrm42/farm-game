@@ -1701,7 +1701,12 @@ export class Renderer {
     const first = !this.synced;
     this.synced = true;
     const seen = new Set<number>();
-    for (const o of s.objects) {
+    // the farm's first build goes from the middle of the view outward: the models are asked for
+    // (and decoded) in that order, so a big farm fills in where the player is looking first
+    const tx = this.target.x, tz = this.target.z;
+    const near = (o: FarmObject) => (o.x - tx) ** 2 + (o.y - tz) ** 2;
+    const list = first ? [...s.objects].sort((a, b) => near(a) - near(b)) : s.objects;
+    for (const o of list) {
       seen.add(o.id);
       let e = this.entries.get(o.id);
       if (e && e.type !== o.type) { this.removeEntry(e); e = undefined; }
