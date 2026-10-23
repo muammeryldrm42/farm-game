@@ -186,6 +186,20 @@ function Lock({ level }: { level: number }) {
 
 // ------------------------------------------------------------------ root
 
+// The farm is being played in a newer tab of this browser (see Game.tsx): this one covers itself
+// and offers to play here instead (the page loads the farm afresh, the newest saved one)
+function ElsewhereCover() {
+  return (
+    <div className="pointer-events-auto fixed inset-0 z-[95] grid place-items-center bg-[#3f9fd8]/95 p-6 font-game text-white">
+      <div className="flex max-w-sm flex-col items-center gap-4 text-center">
+        <span className="emoji text-6xl">🚜</span>
+        <p className="rtl-text text-xl font-bold" style={{ textShadow: '0 2px 0 #1d5f8a' }}>{t('Talons Farm is open in another tab.')}</p>
+        <button className="btn btn-green px-8 py-3 text-lg" onClick={() => location.reload()}>{t('Play here')}</button>
+      </div>
+    </div>
+  );
+}
+
 export default function Panels() {
   const store = useStore();
   useVersion();
@@ -218,6 +232,7 @@ export default function Panels() {
       {ui.levelUp !== null && <LevelUpModal level={ui.levelUp} />}
       {ui.story && ui.levelUp === null && !ui.daily && <StoryDialog />}
       {ui.notifyAsk && ui.levelUp === null && !ui.daily && !ui.story && <NotifyAskModal />}
+      {store.elsewhere && <ElsewhereCover />}
     </>
   );
 }

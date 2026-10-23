@@ -18,7 +18,7 @@ import Hud from './Hud';
 import Panels from './Panels';
 import Flyers from './Flyers';
 import { Guard } from './Guard';
-import { kvFlush, kvInit } from '@/game/kv';
+import { kvFlush, kvInit, kvSet } from '@/game/kv';
 import { onYtAudio, onYtPause, ytAudioOn, ytFirstFrame, ytPaused, ytReady, ytWire } from '@/game/yt';
 
 // the farm was drawn once (the card of what is ready on coming back waits for it)
@@ -123,6 +123,19 @@ function startFarm(show: (st: GameStore) => void) {
   const offLang = onLang(() => st.emit(false));
   // (inside YouTube the save is sent to it at once)
   const save = () => { st.saveNow(); void kvFlush(); };
+  // The farm open in a second tab of the same browser (on the web): the newest tab plays. Each
+  // tab says so as it opens; an older one hearing it stops (no more saves over the newer farm, no
+  // clock, no sound) and offers to play there instead, which loads the farm afresh.
+  const TAB_KEY = 'talons-farm-tab';
+  const tabId = `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
+  kvSet(TAB_KEY, tabId);
+  const onStorage = (e: StorageEvent) => {
+    if (e.key !== TAB_KEY || !e.newValue || e.newValue === tabId || st.elsewhere) return;
+    st.elsewhere = true;
+    st.cancelAll();
+    syncMusic();
+  };
+  window.addEventListener('storage', onStorage);
   // (and where the player left off, for the card of what is ready when they are back)
   const vis = () => { if (document.visibilityState === 'hidden') { save(); st.awayFrom ??= clockNow(); } };
   window.addEventListener('beforeunload', save);
@@ -130,7 +143,7 @@ function startFarm(show: (st: GameStore) => void) {
   // while YouTube has the game paused nothing runs: no ticks, no frames (see FarmCanvas), no sound.
   // Nor in the background (the Android app keeps its page running there): the farm's timers are
   // all times, so nothing is missed, and the tick on coming back catches up at once (see visClock)
-  const busy = () => !ytPaused() && document.visibilityState !== 'hidden';
+  const busy = () => !ytPaused() && document.visibilityState !== 'hidden' && !st.elsewhere;
   const tick = setInterval(() => { if (busy()) st.tick(); }, 1000);
   // music can only start after a user gesture
   let unlocked = false;
@@ -140,7 +153,7 @@ function startFarm(show: (st: GameStore) => void) {
     return { night: st.s.settings.dayNight ? nightFactor(now).night : 0, rain: st.s.settings.weather && w.kind === 'rain' ? w.k : 0 };
   };
   const syncMusic = () => {
-    const on = document.visibilityState === 'visible' && !ytPaused() && ytAudioOn();
+    const on = document.visibilityState === 'visible' && !ytPaused() && ytAudioOn() && !st.elsewhere;
     if (unlocked && st.s.settings.music && on) startMusic();
     else stopMusic();
     if (unlocked && st.s.settings.nature !== false && on) startAmbience(ambState);
@@ -213,6 +226,7 @@ function startFarm(show: (st: GameStore) => void) {
     stopMusic();
     document.removeEventListener('visibilitychange', syncMusic);
     window.removeEventListener('beforeunload', save);
+    window.removeEventListener('storage', onStorage);
     document.removeEventListener('visibilitychange', vis);
     clearInterval(tick);
     clearInterval(askT);

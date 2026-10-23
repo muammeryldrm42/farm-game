@@ -849,9 +849,13 @@ export class GameStore {
   }
 
   private saveDue = 0;
+  // the farm is open in a newer tab of this browser: this one writes nothing more (it would put
+  // its older farm over the newer one's; see Game.tsx)
+  elsewhere = false;
   saveNow = () => {
     if (this.saveT) { clearTimeout(this.saveT); this.saveT = null; }
     this.saveDue = 0;
+    if (this.elsewhere) return;
     this.s.clock = { t: clockNow() };
     kvSet(SAVE_KEY, JSON.stringify(this.s));
     keepClock();
