@@ -5002,6 +5002,40 @@ function smoke(g: THREE.Group, x: number, y: number, z: number) {
 // Hand built models made in Blender (see tools/blender), loaded from public/models. They are Draco
 // compressed (the decoder lives in public/draco); each file is fetched once and cloned per copy.
 const gltfLoader = new GLTFLoader().setDRACOLoader(new DRACOLoader().setDecoderPath('draco/'));
+// A model's pictures are decoded straight at the size low quality keeps (512 px at most), where
+// the browser decodes them off the page's thread: not first at full size (1024 or 2048 px) and
+// then scaled down on the page's thread, a long stall for a phone opening a big farm. What a
+// small model needs is then scaled from there (see shrinkTextures).
+function jpegSize(b: Uint8Array): { w: number; h: number } | null {
+  if (b[0] !== 0xff || b[1] !== 0xd8) return null;
+  for (let i = 2; i + 9 < b.length;) {
+    if (b[i] !== 0xff) { i++; continue; }
+    const m = b[i + 1];
+    if (m === 0xff) { i++; continue; }
+    // the frame header (SOF0 to SOF15, not DHT, JPG or DAC) holds the height and width
+    if (m >= 0xc0 && m <= 0xcf && m !== 0xc4 && m !== 0xc8 && m !== 0xcc) return { h: (b[i + 5] << 8) | b[i + 6], w: (b[i + 7] << 8) | b[i + 8] };
+    if (m === 0xd8 || m === 0x01 || (m >= 0xd0 && m <= 0xd7)) { i += 2; continue; }
+    i += 2 + ((b[i + 2] << 8) | b[i + 3]);
+  }
+  return null;
+}
+gltfLoader.register((parser) => {
+  const ld = parser.textureLoader as THREE.ImageBitmapLoader;
+  if (ld.isImageBitmapLoader) {
+    ld.load = (url: string, onLoad?: (b: ImageBitmap) => void, _p?: unknown, onError?: (e: unknown) => void) => {
+      fetch(url).then((r) => r.blob()).then(async (blob) => {
+        const opts = { ...(ld.options as ImageBitmapOptions), colorSpaceConversion: 'none' as const };
+        const size = getQuality() === 'high' ? null : jpegSize(new Uint8Array(await blob.slice(0, 65536).arrayBuffer()));
+        const big = size ? Math.max(size.w, size.h) : 0;
+        if (!size || big <= LOW_TEX) return createImageBitmap(blob, opts);
+        const k = LOW_TEX / big;
+        return createImageBitmap(blob, { ...opts, resizeWidth: Math.round(size.w * k), resizeHeight: Math.round(size.h * k), resizeQuality: 'high' });
+      }).then((bm) => onLoad?.(bm), (e) => onError?.(e));
+      return undefined as unknown as ImageBitmap;
+    };
+  }
+  return { name: 'farm_texture_size' };
+});
 const modelCache = new Map<string, Promise<THREE.Object3D>>();
 // Models of what is not on the farm when it opens (the sea's and the shore's animals, the night's
 // creatures, the rocks along the coast, the sea jetty): fetched only once the farm is first drawn,
