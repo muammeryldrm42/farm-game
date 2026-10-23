@@ -78,7 +78,7 @@ export default function Hud() {
             <span className="emoji text-lg sm:text-xl">💎</span>
             <span className="min-w-[1rem] text-right">{fmtNum(s.gems)}</span>
           </div>
-          <button className="btn btn-wood h-9 w-9 shrink-0 rounded-full p-0 sm:h-10 sm:w-10" onClick={() => store.openPanel('settings')} aria-label={t('Settings')}>
+          <button className="btn btn-wood relative h-9 w-9 shrink-0 rounded-full p-0 sm:h-10 sm:w-10 after:absolute after:-inset-1 after:content-['']" onClick={() => store.openPanel('settings')} aria-label={t('Settings')}>
             <span className="emoji text-lg">⚙️</span>
           </button>
         </div>
@@ -283,13 +283,14 @@ function StoryCard() {
   );
 }
 
-// the farm's beauty points (see beauty.ts); a tap opens what they are and what they bring
+// the farm's beauty points (see beauty.ts); a tap opens what they are and what they bring (these
+// small pills, the festival's and the season's too, take a touch a little round them: 48 px tall)
 function BeautyChip() {
   const store = useStore();
   const b = store.beauty();
   return (
     <button
-      className="pointer-events-auto relative flex items-center gap-1 rounded-full border-[3px] border-[#d9468f] bg-[#fff6df] py-0.5 pl-1.5 pr-2.5 text-xs font-bold text-[#8a2a5e] shadow-[0_3px_0_#5d3a1f] sm:text-sm"
+      className="pointer-events-auto relative flex items-center gap-1 rounded-full border-[3px] border-[#d9468f] bg-[#fff6df] py-0.5 pl-1.5 pr-2.5 after:absolute after:-inset-[5px] after:content-[''] text-xs font-bold text-[#8a2a5e] shadow-[0_3px_0_#5d3a1f] sm:text-sm"
       onClick={() => store.openPanel('beauty')}
       aria-label={t('{n} beauty points', { n: fmtNum(b.score) })}
     >
@@ -312,7 +313,7 @@ function FestChip() {
   const time = fmtTime((on ? f.end : f.nextAt) - now);
   return (
     <button
-      className={`pointer-events-auto absolute left-2 top-[10.2rem] flex items-center gap-1 rounded-full border-[3px] bg-[#fff6df] py-0.5 pl-1.5 pr-2.5 text-xs font-bold shadow-[0_3px_0_#5d3a1f] sm:left-3 sm:top-[11.6rem] sm:text-sm ${on && !s.fest?.seen ? 'animate-nudge' : ''}`}
+      className={`pointer-events-auto absolute left-2 top-[10.2rem] flex items-center gap-1 rounded-full after:absolute after:-inset-[5px] after:content-[''] border-[3px] bg-[#fff6df] py-0.5 pl-1.5 pr-2.5 text-xs font-bold shadow-[0_3px_0_#5d3a1f] sm:left-3 sm:top-[11.6rem] sm:text-sm ${on && !s.fest?.seen ? 'animate-nudge' : ''}`}
       style={{ borderColor: on ? d.color : '#c9a878', color: on ? d.color : '#8a6a44' }}
       onClick={() => store.openFestival()}
       aria-label={on ? `${t(d.name)}, ${t('{time} left', { time })}` : `${t('Next festival')}: ${t(d.name)}, ${t('Starts in {time}', { time })}`}
@@ -344,7 +345,7 @@ function SeasonChip() {
   const ready = on ? seasonReady(s) : 0;
   return (
     <button
-      className={`pointer-events-auto relative flex items-center gap-1 rounded-full border-[3px] bg-[#fff6df] py-0.5 pl-1.5 pr-2.5 text-xs font-bold shadow-[0_3px_0_#5d3a1f] sm:text-sm ${ready ? 'animate-nudge' : ''}`}
+      className={`pointer-events-auto relative flex items-center gap-1 rounded-full after:absolute after:-inset-[5px] after:content-[''] border-[3px] bg-[#fff6df] py-0.5 pl-1.5 pr-2.5 text-xs font-bold shadow-[0_3px_0_#5d3a1f] sm:text-sm ${ready ? 'animate-nudge' : ''}`}
       style={{ borderColor: on ? color : '#c9a878', color }}
       onClick={() => store.openPanel('season')}
       aria-label={t(SEASONS[ev?.id ?? seasonNext(now).id].name)}
