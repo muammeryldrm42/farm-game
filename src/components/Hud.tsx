@@ -41,6 +41,8 @@ export default function Hud() {
   const ui = store.ui;
   const now = clockNow();
   const need = xpNeed(s.level);
+  // coins and gems long enough to crowd the top bar of a phone held upright (see the XP bar)
+  const longPurse = fmtNum(s.coins).length + fmtNum(s.gems).length > 8;
   const sheetOpen = ui.selectedId !== null || ui.panel !== null || ui.placing !== null || ui.expand !== null || ui.daily || ui.levelUp !== null;
   const deliverable = s.orders.filter((o) => canFulfill(s, o, now)).length;
   const claimable = claimableQuests(s).length + dailyClaimable(s) + cupClaimable(s) + claimableBadges(s).length + claimableAlbum(s).length + claimableMuseum(s).length + (store.chapterReady() ? 1 : 0);
@@ -58,12 +60,13 @@ export default function Hud() {
             <span className="relative text-lg font-bold text-[#5a3a1a]">{s.level}</span>
           </div>
           {/* on the narrowest phones (320 wide, or a 360 one with large display size) the bar alone,
-              so the coins, gems and settings still fit beside it */}
-          <div data-fly="xp" className="-ml-4 w-24 rounded-r-full border-[3px] border-l-0 border-[#5d3a1f] bg-[#fff6df] py-0.5 pl-5 pr-2 shadow-[0_3px_0_#5d3a1f] sm:w-40 [@media(max-width:339px)]:w-14 [@media(max-width:339px)]:py-1.5">
+              so the coins, gems and settings still fit beside it; on a phone held upright under 380
+              wide too, once the coins and gems run long (millions, thousands) */}
+          <div data-fly="xp" className={`-ml-4 w-24 rounded-r-full border-[3px] border-l-0 border-[#5d3a1f] bg-[#fff6df] py-0.5 pl-5 pr-2 shadow-[0_3px_0_#5d3a1f] sm:w-40 ${longPurse ? '[@media(max-width:379px)]:w-14 [@media(max-width:379px)]:py-1.5' : ''} [@media(max-width:339px)]:w-14 [@media(max-width:339px)]:py-1.5`}>
             <div className="h-3 overflow-hidden rounded-full bg-[#e2cc9c]">
               <div className="h-full rounded-full bg-gradient-to-r from-[#57c3f0] to-[#2f8fd0] transition-all" style={{ width: `${Math.min(100, (s.xp / need) * 100)}%` }} />
             </div>
-            <div className="whitespace-nowrap text-center text-[10px] font-bold leading-4 text-[#5a3a1a] sm:text-[11px] [@media(max-width:339px)]:hidden">
+            <div className={`whitespace-nowrap text-center text-[10px] font-bold leading-4 text-[#5a3a1a] sm:text-[11px] ${longPurse ? '[@media(max-width:379px)]:hidden' : ''} [@media(max-width:339px)]:hidden`}>
               {s.xp} / {need} XP
             </div>
           </div>
