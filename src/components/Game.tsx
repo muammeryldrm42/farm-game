@@ -18,7 +18,7 @@ import Hud from './Hud';
 import Panels from './Panels';
 import Flyers from './Flyers';
 import { Guard } from './Guard';
-import { kvFlush, kvGet, kvInit, kvSet } from '@/game/kv';
+import { kvFlush, kvGet, kvInit, kvSet, kvWorks } from '@/game/kv';
 import { inYouTube, onYtAudio, onYtPause, ytAudioOn, ytFirstFrame, ytPaused, ytReady, ytWire } from '@/game/yt';
 
 // the farm was drawn once (the card of what is ready on coming back waits for it)
@@ -117,6 +117,7 @@ function closeTop(st: GameStore) {
 // app the back button and the phone's notifications. Gives back what stops it all.
 function startFarm(show: (st: GameStore) => void) {
   const st = new GameStore(loadGame());
+  st.noSave = !kvWorks();
   st.sound = (n) => { if (st.s.settings.sound) sfx(n); if (st.s.settings.vibrate !== false) buzz(n); };
   st.voice = (a) => { if (st.s.settings.sound) voice(a); };
   // the farm redraws when the language changes
@@ -199,7 +200,8 @@ function startFarm(show: (st: GameStore) => void) {
   // afresh (the newest save; this tab plays); else the clock is set again
   const onShow = (e: PageTransitionEvent) => {
     if (!e.persisted) return;
-    if (tabs && kvGet(TAB_KEY) !== tabId) { location.reload(); return; }
+    const mark = tabs ? kvGet(TAB_KEY) : null;
+    if (mark && mark !== tabId) { location.reload(); return; }
     reclock();
     syncMusic();
   };

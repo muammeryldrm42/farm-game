@@ -852,6 +852,8 @@ export class GameStore {
   // the farm is open in a newer tab of this browser: this one writes nothing more (it would put
   // its older farm over the newer one's; see Game.tsx)
   elsewhere = false;
+  // the browser keeps no data for this site: nothing is saved (see kvWorks), which the game says
+  noSave = false;
   saveNow = () => {
     if (this.saveT) { clearTimeout(this.saveT); this.saveT = null; }
     this.saveDue = 0;

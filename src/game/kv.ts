@@ -64,6 +64,22 @@ export function kvSet(k: string, v: string) {
   try { localStorage.setItem(k, v); } catch { /* storage full or blocked */ }
 }
 
+// can the browser's storage be written here? Not where the browser keeps no data for this site
+// (blocked in its settings): then the farm cannot be saved, and the game says so. (Inside
+// YouTube the saves are YouTube's.)
+export function kvWorks(): boolean {
+  if (YT_BUILD || cloud) return true;
+  try {
+    const k = 'talons-farm-probe';
+    localStorage.setItem(k, '1');
+    const ok = localStorage.getItem(k) === '1';
+    localStorage.removeItem(k);
+    return ok;
+  } catch {
+    return false;
+  }
+}
+
 function schedule() {
   if (!cloud || !writable || pushT || sending) return;
   pushT = setTimeout(send, Math.max(0, lastPush + GAP - Date.now()));

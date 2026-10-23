@@ -200,6 +200,20 @@ function ElsewhereCover() {
   );
 }
 
+// the browser keeps no data for this site (blocked in its settings): the farm is not being
+// saved, said over the farm until closed
+function NoSaveNote() {
+  const [shut, setShut] = useState(false);
+  if (shut) return null;
+  return (
+    <div className="pointer-events-auto fixed inset-x-3 top-16 z-30 mx-auto flex max-w-md items-center gap-3 rounded-2xl border-[3px] border-[#5d3a1f] bg-[#fff6df] p-3 font-game text-[#5a3a1a] shadow-[0_4px_0_#5d3a1f]">
+      <span className="emoji text-3xl">🔒</span>
+      <p className="rtl-text flex-1 text-sm font-bold">{t('This browser is blocking the site from saving: your farm will be lost when the page closes. Allow site data (cookies) for this site to keep it.')}</p>
+      <button className="btn btn-ghost h-9 w-9 shrink-0 rounded-full p-0" onClick={() => setShut(true)} aria-label={t('Close')}>✕</button>
+    </div>
+  );
+}
+
 export default function Panels() {
   const store = useStore();
   useVersion();
@@ -232,6 +246,7 @@ export default function Panels() {
       {ui.levelUp !== null && <LevelUpModal level={ui.levelUp} />}
       {ui.story && ui.levelUp === null && !ui.daily && <StoryDialog />}
       {ui.notifyAsk && ui.levelUp === null && !ui.daily && !ui.story && <NotifyAskModal />}
+      {store.noSave && <NoSaveNote />}
       {store.elsewhere && <ElsewhereCover />}
     </>
   );
