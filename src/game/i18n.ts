@@ -55,7 +55,15 @@ export function getLang(): Lang { return current; }
 
 function applyDocument(l: Lang) {
   if (typeof document === 'undefined') return;
-  document.documentElement.lang = l;
+  // (as the browser knows the languages: Chinese by its script, which also picks the right shapes
+  // of the characters)
+  document.documentElement.lang = l === 'zht' ? 'zh-Hant' : l === 'zh' ? 'zh-Hans' : l;
+  // The browser's own page translation stays off (layout.tsx) while the game speaks the player's
+  // language: it would translate the farm again (say, Turkish taken for English) and leave its
+  // numbers frozen as they change. Left to it only for a farm in English on a device in a
+  // language the game does not have.
+  const dev = typeof navigator === 'undefined' ? 'en' : navigator.language || 'en';
+  document.documentElement.translate = l === 'en' && !/^en\b/i.test(dev) && guess() === 'en';
   // Arabic and Urdu read right to left: the panels follow, the 3D farm and the HUD layout stay
   document.documentElement.dataset.rtl = RTL.has(l) ? '1' : '';
 }

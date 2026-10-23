@@ -28,7 +28,8 @@ export const viewport: Viewport = {
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
-    <html lang="en" className={fredoka.variable}>
+    // no page translation by the browser until the game says (see applyDocument in i18n.ts)
+    <html lang="en" translate="no" className={fredoka.variable}>
       <body className="font-game">{children}</body>
     </html>
   );
