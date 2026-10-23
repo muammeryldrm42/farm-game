@@ -2,7 +2,10 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:tools="http://schemas.android.com/tools">
 
+    <!-- a game (appCategory): Android 16 keeps its landscape on tablets and foldables (it ignores the
+         orientation of other apps there), and the phone's game settings apply to it -->
     <application
+        android:appCategory="game"
         android:allowBackup="true"
         android:fullBackupContent="@xml/backup_rules"
         android:dataExtractionRules="@xml/data_extraction_rules"
