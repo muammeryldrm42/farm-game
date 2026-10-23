@@ -5064,7 +5064,14 @@ function packGeometry(g: THREE.BufferGeometry) {
 // and the manor, one of each and always in view, keep the usual size.
 const LOW_TEX = 512;
 const LOW_RAM_TEX = 256;
-const LOW_RAM = typeof navigator !== 'undefined' && ((navigator as { deviceMemory?: number }).deviceMemory ?? 8) <= 2;
+const DEVICE_MEM = typeof navigator !== 'undefined' ? ((navigator as { deviceMemory?: number }).deviceMemory ?? 8) : 8;
+const LOW_RAM = DEVICE_MEM <= 2;
+// The models' textures are counted as they load (with their smaller mip levels). A very big farm
+// (a hundred kinds of building and more) past what the phone can hold (192 MB on a 4 GB phone,
+// 320 MB above, twice that in high quality) has the models still to come loaded a step smaller,
+// so its page is not closed for want of memory; a usual farm stays well under it.
+let texBytes = 0;
+const texBudget = () => (DEVICE_MEM <= 4 ? 192e6 : 320e6) * (getQuality() === 'high' ? 2 : 1);
 // how many screen pixels a unit of the farm covers at most (the closest zoom, near the bottom of
 // the screen): set by Renderer.resize
 let PX_PER_UNIT = 120;
@@ -5076,7 +5083,8 @@ function shrinkTextures(root: THREE.Object3D, far = false, home = false) {
   // (the far twin of a model is only drawn from afar: half that is plenty)
   const need = Math.max(texSize.x, texSize.y, texSize.z) * PX_PER_UNIT * (far ? 1.25 : 2.5);
   const fit = 2 ** Math.ceil(Math.log2(Math.max(64, need)));
-  const cap = LOW_RAM && !home ? Math.min(fit, LOW_RAM_TEX) : getQuality() === 'high' ? fit : Math.min(fit, LOW_TEX);
+  let cap = LOW_RAM && !home ? Math.min(fit, LOW_RAM_TEX) : getQuality() === 'high' ? fit : Math.min(fit, LOW_TEX);
+  if (!home && texBytes > texBudget()) cap = Math.min(cap, getQuality() === 'high' ? LOW_TEX : LOW_RAM_TEX);
   const seen = new Set<THREE.Texture>();
   const jobs: Promise<void>[] = [];
   root.traverse((o) => {
@@ -5086,9 +5094,12 @@ function shrinkTextures(root: THREE.Object3D, far = false, home = false) {
         const img = t?.image as { width?: number; height?: number } | undefined;
         // (a glow mask is a few soft spots of window light: half the size shows the same)
         const c = t === m.emissiveMap ? Math.max(64, cap / 2) : cap;
-        if (!t || seen.has(t) || !img?.width || !img.height || Math.max(img.width, img.height) <= c) continue;
+        if (!t || seen.has(t) || !img?.width || !img.height) continue;
         seen.add(t);
-        const k = c / Math.max(img.width, img.height);
+        const big = Math.max(img.width, img.height);
+        texBytes += img.width * img.height * 4 * 1.34 * Math.min(1, (c / big) ** 2);
+        if (big <= c) continue;
+        const k = c / big;
         jobs.push(createImageBitmap(img as ImageBitmapSource, { resizeWidth: Math.round(img.width * k), resizeHeight: Math.round(img.height * k), resizeQuality: 'high' })
           .then((bm) => {
             const old = t.image as ImageBitmap;
