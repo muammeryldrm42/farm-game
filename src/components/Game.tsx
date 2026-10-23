@@ -98,6 +98,21 @@ function NoGl() {
   );
 }
 
+// The topmost thing open is closed (the notifications question, the story, the level up, the
+// daily gift, a nap, then a window, a selection or a placing): the Android back button and, on the
+// web, the Escape key. False when nothing was open.
+function closeTop(st: GameStore) {
+  const ui = st.ui;
+  if (ui.notifyAsk) { ui.notifyAsk = false; setNotifyAsked(); st.s.settings = { ...st.s.settings, notify: false }; st.emit(); }
+  else if (ui.story) { ui.story = null; st.emit(false); }
+  else if (ui.levelUp !== null) { ui.levelUp = null; st.emit(false); }
+  else if (ui.daily) { ui.daily = false; st.emit(false); }
+  else if (ui.napping) st.wake();
+  else if (ui.panel || ui.placing || ui.tool || ui.expand || ui.selectedId !== null) st.cancelAll();
+  else return false;
+  return true;
+}
+
 // The farm loaded and running: saves, the game's tick, music, the farm's clock, and in the Android
 // app the back button and the phone's notifications. Gives back what stops it all.
 function startFarm(show: (st: GameStore) => void) {
@@ -170,14 +185,7 @@ function startFarm(show: (st: GameStore) => void) {
   let askT: ReturnType<typeof setInterval> | undefined;
   if (Capacitor.isNativePlatform()) {
     native.push(App.addListener('backButton', () => {
-      const ui = st.ui;
-      if (ui.notifyAsk) { ui.notifyAsk = false; setNotifyAsked(); st.s.settings = { ...st.s.settings, notify: false }; st.emit(); }
-      else if (ui.story) { ui.story = null; st.emit(false); }
-      else if (ui.levelUp !== null) { ui.levelUp = null; st.emit(false); }
-      else if (ui.daily) { ui.daily = false; st.emit(false); }
-      else if (ui.napping) st.wake();
-      else if (ui.panel || ui.placing || ui.tool || ui.expand || ui.selectedId !== null) st.cancelAll();
-      else { save(); App.minimizeApp(); }
+      if (!closeTop(st)) { save(); App.minimizeApp(); }
     }));
     native.push(App.addListener('pause', () => { save(); notifyAway(st.s); }));
     native.push(App.addListener('resume', () => { notifyBack(); reclock(); }));
@@ -513,7 +521,7 @@ function FarmCanvas({ onDrawn, onFail }: { onDrawn: () => void; onFail: () => vo
       // typing a pet's name, a price or a save code must not turn or zoom the farm
       const el = e.target as HTMLElement | null;
       if (el && (el.tagName === 'INPUT' || el.tagName === 'TEXTAREA' || el.tagName === 'SELECT' || el.isContentEditable)) return;
-      if (e.key === 'Escape') store.cancelAll();
+      if (e.key === 'Escape') closeTop(store);
       if (e.key === 'Enter' && store.ui.placing) store.confirmPlace();
       if (e.key === '+' || e.key === '=') r.zoomAt(r.W / 2, r.H / 2, r.cam.zoom * 1.15);
       if (e.key === '-') r.zoomAt(r.W / 2, r.H / 2, r.cam.zoom / 1.15);
