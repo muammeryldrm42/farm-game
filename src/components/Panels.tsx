@@ -96,7 +96,8 @@ function Modal({ title, icon, onClose, children, wide = false }: { title: string
           <h2 className="text-xl font-bold tracking-wide" style={{ textShadow: '0 2px 0 #5d3a1f' }}>
             {title}
           </h2>
-          <button className="btn btn-red absolute right-2 top-1.5 h-9 w-9 rounded-full p-0 text-lg" onClick={onClose} aria-label={t('Close')}>
+          {/* (its touch area reaches 48 px, the size a thumb finds, the button looking as it did) */}
+          <button className="btn btn-red absolute right-2 top-1.5 h-9 w-9 rounded-full p-0 text-lg after:absolute after:-inset-1.5 after:content-['']" onClick={onClose} aria-label={t('Close')}>
             ✕
           </button>
         </div>
@@ -116,7 +117,7 @@ function Sheet({ title, icon, pic, sub, onClose, children }: { title: string; ic
             <div className="truncate text-lg font-bold">{title}</div>
             {sub && <div className="text-xs text-[#8a6a44]">{sub}</div>}
           </div>
-          <button className="btn btn-red h-9 w-9 rounded-full p-0 text-lg" onClick={onClose} aria-label={t('Close')}>
+          <button className="btn btn-red relative h-9 w-9 rounded-full p-0 text-lg after:absolute after:-inset-1.5 after:content-['']" onClick={onClose} aria-label={t('Close')}>
             ✕
           </button>
         </div>
@@ -209,7 +210,7 @@ function NoSaveNote() {
     <div className="pointer-events-auto fixed inset-x-3 top-16 z-30 mx-auto flex max-w-md items-center gap-3 rounded-2xl border-[3px] border-[#5d3a1f] bg-[#fff6df] p-3 font-game text-[#5a3a1a] shadow-[0_4px_0_#5d3a1f]">
       <span className="emoji text-3xl">🔒</span>
       <p className="rtl-text flex-1 text-sm font-bold">{t('This browser is blocking the site from saving: your farm will be lost when the page closes. Allow site data (cookies) for this site to keep it.')}</p>
-      <button className="btn btn-ghost h-9 w-9 shrink-0 rounded-full p-0" onClick={() => setShut(true)} aria-label={t('Close')}>✕</button>
+      <button className="btn btn-ghost relative h-9 w-9 shrink-0 rounded-full p-0 after:absolute after:-inset-1.5 after:content-['']" onClick={() => setShut(true)} aria-label={t('Close')}>✕</button>
     </div>
   );
 }
