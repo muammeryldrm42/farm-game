@@ -5162,6 +5162,8 @@ function shrinkTextures(root: THREE.Object3D, far = false, home = false) {
   return Promise.all(jobs).then(() => undefined);
 }
 
+// a few letters of each model's content, for its address on the website (see next.config.mjs)
+const MODEL_V: Record<string, string> = JSON.parse(process.env.MODEL_V || '{}');
 // set by the renderer: compiles a loaded model's shaders without blocking
 let precompile: ((o: THREE.Object3D) => Promise<unknown>) | null = null;
 // models being fetched right now: the optional far detail models wait for a quiet moment
@@ -5171,7 +5173,7 @@ function loadModel(name: string) {
   if (!p) {
     modelsLoading++;
     const done = () => { modelsLoading--; };
-    p = gltfLoader.loadAsync(`models/${name}.glb`).finally(done).then((gl) => {
+    p = gltfLoader.loadAsync(`models/${name}.glb${MODEL_V[name] ? `?v=${MODEL_V[name]}` : ''}`).finally(done).then((gl) => {
       gl.scene.traverse((o) => {
         const m = o as THREE.Mesh;
         if (!m.isMesh) return;
