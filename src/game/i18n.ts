@@ -34,6 +34,30 @@ const LOADERS: Record<Exclude<Lang, 'en'>, () => Promise<{ default: Dict }>> = {
   ur: () => import('../locales/ur.json'),
 };
 
+// English names a count in two forms (1 coin, 2 coins): the lines with a count that can be 1 say
+// so here (see plurals below); every other English line is its own key
+const coins = (v: string) => `{${v}, plural, one {# coin} other {# coins}}`;
+const gems = (v: string) => `{${v}, plural, one {# gem} other {# gems}}`;
+const points = (v: string) => `{${v}, plural, one {# point} other {# points}}`;
+const EN: Dict = {
+  '+{n} coins': `+${coins('n')}`,
+  'Chapter {n} complete! +{coins} coins': `Chapter {n} complete! +${coins('coins')}`,
+  'Chapter {n} complete! +{coins} coins, +{gems} gems': `Chapter {n} complete! +${coins('coins')}, +${gems('gems')}`,
+  'Daily reward: {coins} coins and {gems} gems.': `Daily reward: ${coins('coins')} and ${gems('gems')}.`,
+  'Daily reward: {coins} coins.': `Daily reward: ${coins('coins')}.`,
+  'Next: {level} at {n} points (+{bonus}% and {gems} gems)': `Next: {level} at ${points('n')} (+{bonus}% and ${gems('gems')})`,
+  'Sold {name} for {n} coins.': `Sold {name} for ${coins('n')}.`,
+  'Storage price is {base} coins. You can ask up to {max}.': `Storage price is ${coins('base')}. You can ask up to {max}.`,
+  'Well rested! +{n} coins, +10 XP': `Well rested! +${coins('n')}, +10 XP`,
+  'Your farm is now {level}! Customers pay {n}% more. +{gems} gems': `Your farm is now {level}! Customers pay {n}% more. +${gems('gems')}`,
+  '{name} brought another {find}. You sell it for {n} coins.': `{name} brought another {find}. You sell it for ${coins('n')}.`,
+  '{name} complete! +{coins} coins, +{gems} gems': `{name} complete! +${coins('coins')}, +${gems('gems')}`,
+  '{n} beauty points': '{n, plural, one {# beauty point} other {# beauty points}}',
+  '{n} bees full of nectar': '{n, plural, one {# bee full of nectar} other {# bees full of nectar}}',
+  '{n} points': points('n'),
+  '{n} tasks left': '{n, plural, one {# task left} other {# tasks left}}',
+};
+
 const KEY = 'talons-farm-lang';
 export const RTL = new Set<Lang>(['ar', 'ur']);
 let current: Lang = 'en';
@@ -69,7 +93,7 @@ function applyDocument(l: Lang) {
 }
 
 export async function setLang(l: Lang) {
-  dict = l === 'en' ? {} : (await LOADERS[l]()).default;
+  dict = l === 'en' ? EN : (await LOADERS[l]()).default;
   current = l;
   if (!inYouTube()) kvSet(KEY, l);
   applyDocument(l);
@@ -81,7 +105,7 @@ export async function initLang() {
   const yt = await ytLanguage();
   const saved = yt ? null : kvGet(KEY);
   const l = saved && (LANG_IDS as string[]).includes(saved) ? (saved as Lang) : guess(yt);
-  try { await setLang(l); } catch { current = 'en'; dict = {}; applyDocument('en'); }
+  try { await setLang(l); } catch { current = 'en'; dict = EN; applyDocument('en'); }
 }
 
 export function onLang(f: () => void) {
@@ -91,6 +115,52 @@ export function onLang(f: () => void) {
 
 // a line in the chosen language; {name} marks are filled from `vars`
 export function t(s: string, vars?: Record<string, string | number>) {
-  const out = dict[s] ?? s;
-  return vars ? out.replace(/\{(\w+)\}/g, (m, k: string) => (k in vars ? String(vars[k]) : m)) : out;
+  let out = dict[s] ?? s;
+  if (!vars) return out;
+  if (out.includes(', plural,')) out = plurals(out, vars);
+  return out.replace(/\{(\w+)\}/g, (m, k: string) => (k in vars ? String(vars[k]) : m));
+}
+
+// A translation may give a word in the forms its language uses for different numbers, as
+// {n, plural, one {...} few {...} many {...} other {...}} (# stands for the number): Russian says
+// 1 монета, 2 монеты, 5 монет, 21 монета, where one form for all would be wrong for most numbers.
+// The language's own rules pick the form (the browser knows them); a number shortened to 12.3K or
+// 4M takes the form for many.
+let pluralRules: { lang: Lang; rules: Intl.PluralRules | null } | null = null;
+function pluralOf(raw: string): string {
+  if (!pluralRules || pluralRules.lang !== current) {
+    let rules: Intl.PluralRules | null = null;
+    try { rules = new Intl.PluralRules(current === 'zht' ? 'zh-Hant' : current); } catch { /* no rules: the other form */ }
+    pluralRules = { lang: current, rules };
+  }
+  if (/[KM]$/.test(raw)) return 'many';
+  const n = Number(raw.replace(/,/g, ''));
+  return Number.isFinite(n) && pluralRules.rules ? pluralRules.rules.select(n) : 'other';
+}
+function plurals(out: string, vars: Record<string, string | number>) {
+  for (let at = out.indexOf(', plural,'); at >= 0; at = out.indexOf(', plural,')) {
+    const open = out.lastIndexOf('{', at);
+    const name = out.slice(open + 1, at).trim();
+    const cases: Record<string, string> = {};
+    let j = at + ', plural,'.length;
+    for (;;) {
+      while (out[j] === ' ') j++;
+      if (j >= out.length || out[j] === '}') break;
+      const c0 = j;
+      while (j < out.length && out[j] !== ' ' && out[j] !== '{') j++;
+      const cat = out.slice(c0, j);
+      while (out[j] === ' ') j++;
+      // not as expected: the line is left as written
+      if (out[j] !== '{') return out;
+      let depth = 0, k = j;
+      for (; k < out.length; k++) { if (out[k] === '{') depth++; else if (out[k] === '}' && --depth === 0) break; }
+      cases[cat] = out.slice(j + 1, k);
+      j = k + 1;
+    }
+    // a case for one exact number (=0) before the language's own forms
+    const v = String(vars[name] ?? '');
+    const text = (cases['=' + v.replace(/,/g, '')] ?? cases[pluralOf(v)] ?? cases.other ?? '').replace(/#/g, v);
+    out = out.slice(0, open) + text + out.slice(j + 1);
+  }
+  return out;
 }
