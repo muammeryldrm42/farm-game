@@ -4,6 +4,7 @@ import * as THREE from 'three';
 import { mergeGeometries, mergeVertices } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
 import { DRACOLoader } from 'three/examples/jsm/loaders/DRACOLoader.js';
+import { Capacitor } from '@capacitor/core';
 import { getQuality, onQuality, type Quality } from './quality';
 import { fillRich, isDrawn, paintIcon } from './icons';
 import { U } from './gfx/shared';
@@ -5164,6 +5165,12 @@ function shrinkTextures(root: THREE.Object3D, far = false, home = false) {
 
 // a few letters of each model's content, for its address on the website (see next.config.mjs)
 const MODEL_V: Record<string, string> = JSON.parse(process.env.MODEL_V || '{}');
+// On the website in low quality (every player's start) a model comes as its phone copy where it
+// has one: its textures already at the size that quality keeps (models/s, made by
+// tools/phone_models.py), a fraction of the download and nothing big to decode and shrink. The
+// Android app reads the originals from the phone (no download to spare).
+const NATIVE = Capacitor.isNativePlatform();
+const modelFile = (name: string) => (!NATIVE && getQuality() !== 'high' && MODEL_V[`s/${name}`] ? `s/${name}` : name);
 // set by the renderer: compiles a loaded model's shaders without blocking
 let precompile: ((o: THREE.Object3D) => Promise<unknown>) | null = null;
 // models being fetched right now: the optional far detail models wait for a quiet moment
@@ -5173,7 +5180,8 @@ function loadModel(name: string) {
   if (!p) {
     modelsLoading++;
     const done = () => { modelsLoading--; };
-    p = gltfLoader.loadAsync(`models/${name}.glb${MODEL_V[name] ? `?v=${MODEL_V[name]}` : ''}`).finally(done).then((gl) => {
+    const file = modelFile(name);
+    p = gltfLoader.loadAsync(`models/${file}.glb${MODEL_V[file] ? `?v=${MODEL_V[file]}` : ''}`).finally(done).then((gl) => {
       gl.scene.traverse((o) => {
         const m = o as THREE.Mesh;
         if (!m.isMesh) return;
