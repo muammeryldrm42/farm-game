@@ -562,7 +562,27 @@ function FarmCanvas({ onDrawn, onFail }: { onDrawn: () => void; onFail: () => vo
       if (e.key === '-') r.zoomAt(r.W / 2, r.H / 2, r.cam.zoom / 1.15);
       if (e.key === 'q' || e.key === 'Q') r.rotate(-1);
       if (e.key === 'e' || e.key === 'E') r.rotate(1);
+      if (PAN[e.code] && !e.ctrlKey && !e.metaKey && !e.altKey && !store.ui.panel) {
+        e.preventDefault();
+        held.add(e.code);
+        keyPan();
+      }
     };
+    // the arrows or WASD (where they sit on the keyboard, whatever its letters) move the view
+    // while held, with no window open
+    const PAN: Record<string, [number, number]> = {
+      ArrowUp: [0, 1], KeyW: [0, 1], ArrowDown: [0, -1], KeyS: [0, -1],
+      ArrowLeft: [-1, 0], KeyA: [-1, 0], ArrowRight: [1, 0], KeyD: [1, 0],
+    };
+    const held = new Set<string>();
+    const keyPan = () => {
+      let x = 0, y = 0;
+      for (const k of held) { x += PAN[k][0]; y += PAN[k][1]; }
+      r.keyPan = { x: Math.sign(x), y: Math.sign(y) };
+    };
+    const onKeyUp = (e: KeyboardEvent) => { if (held.delete(e.code)) keyPan(); };
+    // (a key let go while the page was not looking never says so)
+    const letGo = () => { held.clear(); keyPan(); };
 
     const onZoom = (ev: Event) => {
       const dir = (ev as CustomEvent<number>).detail;
@@ -577,6 +597,8 @@ function FarmCanvas({ onDrawn, onFail }: { onDrawn: () => void; onFail: () => vo
     canvas.addEventListener('wheel', onWheel, { passive: false });
     canvas.addEventListener('contextmenu', (e) => e.preventDefault());
     window.addEventListener('keydown', onKey);
+    window.addEventListener('keyup', onKeyUp);
+    window.addEventListener('blur', letGo);
     window.addEventListener('farm-zoom', onZoom);
     const onRotate = (ev: Event) => r.rotate((ev as CustomEvent<number>).detail);
     window.addEventListener('farm-rotate', onRotate);
@@ -587,6 +609,7 @@ function FarmCanvas({ onDrawn, onFail }: { onDrawn: () => void; onFail: () => vo
       pts.clear();
       clearLP();
       mode = 'none';
+      letGo();
     };
     document.addEventListener('visibilitychange', onHide);
 
@@ -601,6 +624,8 @@ function FarmCanvas({ onDrawn, onFail }: { onDrawn: () => void; onFail: () => vo
       canvas.removeEventListener('pointercancel', onCancel);
       canvas.removeEventListener('wheel', onWheel);
       window.removeEventListener('keydown', onKey);
+      window.removeEventListener('keyup', onKeyUp);
+      window.removeEventListener('blur', letGo);
       window.removeEventListener('farm-zoom', onZoom);
       window.removeEventListener('farm-rotate', onRotate);
       document.removeEventListener('visibilitychange', onHide);

@@ -800,6 +800,8 @@ export class Renderer {
   // the time of its last step
   private panV = { x: 0, z: 0, t: 0 };
   private glide = { x: 0, z: 0 };
+  // the keys held to move the view (the arrows or WASD): x to the right, y up the screen
+  keyPan = { x: 0, y: 0 };
   private bg = new THREE.Color();
 
   constructor(public canvas: HTMLCanvasElement, public store: GameStore) {
@@ -1808,6 +1810,14 @@ export class Renderer {
 
     // smooth camera rotation
     if (Math.abs(this.azGoal - this.az) > 0.0005) this.az += (this.azGoal - this.az) * Math.min(1, dt * 8);
+    // a key held moves the view that way on the screen, whichever way the farm is turned (faster
+    // the further out it is); let go, it glides to a stop as after a flick
+    const kp = this.keyPan;
+    if (kp.x || kp.y) {
+      const sp = 16 / this.cam.zoom / Math.hypot(kp.x, kp.y), s = Math.sin(this.az), c = Math.cos(this.az);
+      this.glide.x = (kp.x * c - kp.y * s) * sp;
+      this.glide.z = (-kp.x * s - kp.y * c) * sp;
+    }
     if (this.glide.x || this.glide.z) {
       this.target.x += this.glide.x * dt;
       this.target.z += this.glide.z * dt;
