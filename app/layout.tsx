@@ -30,6 +30,12 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
   return (
     // no page translation by the browser until the game says (see applyDocument in i18n.ts)
     <html lang="en" translate="no" className={fredoka.variable}>
+      <head>
+        {/* The game needs a browser engine from Chrome 94 on (Android System WebView too): an older
+            one cannot even load its code, and would keep the start up screen for good. It is sent
+            to a page saying what to update (webview.html, see tools/old_engine_page.mjs). */}
+        <script dangerouslySetInnerHTML={{ __html: "try{new Function('class A{static{}}')}catch(e){location.replace('webview.html')}" }} />
+      </head>
       <body className="font-game">{children}</body>
     </html>
   );

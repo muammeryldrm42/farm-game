@@ -4,9 +4,9 @@
   "private": true,
   "scripts": {
     "dev": "next dev",
-    "build": "next build",
+    "build": "node tools/old_engine_page.mjs && next build",
     "start": "npx --yes serve out",
-    "android": "next build && cap sync android",
+    "android": "npm run build && cap sync android",
     "android:open": "cap open android",
     "youtube": "node tools/youtube.mjs"
   },
