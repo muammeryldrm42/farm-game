@@ -26,6 +26,17 @@ function zoom(detail: number) {
 export default function Hud() {
   const store = useStore();
   useVersion();
+  // What waits on the HUD for a while (the daily gift, a chapter done, a new festival, a season
+  // prize) bobs three times, and again every 20 seconds, rather than for as long as it waits: an
+  // endless bob keeps the browser working out the page's styles every frame, a tenth of a slow
+  // phone's time with nothing else going on (the tutorial's pointers, short lived, still bob on)
+  useEffect(() => {
+    const iv = setInterval(() => {
+      if (document.visibilityState !== 'visible') return;
+      for (const el of document.querySelectorAll('.animate-nudge')) for (const a of el.getAnimations()) if (a.playState === 'finished') a.play();
+    }, 20000);
+    return () => clearInterval(iv);
+  }, []);
   const s = store.s;
   const ui = store.ui;
   const now = clockNow();
@@ -202,7 +213,7 @@ function HudBtn({ icon, label, onClick, badge = 0, pulse = false, glow = false, 
   return (
     <button
       data-fly={fly}
-      className={`btn btn-ghost relative h-12 min-w-12 flex-col sm:h-14 sm:min-w-14 rounded-2xl border-[3px] border-[#5d3a1f] px-1 py-0 ${pulse || glow ? 'animate-bob' : ''} ${glow ? 'ring-4 ring-white' : ''}`}
+      className={`btn btn-ghost relative h-12 min-w-12 flex-col sm:h-14 sm:min-w-14 rounded-2xl border-[3px] border-[#5d3a1f] px-1 py-0 ${glow ? 'animate-bob' : pulse ? 'animate-nudge' : ''} ${glow ? 'ring-4 ring-white' : ''}`}
       onClick={onClick}
       aria-label={label}
     >
@@ -256,7 +267,7 @@ function StoryCard() {
   const left = on ? ch.tasks.filter((tk) => taskProgress(tk, s) < tk.target).length : 0;
   return (
     <button
-      className={`pointer-events-auto absolute left-2 top-[4.6rem] grid h-12 w-12 place-items-center rounded-full border-[3px] bg-[#fff6df] shadow-[0_3px_0_#5d3a1f] sm:left-3 sm:top-20 sm:h-14 sm:w-14 ${ready ? 'animate-bob ring-4 ring-[#5cb82e]' : ''}`}
+      className={`pointer-events-auto absolute left-2 top-[4.6rem] grid h-12 w-12 place-items-center rounded-full border-[3px] bg-[#fff6df] shadow-[0_3px_0_#5d3a1f] sm:left-3 sm:top-20 sm:h-14 sm:w-14 ${ready ? 'animate-nudge ring-4 ring-[#5cb82e]' : ''}`}
       style={{ borderColor: who.color }}
       onClick={() => store.openPanel('quests')}
       aria-label={t('Chapter {n}: {title}', { n: ch.n, title: t(ch.title) }) + (left ? ', ' + t('{n} tasks left', { n: left }) : '')}
@@ -301,7 +312,7 @@ function FestChip() {
   const time = fmtTime((on ? f.end : f.nextAt) - now);
   return (
     <button
-      className={`pointer-events-auto absolute left-2 top-[10.2rem] flex items-center gap-1 rounded-full border-[3px] bg-[#fff6df] py-0.5 pl-1.5 pr-2.5 text-xs font-bold shadow-[0_3px_0_#5d3a1f] sm:left-3 sm:top-[11.6rem] sm:text-sm ${on && !s.fest?.seen ? 'animate-bob' : ''}`}
+      className={`pointer-events-auto absolute left-2 top-[10.2rem] flex items-center gap-1 rounded-full border-[3px] bg-[#fff6df] py-0.5 pl-1.5 pr-2.5 text-xs font-bold shadow-[0_3px_0_#5d3a1f] sm:left-3 sm:top-[11.6rem] sm:text-sm ${on && !s.fest?.seen ? 'animate-nudge' : ''}`}
       style={{ borderColor: on ? d.color : '#c9a878', color: on ? d.color : '#8a6a44' }}
       onClick={() => store.openFestival()}
       aria-label={on ? `${t(d.name)}, ${t('{time} left', { time })}` : `${t('Next festival')}: ${t(d.name)}, ${t('Starts in {time}', { time })}`}
@@ -333,7 +344,7 @@ function SeasonChip() {
   const ready = on ? seasonReady(s) : 0;
   return (
     <button
-      className={`pointer-events-auto relative flex items-center gap-1 rounded-full border-[3px] bg-[#fff6df] py-0.5 pl-1.5 pr-2.5 text-xs font-bold shadow-[0_3px_0_#5d3a1f] sm:text-sm ${ready ? 'animate-bob' : ''}`}
+      className={`pointer-events-auto relative flex items-center gap-1 rounded-full border-[3px] bg-[#fff6df] py-0.5 pl-1.5 pr-2.5 text-xs font-bold shadow-[0_3px_0_#5d3a1f] sm:text-sm ${ready ? 'animate-nudge' : ''}`}
       style={{ borderColor: on ? color : '#c9a878', color }}
       onClick={() => store.openPanel('season')}
       aria-label={t(SEASONS[ev?.id ?? seasonNext(now).id].name)}
