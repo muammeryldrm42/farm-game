@@ -118,8 +118,19 @@ export function t(s: string, vars?: Record<string, string | number>) {
   let out = dict[s] ?? s;
   if (!vars) return out;
   if (out.includes(', plural,')) out = plurals(out, vars);
+  if (current === 'fr') return out.replace(ELIDE, (m, w: string | undefined, k1: string | undefined, k2: string) => {
+    const k = k1 ?? k2;
+    if (!(k in vars)) return m;
+    const v = String(vars[k]);
+    return w && VOWEL.test(v) ? `${w.slice(0, w.length - 1)}'${v}` : (w ? `${w} ` : '') + v;
+  });
   return out.replace(/\{(\w+)\}/g, (m, k: string) => (k in vars ? String(vars[k]) : m));
 }
+
+// French drops the vowel of de, le, que... before a word starting with one: graines d'Avocat,
+// not de Avocat (the h is left alone: it is silent in some words and not in others)
+const ELIDE = /(?<!\p{L})(de|De|le|Le|la|La|que|Que|ne|jusque|lorsque|puisque) \{(\w+)\}|\{(\w+)\}/gu;
+const VOWEL = /^[aeiouyàâäæéèêëîïôöœùûüÿ]/i;
 
 // A translation may give a word in the forms its language uses for different numbers, as
 // {n, plural, one {...} few {...} many {...} other {...}} (# stands for the number): Russian says

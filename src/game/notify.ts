@@ -8,7 +8,7 @@ import { Capacitor } from '@capacitor/core';
 import { LocalNotifications } from '@capacitor/local-notifications';
 import { ANIMAL, BUILDING } from './data';
 import { GRAZE, PET_IDS, PET_SEARCH_MS, dailyReward, petFed, plotProgress, todayKey, treeInfo, type GameState } from './state';
-import { t } from './i18n';
+import { getLang, t } from './i18n';
 import { now as clockNow, toDevice } from './clock';
 import { FESTS, festNow, festOn, type FestKind } from './fest';
 import { kvGet, kvSet } from './kv';
@@ -142,11 +142,12 @@ export function notifyText(g: Planned, s: GameState): { title: string; body: str
 let queue: Promise<unknown> = Promise.resolve();
 const run = (f: () => Promise<unknown>) => (queue = queue.then(f).catch(() => undefined));
 
-let channel = false;
+// (made again after the player picks another language: the phone's settings show its name in it)
+let channel = '';
 async function ensureChannel() {
-  if (channel) return;
+  if (channel === getLang()) return;
   await LocalNotifications.createChannel({ id: 'farm', name: t('Farm news'), description: t('When things on your farm are ready'), importance: 3, visibility: 1 });
-  channel = true;
+  channel = getLang();
 }
 
 // back in the game: the notifications still to come, and those shown, are taken away

@@ -1014,7 +1014,7 @@ function ShopCard({ d }: { d: BuildingDef }) {
       <span className={`emoji text-4xl ${locked ? 'grayscale' : ''}`}><Ico i={d.icon} id={d.id} /></span>
       {/* (a name longer than the card, one German word, breaks inside it rather than sticking out) */}
       <span className="font-bold leading-tight [overflow-wrap:anywhere]">{t(d.name)}</span>
-      <span className="line-clamp-2 min-h-[2rem] text-[11px] leading-4 text-[#8a6a44]">{t(d.desc)}</span>
+      <span className="line-clamp-3 min-h-[2rem] text-[11px] leading-4 text-[#8a6a44]">{t(d.desc)}</span>
       {prizeOf && !won ? (
         <span className="rounded-full px-2 py-0.5 text-[11px] font-bold text-white" style={{ background: SEASONS[prizeOf].color }}>
           <span className="emoji">{SEASONS[prizeOf].icon}</span> {t('Prize of {event}', { event: t(SEASONS[prizeOf].name) })}
