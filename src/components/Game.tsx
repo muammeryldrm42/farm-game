@@ -285,7 +285,7 @@ function FarmCanvas({ onDrawn, onFail }: { onDrawn: () => void; onFail: () => vo
       return;
     }
     r.onFirstDraw = onDrawn;
-    // the game's own emoji on Android: what was painted before they came is painted again
+    // the game's own emoji (see emojiFont.ts): what was painted before they came is painted again
     loadEmojiFont().then((ok) => { if (ok) redrawCanvasTextures(); });
     (window as unknown as { __farm?: unknown }).__farm = { store, renderer: r };
     store.viewCenter = () => r.gridAt(r.W / 2, r.H / 2);

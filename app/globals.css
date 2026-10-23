@@ -74,8 +74,9 @@ canvas {
     font-family: 'Apple Color Emoji', 'Segoe UI Emoji', 'Noto Color Emoji', sans-serif;
     line-height: 1;
   }
-  /* Android: the game's own emoji ahead of the phone's (src/game/emojiFont.ts), in icons and in
-     text alike; the font holds emoji only, so the letters keep the game's font */
+  /* the game's own emoji ahead of the device's (on Android, and where the device lacks the newest
+     ones: src/game/emojiFont.ts), in icons and in text alike; the font holds emoji only, so the
+     letters keep the game's font */
   .farm-emoji .emoji {
     font-family: 'Farm Emoji', 'Apple Color Emoji', 'Segoe UI Emoji', 'Noto Color Emoji', sans-serif;
   }

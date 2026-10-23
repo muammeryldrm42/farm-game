@@ -1,8 +1,9 @@
-# The game's own emoji font for Android: Noto Color Emoji (SIL Open Font License 1.1) cut down to
-# the emoji the game shows, into public/fonts/farm-emoji.woff2. An Android phone draws emoji with
-# its system font, and one older than an emoji shows an empty box instead (the beans, the goose
-# and the donkey need Android 14, the blueberries Android 11). The game loads this font on Android
-# only (src/game/emojiFont.ts), so every phone shows the same pictures.
+# The game's own emoji font: Noto Color Emoji (SIL Open Font License 1.1) cut down to the emoji the
+# game shows, into public/fonts/farm-emoji.woff2. A device draws emoji with its system font, and
+# one older than an emoji shows an empty box instead (the beans, the goose and the donkey need
+# Android 14, the blueberries Android 11; Windows 10 lacks them all). The game loads this font on
+# Android, and elsewhere where the system cannot draw the newest emoji it shows (see
+# src/game/emojiFont.ts, whose PROBE is that emoji: change it if a newer one is added).
 #
 # Run: pip install fonttools brotli
 #      python3 tools/emoji_font.py [path/to/NotoColorEmoji.ttf]

@@ -222,7 +222,7 @@ const texCache = new Map<string, THREE.Texture>();
 // GPU and as much again in memory. One still on show when freed is simply sent to the GPU again.
 const recentCache = new Map<string, THREE.Texture>();
 const RECENT_MAX = 160;
-// the emoji fonts: the game's own on Android first (see emojiFont.ts; skipped where not loaded)
+// the emoji fonts: the game's own first (see emojiFont.ts; skipped where not loaded)
 const EF = '"Farm Emoji","Apple Color Emoji","Segoe UI Emoji","Noto Color Emoji",sans-serif';
 function canvasTex(key: string, w: number, h: number, draw: (c: CanvasRenderingContext2D) => void, recent = false) {
   const cache = recent ? recentCache : texCache;
