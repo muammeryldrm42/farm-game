@@ -2005,6 +2005,7 @@ function QualityPicker() {
 // The game's language, 21 of them; the choice is kept on this device. One menu button that
 // opens the list, so the settings stay short.
 function LanguagePicker() {
+  const store = useStore();
   const [l, setL] = useState<Lang>(getLang);
   const [open, setOpen] = useState(false);
   const list = useRef<HTMLDivElement>(null);
@@ -2027,7 +2028,13 @@ function LanguagePicker() {
             <button
               key={id}
               className={`flex w-full items-center justify-between border-b border-[#efe0bd] px-3 py-2 text-left text-sm font-bold last:border-b-0 ${l === id ? 'bg-[#dff3c8] text-[#2f6b14]' : 'text-[#5a3a1a] active:bg-[#f3e6c8]'}`}
-              onClick={() => { setL(id); setLang(id); setOpen(false); }}
+              onClick={() => {
+                setL(id);
+                setOpen(false);
+                // the website loads a language when it is picked: with no internet (or the game
+                // left open over a new release) that can fail, and the old language stays
+                setLang(id).catch(() => { setL(getLang()); store.toast(t('Something went wrong'), 'bad'); });
+              }}
             >
               <span>{names[id]}</span>
               {l === id && <span>✓</span>}
