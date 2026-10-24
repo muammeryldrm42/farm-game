@@ -135,8 +135,8 @@ const VOWEL = /^[aeiouyàâäæéèêëîïôöœùûüÿ]/i;
 // A translation may give a word in the forms its language uses for different numbers, as
 // {n, plural, one {...} few {...} many {...} other {...}} (# stands for the number): Russian says
 // 1 монета, 2 монеты, 5 монет, 21 монета, where one form for all would be wrong for most numbers.
-// The language's own rules pick the form (the browser knows them); a number shortened to 12.3K or
-// 4M takes the form for many.
+// The language's own rules pick the form (the browser knows them); a number shortened to 12.3K,
+// 4M or 2B takes the form for many.
 let pluralRules: { lang: Lang; rules: Intl.PluralRules | null } | null = null;
 function pluralOf(raw: string): string {
   if (!pluralRules || pluralRules.lang !== current) {
@@ -144,7 +144,7 @@ function pluralOf(raw: string): string {
     try { rules = new Intl.PluralRules(current === 'zht' ? 'zh-Hant' : current); } catch { /* no rules: the other form */ }
     pluralRules = { lang: current, rules };
   }
-  if (/[KM]$/.test(raw)) return 'many';
+  if (/[KMBT]$/.test(raw)) return 'many';
   const n = Number(raw.replace(/,/g, ''));
   return Number.isFinite(n) && pluralRules.rules ? pluralRules.rules.select(n) : 'other';
 }

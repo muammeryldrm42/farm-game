@@ -1014,7 +1014,9 @@ function ShopCard({ d }: { d: BuildingDef }) {
       <span className={`emoji text-4xl ${locked ? 'grayscale' : ''}`}><Ico i={d.icon} id={d.id} /></span>
       {/* (a name longer than the card, one German word, breaks inside it rather than sticking out) */}
       <span className="font-bold leading-tight [overflow-wrap:anywhere]">{t(d.name)}</span>
-      <span className="line-clamp-3 min-h-[2rem] text-[11px] leading-4 text-[#8a6a44]">{t(d.desc)}</span>
+      {/* (two cards to a row on a phone held upright: room for five lines there, so a long word's
+          language still fits) */}
+      <span className="line-clamp-3 min-h-[2rem] text-[11px] leading-4 text-[#8a6a44] max-sm:line-clamp-5">{t(d.desc)}</span>
       {prizeOf && !won ? (
         <span className="rounded-full px-2 py-0.5 text-[11px] font-bold text-white" style={{ background: SEASONS[prizeOf].color }}>
           <span className="emoji">{SEASONS[prizeOf].icon}</span> {t('Prize of {event}', { event: t(SEASONS[prizeOf].name) })}
@@ -1601,7 +1603,7 @@ function CupPage() {
             <div key={r.id} className={`card flex items-center gap-2 px-3 py-2 ${r.you ? 'ring-2 ring-[#5cb82e]' : ''}`}>
               <span className="emoji w-7 text-center font-bold">{MEDAL[i] ?? i + 1}</span>
               <span className="emoji text-xl">{rv ? CAST[rv.who].icon : '🏡'}</span>
-              <span className="min-w-0 flex-1 truncate font-bold">{rv ? t(rv.name) : t('Your farm')}</span>
+              <span className="line-clamp-2 min-w-0 flex-1 font-bold leading-tight [overflow-wrap:anywhere]">{rv ? t(rv.name) : t('Your farm')}</span>
               <span className="font-bold text-[#2f8fd0]">{fmtNum(r.points)}</span>
             </div>
           );

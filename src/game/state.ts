@@ -210,9 +210,17 @@ export function fmtTime(ms: number) {
   return tr('{h}h {m}m', { h, m: m % 60 });
 }
 
+// a count of coins (or anything) short enough for the top bar: 12,345 is 12.3K, then M, B
+// (billions) and T; one that rounds up to a thousand of its unit is the next unit (1M, not 1000K)
+const NUM_UNITS: [number, string][] = [[1e12, 'T'], [1e9, 'B'], [1e6, 'M'], [1e3, 'K']];
 export function fmtNum(n: number) {
-  if (n >= 1e6) return (n / 1e6).toFixed(1).replace(/\.0$/, '') + 'M';
-  if (n >= 1e4) return (n / 1e3).toFixed(1).replace(/\.0$/, '') + 'K';
+  if (n < 1e4) return n.toLocaleString('en-US');
+  for (let i = 0; i < NUM_UNITS.length; i++) {
+    const [v, unit] = NUM_UNITS[i];
+    if (n < v) continue;
+    const x = (n / v).toFixed(1).replace(/\.0$/, '');
+    return x === '1000' && i > 0 ? '1' + NUM_UNITS[i - 1][1] : x + unit;
+  }
   return n.toLocaleString('en-US');
 }
 

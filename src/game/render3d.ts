@@ -5840,14 +5840,15 @@ function walkLeg(pts: P2[], t: number, budget: number, late = false) {
 }
 
 // which way it faces while standing at the start of stand-and-walk `i`: the way its last walk
-// went, slowly turning a little as it crops along
-function standHeading(tr: Trip, i: number, aid: number, time: number) {
+// went, slowly turning a little as it crops along (`since`: ms into the stand; the turning starts
+// from nothing, so it does not swing round the moment it stops)
+function standHeading(tr: Trip, i: number, aid: number, time: number, since: number) {
   let dx = 0, dy = 1;
   for (let j = i - 1; j >= -1; j--) {
     if (j < 0) { const e = along(tr.out, 1); dx = e.dx; dy = e.dy; break; }
     if (tr.plan[j].walk) { const e = along(legOf(tr, j), 1); dx = e.dx; dy = e.dy; break; }
   }
-  return Math.atan2(dx, dy) + Math.sin(time / 3400 + aid * 1.7) * 0.3;
+  return Math.atan2(dx, dy) + Math.sin(time / 3400 + aid * 1.7) * 0.3 * Math.min(1, since / 2500);
 }
 
 // where a grazing animal is at time `now`: world x, y, heading, walking, or standing with its head
@@ -5866,12 +5867,12 @@ function grazePose(o: FarmObject, d: BuildingDef, a: Animal, now: number): { x: 
     const g = tr.plan[i], u = te - g.at;
     if (u < g.stand || !g.walk) {
       const p = tr.spots[g.from];
-      return { x: p.x, y: p.y, heading: standHeading(tr, i, a.id, now), moving: false, dist: 0, look: u < g.look };
+      return { x: p.x, y: p.y, heading: standHeading(tr, i, a.id, now, u), moving: false, dist: 0, look: u < g.look };
     }
     // ambling on, turning from the way it stood toward the way it goes as it sets off
     const w = walkLeg(legOf(tr, i), u - g.stand, g.walk);
     const go = Math.atan2(w.pt.dx, w.pt.dy);
-    const from = standHeading(tr, i, a.id, a.graze!.at + walkMs + g.at + g.stand);
+    const from = standHeading(tr, i, a.id, a.graze!.at + walkMs + g.at + g.stand, g.stand);
     return { x: w.pt.x, y: w.pt.y, heading: turnTo(from, go, (u - g.stand) / 700), moving: w.moving, dist: w.dist, look: false };
   } else if (gp.phase === 'returning' && a.graze?.back !== undefined) {
     // called home early: from wherever it was, the shortest way back through the gate
