@@ -5706,7 +5706,16 @@ let GRAZE_NAV: {
   ponds: () => { x: number; y: number; r: number; surf: number }[];
 } | null = null;
 
-interface Trip { out: P2[]; eat: P2[][]; back: P2[]; recall?: { at: number; path: P2[] } }
+// Out in the field an animal keeps moving like a real herd: it crops the grass a while (now and
+// then lifting its head to look about), then ambles a few steps to a fresh patch, round its own
+// corner of the meadow near the pen. `plan`: one stand-and-walk after another, in ms from the
+// start of its feeding time; `spots`: where each stand is; the walks between them are worked out
+// as they come (`legs`).
+interface Seg { at: number; stand: number; look: number; walk: number; from: number; to: number }
+interface Trip {
+  out: P2[]; spots: P2[]; plan: Seg[]; legs: (P2[] | undefined)[];
+  gateIn: P2; gateOut: P2; home2: P2; back?: P2[]; recall?: { at: number; path: P2[] };
+}
 // each grazing animal's trip, worked out once a trip (and again if its pen is moved)
 const trips = new WeakMap<Animal, { o: number; x: number; y: number; rot: number; at: number; tr: Trip }>();
 
@@ -5753,36 +5762,71 @@ function tripFor(o: FarmObject, d: BuildingDef, a: Animal): Trip | null {
   const c = trips.get(a);
   let tr = c && c.o === o.id && c.x === o.x && c.y === o.y && c.rot === (o.rot ?? 0) && c.at === a.graze.at ? c.tr : null;
   if (!tr) {
-    const sp = animalSpot(o, d, a.id, a.graze.at);
+    const at = a.graze.at;
+    const sp = animalSpot(o, d, a.id, at);
     const home = { x: o.x + sp.x, y: o.y + sp.z };
     // it walks back in to where its usual wander has got to by the time it arrives, so it carries
     // on from there without a jump
-    const sp2 = animalSpot(o, d, a.id, a.graze.at + 2 * GRAZE.walkMs + GRAZE.eatMs);
+    const sp2 = animalSpot(o, d, a.id, at + 2 * GRAZE.walkMs + GRAZE.eatMs);
     const home2 = { x: o.x + sp2.x, y: o.y + sp2.z };
     // the gate is on the front of the pen as built; a turned pen has it on another side
     const gateIn = turnPt(o, d, { x: o.x + d.w / 2, y: o.y + d.h - 0.3 });
     const gateOut = turnPt(o, d, { x: o.x + d.w / 2, y: o.y + d.h + 0.45 });
     const g0 = GRAZE_NAV.nearest(Math.floor(gateOut.x), Math.floor(gateOut.y)) ?? tileOf(gateOut);
-    // three grassy spots a few tiles from the gate, picked by the animal and the trip
-    const spots: P2[] = [];
-    for (let k = 0; k < 3; k++) {
-      let best: P2 | null = null;
-      for (let tries = 0; tries < 14 && !best; tries++) {
-        const ang = hash(a.id, a.graze.at % 100000, k * 17 + tries) * Math.PI * 2;
-        const r = 1.5 + hash(a.id, k, tries + 5) * 2.5;
-        const tx = Math.floor(g0.x + Math.cos(ang) * r), ty = Math.floor(g0.y + Math.abs(Math.sin(ang)) * r * 0.9 + 0.5);
-        if (GRAZE_NAV.grass(tx, ty)) best = { x: tx + 0.3 + hash(a.id, tx, ty) * 0.4, y: ty + 0.3 + hash(a.id, ty, tx) * 0.4 };
-      }
-      spots.push(best ?? { x: g0.x + 0.5, y: g0.y + 0.5 });
+    // a patch on the grass a few tiles out of the gate, its own for this trip: where it starts
+    // and what it roams round
+    let first: P2 | null = null;
+    for (let tries = 0; tries < 14 && !first; tries++) {
+      const ang = hash(a.id, at % 100000, tries) * Math.PI * 2;
+      const r = 1.5 + hash(a.id, 0, tries + 5) * 2.5;
+      const tx = Math.floor(g0.x + Math.cos(ang) * r), ty = Math.floor(g0.y + Math.abs(Math.sin(ang)) * r * 0.9 + 0.5);
+      if (GRAZE_NAV.grass(tx, ty)) first = { x: tx + 0.3 + hash(a.id, tx, ty) * 0.4, y: ty + 0.3 + hash(a.id, ty, tx) * 0.4 };
     }
-    const out = [home, gateIn, gateOut, ...walk(gateOut, spots[0]).slice(1)];
-    const eat = [walk(spots[0], spots[1]), walk(spots[1], spots[2])];
-    const back = [...walk(spots[2], gateOut), gateIn, home2];
-    tr = { out, eat, back };
-    trips.set(a, { o: o.id, x: o.x, y: o.y, rot: o.rot ?? 0, at: a.graze.at, tr });
+    const anchor = first ?? { x: g0.x + 0.5, y: g0.y + 0.5 };
+    // stands of 6 to 16 s (a third of them begun head up, looking about), each followed by a
+    // stroll of 1 to 3 tiles to more grass, keeping within 3.5 tiles of its patch; the last stand
+    // lasts to the end of the feeding time, so it sets off home from where it stands
+    const spots: P2[] = [anchor], plan: Seg[] = [];
+    const seed = at % 100000;
+    for (let t = 0, i = 0, cur = 0; ; i++) {
+      const stand = 6000 + hash(a.id, seed, 100 + i) * 10000;
+      const look = hash(a.id, seed + 1, 200 + i) < 0.35 ? 1800 + hash(a.id, seed + 2, 300 + i) * 2200 : 0;
+      const p = spots[cur];
+      let next: P2 | null = null;
+      for (let tries = 0; tries < 10 && !next; tries++) {
+        const ang = hash(a.id, seed + 3, 400 + i * 13 + tries) * Math.PI * 2;
+        const step = 1 + hash(a.id, seed + 4, 500 + i * 13 + tries) * 2;
+        let x = p.x + Math.cos(ang) * step, y = p.y + Math.sin(ang) * step;
+        // pulled back toward its patch once it strays too far
+        const off = Math.hypot(x - anchor.x, y - anchor.y);
+        if (off > 3.5) { x = anchor.x + (x - anchor.x) * 3.5 / off; y = anchor.y + (y - anchor.y) * 3.5 / off; }
+        const tx = Math.floor(x), ty = Math.floor(y);
+        if (GRAZE_NAV.grass(tx, ty) && Math.hypot(x - p.x, y - p.y) > 0.6) next = { x: tx + 0.2 + (x - tx) * 0.6, y: ty + 0.2 + (y - ty) * 0.6 };
+      }
+      const walk = next ? Math.max(1800, Math.hypot(next.x - p.x, next.y - p.y) * 1.35 / WALK_SPEED) : 0;
+      if (t + stand + walk + 7000 >= GRAZE.eatMs) {
+        plan.push({ at: t, stand: GRAZE.eatMs - t, look, walk: 0, from: cur, to: cur });
+        break;
+      }
+      const to = next ? spots.push(next) - 1 : cur;
+      plan.push({ at: t, stand, look, walk, from: cur, to });
+      t += stand + walk;
+      cur = to;
+    }
+    const out = [home, gateIn, gateOut, ...walk(gateOut, anchor).slice(1)];
+    tr = { out, spots, plan, legs: [], gateIn, gateOut, home2 };
+    trips.set(a, { o: o.id, x: o.x, y: o.y, rot: o.rot ?? 0, at, tr });
   }
   return tr;
 }
+// the walk of a stand-and-walk, worked out once, the first time it is needed
+function legOf(tr: Trip, i: number) {
+  const g = tr.plan[i];
+  return (tr.legs[i] ??= g.walk ? walk(tr.spots[g.from], tr.spots[g.to]) : [tr.spots[g.from]]);
+}
+// where the feeding time ends, and the walk home from there
+const lastSpot = (tr: Trip) => tr.spots[tr.plan[tr.plan.length - 1].to];
+const backOf = (tr: Trip) => (tr.back ??= [...walk(lastSpot(tr), tr.gateOut), tr.gateIn, tr.home2]);
 
 // Animals walk at a steady pace; a leg of the trip that fits its time budget early leaves the
 // animal standing (grazing) for the rest, and only a leg too long for its budget is walked faster.
@@ -5795,32 +5839,51 @@ function walkLeg(pts: P2[], t: number, budget: number, late = false) {
   return { pt: along(pts, u), moving: u > 0 && u < 1, dist: Math.max(0, Math.min(1, u)) * polyLen(pts) };
 }
 
-// where a grazing animal is at time `now`: world x, y, heading, walking or eating
-function grazePose(o: FarmObject, d: BuildingDef, a: Animal, now: number): { x: number; y: number; heading: number; moving: boolean; dist: number } | null {
+// which way it faces while standing at the start of stand-and-walk `i`: the way its last walk
+// went, slowly turning a little as it crops along
+function standHeading(tr: Trip, i: number, aid: number, time: number) {
+  let dx = 0, dy = 1;
+  for (let j = i - 1; j >= -1; j--) {
+    if (j < 0) { const e = along(tr.out, 1); dx = e.dx; dy = e.dy; break; }
+    if (tr.plan[j].walk) { const e = along(legOf(tr, j), 1); dx = e.dx; dy = e.dy; break; }
+  }
+  return Math.atan2(dx, dy) + Math.sin(time / 3400 + aid * 1.7) * 0.3;
+}
+
+// where a grazing animal is at time `now`: world x, y, heading, walking, or standing with its head
+// down cropping the grass (or up, looking about)
+function grazePose(o: FarmObject, d: BuildingDef, a: Animal, now: number): { x: number; y: number; heading: number; moving: boolean; dist: number; look: boolean } | null {
   const tr = tripFor(o, d, a);
   if (!tr) return null;
   const gp = grazePhase(a, now);
-  const { walkMs, eatMs } = GRAZE;
+  const { walkMs } = GRAZE;
   let leg: { pt: { x: number; y: number; dx: number; dy: number }; moving: boolean; dist?: number };
   if (gp.phase === 'leaving') leg = walkLeg(tr.out, gp.k * walkMs, walkMs);
   else if (gp.phase === 'eating') {
-    // eat, stroll to the next patch, eat, stroll, eat
-    const te = gp.k * eatMs;
-    if (te < 0.3 * eatMs) leg = { pt: along(tr.eat[0], 0), moving: false };
-    else if (te < 0.65 * eatMs) leg = walkLeg(tr.eat[0], te - 0.3 * eatMs, 0.35 * eatMs);
-    else leg = walkLeg(tr.eat[1], te - 0.65 * eatMs, 0.35 * eatMs);
+    const te = now - (a.graze!.at + walkMs);
+    let i = tr.plan.length - 1;
+    while (i > 0 && tr.plan[i].at > te) i--;
+    const g = tr.plan[i], u = te - g.at;
+    if (u < g.stand || !g.walk) {
+      const p = tr.spots[g.from];
+      return { x: p.x, y: p.y, heading: standHeading(tr, i, a.id, now), moving: false, dist: 0, look: u < g.look };
+    }
+    // ambling on, turning from the way it stood toward the way it goes as it sets off
+    const w = walkLeg(legOf(tr, i), u - g.stand, g.walk);
+    const go = Math.atan2(w.pt.dx, w.pt.dy);
+    const from = standHeading(tr, i, a.id, a.graze!.at + walkMs + g.at + g.stand);
+    return { x: w.pt.x, y: w.pt.y, heading: turnTo(from, go, (u - g.stand) / 700), moving: w.moving, dist: w.dist, look: false };
   } else if (gp.phase === 'returning' && a.graze?.back !== undefined) {
     // called home early: from wherever it was, the shortest way back through the gate
     if (!tr.recall || tr.recall.at !== a.graze.back) {
       const from = grazePose(o, d, { ...a, graze: { at: a.graze.at } }, a.graze.back) ?? { x: o.x, y: o.y };
       const sp = animalSpot(o, d, a.id, a.graze.back + walkMs);
-      const gateOut = turnPt(o, d, { x: o.x + d.w / 2, y: o.y + d.h + 0.45 });
-      tr.recall = { at: a.graze.back, path: [...walk({ x: from.x, y: from.y }, gateOut), turnPt(o, d, { x: o.x + d.w / 2, y: o.y + d.h - 0.3 }), { x: o.x + sp.x, y: o.y + sp.z }] };
+      tr.recall = { at: a.graze.back, path: [...walk({ x: from.x, y: from.y }, tr.gateOut), tr.gateIn, { x: o.x + sp.x, y: o.y + sp.z }] };
     }
     leg = walkLeg(tr.recall.path, gp.k * walkMs, walkMs, true);
-  } else if (gp.phase === 'returning') leg = walkLeg(tr.back, gp.k * walkMs, walkMs, true);
+  } else if (gp.phase === 'returning') leg = walkLeg(backOf(tr), gp.k * walkMs, walkMs, true);
   else return null;
-  return { x: leg.pt.x, y: leg.pt.y, heading: Math.atan2(leg.pt.dx, leg.pt.dy), moving: leg.moving, dist: leg.dist ?? 0 };
+  return { x: leg.pt.x, y: leg.pt.y, heading: Math.atan2(leg.pt.dx, leg.pt.dy), moving: leg.moving, dist: leg.dist ?? 0, look: false };
 }
 
 // A flying bird's trip: it takes off at the pen, flies straight out to its feeding ground and
@@ -5858,7 +5921,7 @@ function flyPose(o: FarmObject, d: BuildingDef, a: Animal, kind: string, now: nu
   // ducks and geese go for a swim: on a garden pond nearby, or out on the lake
   const pool = WATER_FOWL.has(kind) ? waterSpot(o, d, a.id) : null;
   const tr = sea || perch || pool ? null : tripFor(o, d, a);
-  const ground = sea ? seaSpot(o, d, a.id) : perch ? { x: perch.x, y: perch.y } : pool ? { x: pool.x, y: pool.y } : tr ? along(tr.eat[0], 0) : home;
+  const ground = sea ? seaSpot(o, d, a.id) : perch ? { x: perch.x, y: perch.y } : pool ? { x: pool.x, y: pool.y } : tr ? tr.spots[0] : home;
   const up0 = perch ? perch.h - 0.04 : pool ? pool.surf - 0.04 : 0;
   const water = sea ? -0.55 : pool ? pool.surf : undefined;
   // one hop through the air: up, across and down again (or onto a branch), over at most `budget` ms
@@ -5912,7 +5975,7 @@ function flyPose(o: FarmObject, d: BuildingDef, a: Animal, kind: string, now: nu
       return feedPose(now);
     }
     const gz = grazePose(o, d, a, now);
-    return gz ? { x: gz.x, y: gz.y, h: 0, fly: false, heading: gz.heading, sea, feeding: !gz.moving, moving: gz.moving } : null;
+    return gz ? { x: gz.x, y: gz.y, h: 0, fly: false, heading: gz.heading, sea, feeding: !gz.moving && !gz.look, moving: gz.moving } : null;
   }
   // flying home: from the feeding ground, or from wherever it was when called back
   // a water bird goes on fishing or paddling about until the moment it takes off
@@ -5923,7 +5986,7 @@ function flyPose(o: FarmObject, d: BuildingDef, a: Animal, kind: string, now: nu
     fromAt += walkMs - dur;
     if (now < fromAt) return feedPose(now);
   }
-  let from = onWaterFeed ? feedAt(fromAt) : perch ? ground : tr ? along(tr.eat[1], 1) : ground;
+  let from = onWaterFeed ? feedAt(fromAt) : perch ? ground : tr ? lastSpot(tr) : ground;
   let fromH = up0;
   if (g.back !== undefined) {
     const at = flyPose(o, d, { ...a, graze: { at: g.at } }, kind, g.back);
@@ -6388,7 +6451,11 @@ function buildPen(e: Entry, d: BuildingDef) {
         m.rotation.y = gz.heading;
         m.rotation.z = 0;
         animateLegs(m, gz.moving ? Math.sin(step) * 0.34 : 0);
-        if (head) head.rotation.x = gz.moving ? 0 : 0.55 + Math.max(0, Math.sin(t / 260 + id)) * 0.25;
+        // head down nibbling, or up and turning to look about now and then
+        if (head) {
+          head.rotation.x = gz.moving || gz.look ? 0 : 0.55 + Math.max(0, Math.sin(t / 260 + id)) * 0.25;
+          head.rotation.y = gz.look ? Math.sin(t / 900 + id) * 0.45 : 0;
+        }
         if (tail) tail.rotation.z = Math.sin(t / 300 + id) * 0.4;
         blink(m, t, id);
         const cs = m.userData.shadow as THREE.Object3D | undefined;
