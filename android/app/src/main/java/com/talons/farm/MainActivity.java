@@ -42,6 +42,8 @@ public class MainActivity extends BridgeActivity {
     // the times Android closed the page lately, and the last one: told to the page for three days
     private static final String PREFS = "farm";
     private static final long GONE_MS = 3L * 24 * 60 * 60 * 1000;
+    // whether the game is on screen (between onStart and onStop)
+    private boolean onScreen;
 
     @Override
     public void onCreate(Bundle savedInstanceState) {
@@ -57,9 +59,13 @@ public class MainActivity extends BridgeActivity {
                 @Override
                 public boolean onRenderProcessGone(WebView view, RenderProcessGoneDetail detail) {
                     // counted, so the page comes back lighter instead of being closed again and
-                    // again as it loads (a big farm on a phone with little memory)
-                    SharedPreferences sp = getSharedPreferences(PREFS, MODE_PRIVATE);
-                    sp.edit().putInt("gone", recentGone(sp) + 1).putLong("goneAt", System.currentTimeMillis()).commit();
+                    // again as it loads (a big farm on a phone with little memory); only while the
+                    // game is on screen: Android also closes the page of an app left in the
+                    // background to make room for other apps, which says nothing about the farm
+                    if (onScreen) {
+                        SharedPreferences sp = getSharedPreferences(PREFS, MODE_PRIVATE);
+                        sp.edit().putInt("gone", recentGone(sp) + 1).putLong("goneAt", System.currentTimeMillis()).commit();
+                    }
                     recreate();
                     return true;
                 }
@@ -93,6 +99,18 @@ public class MainActivity extends BridgeActivity {
             }
         };
         ContextCompat.registerReceiver(this, powerSaveReceiver, new IntentFilter(PowerManager.ACTION_POWER_SAVE_MODE_CHANGED), ContextCompat.RECEIVER_NOT_EXPORTED);
+    }
+
+    @Override
+    public void onStart() {
+        super.onStart();
+        onScreen = true;
+    }
+
+    @Override
+    public void onStop() {
+        onScreen = false;
+        super.onStop();
     }
 
     @Override

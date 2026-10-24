@@ -1,0 +1,24 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- The launcher icon in one colour, for the themed icons of Android 13 and later (the phone tints
+     it to match the wallpaper): the barn of the farm's notifications, in the middle of the icon -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+    <group
+        android:scaleX="2"
+        android:scaleY="2"
+        android:translateX="30"
+        android:translateY="30">
+        <!-- the barn, with its door and loft window open -->
+        <path
+            android:fillColor="#FFFFFFFF"
+            android:fillType="evenOdd"
+            android:pathData="M12,2L2,8.2V21H22V8.2ZM8.5,12.5H15.5V21H8.5ZM10.6,7.6H13.4V10.4H10.6Z" />
+        <!-- the cross bars on the door -->
+        <path
+            android:fillColor="#FFFFFFFF"
+            android:pathData="M8.5,12.5H9.6L15.5,19.9V21H14.4L8.5,13.6ZM15.5,12.5H14.4L8.5,19.9V21H9.6L15.5,13.6Z" />
+    </group>
+</vector>
