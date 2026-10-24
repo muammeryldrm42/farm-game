@@ -44,7 +44,7 @@ export const SHORE_LIFE: AlbumEntry[] = [
   { id: 'hermit_moon', name: 'Purple Pincher', icon: '🐚', model: 'hermit_moon' },
   { id: 'horseshoe_crab', name: 'Horseshoe Crab', icon: '🦀', model: 'horseshoe_crab' },
   { id: 'sandpiper', name: 'Sanderling', icon: '🐦', model: 'sandpiper' },
-  { id: 'harbor_seal', name: 'Harbour Seal', icon: '🦭', model: 'harbor_seal' },
+  { id: 'harbor_seal', name: 'Harbor Seal', icon: '🦭', model: 'harbor_seal' },
 ];
 
 // the wild things out on the farm at night
