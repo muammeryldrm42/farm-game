@@ -10,7 +10,7 @@ import { weatherAt } from '@/game/weather';
 import { buzz } from '@/game/haptics';
 import { Capacitor } from '@capacitor/core';
 import { App } from '@capacitor/app';
-import { notifyAsked, notifyAway, notifyBack, setNotifyAsked } from '@/game/notify';
+import { notifyAsked, notifyAway, notifyBack, notifyNative, setNotifyAsked } from '@/game/notify';
 import { StoreCtx, useStore } from './ctx';
 import { initLang, onLang, t } from '@/game/i18n';
 import { clockAhead, clockDrifted, clockOwed, now as clockNow, syncClock } from '@/game/clock';
@@ -91,7 +91,7 @@ function NoGl() {
     <div className="fixed inset-0 z-[110] grid place-items-center bg-gradient-to-b from-[#8fd0f7] to-[#3f9fd8] p-6 font-game">
       <div className="panel max-w-sm p-5 text-center">
         <div className="text-lg font-bold">{t('This device could not start the 3D farm.')}</div>
-        <p className="mt-2 text-sm text-[#8a6a44]">{t('Turn on hardware acceleration in your browser settings, or update your browser, then open the game again.')}</p>
+        <p className="mt-2 text-sm text-[#8a6a44]">{notifyNative() ? t('Update Android System WebView and Chrome from Google Play, then open the game again.') : t('Turn on hardware acceleration in your browser settings, or update your browser, then open the game again.')}</p>
         <button className="btn btn-green mt-4" onClick={() => location.reload()}>{t('Reload')}</button>
       </div>
     </div>

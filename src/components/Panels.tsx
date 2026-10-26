@@ -2105,7 +2105,7 @@ function SettingsModal() {
       </div>
 
       <h3 className="mb-2 mt-4 font-bold">{t('Save data')}</h3>
-      <p className="mb-2 text-xs text-[#8a6a44]">{t('Your farm saves automatically in this browser. Use a save code to move it to another device.')}</p>
+      <p className="mb-2 text-xs text-[#8a6a44]">{notifyNative() ? t('Your farm saves automatically on this device. Use a save code to move it to another device.') : t('Your farm saves automatically in this browser. Use a save code to move it to another device.')}</p>
       <div className="flex flex-wrap gap-2">
         <button
           className="btn btn-blue"

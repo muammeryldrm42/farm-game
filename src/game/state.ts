@@ -644,24 +644,7 @@ export function loadGame(): GameState {
     // or the first save of the new farm would write over it and nothing could bring it back
     if (raw) kvSet(`${SAVE_KEY}-unreadable`, raw);
   }
-  return testBoost(s ?? newGame());
-}
-
-// TEMP test mode: level 200 and bottomless coins and gems while the game is being tested.
-// Set TEST_MODE to false (or delete this block and its three uses) to turn it off.
-export const TEST_MODE = false;
-const TEST_FUNDS = 999_999_999;
-function testBoost(s: GameState): GameState {
-  if (!TEST_MODE) return s;
-  s.level = Math.max(s.level, 200);
-  s.tutorial = TUTORIAL_DONE;
-  topUp(s);
-  return s;
-}
-function topUp(s: GameState) {
-  if (!TEST_MODE) return;
-  if (s.coins < TEST_FUNDS) s.coins = TEST_FUNDS;
-  if (s.gems < TEST_FUNDS) s.gems = TEST_FUNDS;
+  return s ?? newGame();
 }
 
 // (a hand edited or damaged save, a save code from somewhere: each part is checked, and what does
@@ -2215,7 +2198,6 @@ export class GameStore {
 
   tick() {
     const now = clockNow();
-    topUp(this.s); // TEMP test mode
     if (this.settleGrazing(now)) this.emit();
     // a new beauty level reached some other way (an older farm, a loaded save): a few seconds in, so it is seen
     if (Date.now() - this.startedAt > 8000) this.checkBeauty();
@@ -2528,7 +2510,7 @@ export class GameStore {
   }
 
   private replace(s: GameState) {
-    this.s = testBoost(s); // TEMP test mode
+    this.s = s;
     this.ui = { selectedId: null, placing: null, tool: null, panel: null, storageTab: 'silo', expand: null, levelUp: null, daily: this.canDaily(), napping: false, napAt: 0, story: null, say: null };
     // the story cheers belong to the farm that was loaded before
     this.told.clear();
