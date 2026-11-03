@@ -18,8 +18,9 @@ const dracoUrl = fileURLToPath(new URL('./tools/draco-url-loader.cjs', import.me
 // The Android app reads its own files (the letters change nothing there); the YouTube build
 // keeps the plain addresses.
 const modelsDir = fileURLToPath(new URL('./public/models/', import.meta.url));
-// (keyed as the game names them: barn, lod/barn...)
-const modelV = youtube ? {} : Object.fromEntries(readdirSync(modelsDir, { recursive: true }).map(String).filter((f) => f.endsWith('.glb')).map((f) => [
+// (keyed as the game names them: barn, lod/barn...; in name order, not the order the disk lists
+// them in, so every machine builds the same game files)
+const modelV = youtube ? {} : Object.fromEntries(readdirSync(modelsDir, { recursive: true }).map(String).filter((f) => f.endsWith('.glb')).sort().map((f) => [
   f.slice(0, -4).split('\\').join('/'),
   createHash('sha1').update(readFileSync(modelsDir + f)).digest('base64url').slice(0, 6),
 ]));
@@ -42,12 +43,18 @@ function gameVersion() {
   for (const f of files.sort()) h.update(f).update('\0').update(readFileSync(root + f)).update('\0');
   return h.digest('hex').slice(0, 7);
 }
+// worked out once, and said in the build's log (the build's helper processes, started after this,
+// take it from here)
+if (!process.env.GAME_VERSION) {
+  process.env.GAME_VERSION = gameVersion();
+  console.log(`Game version ${process.env.GAME_VERSION}`);
+}
 
 const nextConfig = {
   reactStrictMode: false,
   output: 'export',
   images: { unoptimized: true },
-  env: { MODEL_V: JSON.stringify(modelV), GAME_VERSION: gameVersion() },
+  env: { MODEL_V: JSON.stringify(modelV), GAME_VERSION: process.env.GAME_VERSION },
   webpack: (config) => {
     // the two builds keep their own webpack caches: sharing one, a build would take the other's
     // modules (the YouTube build the Android app's plugins, or the reverse)
