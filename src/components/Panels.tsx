@@ -71,6 +71,9 @@ import { useNow, useStore, useVersion } from './ctx';
 import { LANG_IDS, getLang, setLang, t, type Lang } from '@/game/i18n';
 import LANG_NAMES from '@/locales/names.json';
 
+// a few letters of what the game is made from (next.config.mjs)
+const GAME_VERSION = process.env.GAME_VERSION || '';
+
 // ------------------------------------------------------------------ primitives
 
 // Keeps a panel clear of a phone's camera cutout and system bars (on a phone held sideways the
@@ -2198,6 +2201,8 @@ function SettingsModal() {
         </button>
       </div>
       <p className="mt-2 text-center text-[11px] text-[#b09a72]">{t('Talons Farm by Talons Protocol')}</p>
+      {/* the same on the website and in the Android app when the two are the same game (next.config.mjs) */}
+      {GAME_VERSION && <p className="text-center text-[10px] text-[#b09a72]">{t('Version {v}', { v: GAME_VERSION })}</p>}
     </Modal>
   );
 }

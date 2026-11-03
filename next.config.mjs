@@ -24,11 +24,30 @@ const modelV = youtube ? {} : Object.fromEntries(readdirSync(modelsDir, { recurs
   createHash('sha1').update(readFileSync(modelsDir + f)).digest('base64url').slice(0, 6),
 ]));
 
+// The game's version, shown at the foot of the settings: a few letters of everything the game is
+// made from (its code, texts, pictures and models, the packages it uses). The website and the
+// Android app made from the same game show the same letters, whatever commit or machine built
+// them, so a look at both tells whether they are the same game. (Hidden files, as a Mac's
+// .DS_Store, are left out: they are not part of the game.)
+const root = fileURLToPath(new URL('./', import.meta.url));
+function gameVersion() {
+  const files = ['package.json', 'package-lock.json', 'next.config.mjs', 'postcss.config.mjs', 'tailwind.config.ts', 'tools/draco-url-loader.cjs'];
+  for (const dir of ['app', 'public', 'src']) {
+    for (const e of readdirSync(root + dir, { recursive: true, withFileTypes: true })) {
+      const path = `${e.parentPath ?? e.path}/${e.name}`.slice(root.length).split('\\').join('/');
+      if (e.isFile() && !path.split('/').some((p) => p.startsWith('.') || p === '__pycache__')) files.push(path);
+    }
+  }
+  const h = createHash('sha1');
+  for (const f of files.sort()) h.update(f).update('\0').update(readFileSync(root + f)).update('\0');
+  return h.digest('hex').slice(0, 7);
+}
+
 const nextConfig = {
   reactStrictMode: false,
   output: 'export',
   images: { unoptimized: true },
-  env: { MODEL_V: JSON.stringify(modelV) },
+  env: { MODEL_V: JSON.stringify(modelV), GAME_VERSION: gameVersion() },
   webpack: (config) => {
     // the two builds keep their own webpack caches: sharing one, a build would take the other's
     // modules (the YouTube build the Android app's plugins, or the reverse)
