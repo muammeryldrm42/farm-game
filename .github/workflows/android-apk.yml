@@ -1,0 +1,59 @@
+# A test APK of the Android app, built by GitHub on each push to this branch (or by hand from the
+# Actions tab): kept with the run, and put on the release page "android-test" at a fixed address,
+# https://github.com/muammeryldrm42/farm-game/releases/download/android-test/talons-farm.apk
+# It is the debug build (signed with a throwaway debug key): for trying on a phone, not for Google
+# Play, which takes the signed release bundle made in Android Studio (see README.md).
+name: Android test APK
+
+on:
+  push:
+    branches: [claude/android-project]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: android-apk
+  cancel-in-progress: true
+
+jobs:
+  apk:
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+
+      # the runner has the Android SDK; the Android 16 parts the project needs are added if missing
+      - name: Android SDK parts
+        run: |
+          yes | "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" --licenses > /dev/null || true
+          "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" "platforms;android-36" "build-tools;35.0.0" > /dev/null
+
+      - name: Build the APK
+        working-directory: android
+        run: |
+          chmod +x gradlew
+          ./gradlew --no-daemon assembleDebug
+
+      - name: Name it
+        run: cp android/app/build/outputs/apk/debug/app-debug.apk talons-farm.apk
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: talons-farm-apk
+          path: talons-farm.apk
+
+      - name: Put it on the release page
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release delete android-test --yes --cleanup-tag || true
+          gh release create android-test talons-farm.apk --target "$GITHUB_SHA" --prerelease \
+            --title "Talons Farm: Android test APK" \
+            --notes "Test build of the Android app (debug, not for Google Play). On the phone: open the link, download, allow installing from this source, install. Built from $GITHUB_SHA."

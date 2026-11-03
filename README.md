@@ -11,6 +11,14 @@ The whole game with all of its models, ready to open in Android Studio. No websi
 
 ## Try it on a phone
 
+Without Android Studio: GitHub builds a test APK on every push to this branch
+(`.github/workflows/android-apk.yml`). Open
+https://github.com/muammeryldrm42/farm-game/releases/download/android-test/talons-farm.apk
+on the phone, download it, allow installing from that source, and install. It is a debug build,
+for trying only: Google Play takes the signed bundle below.
+
+With Android Studio:
+
 1. Open the `android` folder in Android Studio.
 2. Wait for the Gradle sync, plug in a phone (USB debugging on), then Run.
    Or Build > Build App Bundle(s) / APK(s) > Build APK(s) for an APK to copy over.
