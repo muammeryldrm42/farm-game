@@ -40,6 +40,21 @@
                 android:name="android.support.FILE_PROVIDER_PATHS"
                 android:resource="@xml/file_paths"></meta-data>
         </provider>
+
+        <!-- The game draws every letter and emoji in its page, with its own emoji font. AppCompat's
+             EmojiCompat would fetch an emoji font from Google Play services as the app starts,
+             for native text the app does not have, and an app holding that font is closed by
+             Android whenever Play services restarts (as it updates): the game would close in the
+             middle of play. Left out. -->
+        <provider
+            android:name="androidx.startup.InitializationProvider"
+            android:authorities="${applicationId}.androidx-startup"
+            android:exported="false"
+            tools:node="merge">
+            <meta-data
+                android:name="androidx.emoji2.text.EmojiCompatInitializer"
+                tools:node="remove" />
+        </provider>
     </application>
 
     <!-- Permissions -->

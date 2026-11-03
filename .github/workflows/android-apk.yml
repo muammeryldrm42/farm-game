@@ -5,7 +5,7 @@
 # Play, which takes the signed release bundle made in Android Studio (see README.md).
 # Then the APK is installed on an Android emulator and the game opened: screenshots as it starts
 # and the app's log are kept with the run and put on the same release page (android-screen-*.png,
-# android-log.txt), to see the app itself as a phone shows it.
+# android-log.txt, android-status.txt), to see the app itself as a phone shows it.
 name: Android test APK
 
 on:
@@ -86,17 +86,24 @@ jobs:
           profile: pixel_6
           emulator-options: -no-window -gpu swiftshader_indirect -no-snapshot -noaudio -no-boot-anim
           disable-animations: true
+          # (a fresh emulator's Google Play services spend their first minute updating and
+          # restarting: the game is opened after that, as on a phone in use; android-status.txt
+          # says at each picture whether the game was still running)
           script: |
             adb install -r talons-farm.apk
+            sleep 60
             adb logcat -c
             adb shell am start -n com.talons.farm/.MainActivity
             sleep 45
             adb exec-out screencap -p > android-screen-1.png
+            (adb shell pidof com.talons.farm > /dev/null && echo "45 s: running" || echo "45 s: NOT RUNNING") >> android-status.txt
             sleep 60
             adb exec-out screencap -p > android-screen-2.png
+            (adb shell pidof com.talons.farm > /dev/null && echo "105 s: running" || echo "105 s: NOT RUNNING") >> android-status.txt
             sleep 60
             adb exec-out screencap -p > android-screen-3.png
-            adb shell dumpsys window displays | grep -m 3 -i "cur=\|rotation" > android-display.txt || true
+            (adb shell pidof com.talons.farm > /dev/null && echo "165 s: running" || echo "165 s: NOT RUNNING") >> android-status.txt
+            adb shell dumpsys window displays | grep -m 3 -i "cur=\|rotation" >> android-status.txt || true
             adb logcat -d > android-log.txt
 
       - uses: actions/upload-artifact@v4
@@ -106,10 +113,10 @@ jobs:
           path: |
             android-screen-*.png
             android-log.txt
-            android-display.txt
+            android-status.txt
 
       - name: Put them on the release page
         if: always()
         env:
           GH_TOKEN: ${{ github.token }}
-        run: gh release upload android-test android-screen-*.png android-log.txt --clobber --repo "$GITHUB_REPOSITORY" || true
+        run: gh release upload android-test android-screen-*.png android-log.txt android-status.txt --clobber --repo "$GITHUB_REPOSITORY" || true
