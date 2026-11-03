@@ -3,6 +3,9 @@
 # https://github.com/muammeryldrm42/farm-game/releases/download/android-test/talons-farm.apk
 # It is the debug build (signed with a throwaway debug key): for trying on a phone, not for Google
 # Play, which takes the signed release bundle made in Android Studio (see README.md).
+# Then the APK is installed on an Android emulator and the game opened: screenshots as it starts
+# and the app's log are kept with the run and put on the same release page (android-screen-*.png,
+# android-log.txt), to see the app itself as a phone shows it.
 name: Android test APK
 
 on:
@@ -57,3 +60,56 @@ jobs:
           gh release create android-test talons-farm.apk --target "$GITHUB_SHA" --prerelease \
             --title "Talons Farm: Android test APK" \
             --notes "Test build of the Android app (debug, not for Google Play). On the phone: open the link, download, allow installing from this source, install. Built from $GITHUB_SHA."
+
+  screens:
+    needs: apk
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: talons-farm-apk
+
+      # the emulator runs fast only with the processor's virtualisation, which the runner has
+      - name: Allow the emulator to use KVM
+        run: |
+          echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
+          sudo udevadm control --reload-rules
+          sudo udevadm trigger --name-match=kvm
+
+      - name: Open the game on an Android 14 emulator
+        uses: reactivecircus/android-emulator-runner@v2
+        with:
+          api-level: 34
+          target: google_apis
+          arch: x86_64
+          profile: pixel_6
+          emulator-options: -no-window -gpu swiftshader_indirect -no-snapshot -noaudio -no-boot-anim
+          disable-animations: true
+          script: |
+            adb install -r talons-farm.apk
+            adb logcat -c
+            adb shell am start -n com.talons.farm/.MainActivity
+            sleep 45
+            adb exec-out screencap -p > android-screen-1.png
+            sleep 60
+            adb exec-out screencap -p > android-screen-2.png
+            sleep 60
+            adb exec-out screencap -p > android-screen-3.png
+            adb shell dumpsys window displays | grep -m 3 -i "cur=\|rotation" > android-display.txt || true
+            adb logcat -d > android-log.txt
+
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: android-screens
+          path: |
+            android-screen-*.png
+            android-log.txt
+            android-display.txt
+
+      - name: Put them on the release page
+        if: always()
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh release upload android-test android-screen-*.png android-log.txt --clobber --repo "$GITHUB_REPOSITORY" || true
