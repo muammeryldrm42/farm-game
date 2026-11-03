@@ -5,7 +5,7 @@ out
 *.tsbuildinfo
 .env*.local
 .DS_Store
-tools/blender/__pycache__/
+__pycache__/
 tools/blender/*.png
 tools/blender/previews/
 tools/blender/sculpts/

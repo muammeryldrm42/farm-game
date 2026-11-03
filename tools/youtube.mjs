@@ -40,7 +40,8 @@ for (const f of walk(YT)) {
   if (r !== 'index.html' && (r.endsWith('.html') || r.endsWith('.txt'))) fs.rmSync(f);
   else if (/^_next\/static\/chunks\/main-(?!app)[^/]+\.js$/.test(r)) fs.rmSync(f);
 }
-for (const d of ['privacy', '404', '_not-found', '_next/static/chunks/pages', '_next/static/chunks/app/privacy', '_next/static/chunks/app/_not-found']) {
+// (nor the models' phone copies, which only the website loads: see tools/phone_models.py)
+for (const d of ['privacy', '404', '_not-found', '_next/static/chunks/pages', '_next/static/chunks/app/privacy', '_next/static/chunks/app/_not-found', 'models/s']) {
   fs.rmSync(path.join(YT, d), { recursive: true, force: true });
 }
 

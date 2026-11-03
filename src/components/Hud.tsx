@@ -26,10 +26,23 @@ function zoom(detail: number) {
 export default function Hud() {
   const store = useStore();
   useVersion();
+  // What waits on the HUD for a while (the daily gift, a chapter done, a new festival, a season
+  // prize) bobs three times, and again every 20 seconds, rather than for as long as it waits: an
+  // endless bob keeps the browser working out the page's styles every frame, a tenth of a slow
+  // phone's time with nothing else going on (the tutorial's pointers, short lived, still bob on)
+  useEffect(() => {
+    const iv = setInterval(() => {
+      if (document.visibilityState !== 'visible') return;
+      for (const el of document.querySelectorAll('.animate-nudge')) for (const a of el.getAnimations()) if (a.playState === 'finished') a.play();
+    }, 20000);
+    return () => clearInterval(iv);
+  }, []);
   const s = store.s;
   const ui = store.ui;
   const now = clockNow();
   const need = xpNeed(s.level);
+  // coins and gems long enough to crowd the top bar of a phone held upright (see the XP bar)
+  const longPurse = fmtNum(s.coins).length + fmtNum(s.gems).length > 8;
   const sheetOpen = ui.selectedId !== null || ui.panel !== null || ui.placing !== null || ui.expand !== null || ui.daily || ui.levelUp !== null;
   const deliverable = s.orders.filter((o) => canFulfill(s, o, now)).length;
   const claimable = claimableQuests(s).length + dailyClaimable(s) + cupClaimable(s) + claimableBadges(s).length + claimableAlbum(s).length + claimableMuseum(s).length + (store.chapterReady() ? 1 : 0);
@@ -46,19 +59,22 @@ export default function Hud() {
             </svg>
             <span className="relative text-lg font-bold text-[#5a3a1a]">{s.level}</span>
           </div>
-          {/* on the narrowest phones (320 wide, or a 360 one with large display size) the bar alone,
-              so the coins, gems and settings still fit beside it */}
-          <div data-fly="xp" className="-ml-4 w-24 rounded-r-full border-[3px] border-l-0 border-[#5d3a1f] bg-[#fff6df] py-0.5 pl-5 pr-2 shadow-[0_3px_0_#5d3a1f] sm:w-40 [@media(max-width:339px)]:w-14 [@media(max-width:339px)]:py-1.5">
+          {/* on the narrowest phones (up to 355 wide: 320, or a 360 one with large display size)
+              the bar alone, so the coins, gems and settings still fit beside it (the full bar and
+              settings need 356); on a phone held upright under 380 wide too, once the coins and
+              gems run long (millions, thousands) */}
+          <div data-fly="xp" className={`-ml-4 w-24 rounded-r-full border-[3px] border-l-0 border-[#5d3a1f] bg-[#fff6df] py-0.5 pl-5 pr-2 shadow-[0_3px_0_#5d3a1f] sm:w-40 ${longPurse ? '[@media(max-width:379px)]:w-14 [@media(max-width:379px)]:py-1.5' : ''} [@media(max-width:355px)]:w-14 [@media(max-width:355px)]:py-1.5`}>
             <div className="h-3 overflow-hidden rounded-full bg-[#e2cc9c]">
               <div className="h-full rounded-full bg-gradient-to-r from-[#57c3f0] to-[#2f8fd0] transition-all" style={{ width: `${Math.min(100, (s.xp / need) * 100)}%` }} />
             </div>
-            <div className="whitespace-nowrap text-center text-[10px] font-bold leading-4 text-[#5a3a1a] sm:text-[11px] [@media(max-width:339px)]:hidden">
+            <div className={`whitespace-nowrap text-center text-[10px] font-bold leading-4 text-[#5a3a1a] sm:text-[11px] ${longPurse ? '[@media(max-width:379px)]:hidden' : ''} [@media(max-width:355px)]:hidden`}>
               {s.xp} / {need} XP
             </div>
           </div>
         </div>
 
-        <div className="pointer-events-auto flex items-center gap-1.5 text-sm sm:gap-2 sm:text-base">
+        {/* (320 wide with coins and gems run long: the two counts in smaller type, packed closer) */}
+        <div className={`pointer-events-auto flex items-center gap-1.5 text-sm sm:gap-2 sm:text-base ${longPurse ? '[@media(max-width:339px)]:gap-1 [@media(max-width:339px)]:text-xs [@media(max-width:339px)]:[&_.pill]:gap-1 [@media(max-width:339px)]:[&_.pill]:pr-2' : ''}`}>
           <div className="pill" data-fly="coins">
             <Coin className="text-xl sm:text-2xl" />
             <span className="min-w-[2rem] text-right">{fmtNum(s.coins)}</span>
@@ -67,7 +83,7 @@ export default function Hud() {
             <span className="emoji text-lg sm:text-xl">💎</span>
             <span className="min-w-[1rem] text-right">{fmtNum(s.gems)}</span>
           </div>
-          <button className="btn btn-wood h-9 w-9 shrink-0 rounded-full p-0 sm:h-10 sm:w-10" onClick={() => store.openPanel('settings')} aria-label={t('Settings')}>
+          <button className="btn btn-wood relative h-9 w-9 shrink-0 rounded-full p-0 sm:h-10 sm:w-10 after:absolute after:-inset-1 after:content-['']" onClick={() => store.openPanel('settings')} aria-label={t('Settings')}>
             <span className="emoji text-lg">⚙️</span>
           </button>
         </div>
@@ -105,8 +121,10 @@ export default function Hud() {
       {/* the festival, under the beauty points */}
       {!sheetOpen && <FestChip />}
 
-      {/* toasts, with the card of what is ready on coming back first */}
-      <div className={`absolute left-1/2 flex w-[92%] max-w-sm -translate-x-1/2 flex-col items-center gap-2 ${tut ? "top-36" : "top-20"}`}>
+      {/* toasts, with the card of what is ready on coming back first (on a small phone held
+          sideways, moved right of the buttons down the left side rather than over them; held
+          upright, where there is no room beside them, below them) */}
+      <div className={`absolute left-1/2 flex w-[92%] max-w-sm -translate-x-1/2 flex-col items-center gap-2 [@media(orientation:landscape)]:left-[max(50%,calc(10.75rem_+_min(46%,12rem)))] ${tut ? "top-36" : "top-20"} [@media(orientation:portrait)_and_(max-width:639px)]:top-52`}>
         {ui.welcome && !sheetOpen && !ui.story && <WelcomeCard />}
         {store.toasts.map((tt) => (
           <div
@@ -202,7 +220,7 @@ function HudBtn({ icon, label, onClick, badge = 0, pulse = false, glow = false, 
   return (
     <button
       data-fly={fly}
-      className={`btn btn-ghost relative h-12 min-w-12 flex-col sm:h-14 sm:min-w-14 rounded-2xl border-[3px] border-[#5d3a1f] px-1 py-0 ${pulse || glow ? 'animate-bob' : ''} ${glow ? 'ring-4 ring-white' : ''}`}
+      className={`btn btn-ghost relative h-12 min-w-12 flex-col sm:h-14 sm:min-w-14 rounded-2xl border-[3px] border-[#5d3a1f] px-1 py-0 ${glow ? 'animate-bob' : pulse ? 'animate-nudge' : ''} ${glow ? 'ring-4 ring-white' : ''}`}
       onClick={onClick}
       aria-label={label}
     >
@@ -256,7 +274,7 @@ function StoryCard() {
   const left = on ? ch.tasks.filter((tk) => taskProgress(tk, s) < tk.target).length : 0;
   return (
     <button
-      className={`pointer-events-auto absolute left-2 top-[4.6rem] grid h-12 w-12 place-items-center rounded-full border-[3px] bg-[#fff6df] shadow-[0_3px_0_#5d3a1f] sm:left-3 sm:top-20 sm:h-14 sm:w-14 ${ready ? 'animate-bob ring-4 ring-[#5cb82e]' : ''}`}
+      className={`pointer-events-auto absolute left-2 top-[4.6rem] grid h-12 w-12 place-items-center rounded-full border-[3px] bg-[#fff6df] shadow-[0_3px_0_#5d3a1f] sm:left-3 sm:top-20 sm:h-14 sm:w-14 ${ready ? 'animate-nudge ring-4 ring-[#5cb82e]' : ''}`}
       style={{ borderColor: who.color }}
       onClick={() => store.openPanel('quests')}
       aria-label={t('Chapter {n}: {title}', { n: ch.n, title: t(ch.title) }) + (left ? ', ' + t('{n} tasks left', { n: left }) : '')}
@@ -272,13 +290,14 @@ function StoryCard() {
   );
 }
 
-// the farm's beauty points (see beauty.ts); a tap opens what they are and what they bring
+// the farm's beauty points (see beauty.ts); a tap opens what they are and what they bring (these
+// small pills, the festival's and the season's too, take a touch a little round them: 48 px tall)
 function BeautyChip() {
   const store = useStore();
   const b = store.beauty();
   return (
     <button
-      className="pointer-events-auto relative flex items-center gap-1 rounded-full border-[3px] border-[#d9468f] bg-[#fff6df] py-0.5 pl-1.5 pr-2.5 text-xs font-bold text-[#8a2a5e] shadow-[0_3px_0_#5d3a1f] sm:text-sm"
+      className="pointer-events-auto relative flex items-center gap-1 rounded-full border-[3px] border-[#d9468f] bg-[#fff6df] py-0.5 pl-1.5 pr-2.5 after:absolute after:-inset-[5px] after:content-[''] text-xs font-bold text-[#8a2a5e] shadow-[0_3px_0_#5d3a1f] sm:text-sm"
       onClick={() => store.openPanel('beauty')}
       aria-label={t('{n} beauty points', { n: fmtNum(b.score) })}
     >
@@ -301,7 +320,7 @@ function FestChip() {
   const time = fmtTime((on ? f.end : f.nextAt) - now);
   return (
     <button
-      className={`pointer-events-auto absolute left-2 top-[10.2rem] flex items-center gap-1 rounded-full border-[3px] bg-[#fff6df] py-0.5 pl-1.5 pr-2.5 text-xs font-bold shadow-[0_3px_0_#5d3a1f] sm:left-3 sm:top-[11.6rem] sm:text-sm ${on && !s.fest?.seen ? 'animate-bob' : ''}`}
+      className={`pointer-events-auto absolute left-2 top-[10.2rem] flex items-center gap-1 rounded-full after:absolute after:-inset-[5px] after:content-[''] border-[3px] bg-[#fff6df] py-0.5 pl-1.5 pr-2.5 text-xs font-bold shadow-[0_3px_0_#5d3a1f] sm:left-3 sm:top-[11.6rem] sm:text-sm ${on && !s.fest?.seen ? 'animate-nudge' : ''}`}
       style={{ borderColor: on ? d.color : '#c9a878', color: on ? d.color : '#8a6a44' }}
       onClick={() => store.openFestival()}
       aria-label={on ? `${t(d.name)}, ${t('{time} left', { time })}` : `${t('Next festival')}: ${t(d.name)}, ${t('Starts in {time}', { time })}`}
@@ -333,7 +352,7 @@ function SeasonChip() {
   const ready = on ? seasonReady(s) : 0;
   return (
     <button
-      className={`pointer-events-auto relative flex items-center gap-1 rounded-full border-[3px] bg-[#fff6df] py-0.5 pl-1.5 pr-2.5 text-xs font-bold shadow-[0_3px_0_#5d3a1f] sm:text-sm ${ready ? 'animate-bob' : ''}`}
+      className={`pointer-events-auto relative flex items-center gap-1 rounded-full after:absolute after:-inset-[5px] after:content-[''] border-[3px] bg-[#fff6df] py-0.5 pl-1.5 pr-2.5 text-xs font-bold shadow-[0_3px_0_#5d3a1f] sm:text-sm ${ready ? 'animate-nudge' : ''}`}
       style={{ borderColor: on ? color : '#c9a878', color }}
       onClick={() => store.openPanel('season')}
       aria-label={t(SEASONS[ev?.id ?? seasonNext(now).id].name)}

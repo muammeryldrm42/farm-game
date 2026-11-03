@@ -1,6 +1,6 @@
 # Talons Farm
 
-A cozy 3D farming game in the style of Hay Day and FarmVille, built with Next.js 14, TypeScript, Tailwind and three.js. Every model, texture and shader is generated in code, no asset files. No real money purchases. Everything is earned in game with coins, gems and XP.
+A cozy 3D farming game in the style of Hay Day and FarmVille, built with Next.js 14, TypeScript, Tailwind and three.js, and an Android app (Capacitor). The models are made in Blender (tools/blender) and the textures, sounds and shaders in code. No real money purchases. Everything is earned in game with coins, gems and XP.
 
 By Talons Protocol.
 
@@ -43,7 +43,7 @@ By Talons Protocol.
 - A tap on a pen and its animals answer: a moo, a baa, a cluck, a quack, a honk, a neigh, a hee-haw or a gobble (synthesized too, a little different each time)
 - A farmer and his dog walking around the farm, harvested goods flying into storage
 - Weather and seasons (winter snow, spring petals, autumn leaves); showers come on some days only, not every day
-- Grazing: open a pen's gate and the hungry animals walk out through it to graze on the grass near the pen (bees fly off to flower beds, flowering crops and fruit trees), then walk back by themselves once full and start producing. Call them back early any time; they always walk, never teleport. Feeding works as before
+- Grazing: open a pen's gate and the hungry animals walk out through it to the meadow near the pen and roam it like a herd: cropping the grass a while, now and then lifting their heads to look about, then ambling on to fresh grass (bees fly off to flower beds, flowering crops and fruit trees, ducks and geese go for a swim). Once full they walk back by themselves and start producing. Call them back early any time; they always walk, never teleport. Feeding works as before
 - Watering: tap a growing field to water it and it needs 30% less of its remaining time. The watering can (top bar) refills over time, faster with wells; rain waters every field for free and sprinklers water the fields around them. Unwatered crops grow as before
 - 3 fruit trees (apple, cherry, orange) that keep giving fruit
 - Fishing Pier, Jam Maker, Ice Cream Shop and Sushi Bar, 3 new crops (rice, cotton, chili) and 20 new goods

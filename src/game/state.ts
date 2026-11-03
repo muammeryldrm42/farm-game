@@ -210,9 +210,17 @@ export function fmtTime(ms: number) {
   return tr('{h}h {m}m', { h, m: m % 60 });
 }
 
+// a count of coins (or anything) short enough for the top bar: 12,345 is 12.3K, then M, B
+// (billions) and T; one that rounds up to a thousand of its unit is the next unit (1M, not 1000K)
+const NUM_UNITS: [number, string][] = [[1e12, 'T'], [1e9, 'B'], [1e6, 'M'], [1e3, 'K']];
 export function fmtNum(n: number) {
-  if (n >= 1e6) return (n / 1e6).toFixed(1).replace(/\.0$/, '') + 'M';
-  if (n >= 1e4) return (n / 1e3).toFixed(1).replace(/\.0$/, '') + 'K';
+  if (n < 1e4) return n.toLocaleString('en-US');
+  for (let i = 0; i < NUM_UNITS.length; i++) {
+    const [v, unit] = NUM_UNITS[i];
+    if (n < v) continue;
+    const x = (n / v).toFixed(1).replace(/\.0$/, '');
+    return x === '1000' && i > 0 ? '1' + NUM_UNITS[i - 1][1] : x + unit;
+  }
   return n.toLocaleString('en-US');
 }
 
@@ -636,24 +644,7 @@ export function loadGame(): GameState {
     // or the first save of the new farm would write over it and nothing could bring it back
     if (raw) kvSet(`${SAVE_KEY}-unreadable`, raw);
   }
-  return testBoost(s ?? newGame());
-}
-
-// TEMP test mode: level 200 and bottomless coins and gems while the game is being tested.
-// Set TEST_MODE to false (or delete this block and its three uses) to turn it off.
-export const TEST_MODE = false;
-const TEST_FUNDS = 999_999_999;
-function testBoost(s: GameState): GameState {
-  if (!TEST_MODE) return s;
-  s.level = Math.max(s.level, 200);
-  s.tutorial = TUTORIAL_DONE;
-  topUp(s);
-  return s;
-}
-function topUp(s: GameState) {
-  if (!TEST_MODE) return;
-  if (s.coins < TEST_FUNDS) s.coins = TEST_FUNDS;
-  if (s.gems < TEST_FUNDS) s.gems = TEST_FUNDS;
+  return s ?? newGame();
 }
 
 // (a hand edited or damaged save, a save code from somewhere: each part is checked, and what does
@@ -2207,7 +2198,6 @@ export class GameStore {
 
   tick() {
     const now = clockNow();
-    topUp(this.s); // TEMP test mode
     if (this.settleGrazing(now)) this.emit();
     // a new beauty level reached some other way (an older farm, a loaded save): a few seconds in, so it is seen
     if (Date.now() - this.startedAt > 8000) this.checkBeauty();
@@ -2520,7 +2510,7 @@ export class GameStore {
   }
 
   private replace(s: GameState) {
-    this.s = testBoost(s); // TEMP test mode
+    this.s = s;
     this.ui = { selectedId: null, placing: null, tool: null, panel: null, storageTab: 'silo', expand: null, levelUp: null, daily: this.canDaily(), napping: false, napAt: 0, story: null, say: null };
     // the story cheers belong to the farm that was loaded before
     this.told.clear();

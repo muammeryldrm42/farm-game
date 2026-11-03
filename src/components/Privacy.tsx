@@ -105,10 +105,14 @@ const YT_SECTIONS: Section[] = [
 const SECTIONS = YT_BUILD ? YT_SECTIONS : PLAY_SECTIONS;
 
 export function PrivacyText() {
+  // the policy is written in English and Turkish: in any other language it shows in English, and
+  // so laid out and dated as English (in Arabic and Urdu, English set right to left put its full
+  // stops at the start of the lines)
+  const own = getLang() === 'tr' || getLang() === 'en';
   let updated: string;
-  try { updated = new Intl.DateTimeFormat(getLang() === 'zht' ? 'zh-TW' : getLang(), { dateStyle: 'long' }).format(UPDATED); } catch { updated = UPDATED.toDateString(); }
+  try { updated = new Intl.DateTimeFormat(own ? getLang() : 'en', { dateStyle: 'long' }).format(UPDATED); } catch { updated = UPDATED.toDateString(); }
   return (
-    <div className="rtl-text select-text text-sm leading-relaxed text-[#5a3a1a]" style={{ userSelect: 'text', WebkitUserSelect: 'text' }}>
+    <div lang={own ? undefined : 'en'} dir={own ? undefined : 'ltr'} className={`${own ? 'rtl-text ' : ''}select-text text-sm leading-relaxed text-[#5a3a1a]`} style={{ userSelect: 'text', WebkitUserSelect: 'text' }}>
       <p className="text-xs text-[#8a6a44]">{t('Talons Farm by Talons Protocol')} · {t('Last updated: {date}', { date: updated })}</p>
       {SECTIONS.map((s) => (
         <section key={s.title} className="mt-4">

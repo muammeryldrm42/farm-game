@@ -71,6 +71,9 @@ import { useNow, useStore, useVersion } from './ctx';
 import { LANG_IDS, getLang, setLang, t, type Lang } from '@/game/i18n';
 import LANG_NAMES from '@/locales/names.json';
 
+// a few letters of what the game is made from (next.config.mjs)
+const GAME_VERSION = process.env.GAME_VERSION || '';
+
 // ------------------------------------------------------------------ primitives
 
 // Keeps a panel clear of a phone's camera cutout and system bars (on a phone held sideways the
@@ -96,7 +99,8 @@ function Modal({ title, icon, onClose, children, wide = false }: { title: string
           <h2 className="text-xl font-bold tracking-wide" style={{ textShadow: '0 2px 0 #5d3a1f' }}>
             {title}
           </h2>
-          <button className="btn btn-red absolute right-2 top-1.5 h-9 w-9 rounded-full p-0 text-lg" onClick={onClose} aria-label={t('Close')}>
+          {/* (its touch area reaches 48 px, the size a thumb finds, the button looking as it did) */}
+          <button className="btn btn-red absolute right-2 top-1.5 h-9 w-9 rounded-full p-0 text-lg after:absolute after:-inset-1.5 after:content-['']" onClick={onClose} aria-label={t('Close')}>
             ✕
           </button>
         </div>
@@ -116,7 +120,7 @@ function Sheet({ title, icon, pic, sub, onClose, children }: { title: string; ic
             <div className="truncate text-lg font-bold">{title}</div>
             {sub && <div className="text-xs text-[#8a6a44]">{sub}</div>}
           </div>
-          <button className="btn btn-red h-9 w-9 rounded-full p-0 text-lg" onClick={onClose} aria-label={t('Close')}>
+          <button className="btn btn-red relative h-9 w-9 rounded-full p-0 text-lg after:absolute after:-inset-1.5 after:content-['']" onClick={onClose} aria-label={t('Close')}>
             ✕
           </button>
         </div>
@@ -209,7 +213,7 @@ function NoSaveNote() {
     <div className="pointer-events-auto fixed inset-x-3 top-16 z-30 mx-auto flex max-w-md items-center gap-3 rounded-2xl border-[3px] border-[#5d3a1f] bg-[#fff6df] p-3 font-game text-[#5a3a1a] shadow-[0_4px_0_#5d3a1f]">
       <span className="emoji text-3xl">🔒</span>
       <p className="rtl-text flex-1 text-sm font-bold">{t('This browser is blocking the site from saving: your farm will be lost when the page closes. Allow site data (cookies) for this site to keep it.')}</p>
-      <button className="btn btn-ghost h-9 w-9 shrink-0 rounded-full p-0" onClick={() => setShut(true)} aria-label={t('Close')}>✕</button>
+      <button className="btn btn-ghost relative h-9 w-9 shrink-0 rounded-full p-0 after:absolute after:-inset-1.5 after:content-['']" onClick={() => setShut(true)} aria-label={t('Close')}>✕</button>
     </div>
   );
 }
@@ -1011,8 +1015,11 @@ function ShopCard({ d }: { d: BuildingDef }) {
     >
       {guide.on && <GuideMark />}
       <span className={`emoji text-4xl ${locked ? 'grayscale' : ''}`}><Ico i={d.icon} id={d.id} /></span>
-      <span className="font-bold leading-tight">{t(d.name)}</span>
-      <span className="line-clamp-2 min-h-[2rem] text-[11px] leading-4 text-[#8a6a44]">{t(d.desc)}</span>
+      {/* (a name longer than the card, one German word, breaks inside it rather than sticking out) */}
+      <span className="font-bold leading-tight [overflow-wrap:anywhere]">{t(d.name)}</span>
+      {/* (two cards to a row on a phone held upright: room for five lines there, so a long word's
+          language still fits) */}
+      <span className="line-clamp-3 min-h-[2rem] text-[11px] leading-4 text-[#8a6a44] max-sm:line-clamp-5">{t(d.desc)}</span>
       {prizeOf && !won ? (
         <span className="rounded-full px-2 py-0.5 text-[11px] font-bold text-white" style={{ background: SEASONS[prizeOf].color }}>
           <span className="emoji">{SEASONS[prizeOf].icon}</span> {t('Prize of {event}', { event: t(SEASONS[prizeOf].name) })}
@@ -1310,7 +1317,8 @@ function BeautyModal() {
           {b.kinds.slice(0, 8).map((k) => (
             <div key={k.type} className="card flex items-center gap-2 px-2 py-1.5">
               <span className="emoji text-xl"><Ico i={BUILDING[k.type].icon} id={k.type} /></span>
-              <span className="min-w-0 flex-1 truncate text-xs font-bold">{t(BUILDING[k.type].name)}{k.n > 1 ? ` ×${k.n}` : ''}</span>
+              {/* (a long name on two lines rather than cut short) */}
+              <span className="line-clamp-2 min-w-0 flex-1 text-xs font-bold leading-tight">{t(BUILDING[k.type].name)}{k.n > 1 ? ` ×${k.n}` : ''}</span>
               <span className="text-xs font-bold text-[#b8327a]">{fmtNum(k.points)}</span>
             </div>
           ))}
@@ -1598,7 +1606,7 @@ function CupPage() {
             <div key={r.id} className={`card flex items-center gap-2 px-3 py-2 ${r.you ? 'ring-2 ring-[#5cb82e]' : ''}`}>
               <span className="emoji w-7 text-center font-bold">{MEDAL[i] ?? i + 1}</span>
               <span className="emoji text-xl">{rv ? CAST[rv.who].icon : '🏡'}</span>
-              <span className="min-w-0 flex-1 truncate font-bold">{rv ? t(rv.name) : t('Your farm')}</span>
+              <span className="line-clamp-2 min-w-0 flex-1 font-bold leading-tight [overflow-wrap:anywhere]">{rv ? t(rv.name) : t('Your farm')}</span>
               <span className="font-bold text-[#2f8fd0]">{fmtNum(r.points)}</span>
             </div>
           );
@@ -1865,7 +1873,8 @@ function DailyTasks() {
             <span className="emoji w-8 shrink-0 text-center text-2xl"><Ico i={dailyIcon(tk)} id={tk.item} /></span>
             <div className="min-w-0 flex-1">
               <div className="flex items-center justify-between gap-2 text-sm font-bold">
-                <span className="min-w-0 truncate">{dailyText(tk)}</span>
+                {/* (the whole task, on two lines if it must: cut short it would not say what to do) */}
+                <span className="min-w-0 leading-tight">{dailyText(tk)}</span>
                 <span className="shrink-0 text-xs">{p}/{tk.target}</span>
               </div>
               <Bar p={p / tk.target} color={tk.claimed ? '#f5b92b' : '#5cb82e'} />
@@ -1999,6 +2008,7 @@ function QualityPicker() {
 // The game's language, 21 of them; the choice is kept on this device. One menu button that
 // opens the list, so the settings stay short.
 function LanguagePicker() {
+  const store = useStore();
   const [l, setL] = useState<Lang>(getLang);
   const [open, setOpen] = useState(false);
   const list = useRef<HTMLDivElement>(null);
@@ -2021,7 +2031,13 @@ function LanguagePicker() {
             <button
               key={id}
               className={`flex w-full items-center justify-between border-b border-[#efe0bd] px-3 py-2 text-left text-sm font-bold last:border-b-0 ${l === id ? 'bg-[#dff3c8] text-[#2f6b14]' : 'text-[#5a3a1a] active:bg-[#f3e6c8]'}`}
-              onClick={() => { setL(id); setLang(id); setOpen(false); }}
+              onClick={() => {
+                setL(id);
+                setOpen(false);
+                // the website loads a language when it is picked: with no internet (or the game
+                // left open over a new release) that can fail, and the old language stays
+                setLang(id).catch(() => { setL(getLang()); store.toast(t('Something went wrong'), 'bad'); });
+              }}
             >
               <span>{names[id]}</span>
               {l === id && <span>✓</span>}
@@ -2068,6 +2084,7 @@ function SettingsModal() {
   const [code, setCode] = useState('');
   const [mode, setMode] = useState<'none' | 'export' | 'import' | 'reset'>('none');
   const [copied, setCopied] = useState(false);
+  const codeBox = useRef<HTMLTextAreaElement>(null);
   const set = (k: keyof typeof st, v: boolean) => {
     store.s.settings = { ...st, [k]: v };
     store.emit();
@@ -2091,7 +2108,7 @@ function SettingsModal() {
       </div>
 
       <h3 className="mb-2 mt-4 font-bold">{t('Save data')}</h3>
-      <p className="mb-2 text-xs text-[#8a6a44]">{t('Your farm saves automatically in this browser. Use a save code to move it to another device.')}</p>
+      <p className="mb-2 text-xs text-[#8a6a44]">{notifyNative() ? t('Your farm saves automatically on this device. Use a save code to move it to another device.') : t('Your farm saves automatically in this browser. Use a save code to move it to another device.')}</p>
       <div className="flex flex-wrap gap-2">
         <button
           className="btn btn-blue"
@@ -2119,16 +2136,25 @@ function SettingsModal() {
 
       {mode === 'export' && (
         <div className="mt-3">
-          <textarea readOnly value={code} className="h-24 w-full select-text rounded-xl border-2 border-[#e2cc9c] bg-white p-2 font-mono text-[10px]" onFocus={(e) => e.currentTarget.select()} />
+          <textarea ref={codeBox} readOnly value={code} className="h-24 w-full select-text rounded-xl border-2 border-[#e2cc9c] bg-white p-2 font-mono text-[10px]" onFocus={(e) => e.currentTarget.select()} />
           <button
             className="btn btn-green mt-1"
             onClick={async () => {
               try {
                 await navigator.clipboard.writeText(code);
                 setCopied(true);
-              } catch {
-                setCopied(false);
+                return;
+              } catch { /* no clipboard to write to: the old way below */ }
+              // (an older Android WebView has no clipboard to write to: the code is selected in its
+              // box and copied the old way, which it knows)
+              const box = codeBox.current;
+              let ok = false;
+              if (box) {
+                box.focus();
+                box.select();
+                try { ok = document.execCommand('copy'); } catch { ok = false; }
               }
+              setCopied(ok);
             }}
           >
             {t(copied ? 'Copied' : 'Copy')}
@@ -2160,6 +2186,8 @@ function SettingsModal() {
       <h3 className="mb-1 mt-4 font-bold">{t('How to play')}</h3>
       <ul className="list-disc space-y-0.5 pl-5 text-xs text-[#8a6a44]">
         {['Drag to move around, pinch or scroll to zoom. Turn the camera with the rotate button or Q and E.',
+          // (with a mouse, so with a keyboard most likely)
+          ...(typeof matchMedia !== 'undefined' && matchMedia('(pointer: fine)').matches ? ['On a keyboard: the arrow keys or WASD move the view, Escape closes a window.'] : []),
           'Press and drag across ready fields to harvest them all.',
           'Hold anything for a moment to move it.',
           'Tap the order board for orders, the farmhouse for goals, the barn and silo for storage.',
@@ -2173,6 +2201,8 @@ function SettingsModal() {
         </button>
       </div>
       <p className="mt-2 text-center text-[11px] text-[#b09a72]">{t('Talons Farm by Talons Protocol')}</p>
+      {/* the same on the website and in the Android app when the two are the same game (next.config.mjs) */}
+      {GAME_VERSION && <p className="text-center text-[10px] text-[#b09a72]">{t('Version {v}', { v: GAME_VERSION })}</p>}
     </Modal>
   );
 }

@@ -18,17 +18,43 @@ const dracoUrl = fileURLToPath(new URL('./tools/draco-url-loader.cjs', import.me
 // The Android app reads its own files (the letters change nothing there); the YouTube build
 // keeps the plain addresses.
 const modelsDir = fileURLToPath(new URL('./public/models/', import.meta.url));
-// (keyed as the game names them: barn, lod/barn...)
-const modelV = youtube ? {} : Object.fromEntries(readdirSync(modelsDir, { recursive: true }).map(String).filter((f) => f.endsWith('.glb')).map((f) => [
+// (keyed as the game names them: barn, lod/barn...; in name order, not the order the disk lists
+// them in, so every machine builds the same game files)
+const modelV = youtube ? {} : Object.fromEntries(readdirSync(modelsDir, { recursive: true }).map(String).filter((f) => f.endsWith('.glb')).sort().map((f) => [
   f.slice(0, -4).split('\\').join('/'),
   createHash('sha1').update(readFileSync(modelsDir + f)).digest('base64url').slice(0, 6),
 ]));
+
+// The game's version, shown at the foot of the settings: a few letters of everything the game is
+// made from (its code, texts, pictures and models, the packages it uses). The website and the
+// Android app made from the same game show the same letters, whatever commit or machine built
+// them, so a look at both tells whether they are the same game. (Hidden files, as a Mac's
+// .DS_Store, are left out: they are not part of the game.)
+const root = fileURLToPath(new URL('./', import.meta.url));
+function gameVersion() {
+  const files = ['package.json', 'package-lock.json', 'next.config.mjs', 'postcss.config.mjs', 'tailwind.config.ts', 'tools/draco-url-loader.cjs'];
+  for (const dir of ['app', 'public', 'src']) {
+    for (const e of readdirSync(root + dir, { recursive: true, withFileTypes: true })) {
+      const path = `${e.parentPath ?? e.path}/${e.name}`.slice(root.length).split('\\').join('/');
+      if (e.isFile() && !path.split('/').some((p) => p.startsWith('.') || p === '__pycache__')) files.push(path);
+    }
+  }
+  const h = createHash('sha1');
+  for (const f of files.sort()) h.update(f).update('\0').update(readFileSync(root + f)).update('\0');
+  return h.digest('hex').slice(0, 7);
+}
+// worked out once, and said in the build's log (the build's helper processes, started after this,
+// take it from here)
+if (!process.env.GAME_VERSION) {
+  process.env.GAME_VERSION = gameVersion();
+  console.log(`Game version ${process.env.GAME_VERSION}`);
+}
 
 const nextConfig = {
   reactStrictMode: false,
   output: 'export',
   images: { unoptimized: true },
-  env: { MODEL_V: JSON.stringify(modelV) },
+  env: { MODEL_V: JSON.stringify(modelV), GAME_VERSION: process.env.GAME_VERSION },
   webpack: (config) => {
     // the two builds keep their own webpack caches: sharing one, a build would take the other's
     // modules (the YouTube build the Android app's plugins, or the reverse)

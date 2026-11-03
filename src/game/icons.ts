@@ -276,8 +276,12 @@ function mammal(bg: string, o: Mam): Painter {
     if (o.horns === 'wide') for (const sx of [-1, 1]) { c.beginPath(); c.moveTo(64 + sx * 18, 40); c.quadraticCurveTo(64 + sx * 44, 38, 64 + sx * 48, 18); c.stroke(); }
     if (o.horns === 'huge') for (const sx of [-1, 1]) { c.beginPath(); c.moveTo(64 + sx * 16, 40); c.quadraticCurveTo(64 + sx * 50, 30, 64 + sx * 44, 2); c.stroke(); }
     if (o.horns === 'boss') { c.beginPath(); c.moveTo(34, 60); c.quadraticCurveTo(36, 34, 64, 36); c.quadraticCurveTo(92, 34, 94, 60); c.stroke(); }
-    c.beginPath(); c.ellipse(64, 82, 20, 13, 0, 0, Math.PI * 2); c.fillStyle = o.muzzle; c.fill(); outline(c, 2);
-    circle(c, 56, 82, 3, 'rgba(0,0,0,0.55)'); circle(c, 72, 82, 3, 'rgba(0,0,0,0.55)');
+    c.beginPath(); c.ellipse(64, 82, 18, 12, 0, 0, Math.PI * 2); c.fillStyle = o.muzzle; c.fill(); outline(c, 2);
+    // a grazer's muzzle: small slanted nostrils and a Y of a mouth (two round nostrils side by
+    // side on a pink oval read as a pig's snout)
+    c.strokeStyle = 'rgba(0,0,0,0.6)'; c.lineWidth = 2.5;
+    for (const sx of [-1, 1]) { c.beginPath(); c.moveTo(64 + sx * 4, 77); c.lineTo(64 + sx * 9, 80); c.stroke(); }
+    c.beginPath(); c.moveTo(64, 81); c.lineTo(64, 86); c.moveTo(57, 88); c.quadraticCurveTo(64, 92, 71, 88); c.stroke();
     eyePair(c, 64, 60, 13, 7);
   });
 }
@@ -348,12 +352,12 @@ const PAINTERS: Record<string, Painter> = {
   black_sheep: mammal('#c8d0e0', { fur: '#2a2626', muzzle: '#3a3434', ear: '#1f1b19', wool: '#3e3838' }),
   muscovy_duck: portrait('#c8e0f0', birdFace('#f4f2ee', '#f0c0a8', (c) => { c.fillStyle = '#c8282a'; c.beginPath(); c.ellipse(76, 66, 14, 12, 0, 0, Math.PI * 2); c.fill(); })),
   nubian_goat: mammal('#f2dcc0', { fur: '#6a3a1e', muzzle: '#4a2a18', ear: '#5a3018', droop: true, blaze: '#f2e6d6' }),
-  angora_goat: mammal('#e8e0f0', { fur: '#fbf8f0', muzzle: '#e8c8c0', wool: '#ffffff', horns: 'curl', horn: '#c8b8a0' }),
+  angora_goat: mammal('#e8e0f0', { fur: '#fbf8f0', muzzle: '#dccdc4', wool: '#ffffff', horns: 'curl', horn: '#c8b8a0' }),
   mandarin_duck: swimBadge('#f8e0c0', '#8a6a4a', '#e8782a', '#d8282a', (c) => { c.fillStyle = '#fbf6ea'; c.beginPath(); c.ellipse(80, 36, 10, 4, -0.3, 0, Math.PI * 2); c.fill(); c.fillStyle = '#e8782a'; c.beginPath(); c.moveTo(50, 70); c.lineTo(58, 52); c.lineTo(64, 72); c.closePath(); c.fill(); outline(c, 2); }),
-  merino_sheep: mammal('#e0ecd8', { fur: '#f4ece0', muzzle: '#e8b0a8', wool: '#faf4e6', horns: 'curl', horn: '#e8dcc0' }),
+  merino_sheep: mammal('#e0ecd8', { fur: '#f4ece0', muzzle: '#d8c8bc', wool: '#faf4e6', horns: 'curl', horn: '#e8dcc0' }),
   belted_galloway: mammal('#d8e8d0', { fur: '#232122', muzzle: '#3a3636', ear: '#232122', round: true }),
   moose: mammal('#d8e0c8', { fur: '#4a3020', muzzle: '#3a2418', horns: 'palm' }),
-  cashmere_goat: mammal('#f0e6d8', { fur: '#e6dccc', muzzle: '#d8b8b0', horns: 'up', horn: '#8a7a68' }),
+  cashmere_goat: mammal('#f0e6d8', { fur: '#e6dccc', muzzle: '#cdbcae', horns: 'up', horn: '#8a7a68' }),
   rhea: portrait('#e0e4e8', birdFace('#9aa0a8', '#6a5a4a')),
   jacob_sheep: mammal('#e0ecd8', { fur: '#2a2422', muzzle: '#2a2422', blaze: '#f6f2ea', wool: '#f6f2ea', horns: 'curl', horn: '#3a3230' }),
   spotted_deer: mammal('#e8f0d8', { fur: '#c07a3a', muzzle: '#2a2020', horns: 'antler', spots: '#fbf6ea' }),
