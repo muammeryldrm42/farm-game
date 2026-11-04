@@ -1075,7 +1075,6 @@ recipe('apple_juice', 'juice_press', { apple: 3 }, 150, 8, 9);
 recipe('orange_juice', 'juice_press', { orange: 3 }, 210, 11, 11);
 recipe('hot_chili', 'bbq_grill', { chili: 3, tomato: 2, potato: 1 }, 300, 16, 15);
 
-recipe('fish', 'fishing_pier', { corn: 2 }, 120, 5, 7);
 
 recipe('quill', 'loom', { gobbler_feather: 2 }, 240, 11, 10);
 recipe('soap', 'dairy', { donkey_milk: 1, lemon: 1 }, 300, 13, 13);
@@ -1121,7 +1120,6 @@ recipe('spicy_pizza', 'pizzeria', { bread: 1, chili: 2, cheese: 1 }, 330, 17, 15
 recipe('lemonade', 'coffee_kiosk', { lemon: 3, sugar: 1 }, 150, 8, 13);
 recipe('espresso', 'coffee_kiosk', { coffee_bean: 2 }, 180, 10, 17);
 recipe('latte', 'coffee_kiosk', { coffee_bean: 2, milk: 1 }, 240, 13, 17);
-recipe('lobster', 'fishing_pier', { carrot: 3 }, 300, 10, 12);
 
 recipe('apple_jam', 'jam_maker', { apple: 3 }, 180, 9, 8);
 recipe('cherry_jam', 'jam_maker', { cherry: 3 }, 240, 11, 10);
@@ -1561,7 +1559,6 @@ export const BUILDINGS: BuildingDef[] = [
   b({ id: 'juice_press', name: 'Juice Press', icon: '🧃', kind: 'production', w: 2, h: 2, cost: 1500, level: 9, xp: 45, height: 56, wall: '#fff0c9', roof: '#e67e22', desc: 'Presses fresh juices.' }),
   b({ id: 'loom', name: 'Loom', icon: '🧵', kind: 'production', w: 2, h: 2, cost: 2000, level: 10, xp: 55, height: 58, wall: '#efe2ff', roof: '#7d5ba6', desc: 'Weaves wool into clothes.' }),
 
-  b({ id: 'fishing_pier', name: 'Fishing Pier', icon: '🎣', kind: 'production', w: 2, h: 2, cost: 700, level: 7, xp: 30, height: 30, wall: '#b98a52', roof: '#2e6da4', desc: 'Catch fish and lobsters with bait.' }),
   b({ id: 'jam_maker', name: 'Jam Maker', icon: '🫙', kind: 'production', w: 2, h: 2, cost: 1100, level: 8, xp: 40, height: 56, wall: '#ffe3e3', roof: '#c0392b', desc: 'Cooks fruit into jam.' }),
   b({ id: 'ice_cream', name: 'Ice Cream Shop', icon: '🍨', kind: 'production', w: 2, h: 2, cost: 1800, level: 11, xp: 50, height: 54, wall: '#e3f6ff', roof: '#ff8fb0', desc: 'Churns sweet frozen treats.' }),
   b({ id: 'sushi_bar', name: 'Sushi Bar', icon: '🍣', kind: 'production', w: 2, h: 2, cost: 2600, level: 13, xp: 65, height: 56, wall: '#f5ede0', roof: '#34495e', desc: 'Rolls fresh sushi and lobster rolls.' }),

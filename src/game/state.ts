@@ -588,11 +588,16 @@ const REMOVED_BUILDING: Record<string, { cost: number; animal: number }> = {
   dock: { cost: 500, animal: 0 },
   // owls are wild now, living in the trees: the owl barn was taken out
   owl_barn: { cost: 33500, animal: 4590 },
+  // fish and lobsters are caught at the lake and the sea: the fishing pier was taken out
+  fishing_pier: { cost: 700, animal: 0 },
 };
 function dropRemoved(s: GameState) {
   for (const o of s.objects) {
     const r = REMOVED_BUILDING[o.type];
-    if (r) s.coins += r.cost + (o.pen?.animals.length ?? 0) * r.animal;
+    if (!r) continue;
+    s.coins += r.cost + (o.pen?.animals.length ?? 0) * r.animal;
+    // what it had made or was making (its goods still in the game) goes into store
+    for (const e of o.prod?.queue ?? []) if (ITEMS[e.recipe]) s.inv[e.recipe] = (s.inv[e.recipe] ?? 0) + 1;
   }
   for (const k of Object.keys(s.inv)) {
     if (ITEMS[k]) continue;

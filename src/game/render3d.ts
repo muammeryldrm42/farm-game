@@ -4953,7 +4953,7 @@ function buildStandIn(e: Entry, o: FarmObject, d: BuildingDef, store: GameStore)
   switch (d.kind) {
     case 'plot': return buildPlot(e);
     case 'house': case 'barn': return d.id === 'manor' ? buildManor(e, d) : buildHouse(e, d);
-    case 'production': return d.id === 'fishing_pier' ? buildPier(e, d) : buildHouse(e, d);
+    case 'production': return buildHouse(e, d);
     case 'silo': return buildSilo(e);
     case 'board': return buildBoard(e);
     case 'pen': return buildPen(e, d);
@@ -5374,7 +5374,7 @@ function swapInModel(e: Entry, name: string, x: number, z: number, scale: number
 // `userData.keep` (water, goods on display) stay when the model swaps in.
 interface ModelSpec { smoke?: 'always' | 'busy'; badge?: number; variants?: number }
 const MODELS: Record<string, ModelSpec> = {
-  barn: {}, silo: {}, board: {}, stall: {}, fishing_pier: { badge: 0.22 }, manor: { smoke: 'always' },
+  barn: {}, silo: {}, board: {}, stall: {}, manor: { smoke: 'always' },
 };
 for (const id of ['hay_bale', 'picket_fence', 'bird_house', 'pumpkin_pile', 'birdbath', 'topiary', 'well', 'flower_arch',
   'hay_wagon', 'tractor', 'bench', 'lamp', 'scarecrow', 'windmill', 'pond', 'mailbox', 'gazebo', 'fountain',
@@ -6922,37 +6922,6 @@ function buildStall(e: Entry, d: BuildingDef, store: GameStore) {
       sp.position.set(0.55 + i * 0.3, 0.64, 1.3);
       goods.add(sp);
     });
-  };
-}
-
-function waterBasin(g: THREE.Group, w: number, h: number) {
-  keep(bxT(g, w - 0.04, 0.03, h - 0.04, 'sand', '#e2cf98', w / 2, 0, h / 2, 1.5, false));
-  keep(mk(g, G.box, WATER, w - 0.3, 0.04, h - 0.3, w / 2, 0.035, h / 2, false));
-}
-
-function planks(g: THREE.Group, x: number, z: number, w: number, d: number) {
-  const deck = bxT(g, d, 0.07, w, 'planks', '#c49660', x, 0.1, z, 1.2);
-  deck.rotation.y = Math.PI / 2;
-  for (const [px, pz] of [[x - w / 2 + 0.04, z + d / 2 - 0.04], [x + w / 2 - 0.04, z + d / 2 - 0.04], [x - w / 2 + 0.04, z], [x + w / 2 - 0.04, z]]) cyl(g, 0.035, 0.035, 0.22, '#6b4226', px, -0.05, pz, 6);
-}
-
-function buildPier(e: Entry, d: BuildingDef) {
-  const g = e.root;
-  waterBasin(g, 2, 2);
-  planks(g, 0.45, 1, 0.55, 1.8);
-  bxT(g, 0.5, 0.5, 0.45, 'boards', d.wall, 0.45, 0.17, 0.35, 2);
-  roofT(g, 0.64, 0.24, 0.6, d.roof, surfaceMat('boards', d.wall, 2), 0.45, 0.67, 0.35, 0.07);
-  badge(g, d.icon, 0.26, 0.45, 0.45, 0.585);
-  const rod = keep(mk(g, cylGeo(0.01, 0.015, 5), M('#6b4226'), 1, 0.9, 1, 0.9, 0.55, 1.45));
-  rod.rotation.z = -0.9;
-  const bob = keep(ball(g, 0.04, '#e74c3c', 1.5, 0.08, 1.45));
-  const lineGeo = new THREE.BufferGeometry().setFromPoints([new THREE.Vector3(1.26, 0.86, 1.45), new THREE.Vector3(1.5, 0.1, 1.45)]);
-  const line = keep(new THREE.Line(lineGeo, new THREE.LineBasicMaterial({ color: '#ffffff' })));
-  g.add(line);
-  e.top = 1.1;
-  e.update = (o, now, t) => {
-    const busy = !!prodInfo(o, now).current;
-    bob.position.y = 0.08 + (busy ? Math.sin(t / 300) * 0.02 : 0);
   };
 }
 
