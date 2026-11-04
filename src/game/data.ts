@@ -1,4 +1,5 @@
 // Talons Farm - static game data (items, crops, recipes, animals, buildings)
+import { RAW_LOOKS } from './lookData';
 
 export type StorageKind = 'silo' | 'barn';
 
@@ -1928,4 +1929,69 @@ export function unlocksAt(level: number): { icon: string; name: string; id?: str
   for (const r of RECIPES) if (r.level === level) out.push({ icon: ITEMS[r.id].icon, name: ITEMS[r.id].name });
   for (const [id, lv] of CATCHES) if (lv === level && id !== 'fish') out.push({ icon: ITEMS[id].icon, name: ITEMS[id].name });
   return out;
+}
+
+// ------------------------------------------------------------------ pictures told apart
+
+// Goods that looked alike, each drawn as its own (see lookData.ts and icons.ts, which draws these
+// `@` pictures): a raw good its kind's emoji in its own color, or a picture fitting it better;
+// a workshop's goods that shared one picture (the candy maker's candies, the juice press's
+// juices) carry, small in a corner, the ingredient that sets each apart: the one of its
+// ingredients the fewest of that workshop's goods use (the tangerine, not the sugar), and a
+// second one where two would still look the same. The player can tell at a glance what to make.
+export interface Look {
+  kind: 'tint' | 'bottle' | 'skein' | 'feather' | 'egg' | 'own';
+  base: string; tint?: string; tone?: 'dark' | 'light'; marks: string[]; colors: string[];
+  badge?: string; badge2?: string;
+}
+export const LOOKS: Record<string, Look> = {};
+for (const [id, spec] of Object.entries(RAW_LOOKS)) {
+  const it = ITEMS[id];
+  if (!it) continue;
+  const [head, ...rest] = spec.split(' ');
+  let look: Look;
+  if (head === '@') look = { kind: 'own', base: it.icon, marks: [], colors: [] };
+  else if (head === 'bottle' || head === 'skein' || head === 'feather' || head === 'egg') {
+    look = { kind: head, base: it.icon, marks: rest.filter((w) => !w.startsWith('#')), colors: rest.filter((w) => w.startsWith('#')) };
+  }
+  else {
+    const col = rest[0] && rest[0] !== '-' ? rest[0] : undefined;
+    look = {
+      kind: 'tint', base: head === '=' ? it.icon : head, marks: rest.slice(1), colors: [],
+      tint: col?.replace(/[!^]$/, ''), tone: col?.endsWith('!') ? 'dark' : col?.endsWith('^') ? 'light' : undefined,
+    };
+  }
+  LOOKS[id] = look;
+  it.icon = `@${id}`;
+}
+{
+  const byBuilding = new Map<string, RecipeDef[]>();
+  for (const r of RECIPES) byBuilding.set(r.building, [...(byBuilding.get(r.building) ?? []), r]);
+  for (const list of byBuilding.values()) {
+    const uses = new Map<string, number>();
+    for (const r of list) for (const k of Object.keys(r.inputs)) uses.set(k, (uses.get(k) ?? 0) + 1);
+    const pics = new Map<string, number>();
+    for (const r of list) pics.set(ITEMS[r.id].icon, (pics.get(ITEMS[r.id].icon) ?? 0) + 1);
+    // the goods sharing their picture with another of the workshop's, and the drawn ones where it
+    // has more than one (drawn from one design, as the pizzas, they look alike too)
+    const drawn = list.filter((r) => ITEMS[r.id].icon.startsWith('@')).length;
+    const need = list.filter((r) => pics.get(ITEMS[r.id].icon)! > 1 || (drawn > 1 && ITEMS[r.id].icon.startsWith('@')));
+    // each one's ingredients, the one setting it apart first (none drawn as the good itself)
+    const ings = new Map(need.map((r) => {
+      const base = ITEMS[r.id].icon;
+      return [r, Object.entries(r.inputs).sort((x, y) => (uses.get(x[0])! - uses.get(y[0])!) || y[1] - x[1])
+        .map(([k]) => ITEMS[k].icon).filter((ic, i, all) => ic !== base && all.indexOf(ic) === i)] as const;
+    }));
+    // goods that would carry the same first one on the same picture: each also carries the next
+    // of its own the others lack (the soursop juice its sugar, the nectar none)
+    const same = new Map<string, RecipeDef[]>();
+    for (const r of need) { const k = `${ITEMS[r.id].icon}|${ings.get(r)![0] ?? ''}`; same.set(k, [...(same.get(k) ?? []), r]); }
+    for (const r of need) {
+      const mine = ings.get(r)!;
+      const peers = same.get(`${ITEMS[r.id].icon}|${mine[0] ?? ''}`)!;
+      const badge2 = peers.length > 1 ? mine.slice(1).find((ic) => !peers.every((q) => ings.get(q)!.includes(ic))) : undefined;
+      LOOKS[r.id] = { kind: 'tint', base: ITEMS[r.id].icon, marks: [], colors: [], badge: mine[0], badge2 };
+    }
+    for (const r of need) ITEMS[r.id].icon = `@${r.id}`;
+  }
 }
