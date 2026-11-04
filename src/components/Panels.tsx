@@ -180,6 +180,12 @@ function Coins({ n }: { n: number }) {
   );
 }
 
+// What the farm can use at its level first, what a later level opens after it: each by level,
+// the next to open at the top of the locked ones (a workshop's goods, the seeds for a field)
+function openFirst<T extends { level: number }>(list: readonly T[], level: number) {
+  return [...list].sort((a, b) => Number(a.level > level) - Number(b.level > level) || a.level - b.level);
+}
+
 function Lock({ level }: { level: number }) {
   return (
     <span className="inline-flex items-center gap-1 rounded-full bg-[#5a3a1a] px-2 py-0.5 text-[11px] font-bold text-white">
@@ -316,7 +322,7 @@ function PlotSheet({ o }: { o: FarmObject }) {
     <Sheet title={t('Empty Field')} icon="🟫" sub={t('Pick a seed, then tap or drag over empty fields')} onClose={close}>
       <FestNote kind="harvest" />
       <div className="grid grid-cols-3 gap-2 sm:grid-cols-5">
-        {CROPS.map((c) => {
+        {openFirst(CROPS, s.level).map((c) => {
           const it = ITEMS[c.id];
           const locked = s.level < c.level;
           const have = s.inv[c.id] ?? 0;
@@ -409,7 +415,7 @@ function ProductionSheet({ o }: { o: FarmObject }) {
   const info = prodInfo(o, now);
   const q = o.prod?.queue ?? [];
   const slots = o.prod?.slots ?? 3;
-  const recipes = RECIPES.filter((r) => r.building === o.type);
+  const recipes = openFirst(RECIPES.filter((r) => r.building === o.type), s.level);
   const fast = store.fest('craft') ? FEST_FAST : 1;
 
   return (
