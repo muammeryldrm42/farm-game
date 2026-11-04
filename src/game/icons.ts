@@ -2,6 +2,8 @@
 // '@' is drawn here with canvas paths and gradients; the UI shows it as an image and the 3D
 // bubbles paint it straight onto their canvas.
 
+import { LOOKS, type Look } from './data';
+
 type Painter = (c: CanvasRenderingContext2D) => void; // draws into a 128 x 128 box
 
 const lin = (c: CanvasRenderingContext2D, x0: number, y0: number, x1: number, y1: number, stops: [number, string][]) => {
@@ -298,7 +300,30 @@ function swimBadge(bg: string, body: string, head: string, beak: string, extra?:
   });
 }
 
+// a white sugar cube seen from above a corner: a bright top, two shaded sides
+function cube(c: CanvasRenderingContext2D, x: number, y: number, s: number) {
+  const h = s * 0.5;
+  c.beginPath(); c.moveTo(x, y - h); c.lineTo(x + s, y); c.lineTo(x, y + h); c.lineTo(x - s, y); c.closePath();
+  c.fillStyle = '#ffffff'; c.fill(); outline(c, 2.5);
+  c.beginPath(); c.moveTo(x - s, y); c.lineTo(x, y + h); c.lineTo(x, y + h + s * 0.9); c.lineTo(x - s, y + s * 0.9); c.closePath();
+  c.fillStyle = '#e4e8f0'; c.fill(); outline(c, 2.5);
+  c.beginPath(); c.moveTo(x + s, y); c.lineTo(x, y + h); c.lineTo(x, y + h + s * 0.9); c.lineTo(x + s, y + s * 0.9); c.closePath();
+  c.fillStyle = '#c8cedc'; c.fill(); outline(c, 2.5);
+  c.fillStyle = 'rgba(150,160,180,0.5)';
+  for (const [dx, dy] of [[-0.3, 0], [0.2, -0.15], [0.1, 0.2]]) { c.beginPath(); c.arc(x + dx * s, y + dy * s, 1.6, 0, Math.PI * 2); c.fill(); }
+}
+
 const PAINTERS: Record<string, Painter> = {
+  // a blue bowl heaped with sugar cubes (the candy the sugar was drawn as is the candy maker's)
+  sugar: (c) => {
+    cube(c, 50, 46, 17); cube(c, 80, 44, 17); cube(c, 65, 30, 15);
+    c.beginPath(); c.moveTo(14, 66); c.bezierCurveTo(18, 122, 110, 122, 114, 66); c.closePath();
+    c.fillStyle = lin(c, 14, 0, 114, 0, [[0, '#2f6fb8'], [0.45, '#5aa0e8'], [1, '#2a5fa0']]); c.fill(); outline(c);
+    c.beginPath(); c.ellipse(64, 66, 50, 9, 0, 0, Math.PI * 2); c.fillStyle = '#8cc4f4'; c.fill(); outline(c, 3);
+    cube(c, 40, 62, 13); cube(c, 66, 60, 14); cube(c, 90, 62, 13);
+    c.strokeStyle = 'rgba(255,255,255,0.85)'; c.lineWidth = 4; c.lineCap = 'round';
+    c.beginPath(); c.moveTo(30, 82); c.quadraticCurveTo(40, 100, 60, 106); c.stroke();
+  },
   // ---- more farm animals: goods
   silkie_egg: egg(['#fffaf0', '#e8dcc4']),
   black_wool: skein(['#5a5454', '#1a1818']),
@@ -928,11 +953,124 @@ const PAINTERS: Record<string, Painter> = {
   },
 };
 
-export const isDrawn = (icon: string) => icon.startsWith('@') && !!PAINTERS[icon.slice(1)];
+// ---- goods told apart from others of their kind (see LOOKS in data.ts)
+
+// the emoji, as the page draws them (the game's own font first, where it is loaded)
+const EMOJI_FONTS = '"Farm Emoji","Apple Color Emoji","Segoe UI Emoji","Noto Color Emoji",sans-serif';
+// each emoji drawn once (100 px across) and copied from there: drawing a colour emoji is the slow
+// part of these pictures, and many share one (the juice press's juices, the grains)
+const glyphs = new Map<string, HTMLCanvasElement>();
+function glyph(c: CanvasRenderingContext2D, ch: string, x: number, y: number, size: number) {
+  let g = glyphs.get(ch);
+  if (!g) {
+    g = document.createElement('canvas');
+    g.width = g.height = 128;
+    const o = g.getContext('2d');
+    if (o) {
+      o.font = `100px ${EMOJI_FONTS}`;
+      o.textAlign = 'center';
+      o.textBaseline = 'middle';
+      o.fillStyle = '#000';
+      o.fillText(ch, 64, 69);
+    }
+    glyphs.set(ch, g);
+  }
+  const k = size / 100;
+  c.drawImage(g, x - 64 * k, y - 64 * k, 128 * k, 128 * k);
+}
+// an icon (an emoji or a drawn one) centered at (x, y), `size` across
+function anyIcon(c: CanvasRenderingContext2D, icon: string, x: number, y: number, size: number) {
+  if (icon.startsWith('@')) paintIcon(c, icon, x, y, size);
+  else glyph(c, icon, x, y, size * 0.8);
+}
+// a small round tag carrying an ingredient
+function tag(c: CanvasRenderingContext2D, icon: string, x: number, y: number, r: number) {
+  circle(c, x, y, r, '#fffdf6');
+  c.beginPath(); c.arc(x, y, r, 0, Math.PI * 2); outline(c, 3);
+  anyIcon(c, icon, x, y, r * 1.75);
+}
+const DOTS = [[44, 50], [62, 40], [80, 52], [52, 66], [72, 64], [88, 72], [40, 80], [58, 84], [78, 88], [64, 102], [48, 96], [92, 92], [36, 64], [70, 78]];
+
+// the good's picture on its own canvas (its kind's emoji, or a drawn bottle, skein, feather or
+// egg), recolored and marked there, so the colour and the marks fall on the good alone
+function lookPainter(l: Look): Painter {
+  const { badge, badge2 } = l;
+  if (badge) {
+    // a workshop's good: itself, a little smaller up to the left, and the ingredient that sets it
+    // apart on a tag below to the right (a second one below to the left)
+    // (a drawn good keeps its own picture under the same name: drawn as such, not as this)
+    const own = l.base.startsWith('@') ? PAINTERS[l.base.slice(1)] : undefined;
+    return (c) => {
+      if (own) { c.save(); c.translate(2, 2); c.scale(104 / 128, 104 / 128); own(c); c.restore(); } else anyIcon(c, l.base, 54, 54, 104);
+      if (badge2) tag(c, badge2, 30, 98, 22);
+      tag(c, badge, 96, 96, 28);
+    };
+  }
+  const own: Painter | null = l.kind === 'bottle' ? bottle(l.colors[0], l.colors[1], l.colors[2])
+    : l.kind === 'skein' ? skein([l.colors[0], l.colors[1]])
+      : l.kind === 'feather' ? feather([l.colors[0], l.colors[1]])
+        : l.kind === 'egg' ? egg([l.colors[0], l.colors[1]]) : null;
+  const small = l.marks.includes('small'), pair = l.marks.includes('pair'), flip = l.marks.includes('flip');
+  const draw = (o: CanvasRenderingContext2D) => {
+    const one = (x: number, y: number, k: number) => {
+      o.save(); o.translate(x, y); if (flip) o.scale(-1, 1); o.scale(k, k);
+      if (own) { o.translate(-64, -64); own(o); } else glyph(o, l.base, 0, 0, 104);
+      o.restore();
+    };
+    const k = small ? 0.78 : 1;
+    if (pair) { one(46, 72, 0.7 * k); one(82, 54, 0.7 * k); } else one(64, 64, k);
+  };
+  return (c) => {
+    const canvas = () => { const cv = document.createElement('canvas'); cv.width = cv.height = 128; return cv; };
+    // its shape once on a canvas of its own (the mask), then a copy recolored and marked
+    const shape = canvas(), cv = canvas();
+    const m = shape.getContext('2d'), o = cv.getContext('2d');
+    if (!m || !o) return;
+    draw(m);
+    o.drawImage(shape, 0, 0);
+    if (l.tint) {
+      // its own colour over its kind's shading (darker goods multiplied, paler ones washed)
+      o.globalCompositeOperation = l.tone === 'dark' ? 'multiply' : 'color';
+      o.fillStyle = l.tint; o.fillRect(0, 0, 128, 128);
+      if (l.tone === 'light') { o.globalCompositeOperation = 'source-over'; o.globalAlpha = 0.4; o.fillStyle = '#ffffff'; o.fillRect(0, 0, 128, 128); o.globalAlpha = 1; }
+      o.globalCompositeOperation = 'destination-in';
+      o.drawImage(shape, 0, 0);
+    }
+    o.globalCompositeOperation = 'source-atop';
+    const ink = l.tone === 'dark' ? 'rgba(255,240,215,0.6)' : 'rgba(70,40,20,0.5)';
+    if (l.marks.includes('dots')) for (const [x, y] of DOTS) circle(o, x, y, 3.2, ink);
+    if (l.marks.includes('stripes')) {
+      o.strokeStyle = l.tone === 'dark' ? 'rgba(255,240,215,0.35)' : 'rgba(255,255,255,0.42)'; o.lineWidth = 5;
+      for (let i = -128; i < 128; i += 16) { o.beginPath(); o.moveTo(i, 128); o.lineTo(i + 128, 0); o.stroke(); }
+    }
+    o.globalCompositeOperation = 'source-over';
+    c.drawImage(cv, 0, 0);
+  };
+}
+const lookPainters = new Map<string, Painter>();
+function painterOf(name: string): Painter | undefined {
+  const l = LOOKS[name];
+  // (a good with a tag goes before a drawn picture of the same name: its own, under the tag)
+  const p = PAINTERS[name];
+  if (p && !l?.badge) return p;
+  if (!l) return undefined;
+  let q = lookPainters.get(name);
+  if (!q) { q = lookPainter(l); lookPainters.set(name, q); }
+  return q;
+}
+
+export const isDrawn = (icon: string) => icon.startsWith('@') && (!!PAINTERS[icon.slice(1)] || !!LOOKS[icon.slice(1)]);
+
+// the pictures drawn with the emoji font, painted again once the game's own font has come (an
+// old phone drew them with its own, or with empty boxes, before)
+export function repaintEmojiIcons() {
+  glyphs.clear();
+  for (const k of [...urls.keys()]) if (LOOKS[k.slice(1)]) urls.delete(k);
+}
 
 // paint a drawn icon centered at (x, y) with the given size into any canvas
 export function paintIcon(c: CanvasRenderingContext2D, icon: string, x: number, y: number, size: number) {
-  const p = PAINTERS[icon.slice(1)];
+  const p = painterOf(icon.slice(1));
   if (!p) return;
   c.save();
   c.translate(x - size / 2, y - size / 2);
@@ -951,7 +1089,9 @@ export function iconUrl(icon: string) {
   // painted by the CPU: an icon read back from a GPU canvas waits for the GPU to finish drawing
   // the farm (a long stall on a phone, for each icon a panel shows the first time)
   paintIcon(cv.getContext('2d', { willReadFrequently: true }) as CanvasRenderingContext2D, icon, 64, 64, 128);
-  u = cv.toDataURL();
+  // (as WebP where the browser writes it, a third of the PNG's size: some seven hundred are kept;
+  // others write PNG)
+  u = cv.toDataURL('image/webp', 0.92);
   urls.set(icon, u);
   return u;
 }

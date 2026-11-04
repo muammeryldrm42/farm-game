@@ -1,6 +1,6 @@
 'use client';
 import { useEffect } from 'react';
-import Ico from './Ico';
+import Ico, { RichText } from './Ico';
 import { BUILDING, CROP, ITEMS } from '@/game/data';
 import { dailyClaimable } from '@/game/daily';
 import { cupClaimable } from '@/game/cup';
@@ -133,7 +133,7 @@ export default function Hud() {
               tt.tone === 'bad' ? 'border-[#9c3020] bg-[#ffe3dc] text-[#8a2a18]' : tt.tone === 'good' ? 'border-[#3a7d1a] bg-[#e6f8d8] text-[#2d5e14]' : 'border-[#5d3a1f] bg-[#fff6df] text-[#5a3a1a]'
             }`}
           >
-            {tt.text}
+            <RichText text={tt.text} />
           </div>
         ))}
       </div>

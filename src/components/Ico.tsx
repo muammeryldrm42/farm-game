@@ -13,3 +13,10 @@ export default function Ico({ i, id }: { i: string; id?: string }) {
   // eslint-disable-next-line @next/next/no-img-element
   return <img src={iconUrl(i)} alt="" draggable={false} className="inline-block h-[1.15em] w-[1.15em] align-[-0.2em]" />;
 }
+
+// A line of text that may hold drawn icons (`@peach_jam`, as a toast can): each shown as its
+// picture instead of its name
+export function RichText({ text }: { text: string }) {
+  if (!text.includes('@')) return <>{text}</>;
+  return <>{text.split(/(@[a-z_]+)/g).map((p, i) => (isDrawn(p) ? <Ico key={i} i={p} /> : p))}</>;
+}
