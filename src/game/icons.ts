@@ -960,7 +960,8 @@ export function iconUrl(icon: string) {
 // of them (a late farm's barn holds a few hundred) does not wait on them all at once
 export function warmIcons(icons: string[]) {
   if (typeof window === 'undefined') return;
-  const todo = [...new Set(icons.filter(isDrawn))].filter((i) => !urls.has(i));
+  // (in the order given, the first the soonest: taken off the end)
+  const todo = [...new Set(icons.filter(isDrawn))].filter((i) => !urls.has(i)).reverse();
   const idle = (f: (d: { timeRemaining: () => number }) => void) =>
     (typeof window.requestIdleCallback === 'function' ? window.requestIdleCallback(f, { timeout: 2000 }) : setTimeout(() => f({ timeRemaining: () => 8 }), 60));
   const run = (d: { timeRemaining: () => number }) => {
