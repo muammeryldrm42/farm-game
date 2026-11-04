@@ -1,7 +1,7 @@
-# The app's icon: a little grass island with the farmhouse, an apple tree, a hay bale, flowers and
-# two hens, all the game's own Blender models, rendered from above on a clear background.
-# tools/store_art.py lays it on the sky for the store icon, the phone's launcher icons and the
-# splash screen.
+# The app's icon before the duck: a little grass island with the farmhouse, an apple tree, a hay
+# bale, flowers and two hens, all the game's own Blender models, rendered from above on a clear
+# background. (The icon is now the duck on the pond, store/icon-art.webp, cut to its sizes by
+# tools/store_art.py.)
 # Run: python3 tools/blender/icon.py <out.png> [size]
 import math
 import os

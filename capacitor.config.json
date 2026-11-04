@@ -9,7 +9,7 @@
   "plugins": {
     "LocalNotifications": {
       "smallIcon": "ic_stat_farm",
-      "iconColor": "#5cb82e"
+      "iconColor": "#f0a020"
     }
   },
   "server": {

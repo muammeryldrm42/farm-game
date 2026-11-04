@@ -176,7 +176,7 @@ export function notifyAway(s: GameState) {
         schedule: { at: new Date(toDevice(g.at)), allowWhileIdle: true },
         // an alarm to the minute needs a permission from the phone's settings: a farm can wait a little
         isExactNotification: false,
-        channelId: 'farm', smallIcon: 'ic_stat_farm', iconColor: '#5cb82e', autoCancel: true,
+        channelId: 'farm', smallIcon: 'ic_stat_farm', iconColor: '#f0a020', autoCancel: true,
       })),
     });
   });
