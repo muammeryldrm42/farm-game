@@ -736,6 +736,13 @@ function seaGeo(q: Quality) {
 
 // ------------------------------------------------------------------ renderer
 
+// where the sun stands from the point it shines on, and its shadow camera's own axes (it looks
+// from the sun at that point, the world's up as its up; see followSun)
+const SUN_OFF = new THREE.Vector3(14, 26, 8);
+const SUN_Z = SUN_OFF.clone().normalize();
+const SUN_X = new THREE.Vector3(0, 1, 0).cross(SUN_Z).normalize();
+const SUN_Y = SUN_Z.clone().cross(SUN_X);
+
 export class Renderer {
   cam = { zoom: 1.3 };
   W = 1;
@@ -876,7 +883,7 @@ export class Renderer {
     this.cat = actor(FARM_C.x + 1.5, FARM_C.y + 1.5, toon ? actorShell() : buildCat());
     // grazing animals borrow the farmer's walk grid; bees look for blossoms
     GRAZE_NAV = {
-      path: (sx, sy, tx, ty) => { this.rebuildNav(); return this.findPath(sx, sy, tx, ty); },
+      path: (sx, sy, tx, ty, at) => { this.rebuildNav(); return this.findPath(sx, sy, tx, ty, at); },
       nearest: (x, y) => { this.rebuildNav(); return this.nearestFree(x, y); },
       grass: (x, y) => { this.rebuildNav(); return this.free(x, y) && !pathTiles.has(y * GRID + x) && !fieldTiles.has(y * GRID + x); },
       flowers: () => this.flowerSpots(),
@@ -957,6 +964,7 @@ export class Renderer {
     WOOL_MAT.sheen = high ? 1 : 0;
     TOON_MAT.sheen = high ? 0.35 : 0;
     TOON_WOOL.sheen = high ? 0.8 : 0;
+    TREE_SWAY = high ? 1 : 0;
     const ms = high ? 4096 : 1024;
     if (this.sun.shadow.mapSize.x !== ms) {
       this.sun.shadow.mapSize.set(ms, ms);
@@ -1837,6 +1845,7 @@ export class Renderer {
     // at full speed the far animals move every other frame (see the herds)
     ANIM_HALF = dt > 0 && dt < 0.025;
     FRAME_ODD = this.frameNo & 1;
+    SHADOW_MOVERS = 0;
     CAM_AT.copy(this.camera.position);
     resetSculptBudget();
     this.projM.multiplyMatrices(this.camera.projectionMatrix, this.camera.matrixWorldInverse);
@@ -1895,7 +1904,7 @@ export class Renderer {
     this.turtles.update(t);
     this.shore.update(dt, t);
     this.night.update(dt, t, this.nightNow(now), this.target);
-    this.followSun();
+    this.followSun(dt);
     this.cullBlocks();
     const wk = this.updateWeather(dt, now);
     this.updateLight(now, t, wk);
@@ -2121,20 +2130,29 @@ export class Renderer {
     return this.store.s.settings.dayNight ? nightFactor(now).night : 0;
   }
 
-  // the shadow camera follows the view so shadows stay crisp on the big map
-  private followSun() {
+  // The shadow camera follows the view so shadows stay crisp on the big map. It moves by whole
+  // texels of the shadow map along its own axes, which the sun's slant sets (the sun always
+  // shines from the same side): moved along the ground's axes instead, it came a fraction of a
+  // texel off each time the view moved, and every shadow's edge crawled as it was drawn again.
+  private followSun(dt: number) {
     const sc = this.sun.shadow.camera;
     const half = clamp(Math.round(22 / this.cam.zoom), 12, 48);
     if (sc.right !== half) { sc.left = -half; sc.right = half; sc.top = half; sc.bottom = -half; sc.updateProjectionMatrix(); }
     const texel = (half * 2) / this.sun.shadow.mapSize.x;
-    const x = Math.round(this.target.x / texel) * texel, z = Math.round(this.target.z / texel) * texel;
-    this.sun.target.position.set(x, 0, z);
-    this.sun.position.set(x + 14, 26, z + 8);
+    const tx = this.target.x, tz = this.target.z;
+    const iu = Math.round((tx * SUN_X.x + tz * SUN_X.z) / texel), iv = Math.round((tx * SUN_Y.x + tz * SUN_Y.z) / texel);
+    const u = iu * texel, v = iv * texel, w = tx * SUN_Z.x + tz * SUN_Z.z;
+    const x = SUN_X.x * u + SUN_Y.x * v + SUN_Z.x * w, y = SUN_Y.y * v + SUN_Z.y * w, z = SUN_X.z * u + SUN_Y.z * v + SUN_Z.z * w;
+    this.sun.target.position.set(x, y, z);
+    this.sun.position.set(x + SUN_OFF.x, y + SUN_OFF.y, z + SUN_OFF.z);
     this.sun.target.updateMatrixWorld();
-    // the shadow map is redrawn every other frame (every third in low quality), or at once when
-    // the view moves
-    const key = x * 1000 + z + half * 1e7;
-    if (key !== this.shadowKey || this.frameNo % (this.quality === 'high' ? 2 : 3) === 0) this.sun.shadow.needsUpdate = true;
+    // The shadow map is drawn again at once when the view moves, else every other frame (every
+    // third in low quality); every frame while the farmer, a pet or a visitor walks in view, and
+    // at least 30 times a second while an animal does (every frame at 30 frames a second, every
+    // other at 60): the shadows keep up with the feet instead of stepping along behind them.
+    const every = SHADOW_MOVERS === 2 || (SHADOW_MOVERS === 1 && dt > 0.025) ? 1 : SHADOW_MOVERS === 1 || this.quality === 'high' ? 2 : 3;
+    const key = (iu * 20011 + iv) * 64 + half;
+    if (key !== this.shadowKey || this.frameNo % every === 0) this.sun.shadow.needsUpdate = true;
     this.shadowKey = key;
   }
   private shadowKey = 0;
@@ -2684,6 +2702,7 @@ export class Renderer {
     while (diff < -Math.PI) diff += Math.PI * 2;
     v.g.rotation.y += diff * Math.min(1, dt * 6);
     v.g.position.set(v.x, v.moving ? Math.abs(Math.sin(v.phase)) * 0.03 : 0, v.y);
+    if (v.moving && v.g.visible) markMover(v.x, v.y, 2);
     animateLegs(v.g, v.moving ? Math.sin(v.phase) * 0.7 : 0);
     blink(v.g, t, 11);
     const body = v.g.userData.body as THREE.Object3D | undefined;
@@ -2905,7 +2924,8 @@ export class Renderer {
   }
 
   // A* over tiles with diagonal steps (no corner cutting); returns tile centers to walk through
-  private findPath(sx: number, sy: number, tx: number, ty: number) {
+  // (`at`: where the walker stands in its tile, where the straightened path starts from)
+  private findPath(sx: number, sy: number, tx: number, ty: number, at?: P2) {
     if (!this.free(tx, ty)) return null;
     const N = GRID * GRID, start = sy * GRID + sx, goal = ty * GRID + tx;
     if (start === goal) return [];
@@ -2963,12 +2983,45 @@ export class Renderer {
     if (from[goal] < 0) return null;
     const path: { x: number; y: number }[] = [];
     for (let i = goal; i !== start; i = from[i]) path.push({ x: (i % GRID) + 0.5, y: Math.floor(i / GRID) + 0.5 });
-    return path.reverse();
+    return this.straighten(path.reverse(), at ?? { x: sx + 0.5, y: sy + 0.5 });
+  }
+
+  // The tile by tile path, straightened: a walker heads straight for the farthest point of it
+  // that it can reach in a line over open ground, instead of zig-zagging from tile to tile (a
+  // slanting walk was a stair of straight and diagonal steps, turning it this way and that at
+  // every tile). Ground that costs more to cross (pens, flower beds) is kept to the tiles the
+  // planned way crosses.
+  private straighten(path: P2[], start: P2) {
+    const out: P2[] = [];
+    let from = start;
+    for (let j = 0; j < path.length; j++) {
+      const next = path[j + 1];
+      if (next && this.clearLine(from, next, true)) continue;
+      out.push(path[j]);
+      from = path[j];
+    }
+    return out;
+  }
+
+  // a straight walk from a to b over walkable tiles, with `room` tiles either side of the line;
+  // `open`: over open ground only (not pens and flower beds, which can be crossed)
+  private clearLine(a: P2, b: P2, open = false, room = 0.3) {
+    const dx = b.x - a.x, dy = b.y - a.y, L = Math.hypot(dx, dy);
+    if (L < 1e-6) return true;
+    const nx = (-dy / L) * room, ny = (dx / L) * room, n = Math.ceil(L / 0.2);
+    for (let k = 0; k <= n; k++) {
+      const x = a.x + (dx * k) / n, y = a.y + (dy * k) / n;
+      for (let s = -1; s <= 1; s++) {
+        const tx = Math.floor(x + nx * s), ty = Math.floor(y + ny * s);
+        if (!this.free(tx, ty) || (open && this.nav[ty * GRID + tx] === 2)) return false;
+      }
+    }
+    return true;
   }
 
   private send(a: Actor, tx: number, ty: number) {
     const sx = Math.floor(a.x), sy = Math.floor(a.y);
-    const p = this.findPath(sx, sy, tx, ty);
+    const p = this.findPath(sx, sy, tx, ty, { x: a.x, y: a.y });
     if (!p) return false;
     a.path = p;
     a.goal = { x: tx, y: ty };
@@ -3071,8 +3124,9 @@ export class Renderer {
         const n = this.nearestFree(tx, ty) ?? this.nearestFree(Math.floor(this.target.x), Math.floor(this.target.z), 30);
         if (n) { a.x = n.x + 0.5; a.y = n.y + 0.5; a.path = []; }
       }
-      // the path got blocked by something new: plan again or stop
-      if (a.path.length && a.path.some((p) => !this.free(Math.floor(p.x), Math.floor(p.y)))) {
+      // the path got blocked by something new (anywhere along its straight stretches): plan
+      // again or stop
+      if (a.path.length && a.path.some((p, i) => !this.clearLine(i ? a.path[i - 1] : a, p, false, 0))) {
         if (!a.goal || !this.send(a, a.goal.x, a.goal.y)) a.path = [];
       }
     }
@@ -3145,6 +3199,7 @@ export class Renderer {
       a.g.visible = a.fade > 0.01;
       a.g.scale.setScalar(0.3 + a.fade * 0.7);
       a.g.position.set(a.x, a.moving ? Math.abs(Math.sin(a.phase)) * 0.03 : 0, a.y);
+      if (a.moving && a.g.visible) markMover(a.x, a.y, 2);
       const cur = a.g.rotation.y;
       let diff = a.heading - cur;
       while (diff > Math.PI) diff -= Math.PI * 2;
@@ -3278,13 +3333,14 @@ export class Renderer {
         const to = this.catSpot();
         if (to && this.send(c, to.x, to.y)) {
           this.catAct = to.act;
-          this.catWait = c.path.length / 1.6 + (to.act === 'nap' ? 20 + Math.random() * 25 : 5 + Math.random() * 9);
+          this.catWait = polyLen([c, ...c.path]) / 1.6 + (to.act === 'nap' ? 20 + Math.random() * 25 : 5 + Math.random() * 9);
         } else this.catWait = 1.5;
       }
     }
     this.step(c, 1.6, dt);
     c.phase += dt * (c.moving ? 14 : 0);
     c.g.position.set(c.x, 0, c.y);
+    if (c.moving && c.g.visible) markMover(c.x, c.y, 2);
     let diff = c.heading - c.g.rotation.y;
     while (diff > Math.PI) diff -= Math.PI * 2;
     while (diff < -Math.PI) diff += Math.PI * 2;
@@ -3366,16 +3422,22 @@ export class Renderer {
     return null;
   }
 
-  // follow the path; returns true when standing still
+  // follow the path; returns true when standing still. The whole of a frame's step is walked,
+  // on past a point of the path when it reaches one, so the walker keeps its pace through each
+  // instead of stopping short at it for that frame (a small hitch at every one).
   private step(a: Actor, speed: number, dt: number) {
     if (a.inside || a.sleeping || !a.path.length) { a.moving = false; return true; }
-    const p = a.path[0];
-    const dx = p.x - a.x, dy = p.y - a.y, d = Math.hypot(dx, dy);
-    const mv = speed * dt;
+    let mv = speed * dt;
     a.moving = true;
-    a.heading = Math.atan2(dx, dy);
-    if (d <= mv) { a.x = p.x; a.y = p.y; a.path.shift(); if (!a.path.length) a.moving = false; }
-    else { a.x += (dx / d) * mv; a.y += (dy / d) * mv; }
+    while (a.path.length) {
+      const p = a.path[0];
+      const dx = p.x - a.x, dy = p.y - a.y, d = Math.hypot(dx, dy);
+      if (d > 1e-6) a.heading = Math.atan2(dx, dy);
+      if (d > mv) { a.x += (dx / d) * mv; a.y += (dy / d) * mv; break; }
+      a.x = p.x; a.y = p.y; mv -= d;
+      a.path.shift();
+    }
+    if (!a.path.length) a.moving = false;
     return !a.moving;
   }
 }
@@ -3430,6 +3492,20 @@ let EYES_FAR = false;
 let ANIM_HALF = false;
 let FRAME_ODD = 0;
 const CAM_AT = new THREE.Vector3();
+// The gentle sway of the trees' crowns, in high quality only. A phone's picture (low quality) has
+// fewer pixels than its screen, and a crown moving a fraction of a pixel there has its outline
+// crawl pixel by pixel, which reads as flicker rather than wind. A tree shaken by a harvest or a
+// tap still wobbles.
+let TREE_SWAY = 1;
+// Something walking in view this frame, for the sun's shadows (see followSun): 2 the farmer, a
+// pet or a visitor, 1 an animal.
+let SHADOW_MOVERS = 0;
+const moverBall = new THREE.Sphere(new THREE.Vector3(), 1.5);
+function markMover(x: number, z: number, kind: 1 | 2) {
+  if (SHADOW_MOVERS >= kind) return;
+  moverBall.center.set(x, 0.5, z);
+  if (!VIEW || VIEW.intersectsSphere(moverBall)) SHADOW_MOVERS = kind;
+}
 function blink(m: THREE.Object3D, t: number, id: number) {
   const head = (m.userData.head as THREE.Object3D | undefined) ?? m;
   const list = head.userData.eyes as THREE.Object3D[] | undefined;
@@ -5696,7 +5772,7 @@ function fence(g: THREE.Group, w: number, h: number, white = false) {
 // walk grid and knows where the flowers are for the bees.
 type P2 = { x: number; y: number };
 let GRAZE_NAV: {
-  path: (sx: number, sy: number, tx: number, ty: number) => P2[] | null;
+  path: (sx: number, sy: number, tx: number, ty: number, at?: P2) => P2[] | null;
   nearest: (x: number, y: number) => P2 | null;
   grass: (x: number, y: number) => boolean;
   flowers: () => P2[];
@@ -5724,11 +5800,20 @@ function polyLen(pts: P2[]) {
   for (let i = 1; i < pts.length; i++) L += Math.hypot(pts[i].x - pts[i - 1].x, pts[i].y - pts[i - 1].y);
   return L;
 }
-// point at fraction k of the way along a polyline, and the walking direction there
+// point at fraction k of the way along a polyline, and the walking direction there: taken over a
+// short stretch round the point, so a walker turns smoothly round a corner of its way instead of
+// all at once as it passes it
 function along(pts: P2[], k: number) {
   if (pts.length === 1) return { x: pts[0].x, y: pts[0].y, dx: 0, dy: 1 };
   const L = polyLen(pts);
-  let want = Math.max(0, Math.min(1, k)) * L;
+  const at = Math.max(0, Math.min(1, k)) * L;
+  const p = pointAt(pts, at);
+  const a = pointAt(pts, Math.max(0, at - 0.3)), b = pointAt(pts, Math.min(L, at + 0.3));
+  const dx = b.x - a.x, dy = b.y - a.y;
+  return Math.hypot(dx, dy) > 1e-4 ? { x: p.x, y: p.y, dx, dy } : p;
+}
+// the point `want` tiles along a polyline, and the way its piece there runs
+function pointAt(pts: P2[], want: number) {
   for (let i = 1; i < pts.length; i++) {
     const a = pts[i - 1], b = pts[i];
     const seg = Math.hypot(b.x - a.x, b.y - a.y);
@@ -5744,7 +5829,7 @@ function along(pts: P2[], k: number) {
 const tileOf = (p: P2) => ({ x: Math.floor(p.x), y: Math.floor(p.y) });
 function walk(from: P2, to: P2) {
   const a = tileOf(from), b = tileOf(to);
-  const p = GRAZE_NAV?.path(a.x, a.y, b.x, b.y);
+  const p = GRAZE_NAV?.path(a.x, a.y, b.x, b.y, from);
   return p ? [from, ...p, to] : [from, to];
 }
 
@@ -6535,6 +6620,13 @@ function buildPen(e: Entry, d: BuildingDef) {
       }
       if (tail) tail.rotation.z = Math.sin(t / (an?.id === 'goat' ? 90 : 330) + id) * 0.35;
     });
+    // an animal that walked (or flew) since the last frame: with the herd in view, the sun's
+    // shadows keep up with it (see followSun)
+    let walking = false;
+    for (const m of herd.children) {
+      const u = m.userData;
+      if (u.sx !== m.position.x || u.sz !== m.position.z) { walking ||= u.sx !== undefined; u.sx = m.position.x; u.sz = m.position.z; }
+    }
     // animals all out of view keep last frame's matrices (and a herd out grazing is then moved
     // less often, see frame); bees roam too far from their hive to tell, so they always count
     let inView = an?.id === 'bee' || !VIEW;
@@ -6544,6 +6636,7 @@ function buildPen(e: Entry, d: BuildingDef) {
       inView = VIEW!.intersectsSphere(herdBall);
     }
     e.herdSeen = inView;
+    if (walking && inView && !SHADOW_MOVERS) SHADOW_MOVERS = 1;
     herdMoved = inView || rebuilt;
     if (inView && herdMeshes.length) drawBatched(herd, herdMeshes);
   };
@@ -6718,8 +6811,8 @@ function buildFruitTree(e: Entry, d: BuildingDef) {
     });
     const u = (t - shake) / 900;
     const wobble = u >= 0 && u < 1 ? Math.sin(u * Math.PI * 7) * (1 - u) * 0.1 : 0;
-    crown.rotation.z = Math.sin(t / 1100 + o.id) * 0.02 + wobble;
-    crown.rotation.x = Math.sin(t / 1400 + o.id * 2) * 0.012 + wobble * 0.5;
+    crown.rotation.z = Math.sin(t / 1100 + o.id) * 0.02 * TREE_SWAY + wobble;
+    crown.rotation.x = Math.sin(t / 1400 + o.id * 2) * 0.012 * TREE_SWAY + wobble * 0.5;
   };
 }
 
@@ -6761,8 +6854,8 @@ function buildBanana(e: Entry, leaf: string, kind = 'banana') {
     fruit.forEach((f, i) => { f.visible = ti.ready || ti.p > (i + 1) * 0.4; f.scale.setScalar(0.3 * (ti.ready ? 1 : 0.55 + ti.p * 0.45)); });
     const u = (t - shake) / 900;
     const wobble = u >= 0 && u < 1 ? Math.sin(u * Math.PI * 7) * (1 - u) * 0.07 : 0;
-    crown.rotation.z = Math.sin(t / 1600 + o.id) * 0.02 + wobble;
-    leaves.forEach((l, i) => { l.rotation.z = Math.sin(t / 900 + i * 1.3 + o.id) * 0.05; });
+    crown.rotation.z = Math.sin(t / 1600 + o.id) * 0.02 * TREE_SWAY + wobble;
+    leaves.forEach((l, i) => { l.rotation.z = Math.sin(t / 900 + i * 1.3 + o.id) * 0.05 * TREE_SWAY; });
   };
 }
 
@@ -6789,8 +6882,8 @@ function buildPalm(e: Entry, d: BuildingDef, leaf: string) {
     fruit.forEach((f, i) => { f.visible = i < n; f.scale.setScalar(0.06 * (ti.ready ? 1 : 0.6 + ti.p * 0.4)); });
     const u = (t - shake) / 900;
     const wobble = u >= 0 && u < 1 ? Math.sin(u * Math.PI * 7) * (1 - u) * 0.08 : 0;
-    crown.rotation.z = Math.sin(t / 1500 + o.id) * 0.025 + wobble;
-    if (fronds.parent) fronds.children.forEach((f, i) => { f.rotation.z = Math.sin(t / 700 + i + o.id) * 0.06; });
+    crown.rotation.z = Math.sin(t / 1500 + o.id) * 0.025 * TREE_SWAY + wobble;
+    if (fronds.parent) fronds.children.forEach((f, i) => { f.rotation.z = Math.sin(t / 700 + i + o.id) * 0.06 * TREE_SWAY; });
   };
 }
 
@@ -6859,7 +6952,7 @@ function buildObstacle(e: Entry, o: FarmObject) {
   if (o.type === 'tree_obs') {
     const { crown } = leafyTree(g, 0.5, 0.5, '#3f8a33', 1.08, o.id, !!MODELS.tree_obs);
     e.top = 1.3;
-    e.update = (ob, _n, t) => { crown.rotation.z = Math.sin(t / 1300 + ob.id) * 0.015; };
+    e.update = (ob, _n, t) => { crown.rotation.z = Math.sin(t / 1300 + ob.id) * 0.015 * TREE_SWAY; };
   } else if (o.type === 'rock_obs') {
     mk(g, G.rock, MF('#9a9ea3'), 0.34, 0.24, 0.3, 0.48, 0.18, 0.5).rotation.y = 0.6;
     mk(g, G.rock, MF('#83878c'), 0.16, 0.12, 0.15, 0.78, 0.08, 0.7);
@@ -7123,7 +7216,7 @@ function buildDeco(e: Entry, d: BuildingDef) {
     case 'oak': {
       const { crown } = leafyTree(g, 0.5, 0.5, '#4f9e36', 1, 3, !!MODELS.oak);
       e.top = 1.25;
-      e.update = (o, _n, t) => { crown.rotation.z = Math.sin(t / 1200 + o.id) * 0.015; };
+      e.update = (o, _n, t) => { crown.rotation.z = Math.sin(t / 1200 + o.id) * 0.015 * TREE_SWAY; };
       break;
     }
     case 'flowers': {
