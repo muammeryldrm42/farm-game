@@ -54,8 +54,9 @@ jobs:
 
       # The new APK takes the old one's place on the page, which is made only when it is not there:
       # deleting the page first left no APK at the address when GitHub then failed to make the new
-      # one (an HTTP 502). Tried three times, as GitHub's own errors come and go; the step fails
-      # if the page still has no APK.
+      # one (an HTTP 502). A page left as a draft (gh makes one, adds the APK, then publishes it,
+      # and the 502 came before the publishing) is published here too. Tried three times, as
+      # GitHub's own errors come and go; the step fails if the page is not out with the APK.
       - name: Put it on the release page
         env:
           GH_TOKEN: ${{ github.token }}
@@ -64,14 +65,15 @@ jobs:
         run: |
           for try in 1 2 3; do
             if gh release view android-test > /dev/null 2>&1; then
-              gh release upload android-test talons-farm.apk --clobber && gh release edit android-test --notes "$NOTES" && break
+              gh release upload android-test talons-farm.apk --clobber \
+                && gh release edit android-test --draft=false --prerelease --target "$GITHUB_SHA" --notes "$NOTES" && break
             else
               gh release create android-test talons-farm.apk --target "$GITHUB_SHA" --prerelease \
                 --title "Talons Farm: Android test APK" --notes "$NOTES" && break
             fi
             sleep 30
           done
-          gh release view android-test --json assets --jq '.assets[].name' | grep -qx talons-farm.apk
+          gh release view android-test --json isDraft,assets --jq 'select(.isDraft == false) | .assets[].name' | grep -qx talons-farm.apk
 
   screens:
     needs: apk
