@@ -1,5 +1,6 @@
-# A test APK of the Android app, built by GitHub on each push to this branch (or by hand from the
-# Actions tab): kept with the run, and put on the release page "android-test" at a fixed address,
+# A test APK of the Android app, built by GitHub when started by hand from the Actions tab (Run
+# workflow; the game is tried in Android Studio, so pushes no longer start it): kept with the
+# run, and put on the release page "android-test" at a fixed address,
 # https://github.com/muammeryldrm42/farm-game/releases/download/android-test/talons-farm.apk
 # It is the debug build (signed with a throwaway debug key): for trying on a phone, not for Google
 # Play, which takes the signed release bundle made in Android Studio (see README.md).
@@ -9,8 +10,6 @@
 name: Android test APK
 
 on:
-  push:
-    branches: [claude/android-project]
   workflow_dispatch:
 
 permissions:
