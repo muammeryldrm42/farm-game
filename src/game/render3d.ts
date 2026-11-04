@@ -921,6 +921,7 @@ export class Renderer {
   private onRestored = () => {
     this.envTex?.dispose();
     this.buildEnvironment();
+    this.dirty = true;
   };
 
   dispose() {
@@ -984,6 +985,7 @@ export class Renderer {
 
   resize(w: number, h: number, dpr: number) {
     this.size = { w, h, dpr };
+    this.dirty = true;
     this.W = w; this.H = h;
     lodScale = clamp(h / 700, 0.65, 1);
     // phones report up to 3x; past 2x the extra pixels cost a lot and show little. The picture
@@ -1942,8 +1944,15 @@ export class Renderer {
     showOffView();
     if (!drawnOnce) farmDrawn();
     if (this.onFirstDraw) { const f = this.onFirstDraw; this.onFirstDraw = null; f(); }
+    this.dirty = false;
   }
   private warm: 'cold' | 'warming' | 'compiled' | 'done' = 'cold';
+  // Under a window that covers the farm (see Game.tsx) the farm is not drawn, its last picture
+  // staying on screen: once it has warmed up (its shaders compiled and models in, which takes
+  // frames), and unless the picture was lost (`dirty`: the canvas resized, which clears it, or the
+  // GPU given back), when one frame is drawn again.
+  get warmedUp() { return this.warm === 'done'; }
+  dirty = true;
   // Stand ins for what first shows during play (the sparkle of a harvest or a new building, the
   // rain, a fishing line, the animals' eyes), compiled with the farm at start up: a shader compiled the first time
   // it is needed is a stall of a good part of a second on a phone.

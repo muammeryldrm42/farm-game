@@ -1,7 +1,8 @@
 'use client';
 import { useEffect, useRef, useState } from 'react';
 import { GameStore, TUTORIAL_DONE, fmtTime, loadGame, plotProgress, type FarmObject } from '@/game/state';
-import { BUILDING, ITEM_LIST } from '@/game/data';
+import { BUILDING, BUILDINGS, ITEM_LIST } from '@/game/data';
+import { MODEL_ICONS } from '@/game/modelIcons';
 import { warmIcons } from '@/game/icons';
 import { Renderer, nightFactor, redrawCanvasTextures } from '@/game/render3d';
 import { loadEmojiFont } from '@/game/emojiFont';
@@ -23,6 +24,14 @@ import { inYouTube, onYtAudio, onYtPause, ytAudioOn, ytFirstFrame, ytPaused, ytR
 
 // the farm was drawn once (the card of what is ready on coming back waits for it)
 let drawnOnce = false;
+// The painted icons made ready while the farm is idle (see warmIcons): the goods' (storage,
+// orders), then the shop's buildings without a picture from their model, the early levels first.
+// The shop's animal tab painted a dozen of them at once the first time it was opened, a stall of
+// a good tenth of a second on a phone.
+const WARM_ICONS = () => [
+  ...ITEM_LIST.map((i) => i.icon),
+  ...BUILDINGS.filter((d) => d.buyable && !MODEL_ICONS.has(d.id)).sort((a, b) => a.level - b.level).map((d) => d.icon),
+];
 
 export default function Game() {
   const [store, setStore] = useState<GameStore | null>(null);
@@ -60,7 +69,7 @@ export default function Game() {
   return (
     <Guard fallback={<Broken onReload={() => { store.saveNow(); void kvFlush().finally(() => location.reload()); }} />}>
       <StoreCtx.Provider value={store}>
-        <FarmCanvas onDrawn={() => { setDrawn(true); drawnOnce = true; store.welcomeBack(); setTimeout(() => warmIcons(ITEM_LIST.map((i) => i.icon)), 4000); }} onFail={() => setNoGl(true)} />
+        <FarmCanvas onDrawn={() => { setDrawn(true); drawnOnce = true; store.welcomeBack(); setTimeout(() => warmIcons(WARM_ICONS()), 4000); }} onFail={() => setNoGl(true)} />
         <Guard><Hud /></Guard>
         <Guard><Flyers /></Guard>
         <Guard onError={closeFailed}><Panels /></Guard>
@@ -364,6 +373,15 @@ function FarmCanvas({ onDrawn, onFail }: { onDrawn: () => void; onFail: () => vo
     // time after the last one would draw every other (45). After a slow frame the beat moves on
     // instead of rushing to catch up.
     let last = 0, prev = 0, avg = 1000 / 60;
+    // A window over the farm (the shop, the storage, the orders, the settings, the story...): the
+    // farm is not drawn while it is open, its last picture staying under the window's dim
+    // backdrop. On a phone a frame of the farm takes most of the time a frame has; left to the
+    // window, it opens, scrolls and answers at once. Not under the sheet of a field or a pen,
+    // the story's words or the night's sleep, where the farm goes on being played or watched.
+    const covered = () => {
+      const ui = store.ui;
+      return !!ui.panel || !!ui.expand || ui.levelUp !== null || ui.daily || !!ui.notifyAsk || store.elsewhere;
+    };
     const loop = (t: number) => {
       // paused by YouTube: no frames until it says to go on
       if (ytPaused()) { raf = 0; return; }
@@ -376,6 +394,7 @@ function FarmCanvas({ onDrawn, onFail }: { onDrawn: () => void; onFail: () => vo
         if (t - last < gap - 4) return;
         last = Math.max(last + gap, t - gap);
       } else last = t;
+      if (covered() && r.warmedUp && !r.dirty) return;
       r.frame(t);
     };
     raf = requestAnimationFrame(loop);

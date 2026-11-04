@@ -696,7 +696,7 @@ function StallModal() {
   // A late farm holds hundreds of goods: the list is drawn in parts (as the storage), and the
   // chosen one's card sits above it, brought into view, so Put on stall is never far below
   const [opened, setOpened] = useState(0);
-  const shown = useProgressive(pick !== null ? owned.length : 0, `pick-${opened}`, 48, 120);
+  const shown = useProgressive(pick !== null ? owned.length : 0, `pick-${opened}`, 48);
   const cardRef = useRef<HTMLDivElement | null>(null);
   useEffect(() => { if (item) cardRef.current?.scrollIntoView({ block: 'nearest' }); }, [item]);
 
@@ -1087,7 +1087,7 @@ function ShopModal() {
   const cardsKey = `${tab}|${s.level}|${s.coins}|${store.objVersion}|${s.objects.length}|${seeds}|${(s.prizes ?? []).join()}|${pointing ? `${g!.id}@${g!.at}` : ''}|${getLang()}`;
   // the cards of the tab, drawn in parts (a tab holds up to a hundred and more)
   const count = BUILDINGS.reduce((n, d) => n + (d.buyable && st.filter(d) ? 1 : 0), 0) + (tab === 'crops' ? CROPS.length : 0);
-  const shown = useProgressive(count, tab, 24, 80);
+  const shown = useProgressive(count, tab, 24);
   const cards = useMemo(() => {
     // the season prizes won come first, the ones still to win last
     const rank = (d: BuildingDef) => (PRIZE_OF[d.id] ? (hasPrize(s, d.id) ? -1 : 1) : 0);
@@ -1423,17 +1423,22 @@ function OrdersModal() {
 
 // ------------------------------------------------------------------ storage
 
-// A long list drawn in parts: the first few screenfuls at once, the rest a frame later, a hundred
-// or so at a time, so a window opens without waiting for hundreds of cards nobody sees yet. `key`
+// A long list drawn in parts, so a window opens without waiting for hundreds of cards nobody sees
+// yet: what fills the window at once, the rest once the window has popped open (its 0.22 s
+// opening is not held up by them, which made it stutter on a phone), then `step` a frame. `key`
 // starts it over (another tab of the same window).
-function useProgressive(total: number, key: string, first = 36, step = 120) {
+function useProgressive(total: number, key: string, first = 36, step = 24) {
   const [at, setAt] = useState({ key, n: first });
+  const [opened] = useState(() => performance.now());
   const n = at.key === key ? at.n : first;
   useEffect(() => {
     if (n >= total) return;
-    const id = requestAnimationFrame(() => setAt({ key, n: n + step }));
+    const next = () => setAt({ key, n: n + step });
+    const wait = opened + 260 - performance.now();
+    if (wait > 0) { const id = setTimeout(next, wait); return () => clearTimeout(id); }
+    const id = requestAnimationFrame(next);
     return () => cancelAnimationFrame(id);
-  }, [n, total, key, step]);
+  }, [n, total, key, step, opened]);
   return Math.min(n, total);
 }
 
