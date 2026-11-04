@@ -49,7 +49,7 @@ Before every later upload, raise `versionCode` (and `versionName`, as players se
 `android/app/src/main/assets/public` is the web game's build (`npm run build` on the main branch,
 the `out` folder), copied in with each change.
 
-The version at the foot of the game's settings (Version 484d079, Sürüm in Turkish) is worked out
+The version at the foot of the game's settings (Version 63354cd, Sürüm in Turkish) is worked out
 from everything the game is made from: the app and the website show the same one when they are
 the same game. A different one in the app means this folder is older than the website (or the
 reverse): download this branch again, or install the test APK above.
